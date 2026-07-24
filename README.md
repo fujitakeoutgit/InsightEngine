@@ -120,23 +120,34 @@ ollama pull llama3.3:70b
 > is built for thoroughness. To trade accuracy for speed, point
 > `MANAFOLD_OLLAMA_MODEL` at a model that fits entirely in VRAM.
 
-### Backend
+### First-time install
 
 ```bash
-cd server
-py -3.11 -m venv .venv
-.venv/Scripts/python -m pip install -r requirements.txt
-.venv/Scripts/python -m app.bulk          # ~230 MB download, builds the mirror
-.venv/Scripts/python -m uvicorn app.main:app --port 8787
+py -3.11 -m venv server/.venv
+server/.venv/Scripts/python -m pip install -r server/requirements.txt
+npm --prefix web install
+cd server && .venv/Scripts/python -m app.bulk    # ~230 MB, builds the mirror
 ```
 
-### Frontend
+### Running it
+
+```powershell
+.\start.ps1
+```
+
+Checks the environment, the mirror and the model, starts both servers, waits
+for the web server to bind, and opens a browser. `-NoBrowser` to skip opening
+one, `-SkipChecks` to skip the preflight.
+
+Or start the two halves yourself:
 
 ```bash
-cd web
-npm install
-npm run dev                                # http://localhost:5173
+cd server && .venv/Scripts/python -m uvicorn app.main:app --port 8787
+cd web    && npm run dev                          # http://localhost:5173
 ```
+
+Ollama only needs to be running for `q:` searches — everything else works
+without it.
 
 ### Refreshing card data
 
