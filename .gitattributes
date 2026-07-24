@@ -1,0 +1,15 @@
+# Normalise line endings in the repo; check out native on each platform.
+* text=auto
+
+*.py   text eol=lf
+*.ts   text eol=lf
+*.tsx  text eol=lf
+*.css  text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.html text eol=lf
+
+*.png binary
+*.jpg binary
+*.svg binary
+*.sqlite3 binary

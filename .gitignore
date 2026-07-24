@@ -1,0 +1,21 @@
+# Card mirror and cached bulk downloads — rebuildable with `python -m app.bulk`
+data/
+
+# Python
+server/.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+server/.env
+
+# Node
+web/node_modules/
+web/dist/
+*.local
+*.tsbuildinfo
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
