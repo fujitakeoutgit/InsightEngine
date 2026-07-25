@@ -27,8 +27,27 @@ from .resolver import Resolution
 # than a deck theme.
 GENERIC_TAG_SHARE = 0.06
 MIN_DECK_OCCURRENCES = 2
-MAX_THEMES = 14
-CANDIDATES_PER_THEME = 60
+MAX_THEMES = 20
+CANDIDATES_PER_THEME = 120
+
+# A theme scoring below this fraction of the best one is *supporting*: real,
+# but not what makes the deck this deck. Cards are only suggested for matching
+# a signature theme, which is what stops the list filling with staples.
+SIGNATURE_RATIO = 0.45
+
+# Tags describing a generic job any deck wants done. On their own they are
+# never a reason to play a card here -- "it ramps" is true of a thousand cards.
+# They stay in the theme list (they are informative) but never qualify a
+# recommendation by themselves.
+FUNCTIONAL_TAGS = {
+    "mana-rock", "mana-dork", "adds-multiple-mana", "manaless-value",
+    "ramp", "land-ramp", "mana-fixing", "cost-reduction",
+    "draw-engine", "repeatable-pure-draw", "cantrip", "card-advantage",
+    "spot-removal", "removal-creature", "removal-destroy", "removal-exile",
+    "mass-removal", "board-wipe", "single-target-instant-sorcery",
+    "evasion", "combat-trick", "tapper-creature", "lifegain",
+    "unique-type-line", "alliteration", "french-vanilla",
+}
 
 
 @dataclass
@@ -37,6 +56,7 @@ class Theme:
     in_deck: int
     corpus: int
     score: float
+    signature: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -44,6 +64,7 @@ class Theme:
             "in_deck": self.in_deck,
             "corpus": self.corpus,
             "score": round(self.score, 3),
+            "signature": self.signature,
         }
 
 
@@ -87,7 +108,22 @@ def derive_themes(conn: sqlite3.Connection, oracle_ids: list[str]) -> list[Theme
         for row in rows
     ]
     themes.sort(key=lambda t: t.score, reverse=True)
-    return themes[:MAX_THEMES]
+    themes = themes[:MAX_THEMES]
+
+    # Signature themes are what make this deck distinctive; everything else is
+    # supporting. A purely functional tag is never signature no matter how it
+    # scores, because "this deck plays mana rocks" recommends every mana rock
+    # ever printed.
+    if themes:
+        cutoff = themes[0].score * SIGNATURE_RATIO
+        for theme in themes:
+            theme.signature = theme.score >= cutoff and theme.slug not in FUNCTIONAL_TAGS
+        # If the denylist removed every candidate, fall back to the top theme
+        # rather than returning nothing at all.
+        if not any(t.signature for t in themes):
+            themes[0].signature = True
+
+    return themes
 
 
 def recommend(
@@ -95,7 +131,7 @@ def recommend(
     resolutions: list[Resolution],
     *,
     format_key: str | None = None,
-    limit: int = 40,
+    limit: int = 150,
 ) -> dict[str, Any]:
     cards = _deck_cards(resolutions)
     if not cards:
@@ -134,6 +170,7 @@ def recommend(
 
     slugs = [t.slug for t in themes]
     theme_weight = {t.slug: t.score for t in themes}
+    signature = {t.slug for t in themes if t.signature}
 
     rows = conn.execute(
         f"""
@@ -155,7 +192,10 @@ def recommend(
         if row["oracle_id"] in owned:
             continue
         matched = sorted(set((row["matched"] or "").split(",")) & set(slugs))
-        if not matched:
+        # Matching only supporting themes means the card is a generic staple
+        # in these colours, not something this deck wants. Requiring a
+        # signature hit is what keeps ramp and removal out of the list.
+        if not (set(matched) & signature):
             continue
         # Sum the themes it hits, nudged by how played the card is.
         relevance = sum(theme_weight[s] for s in matched)

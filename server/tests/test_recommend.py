@@ -62,6 +62,46 @@ def test_themes_describe_the_deck_not_the_rules(conn, resolver):
     assert any("sacrifice" in s or "death" in s or "dies" in s for s in slugs), slugs
 
 
+def test_functional_tags_never_count_as_signature(conn, resolver):
+    """'This deck plays mana rocks' would recommend every mana rock printed."""
+    from app.deck.recommend import FUNCTIONAL_TAGS
+
+    resolutions = resolve_deck(resolver, ARISTOCRATS)
+    ids = [r.card["oracle_id"] for r in resolutions if r.card]
+    themes = derive_themes(conn, ids)
+
+    signature = {t.slug for t in themes if t.signature}
+    assert signature, "a deck must have at least one signature theme"
+    assert not (signature & FUNCTIONAL_TAGS), signature & FUNCTIONAL_TAGS
+
+
+def test_generic_staples_are_not_recommended(conn, resolver):
+    """Ramp and generic removal must not appear just for being good cards."""
+    resolutions = resolve_deck(resolver, ARISTOCRATS)
+    result = recommend(conn, resolutions, format_key="commander", limit=150)
+    names = {r["card"]["name"] for r in result["recommendations"]}
+
+    # Colourless auto-includes every Commander deck runs. None of these
+    # interact with sacrifice, so none should be suggested here.
+    staples = {"Sol Ring", "Arcane Signet", "Swiftfoot Boots", "Lightning Greaves",
+               "Commander's Sphere", "Mind Stone", "Fellwar Stone", "Talisman of Hierarchy"}
+    assert not (names & staples), f"generic staples leaked in: {names & staples}"
+
+
+def test_every_recommendation_hits_a_signature_theme(conn, resolver):
+    resolutions = resolve_deck(resolver, ARISTOCRATS)
+    result = recommend(conn, resolutions, format_key="commander", limit=150)
+    signature = {t["slug"] for t in result["themes"] if t["signature"]}
+    for entry in result["recommendations"]:
+        assert set(entry["because"]) & signature, entry["card"]["name"]
+
+
+def test_list_is_substantial(conn, resolver):
+    resolutions = resolve_deck(resolver, ARISTOCRATS)
+    result = recommend(conn, resolutions, format_key="commander", limit=150)
+    assert len(result["recommendations"]) >= 60, len(result["recommendations"])
+
+
 def test_themes_are_ranked_by_distinctiveness(conn, resolver):
     resolutions = resolve_deck(resolver, ARISTOCRATS)
     ids = [r.card["oracle_id"] for r in resolutions if r.card]

@@ -28,7 +28,9 @@ function CollectButton({ card }: { card: Card }) {
   )
 }
 
-function CardTile({ card, collectable }: { card: Card; collectable: boolean }) {
+function CardTile({
+  card, collectable, caption,
+}: { card: Card; collectable: boolean; caption?: string }) {
   const ref = useRef<HTMLAnchorElement>(null)
   const [loaded, setLoaded] = useState(false)
   const image = card.image_normal ?? card.image_small
@@ -43,7 +45,11 @@ function CardTile({ card, collectable }: { card: Card; collectable: boolean }) {
       ref={ref}
       to={`/card/${card.oracle_id}`}
       className="card-tile"
-      title={`${card.name} — ${card.type_line ?? ''}`}
+      title={
+        caption
+          ? `${card.name} — ${card.type_line ?? ''}\n${caption}`
+          : `${card.name} — ${card.type_line ?? ''}`
+      }
     >
       {collectable && <CollectButton card={card} />}
       {image ? (
@@ -109,12 +115,16 @@ export function CardGrid({
   view = 'grid',
   size = 190,
   collectable = true,
+  captionFor,
 }: {
   cards: Card[]
   view?: 'grid' | 'list'
   /** Minimum tile width in px, driven by the size slider. */
   size?: number
   collectable?: boolean
+  /** Extra hover text per card — used to keep recommendation reasons visible
+   *  in image view, where there is no room to print them. */
+  captionFor?: (card: Card) => string | undefined
 }) {
   const container = useRef<HTMLDivElement>(null)
 
@@ -160,7 +170,12 @@ export function CardGrid({
       style={{ ['--card-w' as string]: `${size}px` }}
     >
       {cards.map((card) => (
-        <CardTile key={card.oracle_id} card={card} collectable={collectable} />
+        <CardTile
+          key={card.oracle_id}
+          card={card}
+          collectable={collectable}
+          caption={captionFor?.(card)}
+        />
       ))}
     </div>
   )

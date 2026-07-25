@@ -2,19 +2,30 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+import asyncio
+import uuid
+
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from ..config import settings
 from ..deck import storage
 from ..deck.analysis import FORMATS, analyse
 from ..deck.parser import parse_decklist
 from ..deck.recommend import recommend
 from ..deck.resolver import Resolution
+from ..llm.deck_pipeline import DeckRecommendPipeline
 from ..state import state
+from .semantic import HEARTBEAT_SECONDS, RECONNECT_HINT_MS, _RUNS, _sse
 
 router = APIRouter(prefix="/api/deck", tags=["deck"])
 
 MAX_LINES = 2000
+MAX_PREPARED = 8
+
+# Decks staged between /recommend/prepare and /recommend/stream.
+_PREPARED: dict[str, tuple[list[Resolution], str | None]] = {}
 
 
 def _resolve(text: str, commander: str | None) -> list[Resolution]:
@@ -61,7 +72,7 @@ async def analyze(request: DecklistRequest):
 
 class RecommendRequest(DecklistRequest):
     format: str | None = Field(None, description="Restrict to cards legal in this format")
-    limit: int = Field(40, ge=1, le=120)
+    limit: int = Field(150, ge=1, le=400)
 
 
 @router.post("/recommend")
@@ -78,6 +89,88 @@ async def recommendations(request: RecommendRequest):
     return recommend(
         state.require_conn(), resolutions,
         format_key=request.format, limit=request.limit,
+    )
+
+
+@router.post("/recommend/prepare")
+async def prepare_ai_recommendations(request: RecommendRequest):
+    """Stage a deck for the AI pipeline and hand back a run id.
+
+    EventSource can only issue GETs, and a decklist is too long for a query
+    string, so the deck is posted first and the stream is opened against the
+    id this returns.
+    """
+    if request.format and request.format not in FORMATS:
+        raise HTTPException(400, f"Unknown format '{request.format}'")
+    resolutions = _resolve(request.text, request.commander)
+    if not any(r.resolved for r in resolutions):
+        raise HTTPException(400, "No cards in that list could be resolved.")
+
+    run_id = uuid.uuid4().hex
+    _PREPARED[run_id] = (resolutions, request.format)
+    # Bound the staging area; these are only alive between prepare and stream.
+    while len(_PREPARED) > MAX_PREPARED:
+        _PREPARED.pop(next(iter(_PREPARED)))
+    return {"run_id": run_id, "cards": sum(1 for r in resolutions if r.resolved)}
+
+
+@router.get("/recommend/stream")
+async def stream_ai_recommendations(run_id: str = Query(...)):
+    staged = _PREPARED.pop(run_id, None)
+    if staged is None:
+        raise HTTPException(404, "No prepared deck for that id; prepare it again.")
+    resolutions, format_key = staged
+
+    if len(_RUNS) >= settings.semantic_max_concurrent:
+        raise HTTPException(429, "A search or recommendation run is already in progress.")
+
+    pipeline = DeckRecommendPipeline(state.require_conn())
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def produce() -> None:
+        try:
+            async for step in pipeline.run(resolutions, format_key=format_key):
+                event = "complete" if step.name == "complete" else "stage"
+                await queue.put((event, step.as_dict()))
+        except asyncio.CancelledError:
+            queue.put_nowait(("cancelled", {
+                "stage": "cancelled", "message": "Run stopped; model released.", "detail": {},
+            }))
+            raise
+        except Exception as exc:  # noqa: BLE001 - surface faults to the UI
+            queue.put_nowait(("error", {"message": f"{type(exc).__name__}: {exc}"}))
+        finally:
+            queue.put_nowait(None)
+
+    task = asyncio.create_task(produce())
+    _RUNS[run_id] = task
+
+    async def generate():
+        yield f"retry: {RECONNECT_HINT_MS}\n\n"
+        yield _sse("stage", {
+            "stage": "start",
+            "message": f"Starting {settings.ollama_model}",
+            "detail": {"run_id": run_id},
+        })
+        try:
+            while True:
+                try:
+                    item = await asyncio.wait_for(queue.get(), timeout=HEARTBEAT_SECONDS)
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+                    continue
+                if item is None:
+                    break
+                yield _sse(*item)
+        finally:
+            task.cancel()
+            _RUNS.pop(run_id, None)
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive",
+                 "X-Accel-Buffering": "no"},
     )
 
 

@@ -177,6 +177,62 @@ SELECT_SCHEMA = {
 }
 
 
+# --------------------------------------------------------------------------
+# Deck recommendations -- a separate pipeline from `q:` search
+# --------------------------------------------------------------------------
+
+DECK_READ_SYSTEM = ENGINE_PREAMBLE + """
+
+TASK: Read a decklist and say what it is trying to do.
+
+You are given the deck's cards and the oracle tags they carry. Decide what the
+deck WANTS more of.
+
+Rules:
+- `strategy` is one sentence naming the engine the deck is built around.
+- `wanted_roles` are short phrases describing effects that would make THIS
+  deck's engine work better. Be specific to the strategy.
+- Do NOT ask for generic goodstuff. "ramp", "card draw", "removal" and "mana
+  rocks" are true of every deck and are explicitly unwanted unless they
+  interact with the deck's own mechanic -- for instance, a sacrifice deck wants
+  draw that triggers ON a creature dying, not draw in general. If you want
+  such an effect, phrase the interaction, not the category.
+- `avoid` lists effects that would be off-theme here."""
+
+DECK_READ_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "strategy": {"type": "string"},
+        "wanted_roles": {"type": "array", "items": {"type": "string"}},
+        "avoid": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["strategy", "wanted_roles"],
+}
+
+
+DECK_PLAN_SYSTEM = PLAN_SYSTEM.replace(
+    "TASK: Write database query plans.",
+    "TASK: Write database query plans that find cards to ADD to a deck.\n\n"
+    "Every plan must target an effect the deck actually wants. A plan that "
+    "finds generically strong cards is a wasted plan.",
+)
+
+
+DECK_SELECT_SYSTEM = ENGINE_PREAMBLE + """
+
+TASK: Decide which candidate cards would improve THIS SPECIFIC DECK.
+
+You are given the deck's strategy and a numbered list of REAL candidate cards.
+
+Rules:
+- Respond with the INDEX NUMBERS of cards worth adding, and nothing else.
+- A card qualifies only if it interacts with the deck's stated engine. Reject
+  cards that are merely powerful, and reject generic ramp, removal, card draw
+  and mana rocks that do not touch the deck's mechanic.
+- An index not present in the list is invalid and will be discarded.
+- Judge only from the rules text shown."""
+
+
 # There is deliberately no summarisation stage. Prose about the result set was
 # generic, cost an extra model call, and was the only path by which the model
 # could put words in front of the user -- so the cards speak for themselves.

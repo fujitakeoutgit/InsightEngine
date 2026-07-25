@@ -125,6 +125,22 @@ def _tag_menu(tags: list[dict]) -> str:
     )
 
 
+def run_plans(
+    conn: sqlite3.Connection,
+    plans: list[dict[str, Any]],
+    structured: Node | None = None,
+    tags: list[dict] | None = None,
+    constraints: dict[str, Any] | None = None,
+) -> tuple[list[dict], list[dict], list[str]]:
+    """Plan execution, shared with the deck-recommendation pipeline.
+
+    Both need identical plan sanitising, AND-to-OR rescue and tag sweep. The
+    pipeline object holds nothing but a connection, so constructing one here
+    is free and keeps a single implementation of that logic.
+    """
+    return SemanticPipeline(conn).execute_plans(plans, structured, tags, constraints)
+
+
 class SemanticPipeline:
     def __init__(self, conn: sqlite3.Connection) -> None:
         self.conn = conn
