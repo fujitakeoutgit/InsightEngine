@@ -71,6 +71,10 @@ export function DeckPage() {
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const [showAll, setShowAll] = useState(false)
+  // Which result panel is showing. Recommendations used to render *below* the
+  // analysis — several screens down past the curve, resolution list and 21
+  // format verdicts — so pressing the button looked like it did nothing.
+  const [tab, setTab] = useState<'analysis' | 'recommendations'>('analysis')
 
   const priceRef = useRef<HTMLSpanElement>(null)
   const countRef = useRef<HTMLSpanElement>(null)
@@ -92,6 +96,7 @@ export function DeckPage() {
     if (!text.trim()) return
     setBusy('analyse')
     setError(null)
+    setTab('analysis')
     try {
       setReport(await api.analyzeDeck(text))
     } catch (err) {
@@ -106,6 +111,7 @@ export function DeckPage() {
     if (!text.trim()) return
     setBusy('recommend')
     setError(null)
+    setTab('recommendations')
     try {
       setRecs(await api.recommendDeck(text, recFormat || null))
     } catch (err) {
@@ -293,7 +299,28 @@ export function DeckPage() {
             </div>
           )}
 
-          {report && (
+          {(report || recs) && (
+            <div className="result-tabs">
+              <button
+                className={tab === 'analysis' ? 'on' : ''}
+                disabled={!report}
+                onClick={() => setTab('analysis')}
+              >
+                Analysis
+                {report && <span className="faint"> {report.total_cards}</span>}
+              </button>
+              <button
+                className={tab === 'recommendations' ? 'on' : ''}
+                disabled={!recs}
+                onClick={() => setTab('recommendations')}
+              >
+                Recommendations
+                {recs && <span className="faint"> {recs.recommendations.length}</span>}
+              </button>
+            </div>
+          )}
+
+          {tab === 'analysis' && report && (
             <div className="stack gap-4">
               <div className="stat-row">
                 <div className="stat">
@@ -383,8 +410,8 @@ export function DeckPage() {
             </div>
           )}
 
-          {recs && (
-            <div className="panel" style={{ marginTop: report ? 26 : 0 }} ref={recRef}>
+          {tab === 'recommendations' && recs && (
+            <div className="panel" ref={recRef}>
               <h3>
                 Recommendations
                 {recs.color_identity !== undefined && (

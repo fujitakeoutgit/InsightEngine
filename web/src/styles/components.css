@@ -859,6 +859,31 @@
 
 .deck textarea:focus { outline: none; border-color: var(--aether); }
 
+/* Analysis / Recommendations switch in the Deck Lab results column. */
+.result-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.result-tabs button {
+  padding: 9px 14px;
+  font-family: var(--font-m);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.result-tabs button:hover:not(:disabled) { color: var(--ink); }
+.result-tabs button.on { color: var(--aether-hi); border-bottom-color: var(--aether); }
+.result-tabs button:disabled { opacity: 0.35; cursor: not-allowed; }
+
 .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 10px; margin-bottom: 16px; }
 
 .stat { border: 1px solid var(--line-soft); border-radius: var(--r); padding: 14px; background: var(--glass); }
