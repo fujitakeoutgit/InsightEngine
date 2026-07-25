@@ -49,7 +49,7 @@ so results never disagree depending on which engine answered.
 
 ## The `q:` pipeline
 
-Six stages. Only three involve the model, and none of those three let it author
+Five stages. Only three involve the model, and none of those three let it author
 card data.
 
 | # | Stage | Who | What |
@@ -59,21 +59,27 @@ card data.
 | 3 | Plan | model | Concepts + tag menu → several complementary filter sets |
 | 4 | Query | **code** | Plans → SQL → union of real rows — *the only source of card data* |
 | 5 | Evaluate | model | Numbered batches → **indices** of relevant candidates |
-| 6 | Analyse | model | Themes and counts → prose, then name-scanned |
+
+A run can be stopped at any point. The pipeline executes as its own
+`asyncio.Task`, so cancelling it interrupts the HTTP call to Ollama, closes the
+connection, and stops generation — the model is released rather than left
+running for a result nobody will read.
 
 ### How "zero hallucinations" is enforced
 
-Not by asking the model nicely. By three mechanical properties:
+Not by asking the model nicely. By two mechanical properties:
 
-1. **The model never emits card data.** It emits filter objects and integer
-   indices. Every displayed field is rehydrated from SQLite by `oracle_id`. A
-   fabricated id matches no row and vanishes.
+1. **The model never emits card data, and never emits prose.** Its response
+   schemas contain only filter objects and integer arrays. Every displayed
+   field is rehydrated from SQLite by `oracle_id`, so a fabricated id matches
+   no row and vanishes.
 2. **Indices are range-checked** against the exact batch shown to the model.
-   Out-of-range selections are dropped and counted.
-3. **Prose is scanned against all 38k card names.** The prompts forbid naming
-   cards; if the model names one anyway, the analysis is discarded and replaced
-   with a summary computed from the data. The UI always reports whether the
-   guard fired.
+   Out-of-range selections are dropped and counted, and the UI reports it.
+
+An earlier version added a third property: scanning model-written prose for
+card names. That scanner is gone because its input is. Removing the
+summarisation stage removed the only channel through which model-authored text
+reached the user — a stronger guarantee than policing that text was.
 
 Additionally, decoding is constrained by JSON Schema at temperature 0, so the
 model cannot free-associate its way out of the response shape.
@@ -193,12 +199,13 @@ cd server
 
 68 tests covering the query grammar and SQL compiler, `_` wildcard semantics,
 the decklist ladder (`fire/fall` ≡ `fire fall` ≡ `firefall`), format legality
-including commander colour identity, and the hallucination guard.
+including commander colour identity, plan isolation, and the guard.
 
-The guard tests deliberately run without a model — they assert the properties
-that hold *even if the model misbehaves*: invented ids resolve to nothing,
-out-of-range indices are dropped, and a card name in prose is caught and
-replaced.
+These deliberately run without a model — they assert the properties that hold
+*even if the model misbehaves*: invented ids resolve to nothing, out-of-range
+indices are dropped, the selection schema is structurally incapable of carrying
+text, and a plan set containing a regex-as-colour still returns cards from the
+plans that were valid.
 
 ---
 

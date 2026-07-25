@@ -138,11 +138,26 @@ def pid_on_port(port: int) -> int | None:
 
 
 def port_busy(port: int) -> bool:
+    """True when anything is LISTENing on the port, on any interface.
+
+    Both address families have to be tried. Vite binds ``::1`` on this machine
+    while uvicorn binds ``127.0.0.1``, so an IPv4-only probe reports the web
+    server as down -- and the tray would cheerfully start a second one.
+    """
+    if pid_on_port(port) is not None:
+        return True
+
     import socket
 
-    with socket.socket() as sock:
-        sock.settimeout(0.4)
-        return sock.connect_ex(("127.0.0.1", port)) == 0
+    for family, address in ((socket.AF_INET, "127.0.0.1"), (socket.AF_INET6, "::1")):
+        try:
+            with socket.socket(family, socket.SOCK_STREAM) as sock:
+                sock.settimeout(0.35)
+                if sock.connect_ex((address, port)) == 0:
+                    return True
+        except OSError:
+            continue
+    return False
 
 
 def kill_tree(pid: int | None, timeout: float = 8.0) -> None:
@@ -415,10 +430,24 @@ class TrayApp:
         self.icon.run()
 
 
+# use_last_error is required: ctypes only captures GetLastError per-call when
+# the library is opened this way. Reading windll.kernel32.GetLastError()
+# separately returns a value later ctypes calls have already clobbered, which
+# silently defeats the check and lets a second icon appear.
+_kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+ERROR_ALREADY_EXISTS = 183
+
+# Held for the process lifetime; closing the handle would release the mutex.
+_mutex_handle: int | None = None
+
+
 def single_instance() -> bool:
     """A named mutex keeps login + manual launch from stacking two icons."""
-    handle = ctypes.windll.kernel32.CreateMutexW(None, False, "InsightEnigmaTray")
-    return ctypes.windll.kernel32.GetLastError() != 183  # ERROR_ALREADY_EXISTS
+    global _mutex_handle
+    _mutex_handle = _kernel32.CreateMutexW(None, False, "InsightEnigmaTray")
+    if not _mutex_handle:
+        return True  # cannot determine; better to run than to refuse
+    return ctypes.get_last_error() != ERROR_ALREADY_EXISTS
 
 
 TRAY: TrayApp
