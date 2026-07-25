@@ -142,6 +142,10 @@ export interface SavedDeck {
   updated_at: string
   text?: string
   lines?: number
+  /** Joined from the commander's card row; the gallery renders these. */
+  commander_art?: string | null
+  commander_image?: string | null
+  color_identity?: string | null
 }
 
 export interface GuardReport {

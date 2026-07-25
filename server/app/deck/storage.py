@@ -24,6 +24,7 @@ def _now() -> str:
 
 
 def _row(row: sqlite3.Row, *, with_text: bool = True) -> dict[str, Any]:
+    keys = row.keys()
     deck = {
         "id": row["id"],
         "name": row["name"],
@@ -31,13 +32,46 @@ def _row(row: sqlite3.Row, *, with_text: bool = True) -> dict[str, Any]:
         "format": row["format"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
+        # Present when the listing query joined the commander's card row; the
+        # gallery is built from these.
+        "commander_art": row["commander_art"] if "commander_art" in keys else None,
+        "commander_image": row["commander_image"] if "commander_image" in keys else None,
+        "color_identity": row["color_identity"] if "color_identity" in keys else None,
     }
     if with_text:
         deck["text"] = row["text"]
     else:
-        # Enough for a list row without shipping every decklist.
+        # Enough for a gallery card without shipping every decklist.
         deck["lines"] = len([ln for ln in (row["text"] or "").splitlines() if ln.strip()])
     return deck
+
+
+def detect_commander(conn: sqlite3.Connection, text: str) -> tuple[str | None, str | None]:
+    """Find the deck's commander from its own text.
+
+    Done here rather than asked of the caller so every save populates it, which
+    is what the gallery renders. Falls back to the first legendary creature
+    when no Commander section is present.
+    """
+    from .parser import parse_decklist
+    from ..db import fold_name
+
+    parsed = parse_decklist(text)
+    named = [e for e in parsed.entries if e.section == "commander" or e.is_commander]
+    candidates = named or parsed.entries
+
+    for entry in candidates:
+        row = conn.execute(
+            "SELECT oracle_id, name, type_line FROM cards WHERE name_fold = ? LIMIT 1",
+            (fold_name(entry.raw_name),),
+        ).fetchone()
+        if not row:
+            continue
+        if named or (
+            "Legendary" in (row["type_line"] or "") and "Creature" in (row["type_line"] or "")
+        ):
+            return row["name"], row["oracle_id"]
+    return None, None
 
 
 def save(
@@ -53,20 +87,23 @@ def save(
     if len(text.encode("utf-8")) > MAX_DECK_BYTES:
         raise DeckError("Decklist is too large to save.")
 
+    detected_name, oracle_id = detect_commander(conn, text)
+    commander = commander or detected_name
+
     now = _now()
     if deck_id is not None:
         cursor = conn.execute(
-            "UPDATE decks SET name = ?, text = ?, commander = ?, format = ?, "
-            "updated_at = ? WHERE id = ?",
-            (name, text, commander, format_key, now, deck_id),
+            "UPDATE decks SET name = ?, text = ?, commander = ?, commander_oracle_id = ?, "
+            "format = ?, updated_at = ? WHERE id = ?",
+            (name, text, commander, oracle_id, format_key, now, deck_id),
         )
         if cursor.rowcount == 0:
             raise DeckError(f"No saved deck with id {deck_id}.")
     else:
         cursor = conn.execute(
-            "INSERT INTO decks(name, text, commander, format, created_at, updated_at) "
-            "VALUES(?,?,?,?,?,?)",
-            (name, text, commander, format_key, now, now),
+            "INSERT INTO decks(name, text, commander, commander_oracle_id, format, "
+            "created_at, updated_at) VALUES(?,?,?,?,?,?,?)",
+            (name, text, commander, oracle_id, format_key, now, now),
         )
         deck_id = cursor.lastrowid
     conn.commit()
@@ -75,8 +112,44 @@ def save(
     return _row(row)
 
 
+def backfill_commanders(conn: sqlite3.Connection) -> int:
+    """Populate commander art for decks saved before the column existed.
+
+    Without this, every pre-existing deck shows a blank tile in the gallery
+    until it happens to be re-saved.
+    """
+    rows = conn.execute(
+        "SELECT id, text FROM decks WHERE commander_oracle_id IS NULL"
+    ).fetchall()
+    filled = 0
+    for row in rows:
+        name, oracle_id = detect_commander(conn, row["text"] or "")
+        if not oracle_id:
+            continue
+        conn.execute(
+            "UPDATE decks SET commander = COALESCE(commander, ?), "
+            "commander_oracle_id = ? WHERE id = ?",
+            (name, oracle_id, row["id"]),
+        )
+        filled += 1
+    if filled:
+        conn.commit()
+    return filled
+
+
 def listing(conn: sqlite3.Connection) -> list[dict[str, Any]]:
-    rows = conn.execute("SELECT * FROM decks ORDER BY updated_at DESC").fetchall()
+    """Decks plus their commander's art, which is what the gallery shows."""
+    rows = conn.execute(
+        """
+        SELECT d.*,
+               c.image_art_crop AS commander_art,
+               c.image_normal   AS commander_image,
+               c.color_identity AS color_identity
+        FROM decks d
+        LEFT JOIN cards c ON c.oracle_id = d.commander_oracle_id
+        ORDER BY d.updated_at DESC
+        """
+    ).fetchall()
     return [_row(r, with_text=False) for r in rows]
 
 

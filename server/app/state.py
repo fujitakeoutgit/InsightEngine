@@ -10,6 +10,7 @@ import sqlite3
 
 from .db import connect, get_meta, init_db
 from .deck.resolver import CardNameResolver
+from .deck.storage import backfill_commanders
 from .spell import SpellChecker
 
 
@@ -34,6 +35,8 @@ class AppState:
         if self.card_count:
             self.resolver = CardNameResolver(self.conn)
             self.spell = SpellChecker(self.conn)
+            # Decks saved before commander art existed would show blank tiles.
+            backfill_commanders(self.conn)
 
     def close(self) -> None:
         if self.conn:

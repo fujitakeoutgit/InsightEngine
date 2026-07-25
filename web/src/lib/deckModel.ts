@@ -58,6 +58,11 @@ export function colorGroup(card: Card): string {
 let counter = 0
 const nextUid = () => `dc${++counter}`
 
+/** Wrap a bare card as a new single-copy deck entry. */
+export function addedCard(card: Card, section: Section = 'main'): DeckCard {
+  return { uid: nextUid(), quantity: 1, card, section }
+}
+
 export function fromResolutions(resolutions: Resolution[]): DeckCard[] {
   return resolutions
     .filter((r) => r.card)

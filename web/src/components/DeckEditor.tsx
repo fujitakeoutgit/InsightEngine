@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import type { Card } from '../lib/api'
-import { collection } from '../lib/collection'
+import { collection, useCollection } from '../lib/collection'
 import {
   SECTIONS, countCards, deckValue, filterCards, groupCards, sortDeckCards,
   type DeckCard, type GroupBy, type Section, type SortBy,
@@ -38,9 +38,17 @@ export function DeckEditor({
   const [groupBy, setGroupBy] = useState<GroupBy>('type')
   const [sortBy, setSortBy] = useState<SortBy>('name')
   const [view, setView] = useState<'list' | 'grid'>('list')
+  const [tileSize, setTileSize] = useState(
+    () => Number(localStorage.getItem('insight-enigma:editor-tile')) || 120,
+  )
   const [query, setQuery] = useState('')
   const [dragging, setDragging] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<Section | null>(null)
+  const collected = useCollection()
+
+  useEffect(() => {
+    localStorage.setItem('insight-enigma:editor-tile', String(tileSize))
+  }, [tileSize])
 
   const patch = (uid: string, change: Partial<DeckCard>) =>
     onChange(cards.map((c) => (c.uid === uid ? { ...c, ...change } : c)))
@@ -88,14 +96,29 @@ export function DeckEditor({
         >
           {SORTS.map(([v, l]) => <option key={v} value={v}>Sort: {l}</option>)}
         </select>
+        {view === 'grid' && (
+          <label className="size-slider" title="Card size">
+            <input
+              type="range" min={80} max={220} step={10} value={tileSize}
+              onChange={(e) => setTileSize(Number(e.target.value))}
+              aria-label="Card image size"
+            />
+          </label>
+        )}
         <button className="btn btn-ghost sm" onClick={() => setView(view === 'list' ? 'grid' : 'list')}>
           {view === 'list' ? 'Images' : 'List'}
         </button>
         <span className="push mono faint" style={{ fontSize: 11 }}>
           {totals.deck} cards · ${totals.value.toFixed(2)}
         </span>
-        {onAddCard && (
-          <button className="btn sm" onClick={onAddCard}>Add cards</button>
+        {onAddCard && collected.length > 0 && (
+          <button
+            className="btn sm"
+            onClick={onAddCard}
+            title="Add every card from the Cards tab into this deck"
+          >
+            Add {collected.length} collected
+          </button>
         )}
       </div>
 
@@ -126,7 +149,11 @@ export function DeckEditor({
 
               {inSection.length === 0 ? (
                 <p className="faint empty">
-                  {query ? 'Nothing matches the filter.' : 'Drag cards here.'}
+                  {query
+                    ? 'Nothing matches the filter.'
+                    : cards.length === 0
+                      ? 'Empty. Paste a list in Text mode, or add the cards you have collected.'
+                      : 'Drag cards here.'}
                 </p>
               ) : (
                 groups.map((group) => (
@@ -137,7 +164,12 @@ export function DeckEditor({
                         <span className="mono faint">{group.count}</span>
                       </div>
                     )}
-                    <div className={view === 'grid' ? 'group-grid' : ''}>
+                    <div
+                      className={view === 'grid' ? 'group-grid' : ''}
+                      style={view === 'grid'
+                        ? { ['--tile-w' as string]: `${tileSize}px` }
+                        : undefined}
+                    >
                       {group.cards.map((entry) => (
                         <EditorRow
                           key={entry.uid}

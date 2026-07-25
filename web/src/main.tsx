@@ -6,6 +6,7 @@ import { Layout } from './components/Layout'
 import { AdvancedPage } from './routes/AdvancedPage'
 import { CardPage } from './routes/CardPage'
 import { CardsPage } from './routes/CardsPage'
+import { DeckGalleryPage } from './routes/DeckGalleryPage'
 import { DeckPage } from './routes/DeckPage'
 import { GlossaryPage } from './routes/GlossaryPage'
 import { SearchPage } from './routes/SearchPage'
@@ -23,7 +24,8 @@ const router = createBrowserRouter([
       { path: 'card/:oracleId', element: <CardPage /> },
       { path: 'cards', element: <CardsPage /> },
       { path: 'advanced', element: <AdvancedPage /> },
-      { path: 'deck', element: <DeckPage /> },
+      { path: 'deck', element: <DeckGalleryPage /> },
+      { path: 'deck/:deckId', element: <DeckPage /> },
       { path: 'sets', element: <SetsPage /> },
       { path: 'glossary', element: <GlossaryPage /> },
     ],
