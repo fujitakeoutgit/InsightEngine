@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
 import { api, streamSemantic, type Card } from '../lib/api'
+import { history, useHistory } from '../lib/history'
 import { countTo, riseIn } from '../lib/motion'
 import { hasSemantic } from '../lib/query'
 import { cacheKey, fromResponse, readCache, rememberScroll, writeCache } from '../lib/searchCache'
@@ -20,6 +21,30 @@ const SORTS = [
 ]
 
 const SIZE_KEY = 'insight-enigma:card-size'
+
+/** Sort an already-fetched list. Used for `q:` results, which arrive whole and
+ *  must not be re-run just to reorder them. */
+function sortCards(cards: Card[], key: string, direction: 'asc' | 'desc'): Card[] {
+  const sign = direction === 'desc' ? -1 : 1
+  const value = (card: Card): number | string => {
+    switch (key) {
+      case 'cmc': return card.cmc ?? 0
+      case 'usd': return card.usd ?? Number.POSITIVE_INFINITY
+      case 'edhrec': return card.edhrec_rank ?? Number.POSITIVE_INFINITY
+      case 'released': return card.released_at ?? ''
+      case 'rarity': return ['common', 'uncommon', 'rare', 'special', 'mythic', 'bonus']
+        .indexOf(card.rarity ?? 'common')
+      case 'color': return card.color_identity || 'ZZZ'
+      default: return card.name.toLowerCase()
+    }
+  }
+  return [...cards].sort((a, b) => {
+    const av = value(a)
+    const bv = value(b)
+    if (av === bv) return a.name.localeCompare(b.name)
+    return (av < bv ? -1 : 1) * sign
+  })
+}
 
 export function SearchPage() {
   const [params, setParams] = useSearchParams()
@@ -46,8 +71,12 @@ export function SearchPage() {
   const heroCountRef = useRef<HTMLSpanElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
   const stream = useRef<{ stop: () => void } | null>(null)
+  const recent = useHistory()
 
-  const key = cacheKey(query, sort, order)
+  // Semantic results arrive as one batch and are sorted here; everything else
+  // is sorted by the server, so the cache key includes sort/order.
+  const isSemanticQuery = hasSemantic(query)
+  const key = cacheKey(query, isSemanticQuery ? '' : sort, isSemanticQuery ? '' : order)
 
   useEffect(() => setDraft(query), [query])
 
@@ -103,10 +132,12 @@ export function SearchPage() {
           })
           return { ...c, stages, current: 'complete', running: false }
         })
-        setCards(stage.detail.cards ?? [])
-        setTotal(stage.detail.cards?.length ?? 0)
+        const found = stage.detail.cards ?? []
+        setCards(found)
+        setTotal(found.length)
         setEngine('semantic')
         setLoading(false)
+        history.record(q, found.length, 'semantic')
         // The log has served its purpose once cards are on screen.
         setCollapsed(true)
       },
@@ -132,6 +163,7 @@ export function SearchPage() {
       setEngine(response.engine)
       setHasMore(response.has_more)
       writeCache(cacheKey(q, s, o), fromResponse(response))
+      history.record(q, response.total, response.engine)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Search failed')
       setCards([])
@@ -168,11 +200,11 @@ export function SearchPage() {
       return
     }
 
-    if (hasSemantic(query)) runSemantic(query)
+    if (isSemanticQuery) runSemantic(query)
     else runStandard(query, sort, order)
 
     return () => stream.current?.stop()
-  }, [query, sort, order, key, runSemantic, runStandard])
+  }, [query, sort, order, key, isSemanticQuery, runSemantic, runStandard])
 
   useEffect(() => {
     if (!loading && cards.length) {
@@ -230,10 +262,47 @@ export function SearchPage() {
         />
 
         {!query && (
-          <div className="row wrap gap-2" style={{ marginTop: 34 }}>
-            <Link to="/advanced" className="btn">Build a query</Link>
-            <Link to="/deck" className="btn btn-ghost">Analyse a decklist</Link>
-          </div>
+          <>
+            <div className="row wrap gap-2" style={{ marginTop: 34 }}>
+              <Link to="/advanced" className="btn">Build a query</Link>
+              <Link to="/deck" className="btn btn-ghost">Analyse a decklist</Link>
+            </div>
+
+            {recent.length > 0 && (
+              <div className="history">
+                <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span className="label">Recent searches</span>
+                  <button className="btn btn-ghost sm" onClick={() => history.clear()}>
+                    Clear
+                  </button>
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Query</th>
+                      <th style={{ textAlign: 'right' }}>Results</th>
+                      <th style={{ textAlign: 'right' }}>Engine</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recent.map((entry) => (
+                      <tr
+                        key={entry.query}
+                        onClick={() => { setDraft(entry.query); submit(entry.query) }}
+                        title="Run this search again"
+                      >
+                        <td className="q">{entry.query}</td>
+                        <td className="n">{entry.total.toLocaleString()}</td>
+                        <td className="n">
+                          <span className={`engine-badge ${entry.engine}`}>{entry.engine}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </section>
 
@@ -285,28 +354,24 @@ export function SearchPage() {
                     />
                   </label>
                 )}
-                {engine !== 'semantic' && (
-                  <>
-                    <select
-                      className="fld"
-                      style={{ width: 'auto' }}
-                      value={sort}
-                      onChange={(e) => setSort(e.target.value)}
-                      aria-label="Sort by"
-                    >
-                      {SORTS.map(([value, label]) => (
-                        <option key={value} value={value}>{label}</option>
-                      ))}
-                    </select>
-                    <button
-                      className="btn btn-ghost sm"
-                      onClick={() => setOrder(order === 'asc' ? 'desc' : 'asc')}
-                      title="Toggle sort direction"
-                    >
-                      {order === 'asc' ? '↑' : '↓'}
-                    </button>
-                  </>
-                )}
+                <select
+                  className="fld"
+                  style={{ width: 'auto' }}
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                  aria-label="Sort by"
+                >
+                  {SORTS.map(([value, label]) => (
+                    <option key={value} value={value}>Sort: {label}</option>
+                  ))}
+                </select>
+                <button
+                  className="btn btn-ghost sm"
+                  onClick={() => setOrder(order === 'asc' ? 'desc' : 'asc')}
+                  title="Toggle sort direction"
+                >
+                  {order === 'asc' ? '↑' : '↓'}
+                </button>
                 <button
                   className="btn btn-ghost sm"
                   onClick={() => setView(view === 'grid' ? 'list' : 'grid')}
@@ -316,7 +381,11 @@ export function SearchPage() {
               </div>
             </div>
 
-            <CardGrid cards={cards} view={view} size={cardSize} />
+            <CardGrid
+              cards={isSemanticQuery ? sortCards(cards, sort, order) : cards}
+              view={view}
+              size={cardSize}
+            />
           </>
         )}
 

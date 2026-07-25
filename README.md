@@ -155,6 +155,46 @@ cd web    && npm run dev                          # http://localhost:5173
 Ollama only needs to be running for `q:` searches — everything else works
 without it.
 
+### Sharing it on your LAN
+
+```powershell
+.\start.ps1 -Lan
+```
+
+Binds both servers to all interfaces and prints the address other machines
+should use. CORS already allows the private IPv4 ranges, so a second PC only
+needs `http://<your-ip>:5173`.
+
+**Understand what you are exposing.** There is no authentication of any kind,
+so on a shared network:
+
+| Risk | Reality |
+|---|---|
+| Anyone can search | Harmless — it's card data. |
+| Anyone can queue GPU work | A `q:` run pins the card for minutes. Capped at one concurrent run (`INSIGHT_SEMANTIC_MAX_CONCURRENT`), so the worst case is a queue, not a meltdown. |
+| Anyone can edit saved decks | `/api/deck/saved` allows create, overwrite and delete with no identity. Treat saved decks as shared, not private. |
+| Traffic is plaintext HTTP | Fine on a home LAN. Not fine on café or office Wi-Fi. |
+
+This is a trusted-LAN tool. **Do not port-forward it or expose it to the
+internet** — an unauthenticated endpoint that runs a local LLM on demand is
+exactly the kind of thing that gets abused. If you need it off-network, put it
+behind a VPN (Tailscale is the least effort) rather than opening a port.
+
+### From the system tray
+
+```powershell
+server\.venv\Scripts\python -m pip install -r tray\requirements.txt
+start "" server\.venv\Scripts\pythonw.exe tray\insight_tray.py
+```
+
+Sits in the notification area and starts on login, but **idle by default** —
+nothing listens until you pick *Start server*. The menu also opens the app,
+tails the logs, and toggles autostart. Two details it handles that a naive
+launcher does not: `npm run dev` reaches Vite through four nested processes, so
+stopping walks the whole tree rather than orphaning the one holding port 5173;
+and if the servers are already running from `start.ps1`, the tray adopts them
+instead of binding a second copy.
+
 ### Refreshing card data
 
 ```bash
@@ -176,7 +216,10 @@ Environment variables, or a `server/.env`. All are prefixed `INSIGHT_`.
 | `OLLAMA_TIMEOUT` | `900` | Seconds. A cold 70B needs the headroom |
 | `SEMANTIC_MAX_PLANS` | `8` | More plans → better recall, longer runs |
 | `SEMANTIC_CANDIDATE_CAP` | `400` | Rows handed to the evaluation stage |
+| `SEMANTIC_MAX_CONCURRENT` | `1` | One GPU; a second run makes both slower |
 | `SCRYFALL_MIN_INTERVAL` | `0.1` | 10 req/s, per Scryfall's guidance |
+| `HOST` / `PORT` | `127.0.0.1` / `8787` | Set host to `0.0.0.0` for LAN |
+| `EXTRA_CORS_ORIGINS` | — | Comma-separated; `*` allows any |
 | `DB_PATH` | `../data/manafold.sqlite3` | |
 
 ---

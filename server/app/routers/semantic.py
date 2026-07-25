@@ -32,6 +32,11 @@ router = APIRouter(prefix="/api/semantic", tags=["semantic"])
 # run_id -> the task producing that run's stages.
 _RUNS: dict[str, asyncio.Task] = {}
 
+# Comfortably under the shortest idle timeout anything in the path is likely
+# to enforce (proxies commonly use 60s).
+HEARTBEAT_SECONDS = 15.0
+RECONNECT_HINT_MS = 30_000
+
 
 def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
@@ -80,6 +85,15 @@ async def stream(
     if not prompts:
         raise HTTPException(400, 'Query contains no q:"..." prompt')
 
+    # One GPU: a second concurrent run makes both slower, not one faster. On a
+    # shared LAN instance this is also what stops one person pinning the card.
+    if len(_RUNS) >= settings.semantic_max_concurrent:
+        raise HTTPException(
+            429,
+            f"A search is already running ({len(_RUNS)} active). "
+            "Stop it first, or wait for it to finish.",
+        )
+
     prompt = " ".join(prompts)
     run = run_id or uuid.uuid4().hex
     pipeline = SemanticPipeline(state.require_conn())
@@ -91,7 +105,11 @@ async def stream(
     async def produce() -> None:
         try:
             async for step in pipeline.run(prompt, structured):
-                await queue.put(("stage", step.as_dict()))
+                # The final stage must be its own event type: the client binds
+                # a separate `complete` listener, and delivering it as a plain
+                # stage leaves the UI running forever with no results.
+                event = "complete" if step.name == "complete" else "stage"
+                await queue.put((event, step.as_dict()))
         except asyncio.CancelledError:
             # put_nowait: awaiting inside a cancelled task is not reliable.
             queue.put_nowait(("cancelled", {
@@ -110,6 +128,9 @@ async def stream(
     _RUNS[run] = task
 
     async def generate():
+        # A large retry hint: if a reconnect does happen, it should not be
+        # instant, because each one starts a fresh multi-minute run.
+        yield f"retry: {RECONNECT_HINT_MS}\n\n"
         yield _sse("stage", {
             "stage": "start",
             "message": f"Starting {settings.ollama_model}",
@@ -117,7 +138,16 @@ async def stream(
         })
         try:
             while True:
-                item = await queue.get()
+                try:
+                    item = await asyncio.wait_for(queue.get(), timeout=HEARTBEAT_SECONDS)
+                except asyncio.TimeoutError:
+                    # Stages can be 90s apart while the model thinks. With no
+                    # bytes on the wire an idle timeout closes the stream, and
+                    # EventSource reconnects -- silently starting the whole run
+                    # again. An SSE comment keeps the connection alive and is
+                    # ignored by the client.
+                    yield ": keepalive\n\n"
+                    continue
                 if item is None:
                     break
                 yield _sse(*item)

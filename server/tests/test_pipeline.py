@@ -184,6 +184,30 @@ def test_global_constraints_reach_every_plan_and_the_sweep(conn):
     assert not offenders, f"black cards survived a nonblack search: {offenders[:5]}"
 
 
+def test_lenient_plans_survive_common_planner_slips(conn):
+    """These shapes each used to discard a whole plan."""
+    from app.query.filters import validate
+
+    # A bare string where a list belongs means the one-element list.
+    assert validate({"oracle_contains": "sacrifice a creature"}) == {
+        "oracle_contains": ["sacrifice a creature"]
+    }
+
+    pipeline = SemanticPipeline(conn)
+    plans = [
+        {"rationale": "string not list", "filters": {"oracle_contains": "sacrifice a creature"}},
+        {"rationale": "invented is:", "filters": {
+            "type_contains": ["Creature"], "is": ["sacrifice outlet", "permanent"],
+        }},
+    ]
+    cards, stats, warnings = pipeline.execute_plans(plans, None)
+
+    assert cards
+    assert all(not s.get("error") for s in stats), stats
+    assert all(s["matched"] > 0 for s in stats), stats
+    assert any("sacrifice outlet" in w for w in warnings)
+
+
 def test_global_constraint_merges_with_a_plans_own_exclusion():
     from app.llm.pipeline import _apply_global
 

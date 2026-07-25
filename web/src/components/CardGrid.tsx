@@ -23,7 +23,7 @@ function CollectButton({ card }: { card: Card }) {
         collection.toggle(card)
       }}
     >
-      {held ? '✓' : '✕'}
+      {held ? '✓' : '+'}
     </button>
   )
 }

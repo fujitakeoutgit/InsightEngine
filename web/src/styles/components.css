@@ -190,6 +190,43 @@
 .suggestions button:hover,
 .suggestions button.active { background: var(--glass-hi); color: var(--ink); }
 
+/* Recent searches on the landing page */
+.history { margin-top: 30px; max-width: 720px; }
+
+.history table { width: 100%; border-collapse: collapse; }
+
+.history th {
+  text-align: left;
+  font-family: var(--font-m);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 500;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.history td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: middle;
+}
+
+.history tbody tr { cursor: pointer; transition: background-color var(--dur-fast); }
+.history tbody tr:hover { background: var(--glass); }
+.history tbody tr:hover .q { color: var(--aether-hi); }
+
+.history .q {
+  font-family: var(--font-m);
+  font-size: 12.5px;
+  color: var(--ink);
+  transition: color var(--dur-fast);
+  word-break: break-word;
+}
+
+.history .n { font-family: var(--font-m); font-size: 11px; color: var(--muted); text-align: right; white-space: nowrap; }
+
 .examples { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 16px; }
 
 .examples button {

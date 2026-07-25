@@ -140,9 +140,19 @@ def test_filters_reject_unknown_keys():
         validate({"drop_table": "x"})
 
 
-def test_filters_reject_wrong_types():
+def test_filters_coerce_a_lone_phrase_to_a_list():
+    # A single phrase means the one-element list; discarding the plan over it
+    # cost recall for no reason.
+    assert validate({"oracle_contains": "draw a card"}) == {"oracle_contains": ["draw a card"]}
+
+
+def test_filters_reject_genuinely_wrong_types():
     with pytest.raises(FilterError):
-        validate({"oracle_contains": "should be a list"})
+        validate({"oracle_contains": 42})
+    with pytest.raises(FilterError):
+        validate({"max_mana_cost": "three"})
+    with pytest.raises(FilterError):
+        validate({"oracle_contains": [1, 2, 3]})
 
 
 def test_filters_execute(conn):

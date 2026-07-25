@@ -140,6 +140,19 @@ CREATE TABLE IF NOT EXISTS http_cache (
     body       BLOB,
     fetched_at REAL
 );
+
+-- Saved decks. User data, not derived from the mirror, so it is deliberately
+-- absent from DERIVED_TABLES and survives every schema rebuild.
+CREATE TABLE IF NOT EXISTS decks (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT NOT NULL,
+    text       TEXT NOT NULL,
+    commander  TEXT,
+    format     TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_decks_updated ON decks(updated_at DESC);
 """
 
 _PUNCT = re.compile(r"[^a-z0-9]+")

@@ -42,10 +42,21 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+def _allowed_origins() -> list[str] | str:
+    origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    extra = [o.strip() for o in settings.extra_cors_origins.split(",") if o.strip()]
+    if "*" in extra:
+        return ["*"]
+    return origins + extra
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_methods=["GET", "POST"],
+    allow_origins=_allowed_origins(),
+    # Regex covers the private ranges so a LAN peer's own origin works without
+    # having to enumerate every device's address.
+    allow_origin_regex=r"http://(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)[\d.]+(:\d+)?",
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -67,3 +78,14 @@ async def health():
         "model": settings.ollama_model,
         "attribution": "Card data from Scryfall (https://scryfall.com)",
     }
+
+
+def main() -> None:
+    """Entry point that honours the configured host, for LAN serving."""
+    import uvicorn
+
+    uvicorn.run(app, host=settings.host, port=settings.port)
+
+
+if __name__ == "__main__":
+    main()

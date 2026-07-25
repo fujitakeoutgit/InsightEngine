@@ -25,8 +25,9 @@ from typing import Any, AsyncIterator
 from ..config import settings
 from ..query.filters import FilterError
 from ..query.parser import Node, is_empty
-from ..query.sql import QueryCompileError
-from ..search_local import search_mtg_database
+from ..query.sql import IS_PREDICATES, QueryCompileError
+from ..query.sql import compile_node
+from ..search_local import search_mtg_database, search_node_limited, visibility_clause
 from ..tags import expand_descendants, known_slugs, search_tags
 from . import prompts
 from .guard import GuardReport, validate_indices
@@ -193,6 +194,19 @@ class SemanticPipeline:
             filters = plan.get("filters") or {}
             rationale = plan.get("rationale", "")
 
+            # Invented `is:` values are common ("is: sacrifice outlet"). Drop
+            # the unrecognised ones rather than losing the whole plan.
+            if raw_flags := filters.get("is"):
+                if isinstance(raw_flags, list):
+                    real = [f for f in raw_flags
+                            if isinstance(f, str) and f.lower() in IS_PREDICATES]
+                    if dropped := [f for f in raw_flags if f not in real]:
+                        warnings.append(f"ignored unknown is: values: {', '.join(map(str, dropped))}")
+                    if real:
+                        filters["is"] = real
+                    else:
+                        filters.pop("is")
+
             # Drop invented tags before validation so one bad slug does not
             # discard an otherwise good plan.
             if raw_tags := filters.get("oracle_tags"):
@@ -300,10 +314,42 @@ class SemanticPipeline:
 
     # -- orchestration -----------------------------------------------------
 
+    def prefilter_count(self, structured: Node | None) -> int | None:
+        """How many cards the non-`q:` half of the query matches on its own."""
+        if structured is None or is_empty(structured):
+            return None
+        compiled = compile_node(structured)
+        where = f"({compiled.where}) AND {visibility_clause(False, False)}"
+        return self.conn.execute(
+            f"SELECT COUNT(*) AS n FROM cards WHERE {where}", list(compiled.params)
+        ).fetchone()["n"]
+
     async def run(
         self, prompt: str, structured: Node | None = None
     ) -> AsyncIterator[Stage]:
         report = GuardReport()
+
+        # When the structured filters already narrow the corpus below the
+        # candidate cap, planning is pure overhead: two model calls -- minutes
+        # -- spent generating queries whose results get intersected back down
+        # to a set we can simply enumerate. Evaluating that set directly is
+        # both faster and strictly more exhaustive, because no plan can miss a
+        # card that the filters already selected.
+        narrow = self.prefilter_count(structured)
+        if narrow is not None and 0 < narrow <= settings.semantic_candidate_cap:
+            yield Stage("execute", f"Structured filters match {narrow} cards; planning skipped", {
+                "prefiltered": narrow,
+            })
+            candidates = await asyncio.to_thread(
+                search_node_limited, self.conn, structured,
+                limit=settings.semantic_candidate_cap,
+            )
+            async for step in self._evaluate(prompt, candidates, report, stats=[
+                {"rationale": "structured pre-filter (exhaustive, no planning needed)",
+                 "matched": len(candidates)},
+            ], warnings=[]):
+                yield step
+            return
 
         yield Stage("concepts", "Interpreting the request")
         concepts = await self.extract_concepts(prompt)
@@ -336,10 +382,34 @@ class SemanticPipeline:
             "plans": stats, "warnings": warnings,
         })
 
+        async for step in self._evaluate(
+            prompt, candidates, report, stats=stats, warnings=warnings,
+            extra={
+                "interpretation": concepts.get("interpretation", ""),
+                "tags": [t["slug"] for t in tags],
+            },
+        ):
+            yield step
+
+    async def _evaluate(
+        self,
+        prompt: str,
+        candidates: list[dict],
+        report: GuardReport,
+        *,
+        stats: list[dict],
+        warnings: list[str],
+        extra: dict[str, Any] | None = None,
+    ) -> AsyncIterator[Stage]:
+        """Grade candidates in batches and emit the terminal stage.
+
+        Shared by both entry paths so the planned and pre-filtered routes end
+        identically, including the guard report.
+        """
         if not candidates:
             yield Stage("complete", "No cards matched", {
                 "cards": [], "guard": report.as_dict(), "plans": stats,
-                "warnings": warnings, "candidate_count": 0,
+                "warnings": warnings, "candidate_count": 0, **(extra or {}),
             })
             return
 
@@ -363,6 +433,5 @@ class SemanticPipeline:
             "plans": stats,
             "warnings": warnings,
             "candidate_count": len(candidates),
-            "interpretation": concepts.get("interpretation", ""),
-            "tags": [t["slug"] for t in tags],
+            **(extra or {}),
         })

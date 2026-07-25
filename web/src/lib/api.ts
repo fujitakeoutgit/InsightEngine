@@ -109,6 +109,38 @@ export interface DeckReport {
   unresolved: { raw_name: string; line_number: number; alternatives: string[] }[]
 }
 
+export interface DeckTheme {
+  slug: string
+  in_deck: number
+  corpus: number
+  score: number
+}
+
+export interface Recommendation {
+  card: Card
+  because: string[]
+  score: number
+}
+
+export interface RecommendReport {
+  themes: DeckTheme[]
+  color_identity?: string
+  format?: string | null
+  recommendations: Recommendation[]
+  note: string | null
+}
+
+export interface SavedDeck {
+  id: number
+  name: string
+  commander: string | null
+  format: string | null
+  created_at: string
+  updated_at: string
+  text?: string
+  lines?: number
+}
+
 export interface GuardReport {
   clean: boolean
   invalid_indices: number[]
@@ -211,6 +243,26 @@ export const api = {
   analyzeDeck: (text: string, commander?: string) =>
     post<DeckReport>('/api/deck/analyze', { text, commander: commander ?? null }),
 
+  recommendDeck: (text: string, format?: string | null, limit = 40) =>
+    post<RecommendReport>('/api/deck/recommend', {
+      text, commander: null, format: format || null, limit,
+    }),
+
+  savedDecks: () => get<{ decks: SavedDeck[] }>('/api/deck/saved'),
+
+  saveDeck: (deck: { name: string; text: string; id?: number; format?: string | null }) =>
+    post<{ deck: SavedDeck }>('/api/deck/saved', {
+      name: deck.name, text: deck.text, id: deck.id ?? null, format: deck.format ?? null,
+    }),
+
+  loadDeck: (id: number) => get<{ deck: SavedDeck }>(`/api/deck/saved/${id}`),
+
+  deleteDeck: async (id: number) => {
+    const resp = await fetch(`/api/deck/saved/${id}`, { method: 'DELETE' })
+    if (!resp.ok) throw new ApiError(resp.status, 'Could not delete deck')
+    return resp.json() as Promise<{ deleted: number }>
+  },
+
   health: () =>
     get<{
       status: string
@@ -256,27 +308,38 @@ export function streamSemantic(
   source.addEventListener('stage', (event) => {
     handlers.onStage(JSON.parse((event as MessageEvent).data))
   })
+
+  // close() runs *before* the handler on every terminal event. EventSource
+  // reconnects automatically when a stream ends without close(), so if a
+  // handler throws while closing came after it, the browser silently starts
+  // the whole eight-minute run again.
   source.addEventListener('complete', (event) => {
     finished = true
-    handlers.onComplete(JSON.parse((event as MessageEvent).data))
     source.close()
+    handlers.onComplete(JSON.parse((event as MessageEvent).data))
   })
   source.addEventListener('cancelled', () => {
     finished = true
-    handlers.onCancelled?.()
     source.close()
+    handlers.onCancelled?.()
   })
   source.addEventListener('error', (event) => {
     const data = (event as MessageEvent).data
     if (data) {
       finished = true
+      source.close()
       handlers.onError(JSON.parse(data).message)
-    } else if (!finished && source.readyState === EventSource.CLOSED) {
-      handlers.onError('Connection to the search engine was lost.')
-    } else if (!finished) {
-      return // transient; EventSource will reconnect on its own
+      return
     }
-    source.close()
+    if (finished) {
+      source.close() // terminal event already handled; never let it reconnect
+      return
+    }
+    if (source.readyState === EventSource.CLOSED) {
+      source.close()
+      handlers.onError('Connection to the search engine was lost.')
+    }
+    // Otherwise transient: EventSource is mid-reconnect on a run still going.
   })
 
   const stop = () => {

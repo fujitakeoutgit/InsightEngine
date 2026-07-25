@@ -6,11 +6,13 @@
     .\start.ps1
     .\start.ps1 -NoBrowser      # don't open a browser window
     .\start.ps1 -SkipChecks     # skip the model/mirror preflight
+    .\start.ps1 -Lan            # serve to the local network (see README)
 #>
 [CmdletBinding()]
 param(
     [switch]$NoBrowser,
-    [switch]$SkipChecks
+    [switch]$SkipChecks,
+    [switch]$Lan
 )
 
 $ErrorActionPreference = 'Stop'
@@ -24,9 +26,20 @@ function Warn($msg) { Say "  [warn] $msg" 'Yellow' }
 function Die($msg) { Say "  [fail] $msg" 'Red'; exit 1 }
 
 Say ''
-Say '  MANAFOLD' 'Cyan'
+Say '  INSIGHT ENIGMA' 'Cyan'
 Say '  Magic: The Gathering search. Card data from Scryfall.' 'DarkGray'
 Say ''
+
+$bindHost = if ($Lan) { '0.0.0.0' } else { '127.0.0.1' }
+if ($Lan) {
+    $ip = (Get-NetIPAddress -AddressFamily IPv4 |
+        Where-Object { $_.IPAddress -notlike '127.*' -and $_.PrefixOrigin -ne 'WellKnown' } |
+        Select-Object -First 1).IPAddress
+    Warn 'LAN mode: anyone on this network can search, edit saved decks and'
+    Warn 'queue GPU work. There is no authentication. Do not port-forward it.'
+    if ($ip) { Say "  Other machines: http://${ip}:5173" 'Cyan' }
+    Say ''
+}
 
 # --- preflight -------------------------------------------------------------
 
@@ -69,12 +82,14 @@ Say ''
 Say '  Starting servers...' 'Cyan'
 
 $api = Start-Process -PassThru -WindowStyle Minimized $python `
-    -ArgumentList '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8787' `
+    -ArgumentList '-m', 'uvicorn', 'app.main:app', '--host', $bindHost, '--port', '8787' `
     -WorkingDirectory (Join-Path $root 'server')
 Ok "API      http://localhost:8787   (pid $($api.Id))"
 
+# Vite needs --host to listen on anything but loopback.
+$webArgs = if ($Lan) { @('run', 'dev', '--', '--host') } else { @('run', 'dev') }
 $web = Start-Process -PassThru -WindowStyle Minimized 'npm.cmd' `
-    -ArgumentList 'run', 'dev' `
+    -ArgumentList $webArgs `
     -WorkingDirectory (Join-Path $root 'web')
 Ok "Web      http://localhost:5173   (pid $($web.Id))"
 

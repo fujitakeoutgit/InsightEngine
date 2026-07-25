@@ -97,19 +97,31 @@ export function CardPage() {
             {held ? '✓ In Cards' : '+ Add to Cards'}
           </button>
         </div>
-        <div className="row wrap gap-2" style={{ marginTop: 10 }}>
-          {vendors.tcgplayer && (
-            <a className="btn btn-ghost" href={vendors.tcgplayer} target="_blank" rel="noreferrer noopener">
-              TCGplayer
-            </a>
-          )}
+        {vendors.tcgplayer && (
+          <a
+            className="btn"
+            style={{ marginTop: 10, width: '100%' }}
+            href={vendors.tcgplayer}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            Search TCGplayer
+            {card.usd !== null && <span className="faint"> · ${card.usd.toFixed(2)}</span>}
+          </a>
+        )}
+        <div className="row wrap gap-2" style={{ marginTop: 8 }}>
           {vendors.cardmarket && (
-            <a className="btn btn-ghost" href={vendors.cardmarket} target="_blank" rel="noreferrer noopener">
+            <a className="btn btn-ghost sm" href={vendors.cardmarket} target="_blank" rel="noreferrer noopener">
               Cardmarket
             </a>
           )}
+          {vendors.cardhoarder && (
+            <a className="btn btn-ghost sm" href={vendors.cardhoarder} target="_blank" rel="noreferrer noopener">
+              Cardhoarder
+            </a>
+          )}
           {card.scryfall_uri && (
-            <a className="btn btn-ghost" href={card.scryfall_uri} target="_blank" rel="noreferrer noopener">
+            <a className="btn btn-ghost sm" href={card.scryfall_uri} target="_blank" rel="noreferrer noopener">
               Scryfall
             </a>
           )}

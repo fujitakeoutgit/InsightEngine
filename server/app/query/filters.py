@@ -84,6 +84,13 @@ def validate(filters: dict[str, Any]) -> dict[str, Any]:
         expected = FILTER_SCHEMA.get(key)
         if expected is None:
             raise FilterError(f"unknown filter key '{key}'")
+
+        # A single phrase where a list belongs is the most common planner slip
+        # and means exactly what a one-element list means. Coercing it saves a
+        # plan that would otherwise be discarded whole.
+        if expected is list and isinstance(value, str):
+            value = [value]
+
         if not isinstance(value, expected):
             raise FilterError(f"filter '{key}' expects {expected}, got {type(value).__name__}")
         if isinstance(value, list):

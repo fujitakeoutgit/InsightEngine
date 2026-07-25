@@ -52,6 +52,21 @@ class Settings(BaseSettings):
     semantic_max_plans: int = 8          # complementary query plans per search
     semantic_candidate_cap: int = 400    # rows handed to the grounding pass
     semantic_return_cap: int = 60        # cards shown to the user
+    # One GPU, one run. A second concurrent run does not go twice as fast --
+    # it thrashes a model that is already spilling into system RAM, and makes
+    # both take longer. This is also the only thing standing between a shared
+    # LAN instance and one person monopolising the card.
+    semantic_max_concurrent: int = 1
+
+    # --- serving -----------------------------------------------------------
+    # 127.0.0.1 keeps the API off the network. Set 0.0.0.0 to share it on a
+    # trusted LAN, and read the security note in the README before doing so:
+    # there is no authentication, and the semantic endpoint is expensive.
+    host: str = "127.0.0.1"
+    port: int = 8787
+    # Extra browser origins allowed to call the API. The Vite dev server proxies
+    # /api from its own origin, so this only matters for direct cross-origin use.
+    extra_cors_origins: str = ""
 
     @property
     def bulk_dir(self) -> Path:
