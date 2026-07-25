@@ -85,6 +85,38 @@ def _relax(filters: dict[str, Any]) -> dict[str, Any] | None:
     return relaxed if changed else None
 
 
+def _global_constraints(concepts: dict[str, Any]) -> dict[str, Any]:
+    """Colour constraints that apply to the whole request, not to one plan."""
+    constraints: dict[str, Any] = {}
+    if required := (concepts.get("colors_required") or "").strip():
+        constraints["color_identity"] = required
+        constraints["color_identity_mode"] = "subset"
+    if excluded := (concepts.get("colors_excluded") or "").strip():
+        constraints["color_identity_exclude"] = excluded
+    return constraints
+
+
+def _apply_global(filters: dict[str, Any], constraints: dict[str, Any]) -> dict[str, Any]:
+    """Force request-wide constraints onto a plan.
+
+    A "nonblack" search previously leaked black cards: the constraint lived
+    only in the prompt, so some plans remembered it and some did not, and the
+    tag sweep had no idea about it at all. Applying it in code means every
+    result honours it regardless of what any individual plan asked for.
+    """
+    if not constraints:
+        return filters
+
+    merged = dict(filters)
+    if identity := constraints.get("color_identity"):
+        merged["color_identity"] = identity
+        merged["color_identity_mode"] = constraints.get("color_identity_mode", "subset")
+    if excluded := constraints.get("color_identity_exclude"):
+        existing = merged.get("color_identity_exclude", "")
+        merged["color_identity_exclude"] = "".join(dict.fromkeys(f"{existing}{excluded}"))
+    return merged
+
+
 def _tag_menu(tags: list[dict]) -> str:
     return "\n".join(
         f"- {t['slug']} ({t['card_count']} cards): {t.get('description') or t.get('label') or ''}"
@@ -149,8 +181,10 @@ class SemanticPipeline:
         plans: list[dict[str, Any]],
         structured: Node | None,
         tags: list[dict] | None = None,
+        constraints: dict[str, Any] | None = None,
     ) -> tuple[list[dict], list[dict], list[str]]:
         """Run every plan and union the rows. Returns (cards, plan_stats, warnings)."""
+        constraints = constraints or {}
         candidates: dict[str, dict] = {}
         stats: list[dict] = []
         warnings: list[str] = []
@@ -178,6 +212,7 @@ class SemanticPipeline:
                 continue
 
             extra = structured if structured and not is_empty(structured) else None
+            filters = _apply_global(filters, constraints)
 
             # One malformed plan must never end the run. A planner that emits a
             # regex where a colour belongs is a bad plan, not a broken search --
@@ -225,7 +260,7 @@ class SemanticPipeline:
             slugs = [t["slug"] for t in tags[:TAG_SWEEP_WIDTH]]
             expanded = sorted(expand_descendants(self.conn, slugs))
             rows = search_mtg_database(
-                self.conn, {"oracle_tags": expanded},
+                self.conn, _apply_global({"oracle_tags": expanded}, constraints),
                 limit=settings.semantic_candidate_cap,
                 extra=structured if structured and not is_empty(structured) else None,
             )
@@ -272,9 +307,11 @@ class SemanticPipeline:
 
         yield Stage("concepts", "Interpreting the request")
         concepts = await self.extract_concepts(prompt)
+        constraints = _global_constraints(concepts)
         yield Stage("concepts", concepts.get("interpretation", "Interpreted"), {
             "concepts": concepts.get("concepts", []),
             "oracle_phrases": concepts.get("oracle_phrases", []),
+            "constraints": constraints,
         })
 
         yield Stage("vocabulary", "Retrieving oracle tags")
@@ -293,7 +330,7 @@ class SemanticPipeline:
 
         yield Stage("execute", "Querying the database")
         candidates, stats, warnings = await asyncio.to_thread(
-            self.execute_plans, plans, structured, tags
+            self.execute_plans, plans, structured, tags, constraints
         )
         yield Stage("execute", f"{len(candidates)} candidate cards", {
             "plans": stats, "warnings": warnings,

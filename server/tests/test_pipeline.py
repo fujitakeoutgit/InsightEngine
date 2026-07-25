@@ -161,6 +161,38 @@ def test_colour_exclusion_replaces_the_regex_workaround(conn):
         assert "B" not in card["color_identity"]
 
 
+def test_global_constraints_reach_every_plan_and_the_sweep(conn):
+    """A 'nonblack' request leaked black cards: the constraint lived only in
+    the prompt, so plans applied it inconsistently and the tag sweep not at
+    all. It is now forced onto every query in code."""
+    pipeline = SemanticPipeline(conn)
+    plans = [
+        # None of these mention colour; the constraint must still bite.
+        {"rationale": "sac outlets", "filters": {"oracle_any": ["sacrifice a creature"]}},
+        {"rationale": "death triggers", "filters": {"oracle_any": ["dies"]}},
+    ]
+    tags = [{"slug": "sacrifice-outlet-creature", "card_count": 888}]
+
+    loose, _, _ = pipeline.execute_plans(plans, None, tags=tags)
+    strict, _, _ = pipeline.execute_plans(
+        plans, None, tags=tags, constraints={"color_identity_exclude": "B"},
+    )
+
+    assert any("B" in (c["color_identity"] or "") for c in loose), "sanity: black leaks without it"
+    assert strict, "constraint must not empty the result"
+    offenders = [c["name"] for c in strict if "B" in (c["color_identity"] or "")]
+    assert not offenders, f"black cards survived a nonblack search: {offenders[:5]}"
+
+
+def test_global_constraint_merges_with_a_plans_own_exclusion():
+    from app.llm.pipeline import _apply_global
+
+    merged = _apply_global(
+        {"color_identity_exclude": "R"}, {"color_identity_exclude": "B"}
+    )
+    assert set(merged["color_identity_exclude"]) == {"R", "B"}
+
+
 def test_colour_exclusion_accepts_words_and_letters(conn):
     by_word = search_mtg_database(conn, {"colors_exclude": "black, red"}, limit=20)
     by_letter = search_mtg_database(conn, {"colors_exclude": "BR"}, limit=20)

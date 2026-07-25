@@ -40,7 +40,12 @@ outlets, death triggers, aristocrat payoffs, and free sacrifice effects -- list 
 them all as separate concepts.
 - `oracle_phrases` must be literal substrings that would genuinely appear in a \
 card's rules text, e.g. "sacrifice a creature", "when this creature dies".
-- Prefer more concepts over fewer. Recall matters more than precision here."""
+- Prefer more concepts over fewer. Recall matters more than precision here.
+- If the request constrains COLOUR for the whole search, put it in
+  `colors_required` / `colors_excluded` as WUBRG letters. "nonblack aristocrats"
+  is `colors_excluded: "B"`; "red and green ramp" is `colors_required: "RG"`.
+  Leave both empty when colour is not mentioned. These apply to every result,
+  so do not repeat them inside individual concepts."""
 
 CONCEPT_SCHEMA = {
     "type": "object",
@@ -56,7 +61,14 @@ CONCEPT_SCHEMA = {
             "description": "Literal rules-text substrings likely to appear on matching cards",
         },
         "card_types": {"type": "array", "items": {"type": "string"}},
-        "colors": {"type": "string", "description": "WUBRG letters, or empty if unconstrained"},
+        "colors_required": {
+            "type": "string",
+            "description": "WUBRG letters every result must be within, or empty",
+        },
+        "colors_excluded": {
+            "type": "string",
+            "description": "WUBRG letters no result may contain, or empty",
+        },
         "interpretation": {"type": "string", "description": "One sentence restating the request"},
     },
     "required": ["concepts", "oracle_phrases", "interpretation"],
