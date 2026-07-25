@@ -19,7 +19,7 @@ interface Tag {
   card_count: number
 }
 
-/** Operator reference. Manafold-only entries are called out explicitly. */
+/** Operator reference. Insight Enigma-only entries are called out explicitly. */
 const SYNTAX_ROWS: [string, string, boolean][] = [
   ['c:red  c<=wu  c=rg', 'Card colour — includes / at most / exactly', false],
   ['id<=bg', 'Colour identity, for Commander', false],
@@ -99,7 +99,7 @@ export function GlossaryPage() {
                   <td>
                     {exclusive && (
                       <span className="chip on" style={{ fontSize: 'var(--step--2)' }}>
-                        Manafold only
+                        Insight Enigma only
                       </span>
                     )}
                   </td>

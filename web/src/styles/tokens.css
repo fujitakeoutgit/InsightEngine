@@ -1,89 +1,62 @@
-/* Manafold design tokens.
+/* Insight Enigma design tokens.
  *
- * Direction: modern editorial/tech. High-contrast serif display against a
- * tight grotesque UI voice and a mono data voice. Near-black canvas, hairline
- * structure, one iridescent accent. Deliberately not themed like the game --
- * no parchment, no gold, no medieval furniture.
+ * Adopted from the EDH league tracker so the two apps read as one family:
+ * Bricolage Grotesque for display, Instrument Sans for body, IBM Plex Mono for
+ * every label and number. Near-black canvas, cool blue-grey glass, a single
+ * aether-blue accent, and the WUBRG manaline reserved for moments that are
+ * genuinely about Magic's colours.
  */
 
 :root {
   /* --- surface ------------------------------------------------------- */
-  --canvas: #08080a;
-  --panel: #0e0e12;
-  --raised: #16161c;
-  --raised-2: #1e1e26;
-  --hairline: rgba(255, 255, 255, 0.07);
-  --hairline-strong: rgba(255, 255, 255, 0.14);
+  --bg: #07080c;
+  --bg-hi: #0d0f16;
+  --glass: rgba(148, 163, 205, 0.05);
+  --glass-hi: rgba(148, 163, 205, 0.09);
+  --line: rgba(148, 163, 205, 0.16);
+  --line-soft: rgba(148, 163, 205, 0.08);
 
   /* --- ink ----------------------------------------------------------- */
-  --ink: #ededf0;
-  --ink-muted: #8b8b96;
-  --ink-faint: #5a5a64;
-  --ink-inverse: #08080a;
+  --ink: #e9ecf5;
+  --muted: #8b93a9;
+  --faint: #575d73;
 
-  /* --- signature ----------------------------------------------------- */
-  --accent: #b4a0ff;
-  --accent-2: #6ee7d6;
-  --accent-warm: #ffb27d;
-  --accent-glow: rgba(180, 160, 255, 0.35);
-  --spectrum: linear-gradient(100deg, var(--accent) 0%, var(--accent-2) 55%, var(--accent-warm) 100%);
+  /* --- accent -------------------------------------------------------- */
+  --aether: #8fa9ff;
+  --aether-hi: #b4c6ff;
+  --aether-ink: #0a0f1e;
 
   /* --- state --------------------------------------------------------- */
-  --ok: #6ee7a5;
-  --warn: #ffcf6e;
-  --bad: #ff7a85;
+  --ok: #4ed9a4;
+  --warn: #e8b96a;
+  --danger: #ff6f61;
 
-  /* --- mana (data colours, tuned down to sit in the palette) ---------- */
-  --mana-w: #efe3c8;
-  --mana-u: #7fb2e5;
-  --mana-b: #a897b8;
-  --mana-r: #e88b78;
-  --mana-g: #86be96;
-  --mana-c: #a9a9b4;
+  /* --- mana ---------------------------------------------------------- */
+  --manaline: linear-gradient(90deg, #e9e2c6, #4d93d6 30%, #8b8494 50%, #dd6b4e 70%, #55a96f);
+  --mana-w: #e9e2c6;
+  --mana-u: #4d93d6;
+  --mana-b: #8b8494;
+  --mana-r: #dd6b4e;
+  --mana-g: #55a96f;
+  --mana-c: #a6a8b5;
 
   /* --- type ---------------------------------------------------------- */
-  --font-display: 'Instrument Serif', 'Times New Roman', serif;
-  --font-ui: 'Inter Tight', system-ui, -apple-system, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+  --font-d: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
+  --font-b: 'Instrument Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-m: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
 
-  --step--2: clamp(0.66rem, 0.63rem + 0.13vw, 0.72rem);
-  --step--1: clamp(0.78rem, 0.74rem + 0.18vw, 0.87rem);
-  --step-0: clamp(0.94rem, 0.9rem + 0.2vw, 1.02rem);
-  --step-1: clamp(1.12rem, 1.04rem + 0.4vw, 1.35rem);
-  --step-2: clamp(1.4rem, 1.24rem + 0.8vw, 1.95rem);
-  --step-3: clamp(1.85rem, 1.5rem + 1.7vw, 3rem);
-  --step-4: clamp(2.6rem, 1.7rem + 4.4vw, 6rem);
-  --step-5: clamp(3.4rem, 1.4rem + 9vw, 9rem);
-
-  /* --- space --------------------------------------------------------- */
-  --gap-1: 0.35rem;
-  --gap-2: 0.7rem;
-  --gap-3: 1.1rem;
-  --gap-4: 1.75rem;
-  --gap-5: 2.75rem;
-  --gap-6: 4.5rem;
-
-  --radius-s: 6px;
-  --radius-m: 12px;
-  --radius-l: 20px;
-  --radius-card: 4.75% / 3.5%;
-
-  --shell: min(1560px, 94vw);
+  /* --- geometry ------------------------------------------------------ */
+  --r: 5px;
+  --r-lg: 8px;
+  --shell: min(1560px, calc(100vw - 48px));
 
   /* --- motion -------------------------------------------------------- */
   --dur-fast: 0.18s;
-  --dur: 0.42s;
+  --dur: 0.4s;
   --dur-slow: 0.9s;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-
-  --z-grain: 900;
-  --z-header: 100;
-  --z-overlay: 800;
 }
 
-/* Motion is decorative here; every animation has a static end state, so
- * disabling transitions never hides content. */
 @media (prefers-reduced-motion: reduce) {
   :root {
     --dur-fast: 0.001s;

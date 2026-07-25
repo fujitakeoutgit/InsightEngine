@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Start Manafold: checks prerequisites, then launches the API and web server.
+    Start Insight Enigma: checks prerequisites, then launches the API and web server.
 
 .EXAMPLE
     .\start.ps1
@@ -50,7 +50,7 @@ if (-not $SkipChecks) {
     # Ollama is only needed for q: searches; everything else works without it.
     try {
         $tags = Invoke-RestMethod 'http://localhost:11434/api/tags' -TimeoutSec 5
-        $model = if ($env:MANAFOLD_OLLAMA_MODEL) { $env:MANAFOLD_OLLAMA_MODEL } else { 'llama3.3:70b' }
+        $model = if ($env:INSIGHT_OLLAMA_MODEL) { $env:INSIGHT_OLLAMA_MODEL } else { 'llama3.3:70b' }
         if ($tags.models.name -contains $model) {
             Ok "Ollama, $model loaded"
         } else {

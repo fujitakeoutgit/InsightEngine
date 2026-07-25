@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
-import { api, streamSemantic, type Card, type SearchResponse } from '../lib/api'
-import { countTo, revealTitle, riseIn } from '../lib/motion'
+import { api, streamSemantic, type Card } from '../lib/api'
+import { countTo, riseIn } from '../lib/motion'
 import { hasSemantic } from '../lib/query'
+import { cacheKey, fromResponse, readCache, rememberScroll, writeCache } from '../lib/searchCache'
 import { CardGrid, GridSkeleton } from '../components/CardGrid'
 import { SearchBar } from '../components/SearchBar'
-import { SemanticConsole, type ConsoleState } from '../components/SemanticConsole'
+import { EMPTY_CONSOLE, SemanticConsole, type ConsoleState } from '../components/SemanticConsole'
 
 const SORTS = [
   ['name', 'Name'],
@@ -18,70 +19,99 @@ const SORTS = [
   ['color', 'Colour'],
 ]
 
-const EMPTY_CONSOLE: ConsoleState = {
-  running: false,
-  stages: [],
-  current: '',
-  error: null,
-  model: 'llama3.3:70b',
-}
+const SIZE_KEY = 'insight-enigma:card-size'
 
 export function SearchPage() {
   const [params, setParams] = useSearchParams()
   const query = params.get('q') ?? ''
 
   const [draft, setDraft] = useState(query)
-  const [results, setResults] = useState<SearchResponse | null>(null)
-  const [semanticCards, setSemanticCards] = useState<Card[] | null>(null)
+  const [cards, setCards] = useState<Card[]>([])
+  const [total, setTotal] = useState(0)
+  const [engine, setEngine] = useState<string>('none')
+  const [hasMore, setHasMore] = useState(false)
   const [console_, setConsole] = useState<ConsoleState>(EMPTY_CONSOLE)
+  const [collapsed, setCollapsed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [sort, setSort] = useState('name')
   const [order, setOrder] = useState<'asc' | 'desc'>('asc')
+  const [cardSize, setCardSize] = useState(
+    () => Number(localStorage.getItem(SIZE_KEY)) || 190,
+  )
+  const [paperCards, setPaperCards] = useState(0)
 
-  const heroRef = useRef<HTMLHeadingElement>(null)
   const countRef = useRef<HTMLSpanElement>(null)
+  const heroCountRef = useRef<HTMLSpanElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
-  const closeStream = useRef<(() => void) | null>(null)
+  const stream = useRef<{ stop: () => void } | null>(null)
+
+  const key = cacheKey(query, sort, order)
 
   useEffect(() => setDraft(query), [query])
 
-  useLayoutEffect(() => {
-    if (!query) revealTitle(heroRef.current)
-  }, [query])
-
-  // Fetch the model name once so the console labels itself accurately.
   useEffect(() => {
+    localStorage.setItem(SIZE_KEY, String(cardSize))
+  }, [cardSize])
+
+  // Hero count: the number of paper cards actually in the mirror.
+  useEffect(() => {
+    api.health().then((h) => setPaperCards(h.paper_cards)).catch(() => {})
     api
       .semanticStatus()
       .then((s) => setConsole((c) => ({ ...c, model: s.model })))
       .catch(() => {})
   }, [])
 
+  useEffect(() => {
+    if (!query && paperCards) countTo(heroCountRef.current, paperCards)
+  }, [paperCards, query])
+
+  // Remember where the user was so returning from a card lands in place.
+  useEffect(() => {
+    const remember = () => rememberScroll(key, window.scrollY)
+    window.addEventListener('scroll', remember, { passive: true })
+    return () => {
+      remember()
+      window.removeEventListener('scroll', remember)
+    }
+  }, [key])
+
   const runSemantic = useCallback((q: string) => {
-    setSemanticCards(null)
-    setResults(null)
+    setCards([])
     setError(null)
     setLoading(true)
+    setCollapsed(false)
     setConsole((c) => ({ ...EMPTY_CONSOLE, model: c.model, running: true }))
 
-    closeStream.current?.()
-    closeStream.current = streamSemantic(q, {
+    stream.current?.stop()
+    stream.current = streamSemantic(q, {
       onStage: (stage) =>
-        setConsole((c) => ({
-          ...c,
-          stages: [...c.stages, stage],
-          current: stage.stage,
-        })),
+        setConsole((c) => ({ ...c, stages: [...c.stages, stage], current: stage.stage })),
       onComplete: (stage) => {
-        setConsole((c) => ({
-          ...c,
-          stages: [...c.stages, stage],
-          current: 'complete',
-          running: false,
-        }))
-        setSemanticCards(stage.detail.cards ?? [])
+        setConsole((c) => {
+          const stages = [...c.stages, stage]
+          writeCache(cacheKey(q, sort, order), {
+            cards: stage.detail.cards ?? [],
+            total: stage.detail.cards?.length ?? 0,
+            engine: 'semantic',
+            hasMore: false,
+            warnings: [],
+            stages,
+            scrollY: 0,
+          })
+          return { ...c, stages, current: 'complete', running: false }
+        })
+        setCards(stage.detail.cards ?? [])
+        setTotal(stage.detail.cards?.length ?? 0)
+        setEngine('semantic')
+        setLoading(false)
+        // The log has served its purpose once cards are on screen.
+        setCollapsed(true)
+      },
+      onCancelled: () => {
+        setConsole((c) => ({ ...c, running: false, cancelled: true }))
         setLoading(false)
       },
       onError: (message) => {
@@ -90,49 +120,59 @@ export function SearchPage() {
         setLoading(false)
       },
     })
-  }, [])
+  }, [sort, order])
 
-  const runStandard = useCallback(
-    async (q: string, nextSort: string, nextOrder: string) => {
-      setLoading(true)
-      setError(null)
-      setSemanticCards(null)
-      try {
-        const response = await api.search({
-          q,
-          sort: nextSort,
-          order: nextOrder,
-          per_page: 60,
-        })
-        setResults(response)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Search failed')
-        setResults(null)
-      } finally {
-        setLoading(false)
-      }
-    },
-    [],
-  )
+  const runStandard = useCallback(async (q: string, s: string, o: string) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await api.search({ q, sort: s, order: o, per_page: 60 })
+      setCards(response.cards)
+      setTotal(response.total)
+      setEngine(response.engine)
+      setHasMore(response.has_more)
+      writeCache(cacheKey(q, s, o), fromResponse(response))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Search failed')
+      setCards([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     if (!query) {
-      setResults(null)
-      setSemanticCards(null)
+      setCards([])
+      setTotal(0)
+      setEngine('none')
       setConsole(EMPTY_CONSOLE)
       return
     }
-    if (hasSemantic(query)) {
-      runSemantic(query)
-    } else {
-      runStandard(query, sort, order)
-    }
-    return () => closeStream.current?.()
-  }, [query, sort, order, runSemantic, runStandard])
 
-  const cards = semanticCards ?? results?.cards ?? []
-  const total = semanticCards ? semanticCards.length : (results?.total ?? 0)
-  const engine = semanticCards ? 'semantic' : (results?.engine ?? 'none')
+    // Restore rather than re-run. This is the difference between returning
+    // from a card instantly and waiting minutes for a q: run all over again.
+    const cached = readCache(key)
+    if (cached) {
+      setCards(cached.cards)
+      setTotal(cached.total)
+      setEngine(cached.engine)
+      setHasMore(cached.hasMore)
+      if (cached.stages) {
+        setConsole((c) => ({
+          ...EMPTY_CONSOLE, model: c.model, stages: cached.stages!, current: 'complete',
+        }))
+        setCollapsed(true)
+      }
+      setLoading(false)
+      requestAnimationFrame(() => window.scrollTo(0, cached.scrollY))
+      return
+    }
+
+    if (hasSemantic(query)) runSemantic(query)
+    else runStandard(query, sort, order)
+
+    return () => stream.current?.stop()
+  }, [query, sort, order, key, runSemantic, runStandard])
 
   useEffect(() => {
     if (!loading && cards.length) {
@@ -143,24 +183,40 @@ export function SearchPage() {
 
   const submit = (next: string) => {
     const trimmed = next.trim()
-    if (!trimmed) {
-      setParams({})
-      return
-    }
-    setParams({ q: trimmed })
+    setParams(trimmed ? { q: trimmed } : {})
   }
+
+  const stopRun = () => {
+    stream.current?.stop()
+    setConsole((c) => ({ ...c, running: false, cancelled: true }))
+    setLoading(false)
+  }
+
+  const isSemantic = hasSemantic(query)
+  const showConsole = Boolean(query) && isSemantic && console_.stages.length > 0
+  const consoleEl = showConsole && (
+    <SemanticConsole
+      state={console_}
+      collapsed={collapsed}
+      onToggle={() => setCollapsed((c) => !c)}
+      onStop={stopRun}
+      below={collapsed && cards.length > 0}
+    />
+  )
 
   return (
     <>
       <section className="shell hero">
         {!query && (
           <>
-            <h1 className="hero-title" ref={heroRef}>
-              Search the <em data-nosplit>multiverse</em>.
+            <h1 className="hero-title">
+              Scry <span className="hero-count" ref={heroCountRef}>{paperCards || '—'}</span>
             </h1>
-            <p className="hero-sub">
-              Every printed card, queryable. Full operator syntax, a wildcard the API doesn’t
-              have, and a local 70B model that reads your intent without ever inventing a card.
+            <hr className="manaline" style={{ maxWidth: 420, marginTop: 10 }} />
+            <p className="lede hero-sub">
+              Every paper card in print, queryable. Full operator syntax, a wildcard the API
+              doesn’t have, and a local 70B model that reads your intent without ever inventing
+              a card.
             </p>
           </>
         )}
@@ -174,19 +230,16 @@ export function SearchPage() {
         />
 
         {!query && (
-          <div className="row wrap gap-3" style={{ marginTop: 'var(--gap-5)' }}>
-            <Link to="/advanced" className="btn">
-              Build a query →
-            </Link>
-            <Link to="/deck" className="btn btn-ghost">
-              Analyse a decklist →
-            </Link>
+          <div className="row wrap gap-2" style={{ marginTop: 34 }}>
+            <Link to="/advanced" className="btn">Build a query</Link>
+            <Link to="/deck" className="btn btn-ghost">Analyse a decklist</Link>
           </div>
         )}
       </section>
 
       <section className="shell">
-        {query && hasSemantic(query) && <SemanticConsole state={console_} />}
+        {/* Expanded: above the results. Collapsed: tucked below them. */}
+        {!collapsed && consoleEl}
 
         {error && (
           <div className="notice error">
@@ -195,18 +248,15 @@ export function SearchPage() {
           </div>
         )}
 
-        {loading && !semanticCards && !hasSemantic(query) && <GridSkeleton />}
+        {loading && !isSemantic && <GridSkeleton size={cardSize} />}
 
-        {!loading && query && cards.length === 0 && !error && (
+        {!loading && query && cards.length === 0 && !error && !console_.running && (
           <div className="notice">
             <h3>No cards matched</h3>
             <p>
-              Nothing in the database satisfies <code className="mono">{query}</code>. Try
-              loosening a filter, or check the{' '}
-              <Link to="/glossary" style={{ borderBottom: '1px solid' }}>
-                syntax reference
-              </Link>
-              .
+              Nothing satisfies <code className="mono">{query}</code>. Try loosening a filter, or
+              check the <Link to="/glossary" style={{ borderBottom: '1px solid' }}>syntax
+              reference</Link>.
             </p>
           </div>
         )}
@@ -215,30 +265,41 @@ export function SearchPage() {
           <>
             <div className="toolbar" ref={toolbarRef}>
               <span className="count">
-                <b ref={countRef}>{total.toLocaleString()}</b>{' '}
-                {total === 1 ? 'card' : 'cards'}
-                {results?.has_more && ' (page 1)'}
+                <b ref={countRef}>{total.toLocaleString()}</b> {total === 1 ? 'card' : 'cards'}
+                {hasMore && ' (page 1)'}
               </span>
               <span className={`engine-badge ${engine}`}>{engine}</span>
 
-              <div className="push row gap-2">
-                {!semanticCards && (
+              <div className="push row gap-2 wrap">
+                {view === 'grid' && (
+                  <label className="size-slider" title="Card size">
+                    <span className="label">Size</span>
+                    <input
+                      type="range"
+                      min={110}
+                      max={340}
+                      step={10}
+                      value={cardSize}
+                      onChange={(e) => setCardSize(Number(e.target.value))}
+                      aria-label="Card image size"
+                    />
+                  </label>
+                )}
+                {engine !== 'semantic' && (
                   <>
                     <select
-                      className="field"
+                      className="fld"
                       style={{ width: 'auto' }}
                       value={sort}
                       onChange={(e) => setSort(e.target.value)}
                       aria-label="Sort by"
                     >
                       {SORTS.map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
+                        <option key={value} value={value}>{label}</option>
                       ))}
                     </select>
                     <button
-                      className="btn btn-ghost"
+                      className="btn btn-ghost sm"
                       onClick={() => setOrder(order === 'asc' ? 'desc' : 'asc')}
                       title="Toggle sort direction"
                     >
@@ -247,7 +308,7 @@ export function SearchPage() {
                   </>
                 )}
                 <button
-                  className="btn btn-ghost"
+                  className="btn btn-ghost sm"
                   onClick={() => setView(view === 'grid' ? 'list' : 'grid')}
                 >
                   {view === 'grid' ? 'List' : 'Grid'}
@@ -255,15 +316,11 @@ export function SearchPage() {
               </div>
             </div>
 
-            <CardGrid cards={cards} view={view} />
+            <CardGrid cards={cards} view={view} size={cardSize} />
           </>
         )}
 
-        {results?.warnings && results.warnings.length > 0 && (
-          <p className="faint mono" style={{ marginTop: 'var(--gap-3)', fontSize: 'var(--step--2)' }}>
-            {results.warnings.join(' · ')}
-          </p>
-        )}
+        {collapsed && consoleEl}
       </section>
     </>
   )

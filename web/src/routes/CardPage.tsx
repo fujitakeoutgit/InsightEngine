@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { api, type CardDetail } from '../lib/api'
+import { collection, useIsCollected } from '../lib/collection'
 import { riseIn } from '../lib/motion'
 import { IdentityDots, ManaCost, OracleText } from '../components/ManaCost'
 
@@ -17,9 +18,18 @@ function money(value: string | null | undefined, prefix = '$') {
 
 export function CardPage() {
   const { oracleId } = useParams()
+  const navigate = useNavigate()
   const [detail, setDetail] = useState<CardDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
+  const held = useIsCollected(oracleId ?? '')
+
+  // history.back rather than a link to /: it re-renders the search page, which
+  // restores its cached results and scroll position instead of re-querying.
+  const goBack = () => {
+    if (window.history.length > 1) navigate(-1)
+    else navigate('/')
+  }
 
   useEffect(() => {
     if (!oracleId) return
@@ -66,14 +76,28 @@ export function CardPage() {
   const prices = card.prices ?? {}
 
   return (
-    <section className="shell detail" ref={bodyRef}>
+    <>
+      <div className="shell">
+        <button className="back-link" onClick={goBack}>
+          ← Back to results
+        </button>
+      </div>
+      <section className="shell detail" ref={bodyRef}>
       <div className="detail-art">
         {card.image_normal ? (
           <img src={card.image_normal} alt={card.name} />
         ) : (
           <div className="panel">No image available.</div>
         )}
-        <div className="row wrap gap-2" style={{ marginTop: 'var(--gap-3)' }}>
+        <div className="row wrap gap-2" style={{ marginTop: 16 }}>
+          <button
+            className={held ? 'btn btn-primary' : 'btn'}
+            onClick={() => collection.toggle(card)}
+          >
+            {held ? '✓ In Cards' : '+ Add to Cards'}
+          </button>
+        </div>
+        <div className="row wrap gap-2" style={{ marginTop: 10 }}>
           {vendors.tcgplayer && (
             <a className="btn btn-ghost" href={vendors.tcgplayer} target="_blank" rel="noreferrer noopener">
               TCGplayer
@@ -249,10 +273,11 @@ export function CardPage() {
           </div>
         )}
 
-        <p className="faint" style={{ fontSize: 'var(--step--1)' }}>
+        <p className="faint" style={{ fontSize: 13 }}>
           Artist: {card.artist ?? 'Unknown'} · Card data from Scryfall.
         </p>
       </div>
     </section>
+    </>
   )
 }

@@ -9,10 +9,9 @@ from __future__ import annotations
 import pytest
 
 from app.db import connect
-from app.llm.guard import (
-    GuardReport, NameIndex, audit_prose, deterministic_summary, validate_indices,
-)
-from app.llm.pipeline import _relax
+from app.llm import prompts
+from app.llm.guard import validate_indices
+from app.llm.pipeline import SemanticPipeline, _relax
 from app.search_local import cards_by_oracle_ids, search_mtg_database
 
 
@@ -21,11 +20,6 @@ def conn():
     c = connect()
     yield c
     c.close()
-
-
-@pytest.fixture(scope="module")
-def names(conn):
-    return NameIndex(conn)
 
 
 # --- recall rescue ---------------------------------------------------------
@@ -102,48 +96,74 @@ def test_invented_oracle_ids_resolve_to_nothing(conn):
     assert set(found) == {real}
 
 
-# --- prose auditing --------------------------------------------------------
+# --- no text channel -------------------------------------------------------
 
-def test_clean_prose_passes_through(names):
-    report = GuardReport()
-    text = "Several low-cost sacrifice outlets appear, mostly in black."
-    assert audit_prose(text, names, [], report) == text
-    assert report.clean
+def _leaf_types(schema: dict) -> set[str]:
+    """Every scalar type reachable in a JSON Schema."""
+    found: set[str] = set()
+    kind = schema.get("type")
+    if kind == "object":
+        for child in (schema.get("properties") or {}).values():
+            found |= _leaf_types(child)
+    elif kind == "array":
+        found |= _leaf_types(schema.get("items") or {})
+    elif kind:
+        found.add(kind)
+    return found
 
 
-def test_named_card_in_prose_is_caught_and_replaced(conn, names):
-    report = GuardReport()
-    cards = search_mtg_database(conn, {"oracle_tags": ["sacrifice-outlet-creature"]}, limit=5)
-    out = audit_prose(
-        "You should consider Blood Artist and Viscera Seer here.", names, cards, report
+def test_selection_schema_cannot_carry_text():
+    """The model grades candidates with integers and nothing else.
+
+    This is the structural half of the no-hallucination guarantee: with no
+    string field in the schema, constrained decoding leaves the model no way
+    to author text that reaches the user.
+    """
+    assert _leaf_types(prompts.SELECT_SCHEMA) == {"integer"}
+
+
+def test_no_summarisation_prompt_remains():
+    assert not hasattr(prompts, "SUMMARY_SCHEMA")
+    assert not hasattr(prompts, "SUMMARY_SYSTEM")
+
+
+# --- plan isolation --------------------------------------------------------
+
+def test_one_broken_plan_does_not_kill_the_run(conn):
+    """The regression: a planner emitted a regex as a colour and the whole
+    eight-minute run aborted on QueryCompileError."""
+    pipeline = SemanticPipeline(conn)
+    plans = [
+        {"rationale": "good plan", "filters": {"oracle_any": ["sacrifice a creature"]}},
+        {"rationale": "regex as colour", "filters": {"colors": "^[^b]*$"}},
+        {"rationale": "unknown key", "filters": {"nonsense_key": "x"}},
+        {"rationale": "bad rarity", "filters": {"rarity": ["legendary"]}},
+        {"rationale": "another good plan", "filters": {"type_contains": ["Creature"]}},
+    ]
+    cards, stats, warnings = pipeline.execute_plans(plans, None, tags=None)
+
+    assert cards, "surviving plans must still produce candidates"
+    assert len(stats) == len(plans)
+    failed = [s for s in stats if s.get("error")]
+    assert len(failed) == 3
+    assert any("colour" in w for w in warnings)
+
+
+def test_colour_exclusion_replaces_the_regex_workaround(conn):
+    """'nonblack' now has a real filter, so no planner needs a pattern."""
+    cards = search_mtg_database(
+        conn,
+        {"type_contains": ["Creature"], "color_identity_exclude": "B"},
+        limit=60,
     )
-    assert not report.clean
-    assert report.prose_replaced
-    assert "Blood Artist" in report.leaked_names
-    assert "Blood Artist" not in out          # replaced with the factual summary
-    assert "cards matched" in out
+    assert len(cards) == 60
+    for card in cards:
+        assert "B" not in card["color_identity"]
 
 
-def test_lowercase_common_words_do_not_false_positive(names):
-    report = GuardReport()
-    text = "these cards counter spells, deal with fire, and opt for card draw"
-    audit_prose(text, names, [], report)
-    assert report.clean, f"false positives: {report.leaked_names}"
-
-
-def test_short_names_are_not_flagged(names):
-    # 'Fire', 'Shock', 'Opt' are real cards but too collision-prone to flag.
-    assert not names.find("Fire and Shock and Opt")
-
-
-# --- deterministic summary -------------------------------------------------
-
-def test_summary_of_empty_set_is_exact():
-    assert deterministic_summary([]) == "The database returned no cards matching this query."
-
-
-def test_summary_reports_real_statistics(conn):
-    cards = search_mtg_database(conn, {"type_contains": ["Creature"], "colors": "R"}, limit=25)
-    summary = deterministic_summary(cards)
-    assert "25 cards matched" in summary
-    assert "red" in summary
+def test_colour_exclusion_accepts_words_and_letters(conn):
+    by_word = search_mtg_database(conn, {"colors_exclude": "black, red"}, limit=20)
+    by_letter = search_mtg_database(conn, {"colors_exclude": "BR"}, limit=20)
+    assert [c["oracle_id"] for c in by_word] == [c["oracle_id"] for c in by_letter]
+    for card in by_word:
+        assert not ({"B", "R"} & set(card["colors"]))

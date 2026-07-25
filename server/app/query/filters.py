@@ -24,7 +24,9 @@ FILTER_SCHEMA: dict[str, type | tuple[type, ...]] = {
     "oracle_tags": list,          # closed vocabulary from Scryfall Tagger
     "keywords": list,
     "colors": str,
+    "colors_exclude": str,        # WUBRG letters the card must NOT be
     "color_identity": str,
+    "color_identity_exclude": str,
     "color_identity_mode": str,   # subset | exact | contains
     "min_mana_cost": (int, float),
     "max_mana_cost": (int, float),
@@ -43,6 +45,27 @@ FILTER_SCHEMA: dict[str, type | tuple[type, ...]] = {
 }
 
 VALID_IDENTITY_MODES = {"subset", "exact", "contains"}
+
+_COLOUR_ALIASES = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
+
+
+def _colour_letters(value: str) -> list[str]:
+    """Parse 'B', 'wu', 'black' or 'black, red' into WUBRG letters.
+
+    Anything unrecognised is ignored rather than raising: an exclusion the
+    planner phrased oddly should narrow the search less, never kill the plan.
+    """
+    if not value:
+        return []
+    letters: list[str] = []
+    for part in value.replace(",", " ").split():
+        if alias := _COLOUR_ALIASES.get(part.lower()):
+            letters.append(alias)
+            continue
+        for char in part.upper():
+            if char in "WUBRG":
+                letters.append(char)
+    return list(dict.fromkeys(letters))
 
 
 class FilterError(ValueError):
@@ -122,6 +145,13 @@ def to_ast(filters: dict[str, Any]) -> Node:
         mode = filters.get("color_identity_mode", "subset")
         op = {"subset": "<=", "exact": "=", "contains": ":"}[mode]
         clauses.append(Term("identity", op, v))  # type: ignore[arg-type]
+
+    # Exclusions get their own keys because there is no way to say "nonblack"
+    # with an inclusion filter. Without these a planner will reach for a regex
+    # and the plan dies on an unknown-colour error.
+    for key, field in (("colors_exclude", "color"), ("color_identity_exclude", "identity")):
+        for letter in _colour_letters(filters.get(key, "")):
+            clauses.append(Not(Term(field, ":", letter)))
 
     numeric_map = [
         ("min_mana_cost", "mv", ">="), ("max_mana_cost", "mv", "<="),

@@ -4,7 +4,7 @@ Routing policy:
 
 * A query using only standard syntax goes to Scryfall, because they implement
   the full operator set and their prices are live. Responses are cached.
-* A query using Manafold extensions (`q:`, `_` wildcards, `otag:`) runs on the
+* A query using Insight Enigma extensions (`q:`, `_` wildcards, `otag:`) runs on the
   local mirror, because those have no server-side equivalent.
 * `engine=local` or `engine=scryfall` overrides the choice.
 """
@@ -45,7 +45,7 @@ def _with_defaults(query: str, include_funny: bool, include_digital: bool) -> st
 
 @router.get("/search")
 async def search(
-    q: str = Query("", description="Manafold/Scryfall query syntax"),
+    q: str = Query("", description="Insight Enigma/Scryfall query syntax"),
     page: int = Query(1, ge=1),
     per_page: int = Query(60, ge=1, le=175),
     sort: str = Query("name"),

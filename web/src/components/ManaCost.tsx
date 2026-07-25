@@ -10,13 +10,14 @@ function Pip({ symbol }: { symbol: string }) {
   // Hybrid and Phyrexian symbols read as two halves.
   if (inner.includes('/')) {
     const [a, b] = inner.split('/')
-    const left = COLOR_KEYS.has(a) ? VAR(a) : 'var(--mana-c)'
-    const right = COLOR_KEYS.has(b) ? VAR(b) : 'var(--mana-c)'
     return (
       <span
-        className="pip"
+        className="pipn"
         data-c="hybrid"
-        style={{ ['--pip-a' as string]: left, ['--pip-b' as string]: right }}
+        style={{
+          ['--pip-a' as string]: COLOR_KEYS.has(a) ? VAR(a) : 'var(--mana-c)',
+          ['--pip-b' as string]: COLOR_KEYS.has(b) ? VAR(b) : 'var(--mana-c)',
+        }}
         title={inner}
       >
         {inner.replace('/', '')}
@@ -24,9 +25,8 @@ function Pip({ symbol }: { symbol: string }) {
     )
   }
 
-  const isColor = COLOR_KEYS.has(inner)
   return (
-    <span className="pip" data-c={isColor ? inner : undefined} title={inner}>
+    <span className="pipn" data-c={COLOR_KEYS.has(inner) ? inner : undefined} title={inner}>
       {inner}
     </span>
   )

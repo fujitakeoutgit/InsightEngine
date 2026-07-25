@@ -1,4 +1,4 @@
-/** Typed client for the Manafold API. Requests go through Vite's proxy. */
+/** Typed client for the Insight Enigma API. Requests go through Vite's proxy. */
 
 export interface Card {
   oracle_id: string
@@ -112,8 +112,6 @@ export interface DeckReport {
 export interface GuardReport {
   clean: boolean
   invalid_indices: number[]
-  leaked_names: string[]
-  prose_replaced: boolean
 }
 
 export interface SemanticStage {
@@ -127,13 +125,13 @@ export interface SemanticStage {
     plans?: { rationale: string; matched: number; error?: string }[]
     warnings?: string[]
     cards?: Card[]
-    analysis?: string
     guard?: GuardReport
     candidate_count?: number
     interpretation?: string
     batch?: number
     batches?: number
     prompt?: string
+    run_id?: string
   }
 }
 
@@ -214,9 +212,13 @@ export const api = {
     post<DeckReport>('/api/deck/analyze', { text, commander: commander ?? null }),
 
   health: () =>
-    get<{ status: string; cards: number; mirror_built_at: string | null; model: string }>(
-      '/api/health',
-    ),
+    get<{
+      status: string
+      cards: number
+      paper_cards: number
+      mirror_built_at: string | null
+      model: string
+    }>('/api/health'),
 
   semanticStatus: () =>
     get<{
@@ -240,9 +242,12 @@ export function streamSemantic(
     onStage: (stage: SemanticStage) => void
     onComplete: (stage: SemanticStage) => void
     onError: (message: string) => void
+    onCancelled?: () => void
   },
-): () => void {
-  const url = `/api/semantic/stream?q=${encodeURIComponent(query)}`
+): { stop: () => void; runId: string } {
+  const runId =
+    globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`
+  const url = `/api/semantic/stream?q=${encodeURIComponent(query)}&run_id=${runId}`
   const source = new EventSource(url)
   // EventSource also emits `error` when a stream closes normally. Without this
   // flag a successful run ends by flashing a spurious connection failure.
@@ -254,6 +259,11 @@ export function streamSemantic(
   source.addEventListener('complete', (event) => {
     finished = true
     handlers.onComplete(JSON.parse((event as MessageEvent).data))
+    source.close()
+  })
+  source.addEventListener('cancelled', () => {
+    finished = true
+    handlers.onCancelled?.()
     source.close()
   })
   source.addEventListener('error', (event) => {
@@ -269,8 +279,13 @@ export function streamSemantic(
     source.close()
   })
 
-  return () => {
+  const stop = () => {
     finished = true
     source.close()
+    // Closing the stream is not enough on its own: the server needs to cancel
+    // the task so the model is actually released rather than left generating.
+    void fetch(`/api/semantic/cancel/${runId}`, { method: 'POST' }).catch(() => {})
   }
+
+  return { stop, runId }
 }

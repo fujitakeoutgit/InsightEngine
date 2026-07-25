@@ -18,7 +18,7 @@ PROJECT_ROOT = SERVER_ROOT.parent
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=SERVER_ROOT / ".env",
-        env_prefix="MANAFOLD_",
+        env_prefix="INSIGHT_",
         extra="ignore",
     )
 
@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # Scryfall asks for a descriptive User-Agent and ~10 requests/second.
     # https://scryfall.com/docs/api
     scryfall_base: str = "https://api.scryfall.com"
-    scryfall_user_agent: str = "Manafold/1.0 (+https://github.com/local/manafold)"
+    scryfall_user_agent: str = "InsightEnigma/1.0 (+https://github.com/fujitakeoutgit/manafold)"
     scryfall_min_interval: float = 0.1  # seconds between requests => 10 req/s
     scryfall_max_concurrency: int = 4
     scryfall_timeout: float = 30.0

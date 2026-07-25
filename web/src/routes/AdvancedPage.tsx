@@ -1,391 +1,510 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { api, type SetInfo } from '../lib/api'
 import { quoteIfNeeded } from '../lib/query'
-import { revealOnScroll, riseIn } from '../lib/motion'
 
-const COLORS = [
+/* --------------------------------------------------------------------------
+   Vocabulary
+   -------------------------------------------------------------------------- */
+
+const COLORS: [string, string][] = [
   ['W', 'White'], ['U', 'Blue'], ['B', 'Black'], ['R', 'Red'], ['G', 'Green'], ['C', 'Colourless'],
 ]
 
-const TYPES = [
-  'Creature', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Land',
-  'Planeswalker', 'Battle', 'Legendary', 'Token', 'Saga', 'Equipment', 'Aura',
+const COLOR_MODES: [string, string][] = [
+  [':', 'Including these colours'],
+  ['=', 'Exactly these colours'],
+  ['<=', 'At most these colours'],
+  ['>=', 'Including all of these'],
 ]
 
-const RARITIES = [['common', 'Common'], ['uncommon', 'Uncommon'], ['rare', 'Rare'], ['mythic', 'Mythic']]
+const RARITIES: [string, string][] = [
+  ['common', 'Common'], ['uncommon', 'Uncommon'], ['rare', 'Rare'], ['mythic', 'Mythic'],
+]
+
+const STATS: [string, string][] = [
+  ['mv', 'Mana value'], ['pow', 'Power'], ['tou', 'Toughness'],
+  ['loy', 'Loyalty'], ['year', 'Year'], ['edhrec', 'EDHREC rank'],
+]
+
+const OPS: [string, string][] = [
+  ['=', 'equal to'], ['>=', 'at least'], ['<=', 'at most'],
+  ['>', 'greater than'], ['<', 'less than'], ['!=', 'not equal to'],
+]
 
 const FORMATS = [
-  'standard', 'pioneer', 'modern', 'legacy', 'vintage', 'commander',
-  'pauper', 'brawl', 'historic', 'timeless', 'penny', 'oathbreaker',
+  'standard', 'pioneer', 'modern', 'legacy', 'vintage', 'commander', 'pauper',
+  'brawl', 'historic', 'timeless', 'alchemy', 'explorer', 'penny', 'oathbreaker',
+  'duel', 'predh', 'premodern', 'oldschool', 'gladiator',
 ]
 
-const COLOR_MODES = [
-  [':', 'includes'],
-  ['=', 'exactly'],
-  ['<=', 'at most (identity)'],
-  ['>=', 'includes all of'],
+const STATUSES: [string, string][] = [
+  ['legal', 'Legal in'], ['banned', 'Banned in'], ['restricted', 'Restricted in'],
 ]
 
-interface BuilderState {
+const CRITERIA: [string, string][] = [
+  ['commander', 'Can be a commander'], ['permanent', 'Is a permanent'],
+  ['spell', 'Is a spell'], ['vanilla', 'Is vanilla (no rules text)'],
+  ['dfc', 'Is double-faced'], ['modal', 'Is a modal DFC'],
+  ['transform', 'Transforms'], ['split', 'Is a split card'],
+  ['adventure', 'Has an adventure'], ['saga', 'Is a Saga'],
+  ['hybrid', 'Has hybrid mana'], ['phyrexian', 'Has Phyrexian mana'],
+  ['reserved', 'Is on the Reserved List'], ['gamechanger', 'Is a Game Changer'],
+  ['funny', 'Is from an Un-set'], ['digital', 'Is digital only'],
+  ['rebalanced', 'Is an Alchemy rebalance'],
+]
+
+const CURRENCIES: [string, string][] = [['usd', 'USD'], ['eur', 'EUR'], ['tix', 'MTGO tix']]
+
+const SORTS: [string, string][] = [
+  ['', 'Default'], ['name', 'Name'], ['edhrec', 'Popularity'], ['cmc', 'Mana value'],
+  ['usd', 'Price'], ['released', 'Release date'], ['rarity', 'Rarity'], ['color', 'Colour'],
+]
+
+/* --------------------------------------------------------------------------
+   State
+   -------------------------------------------------------------------------- */
+
+interface Condition { a: string; op: string; value: string }
+
+interface Builder {
+  name: string
+  oracle: string
+  typeLine: string
+  typeExclude: string
   colors: string[]
   colorMode: string
-  colorField: 'c' | 'id'
-  types: string[]
-  excludeTypes: string[]
-  oracle: string
-  oracleWildcard: boolean
-  name: string
-  mvMin: string
-  mvMax: string
-  powMin: string
-  touMin: string
+  identity: string[]
+  mana: string
+  stats: Condition[]
+  formats: { status: string; format: string }[]
+  sets: string
   rarities: string[]
-  set: string
-  format: string
-  priceMax: string
+  criteria: string[]
+  prices: Condition[]
+  artist: string
+  lore: string
   keyword: string
   semantic: string
-  isFlags: string[]
+  sort: string
+  order: string
 }
 
-const INITIAL: BuilderState = {
-  colors: [], colorMode: ':', colorField: 'c', types: [], excludeTypes: [],
-  oracle: '', oracleWildcard: false, name: '', mvMin: '', mvMax: '',
-  powMin: '', touMin: '', rarities: [], set: '', format: '', priceMax: '',
-  keyword: '', semantic: '', isFlags: [],
+const INITIAL: Builder = {
+  name: '', oracle: '', typeLine: '', typeExclude: '',
+  colors: [], colorMode: ':', identity: [], mana: '',
+  stats: [{ a: 'mv', op: '<=', value: '' }],
+  formats: [{ status: 'legal', format: '' }],
+  sets: '', rarities: [], criteria: [],
+  prices: [{ a: 'usd', op: '<=', value: '' }],
+  artist: '', lore: '', keyword: '', semantic: '', sort: '', order: 'asc',
 }
 
-const IS_FLAGS = [
-  ['commander', 'Can be commander'], ['permanent', 'Permanent'], ['vanilla', 'Vanilla'],
-  ['dfc', 'Double-faced'], ['hybrid', 'Hybrid mana'], ['reserved', 'Reserved List'],
-  ['gamechanger', 'Game Changer'],
-]
-
-/** Assemble the query string. The generated text is the real interface --
- *  users learn the syntax by watching this update. */
-function buildQuery(state: BuilderState): string {
+/** Assemble the query. The generated text is the real interface — users learn
+ *  the syntax by watching this line update as they click. */
+function buildQuery(b: Builder): string {
   const parts: string[] = []
 
-  // q: must lead, so the planner sees the prose before structured filters.
-  if (state.semantic.trim()) parts.push(`q:"${state.semantic.trim().replace(/"/g, '')}"`)
-  if (state.name.trim()) parts.push(quoteIfNeeded(state.name.trim()))
+  // q: must lead so the planner sees the prose before structured filters.
+  if (b.semantic.trim()) parts.push(`q:"${b.semantic.trim().replace(/"/g, '')}"`)
+  if (b.name.trim()) parts.push(quoteIfNeeded(b.name.trim()))
+  if (b.oracle.trim()) parts.push(`o:"${b.oracle.trim().replace(/"/g, '')}"`)
+  if (b.lore.trim()) parts.push(`fo:"${b.lore.trim().replace(/"/g, '')}"`)
 
-  if (state.colors.length) {
-    parts.push(`${state.colorField}${state.colorMode}${state.colors.join('').toLowerCase()}`)
+  for (const word of b.typeLine.trim().split(/\s+/).filter(Boolean)) {
+    parts.push(`t:${word.toLowerCase()}`)
   }
-  for (const type of state.types) parts.push(`t:${type.toLowerCase()}`)
-  for (const type of state.excludeTypes) parts.push(`-t:${type.toLowerCase()}`)
-
-  if (state.oracle.trim()) {
-    const text = state.oracle.trim()
-    parts.push(`o:"${text.replace(/"/g, '')}"`)
+  for (const word of b.typeExclude.trim().split(/\s+/).filter(Boolean)) {
+    parts.push(`-t:${word.toLowerCase()}`)
   }
 
-  if (state.mvMin) parts.push(`mv>=${state.mvMin}`)
-  if (state.mvMax) parts.push(`mv<=${state.mvMax}`)
-  if (state.powMin) parts.push(`pow>=${state.powMin}`)
-  if (state.touMin) parts.push(`tou>=${state.touMin}`)
+  if (b.colors.length) {
+    const letters = b.colors.join('').toLowerCase()
+    parts.push(`c${b.colorMode}${letters}`)
+  }
+  if (b.identity.length) parts.push(`id<=${b.identity.join('').toLowerCase()}`)
+  if (b.mana.trim()) parts.push(`m:${b.mana.trim()}`)
 
-  if (state.rarities.length === 1) parts.push(`r:${state.rarities[0]}`)
-  else if (state.rarities.length > 1) {
-    parts.push(`(${state.rarities.map((r) => `r:${r}`).join(' or ')})`)
+  for (const stat of b.stats) {
+    if (stat.value.trim()) parts.push(`${stat.a}${stat.op}${stat.value.trim()}`)
+  }
+  for (const entry of b.formats) {
+    if (entry.format) parts.push(`${entry.status}:${entry.format}`)
+  }
+  for (const price of b.prices) {
+    if (price.value.trim()) parts.push(`${price.a}${price.op}${price.value.trim()}`)
   }
 
-  if (state.set.trim()) parts.push(`s:${state.set.trim().toLowerCase()}`)
-  if (state.format) parts.push(`legal:${state.format}`)
-  if (state.priceMax) parts.push(`usd<=${state.priceMax}`)
-  if (state.keyword.trim()) parts.push(`kw:${state.keyword.trim().toLowerCase()}`)
-  for (const flag of state.isFlags) parts.push(`is:${flag}`)
+  for (const code of b.sets.trim().split(/[\s,]+/).filter(Boolean)) {
+    parts.push(`s:${code.toLowerCase()}`)
+  }
+
+  if (b.rarities.length === 1) parts.push(`r:${b.rarities[0]}`)
+  else if (b.rarities.length > 1) {
+    parts.push(`(${b.rarities.map((r) => `r:${r}`).join(' or ')})`)
+  }
+
+  for (const flag of b.criteria) parts.push(`is:${flag}`)
+  if (b.keyword.trim()) parts.push(`kw:${b.keyword.trim().toLowerCase()}`)
+  if (b.artist.trim()) parts.push(`a:"${b.artist.trim().replace(/"/g, '')}"`)
 
   return parts.join(' ')
 }
 
-function Toggle({
-  active, onClick, children, className = '', ...rest
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-  className?: string
-} & React.HTMLAttributes<HTMLButtonElement>) {
+/* --------------------------------------------------------------------------
+   Pieces
+   -------------------------------------------------------------------------- */
+
+function Row({
+  label, hint, children,
+}: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <button className={`pill ${className} ${active ? 'on' : ''}`} onClick={onClick} {...rest}>
+    <div className="form-row">
+      <div className="form-row-label">
+        {label}
+        {hint && <span className="hint">{hint}</span>}
+      </div>
+      <div className="form-row-content">{children}</div>
+    </div>
+  )
+}
+
+function Check({
+  on, onClick, children, colour,
+}: { on: boolean; onClick: () => void; children: React.ReactNode; colour?: string }) {
+  return (
+    <button
+      type="button"
+      className={`check ${on ? 'on' : ''}`}
+      data-c={colour}
+      aria-pressed={on}
+      onClick={onClick}
+    >
       {children}
     </button>
   )
 }
 
+/* --------------------------------------------------------------------------
+   Page
+   -------------------------------------------------------------------------- */
+
 export function AdvancedPage() {
-  const [state, setState] = useState<BuilderState>(INITIAL)
+  const [b, setB] = useState<Builder>(INITIAL)
   const [sets, setSets] = useState<SetInfo[]>([])
   const navigate = useNavigate()
-  const rootRef = useRef<HTMLDivElement>(null)
 
-  const query = useMemo(() => buildQuery(state), [state])
+  const query = useMemo(() => buildQuery(b), [b])
 
   useEffect(() => {
     api.sets().then((r) => setSets(r.sets.filter((s) => !s.digital))).catch(() => {})
   }, [])
 
-  useEffect(() => {
-    riseIn(rootRef.current)
-    return revealOnScroll('.builder-group', rootRef.current)
-  }, [])
+  const set = <K extends keyof Builder>(key: K, value: Builder[K]) =>
+    setB((s) => ({ ...s, [key]: value }))
 
-  const set = <K extends keyof BuilderState>(key: K, value: BuilderState[K]) =>
-    setState((s) => ({ ...s, [key]: value }))
-
-  const toggleIn = (key: 'colors' | 'types' | 'excludeTypes' | 'rarities' | 'isFlags', value: string) =>
-    setState((s) => ({
+  const toggle = (key: 'colors' | 'identity' | 'rarities' | 'criteria', value: string) =>
+    setB((s) => ({
       ...s,
       [key]: s[key].includes(value) ? s[key].filter((v) => v !== value) : [...s[key], value],
     }))
 
+  const patchList = <K extends 'stats' | 'prices' | 'formats'>(
+    key: K, index: number, patch: Partial<Builder[K][number]>,
+  ) => setB((s) => ({
+    ...s,
+    [key]: s[key].map((row, i) => (i === index ? { ...row, ...patch } : row)),
+  }))
+
+  const addRow = (key: 'stats' | 'prices' | 'formats') =>
+    setB((s) => ({
+      ...s,
+      [key]: [
+        ...s[key],
+        key === 'formats'
+          ? { status: 'legal', format: '' }
+          : { a: key === 'stats' ? 'mv' : 'usd', op: '<=', value: '' },
+      ] as never,
+    }))
+
+  const removeRow = (key: 'stats' | 'prices' | 'formats', index: number) =>
+    setB((s) => ({ ...s, [key]: s[key].filter((_, i) => i !== index) as never }))
+
+  const run = () => {
+    const suffix = b.sort ? ` sort:${b.sort}` : ''
+    navigate(`/?q=${encodeURIComponent(query)}${suffix ? `&sort=${b.sort}&order=${b.order}` : ''}`)
+  }
+
   return (
-    <section className="shell" style={{ paddingTop: 'var(--gap-4)' }} ref={rootRef}>
+    <section className="shell" style={{ paddingTop: 22 }}>
       <div className="section-head">
-        <h2>Advanced search</h2>
-        <p className="muted" style={{ fontSize: 'var(--step--1)' }}>
-          Every control writes query syntax. Watch the bar at the bottom.
+        <div>
+          <span className="eyebrow">Query builder</span>
+          <h2>Advanced search</h2>
+        </div>
+        <p className="muted" style={{ fontSize: 13, maxWidth: '46ch' }}>
+          Every control writes query syntax. Watch the bar at the bottom to learn it.
         </p>
       </div>
 
-      <div className="builder">
-        <div className="builder-group">
-          <span className="label">Colour</span>
-          <div className="pill-row" style={{ marginBottom: 'var(--gap-2)' }}>
-            {COLORS.map(([code, label]) => (
-              <Toggle
-                key={code}
-                className="mana"
-                data-c={code}
-                active={state.colors.includes(code)}
-                onClick={() => toggleIn('colors', code)}
-              >
-                {label}
-              </Toggle>
-            ))}
-          </div>
-          <div className="row gap-2">
-            <select
-              className="field"
-              value={state.colorField}
-              onChange={(e) => set('colorField', e.target.value as 'c' | 'id')}
-            >
-              <option value="c">Card colour</option>
-              <option value="id">Colour identity</option>
-            </select>
-            <select
-              className="field"
-              value={state.colorMode}
-              onChange={(e) => set('colorMode', e.target.value)}
-            >
-              {COLOR_MODES.map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="builder-group">
-          <span className="label">Card type</span>
-          <div className="pill-row">
-            {TYPES.map((type) => (
-              <Toggle
-                key={type}
-                active={state.types.includes(type)}
-                onClick={() => toggleIn('types', type)}
-              >
-                {type}
-              </Toggle>
-            ))}
-          </div>
-          <span className="label" style={{ display: 'block', margin: 'var(--gap-3) 0 var(--gap-1)' }}>
-            Exclude type
-          </span>
-          <div className="pill-row">
-            {TYPES.slice(0, 8).map((type) => (
-              <Toggle
-                key={type}
-                active={state.excludeTypes.includes(type)}
-                onClick={() => toggleIn('excludeTypes', type)}
-              >
-                {type}
-              </Toggle>
-            ))}
-          </div>
-        </div>
-
-        <div className="builder-group">
-          <span className="label">Rules text</span>
+      <div className="adv-form">
+        <Row label="Card Name" hint="Any words in the name, e.g. “Fire”">
           <input
-            className="field"
-            placeholder="draw a card"
-            value={state.oracle}
-            onChange={(e) => set('oracle', e.target.value)}
-          />
-          <p className="faint" style={{ fontSize: 'var(--step--2)', marginTop: 'var(--gap-1)' }}>
-            Use <code className="mono">_</code> as a wildcard for any run of text —{' '}
-            <code className="mono">Elf_creature</code> matches “Elf Warrior creature”.
-          </p>
-
-          <span className="label" style={{ display: 'block', margin: 'var(--gap-3) 0 var(--gap-1)' }}>
-            Card name
-          </span>
-          <input
-            className="field"
-            placeholder="Lightning"
-            value={state.name}
+            className="fld" value={b.name} placeholder="Any words in the name"
             onChange={(e) => set('name', e.target.value)}
           />
+        </Row>
 
-          <span className="label" style={{ display: 'block', margin: 'var(--gap-3) 0 var(--gap-1)' }}>
-            Keyword
-          </span>
+        <Row label="Text" hint="Any text, e.g. “draw a card”. Use _ as a wildcard for any run of text.">
           <input
-            className="field"
-            placeholder="flying"
-            value={state.keyword}
-            onChange={(e) => set('keyword', e.target.value)}
+            className="fld" value={b.oracle} placeholder="Rules text contains…"
+            onChange={(e) => set('oracle', e.target.value)}
           />
-        </div>
+        </Row>
 
-        <div className="builder-group">
-          <span className="label">Mana value</span>
-          <div className="range-row">
-            <input
-              className="field" type="number" min="0" placeholder="min"
-              value={state.mvMin} onChange={(e) => set('mvMin', e.target.value)}
-            />
-            <span className="faint">to</span>
-            <input
-              className="field" type="number" min="0" placeholder="max"
-              value={state.mvMax} onChange={(e) => set('mvMax', e.target.value)}
-            />
-          </div>
-
-          <span className="label" style={{ display: 'block', margin: 'var(--gap-3) 0 var(--gap-1)' }}>
-            Minimum power / toughness
-          </span>
-          <div className="range-row">
-            <input
-              className="field" type="number" placeholder="power"
-              value={state.powMin} onChange={(e) => set('powMin', e.target.value)}
-            />
-            <input
-              className="field" type="number" placeholder="toughness"
-              value={state.touMin} onChange={(e) => set('touMin', e.target.value)}
-            />
-          </div>
-
-          <span className="label" style={{ display: 'block', margin: 'var(--gap-3) 0 var(--gap-1)' }}>
-            Maximum price (USD)
-          </span>
+        <Row label="Type Line" hint="Space-separated types are ANDed">
           <input
-            className="field" type="number" min="0" step="0.5" placeholder="no limit"
-            value={state.priceMax} onChange={(e) => set('priceMax', e.target.value)}
+            className="fld" value={b.typeLine} placeholder="Enter a type, e.g. legendary creature"
+            onChange={(e) => set('typeLine', e.target.value)}
           />
-        </div>
+          <input
+            className="fld" value={b.typeExclude} placeholder="Exclude types, e.g. token"
+            onChange={(e) => set('typeExclude', e.target.value)}
+          />
+        </Row>
 
-        <div className="builder-group">
-          <span className="label">Rarity</span>
-          <div className="pill-row">
-            {RARITIES.map(([code, label]) => (
-              <Toggle
-                key={code}
-                active={state.rarities.includes(code)}
-                onClick={() => toggleIn('rarities', code)}
+        <Row label="Colors" hint="The colours in the card’s mana cost">
+          <div className="checks">
+            {COLORS.map(([code, label]) => (
+              <Check
+                key={code} colour={code} on={b.colors.includes(code)}
+                onClick={() => toggle('colors', code)}
               >
                 {label}
-              </Toggle>
+              </Check>
             ))}
           </div>
-
-          <span className="label" style={{ display: 'block', margin: 'var(--gap-3) 0 var(--gap-1)' }}>
-            Legal in format
-          </span>
           <select
-            className="field"
-            value={state.format}
-            onChange={(e) => set('format', e.target.value)}
+            className="fld" style={{ width: 'auto' }} value={b.colorMode}
+            onChange={(e) => set('colorMode', e.target.value)}
+            aria-label="Colour comparison"
           >
-            <option value="">Any format</option>
-            {FORMATS.map((format) => (
-              <option key={format} value={format} style={{ textTransform: 'capitalize' }}>
-                {format}
-              </option>
+            {COLOR_MODES.map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
             ))}
           </select>
+        </Row>
 
-          <span className="label" style={{ display: 'block', margin: 'var(--gap-3) 0 var(--gap-1)' }}>
-            Set
-          </span>
-          <input
-            className="field"
-            list="set-codes"
-            placeholder="Set code, e.g. mh3"
-            value={state.set}
-            onChange={(e) => set('set', e.target.value)}
-          />
-          <datalist id="set-codes">
-            {sets.map((s) => (
-              <option key={s.code} value={s.code}>{s.name}</option>
-            ))}
-          </datalist>
-        </div>
-
-        <div className="builder-group">
-          <span className="label">Properties</span>
-          <div className="pill-row">
-            {IS_FLAGS.map(([code, label]) => (
-              <Toggle
-                key={code}
-                active={state.isFlags.includes(code)}
-                onClick={() => toggleIn('isFlags', code)}
+        <Row label="Commander" hint="Colour identity, for Commander decks">
+          <div className="checks">
+            {COLORS.filter(([c]) => c !== 'C').map(([code, label]) => (
+              <Check
+                key={code} colour={code} on={b.identity.includes(code)}
+                onClick={() => toggle('identity', code)}
               >
                 {label}
-              </Toggle>
+              </Check>
             ))}
           </div>
+        </Row>
 
-          <span className="label" style={{ display: 'block', margin: 'var(--gap-3) 0 var(--gap-1)' }}>
-            Ask the model (q:)
-          </span>
+        <Row label="Mana Cost" hint="Any mana symbols, e.g. “{W}{W}”">
           <input
-            className="field"
+            className="fld" value={b.mana} placeholder="{2}{W}{U}"
+            onChange={(e) => set('mana', e.target.value)}
+          />
+        </Row>
+
+        <Row label="Stats" hint="Numeric properties. Add as many conditions as you need.">
+          {b.stats.map((stat, i) => (
+            <div className="cond-row" key={i}>
+              <select
+                className="fld" value={stat.a}
+                onChange={(e) => patchList('stats', i, { a: e.target.value })}
+                aria-label="Stat"
+              >
+                {STATS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+              <select
+                className="fld" value={stat.op}
+                onChange={(e) => patchList('stats', i, { op: e.target.value })}
+                aria-label="Comparison"
+              >
+                {OPS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+              <input
+                className="fld" value={stat.value} placeholder="Any value, e.g. “2”"
+                onChange={(e) => patchList('stats', i, { value: e.target.value })}
+                aria-label="Value"
+              />
+              {b.stats.length > 1 && (
+                <button className="remove-row" onClick={() => removeRow('stats', i)} aria-label="Remove">
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+          <button className="add-row" onClick={() => addRow('stats')}>+ Add another stat</button>
+        </Row>
+
+        <Row label="Formats" hint="Legality in a constructed format">
+          {b.formats.map((entry, i) => (
+            <div className="cond-row" key={i}>
+              <select
+                className="fld" value={entry.status}
+                onChange={(e) => patchList('formats', i, { status: e.target.value })}
+                aria-label="Status"
+              >
+                {STATUSES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+              <select
+                className="fld" value={entry.format}
+                onChange={(e) => patchList('formats', i, { format: e.target.value })}
+                aria-label="Format"
+              >
+                <option value="">Choose a format</option>
+                {FORMATS.map((f) => (
+                  <option key={f} value={f} style={{ textTransform: 'capitalize' }}>{f}</option>
+                ))}
+              </select>
+              {b.formats.length > 1 && (
+                <button className="remove-row" onClick={() => removeRow('formats', i)} aria-label="Remove">
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+          <button className="add-row" onClick={() => addRow('formats')}>+ Add another format</button>
+        </Row>
+
+        <Row label="Sets" hint="Set codes, space separated">
+          <input
+            className="fld" value={b.sets} list="set-codes"
+            placeholder="Enter a set code or choose from the list"
+            onChange={(e) => set('sets', e.target.value)}
+          />
+          <datalist id="set-codes">
+            {sets.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
+          </datalist>
+        </Row>
+
+        <Row label="Rarity" hint="Any of the selected rarities">
+          <div className="checks">
+            {RARITIES.map(([code, label]) => (
+              <Check key={code} on={b.rarities.includes(code)} onClick={() => toggle('rarities', code)}>
+                {label}
+              </Check>
+            ))}
+          </div>
+        </Row>
+
+        <Row label="Criteria" hint="Card properties. All selected criteria must match.">
+          <div className="checks">
+            {CRITERIA.map(([code, label]) => (
+              <Check key={code} on={b.criteria.includes(code)} onClick={() => toggle('criteria', code)}>
+                {label}
+              </Check>
+            ))}
+          </div>
+        </Row>
+
+        <Row label="Prices" hint="Current market price">
+          {b.prices.map((price, i) => (
+            <div className="cond-row" key={i}>
+              <select
+                className="fld" value={price.a}
+                onChange={(e) => patchList('prices', i, { a: e.target.value })}
+                aria-label="Currency"
+              >
+                {CURRENCIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+              <select
+                className="fld" value={price.op}
+                onChange={(e) => patchList('prices', i, { op: e.target.value })}
+                aria-label="Comparison"
+              >
+                {OPS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+              <input
+                className="fld" value={price.value} placeholder="Any value, e.g. “15.00”"
+                onChange={(e) => patchList('prices', i, { value: e.target.value })}
+                aria-label="Value"
+              />
+              {b.prices.length > 1 && (
+                <button className="remove-row" onClick={() => removeRow('prices', i)} aria-label="Remove">
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+          <button className="add-row" onClick={() => addRow('prices')}>+ Add another price</button>
+        </Row>
+
+        <Row label="Keyword" hint="A keyword ability, e.g. flying">
+          <input
+            className="fld" value={b.keyword} placeholder="flying"
+            onChange={(e) => set('keyword', e.target.value)}
+          />
+        </Row>
+
+        <Row label="Artist" hint="Any artist name, e.g. “Magali”">
+          <input
+            className="fld" value={b.artist} placeholder="Any artist name"
+            onChange={(e) => set('artist', e.target.value)}
+          />
+        </Row>
+
+        <Row label="Lore Finder" hint="Searches name, type line and rules text together">
+          <input
+            className="fld" value={b.lore} placeholder="Any text, especially names. e.g. “Jhoira”"
+            onChange={(e) => set('lore', e.target.value)}
+          />
+        </Row>
+
+        <Row
+          label="Ask the model"
+          hint="Runs the local 70B pipeline and intersects its results with everything above. Thorough, not fast."
+        >
+          <input
+            className="fld" value={b.semantic}
             placeholder="cards that punish opponents for drawing"
-            value={state.semantic}
             onChange={(e) => set('semantic', e.target.value)}
           />
-          <p className="faint" style={{ fontSize: 'var(--step--2)', marginTop: 'var(--gap-1)' }}>
-            Runs the local 70B pipeline and intersects its results with the filters above.
-            Thorough, not fast.
-          </p>
-        </div>
+        </Row>
+
+        <Row label="Preferences" hint="How results are displayed">
+          <div className="cond-row">
+            <select
+              className="fld" value={b.sort} onChange={(e) => set('sort', e.target.value)}
+              aria-label="Sort order"
+            >
+              {SORTS.map(([v, l]) => <option key={v} value={v}>Sort by: {l}</option>)}
+            </select>
+            <select
+              className="fld" value={b.order} onChange={(e) => set('order', e.target.value)}
+              aria-label="Direction"
+            >
+              <option value="asc">Ascending</option>
+              <option value="desc">Descending</option>
+            </select>
+          </div>
+        </Row>
       </div>
 
       <div className="query-preview">
-        <span className="label" style={{ flex: 'none' }}>Query</span>
+        <span className="label preview-tag">Query</span>
         <code>{query || 'Nothing selected yet'}</code>
-        <div className="row gap-2" style={{ flex: 'none' }}>
-          <button className="btn btn-ghost" onClick={() => setState(INITIAL)}>
-            Reset
-          </button>
+        <div className="row gap-2 wrap preview-actions">
+          <button className="btn btn-ghost sm" onClick={() => setB(INITIAL)}>Reset</button>
           <button
-            className="btn btn-ghost"
-            disabled={!query}
+            className="btn btn-ghost sm" disabled={!query}
             onClick={() => navigator.clipboard?.writeText(query)}
           >
             Copy
           </button>
-          <button
-            className="btn btn-primary"
-            disabled={!query}
-            onClick={() => navigate(`/?q=${encodeURIComponent(query)}`)}
-          >
-            Search
+          <button className="btn btn-primary" disabled={!query} onClick={run}>
+            Search with these options
           </button>
         </div>
       </div>

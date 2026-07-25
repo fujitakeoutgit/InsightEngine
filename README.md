@@ -1,10 +1,10 @@
-# Manafold
+# Insight Enigma
 
 A Magic: The Gathering search engine. Scryfall's capability, original interface,
 plus a local-LLM semantic search that is structurally incapable of inventing a card.
 
 > **Data source:** card data and images are provided by
-> [Scryfall](https://scryfall.com) under their API terms. Manafold is unofficial
+> [Scryfall](https://scryfall.com) under their API terms. Insight Enigma is unofficial
 > Fan Content permitted under the Wizards of the Coast Fan Content Policy, and is
 > not affiliated with or endorsed by Scryfall or Wizards of the Coast.
 
@@ -35,7 +35,7 @@ Browser ──► Vite/React (5173) ──proxy──► FastAPI (8787) ──�
 **Why a local mirror when the API exists.** The two stated goals conflict: an
 exhaustive sweep of the corpus cannot be done over a paginated, rate-limited
 API without hammering it. Scryfall publish daily bulk files for exactly this
-case. So Manafold splits the difference:
+case. So Insight Enigma splits the difference:
 
 - **Live API** for ordinary queries — full operator fidelity and current prices.
 - **Local mirror** for `q:`, `_` wildcards and `otag:` — syntax the API cannot
@@ -118,7 +118,7 @@ ollama pull llama3.3:70b
 > On a 32 GB card, Q4 llama3.3:70b (~43 GB) splits roughly 65/35 GPU/CPU and
 > runs at a few tokens/sec. That is expected and acceptable here — the pipeline
 > is built for thoroughness. To trade accuracy for speed, point
-> `MANAFOLD_OLLAMA_MODEL` at a model that fits entirely in VRAM.
+> `INSIGHT_OLLAMA_MODEL` at a model that fits entirely in VRAM.
 
 ### First-time install
 
@@ -160,7 +160,7 @@ without it.
 
 ## Configuration
 
-Environment variables, or a `server/.env`. All are prefixed `MANAFOLD_`.
+Environment variables, or a `server/.env`. All are prefixed `INSIGHT_`.
 
 | Variable | Default | Notes |
 |---|---|---|

@@ -1,0 +1,4 @@
+# System-tray controller. Installed into the same venv as the server.
+pystray~=0.19
+Pillow~=11.0
+psutil~=6.1

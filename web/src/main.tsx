@@ -5,6 +5,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { AdvancedPage } from './routes/AdvancedPage'
 import { CardPage } from './routes/CardPage'
+import { CardsPage } from './routes/CardsPage'
 import { DeckPage } from './routes/DeckPage'
 import { GlossaryPage } from './routes/GlossaryPage'
 import { SearchPage } from './routes/SearchPage'
@@ -20,6 +21,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <SearchPage /> },
       { path: 'card/:oracleId', element: <CardPage /> },
+      { path: 'cards', element: <CardsPage /> },
       { path: 'advanced', element: <AdvancedPage /> },
       { path: 'deck', element: <DeckPage /> },
       { path: 'sets', element: <SetsPage /> },

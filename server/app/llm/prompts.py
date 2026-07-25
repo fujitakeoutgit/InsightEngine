@@ -89,6 +89,7 @@ plans are harmless but narrow coverage is not.
   type_excludes (string[]), oracle_tags (string[] from the menu),
   keywords (string[]), colors (string), color_identity (string),
   color_identity_mode ("subset"|"exact"|"contains"),
+  colors_exclude (string), color_identity_exclude (string),
   min_mana_cost, max_mana_cost, min_power, max_power, min_toughness,
   max_toughness (numbers), rarity (string[]), sets (string[]),
   legal_in (string), is (string[]), produces (string[]),
@@ -96,6 +97,11 @@ plans are harmless but narrow coverage is not.
 - Any other key is rejected and the plan is discarded.
 - A plan with no keys matches nothing. Never emit an empty plan.
 - Do not add colour or cost restrictions the user did not ask for.
+
+COLOURS. All colour fields take WUBRG letters only ("B", "wu"), never a regex
+and never a word like "nonblack". To exclude a colour use the dedicated
+exclusion keys: "nonblack aristocrats" is
+`{"color_identity_exclude": "B"}`, not a pattern.
 
 CRITICAL -- AND vs OR. `oracle_contains` and `type_contains` require EVERY
 listed phrase to appear on the SAME card. That is almost never what you want:
@@ -142,8 +148,10 @@ Rules:
 know about the card.
 - Be inclusive when a card plausibly fits: this is a search tool, and a missed \
 card is a worse failure than a loose one.
-- `notes` must describe mechanics in general terms only. Do not name cards."""
+- Respond with indices and nothing else."""
 
+# Indices only. With no free-text field anywhere in the pipeline's schemas, the
+# model has no channel through which to write text that reaches the user.
 SELECT_SCHEMA = {
     "type": "object",
     "properties": {
@@ -152,30 +160,11 @@ SELECT_SCHEMA = {
             "items": {"type": "integer"},
             "description": "Index numbers of cards that match the request",
         },
-        "notes": {"type": "string"},
     },
     "required": ["relevant"],
 }
 
 
-# --------------------------------------------------------------------------
-# Stage 6 -- final synthesis
-# --------------------------------------------------------------------------
-
-SUMMARY_SYSTEM = ENGINE_PREAMBLE + """
-
-TASK: Write a short analysis of the result set for the user.
-
-Rules:
-- Describe themes, mechanics, colour spread and cost curve in general terms.
-- You MUST NOT name any specific card. Refer to groups ("several one-mana \
-sacrifice outlets"), never to individuals.
-- If the result count is zero, say exactly: "The database returned no cards \
-matching this query."
-- Two to four sentences. No preamble, no bullet points."""
-
-SUMMARY_SCHEMA = {
-    "type": "object",
-    "properties": {"analysis": {"type": "string"}},
-    "required": ["analysis"],
-}
+# There is deliberately no summarisation stage. Prose about the result set was
+# generic, cost an extra model call, and was the only path by which the model
+# could put words in front of the user -- so the cards speak for themselves.

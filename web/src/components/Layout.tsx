@@ -1,66 +1,31 @@
-import { useEffect, useRef } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { gsap, reduced } from '../lib/motion'
+import { useCollection } from '../lib/collection'
 
 const NAV = [
   { to: '/', label: 'Search', end: true },
   { to: '/advanced', label: 'Advanced' },
+  { to: '/cards', label: 'Cards' },
   { to: '/deck', label: 'Deck Lab' },
   { to: '/sets', label: 'Sets' },
   { to: '/glossary', label: 'Glossary' },
 ]
 
-/** Procedural film grain, generated once so no image asset is needed. */
-function useGrain() {
-  useEffect(() => {
-    const size = 128
-    const canvas = document.createElement('canvas')
-    canvas.width = size
-    canvas.height = size
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    const image = ctx.createImageData(size, size)
-    for (let i = 0; i < image.data.length; i += 4) {
-      const v = Math.random() * 255
-      image.data[i] = v
-      image.data[i + 1] = v
-      image.data[i + 2] = v
-      image.data[i + 3] = 255
-    }
-    ctx.putImageData(image, 0, 0)
-    document.documentElement.style.setProperty('--grain-url', `url(${canvas.toDataURL()})`)
-  }, [])
-}
-
 export function Layout() {
-  const headerRef = useRef<HTMLElement>(null)
-  useGrain()
-
-  // The header hairline strengthens once the page has scrolled.
-  useEffect(() => {
-    if (reduced() || !headerRef.current) return
-    const onScroll = () => {
-      const scrolled = window.scrollY > 12
-      gsap.to(headerRef.current, {
-        '--hairline': scrolled ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.07)',
-        duration: 0.3,
-        overwrite: true,
-      })
-    }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
+  const collected = useCollection()
 
   return (
     <div className="app">
-      <div className="aurora" aria-hidden />
-      <div className="grain" aria-hidden />
+      {/* Ambient field: two drifting blobs behind a static turbulence grain. */}
+      <div className="field" aria-hidden>
+        <div className="blob a" />
+        <div className="blob b" />
+      </div>
 
-      <header className="header" ref={headerRef}>
+      <header className="header">
         <div className="shell header-inner">
-          <NavLink to="/" className="wordmark">
+          <NavLink to="/" className="brand">
             <span className="mark" aria-hidden />
-            Manafold
+            Insight Enigma
           </NavLink>
           <nav className="nav">
             {NAV.map((item) => (
@@ -71,6 +36,9 @@ export function Layout() {
                 className={({ isActive }) => (isActive ? 'active' : '')}
               >
                 {item.label}
+                {item.to === '/cards' && collected.length > 0 && (
+                  <span className="count-badge">{collected.length}</span>
+                )}
               </NavLink>
             ))}
           </nav>
@@ -89,10 +57,10 @@ export function Layout() {
               <a href="https://scryfall.com" target="_blank" rel="noreferrer noopener">
                 Scryfall
               </a>
-              . Manafold is unofficial Fan Content permitted under the Wizards of the Coast Fan
-              Content Policy.
+              . Insight Enigma is unofficial Fan Content permitted under the Wizards of the Coast
+              Fan Content Policy.
             </p>
-            <p className="faint" style={{ marginTop: 'var(--gap-1)' }}>
+            <p className="faint" style={{ marginTop: 6 }}>
               Not affiliated with or endorsed by Scryfall or Wizards of the Coast. Magic: The
               Gathering is © Wizards of the Coast LLC.
             </p>

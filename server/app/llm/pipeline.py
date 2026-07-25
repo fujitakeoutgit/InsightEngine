@@ -23,13 +23,14 @@ from dataclasses import dataclass, field
 from typing import Any, AsyncIterator
 
 from ..config import settings
-from ..query.filters import FilterError, validate
+from ..query.filters import FilterError
 from ..query.parser import Node, is_empty
+from ..query.sql import QueryCompileError
 from ..search_local import search_mtg_database
 from ..tags import expand_descendants, known_slugs, search_tags
 from . import prompts
-from .guard import GuardReport, NameIndex, audit_prose, deterministic_summary, validate_indices
-from .ollama import OllamaError, client as ollama
+from .guard import GuardReport, validate_indices
+from .ollama import client as ollama
 
 SELECTION_BATCH = 50
 ORACLE_SNIPPET = 320
@@ -92,9 +93,8 @@ def _tag_menu(tags: list[dict]) -> str:
 
 
 class SemanticPipeline:
-    def __init__(self, conn: sqlite3.Connection, name_index: NameIndex) -> None:
+    def __init__(self, conn: sqlite3.Connection) -> None:
         self.conn = conn
-        self.names = name_index
 
     # -- stage 1 -----------------------------------------------------------
 
@@ -173,28 +173,37 @@ class SemanticPipeline:
                     else:
                         filters.pop("oracle_tags")
 
-            try:
-                validate(filters)
-            except FilterError as exc:
-                warnings.append(f"discarded plan ({exc})")
-                stats.append({"rationale": rationale, "matched": 0, "error": str(exc)})
-                continue
-
             if not filters:
                 stats.append({"rationale": rationale, "matched": 0, "error": "empty plan"})
                 continue
 
             extra = structured if structured and not is_empty(structured) else None
-            rows = search_mtg_database(
-                self.conn, filters, limit=settings.semantic_candidate_cap, extra=extra,
-            )
+
+            # One malformed plan must never end the run. A planner that emits a
+            # regex where a colour belongs is a bad plan, not a broken search --
+            # it is discarded with a warning and the remaining plans proceed.
+            try:
+                rows = search_mtg_database(
+                    self.conn, filters, limit=settings.semantic_candidate_cap, extra=extra,
+                )
+            except (FilterError, QueryCompileError) as exc:
+                warnings.append(f"discarded plan ({exc})")
+                stats.append({"rationale": rationale, "matched": 0, "error": str(exc)})
+                continue
+            except Exception as exc:  # noqa: BLE001 - never let a plan abort the run
+                warnings.append(f"plan failed ({type(exc).__name__}: {exc})")
+                stats.append({"rationale": rationale, "matched": 0, "error": str(exc)})
+                continue
 
             # Recall rescue: an empty plan is usually an over-constrained AND.
             relaxed_note = ""
             if not rows and (relaxed := _relax(filters)):
-                rows = search_mtg_database(
-                    self.conn, relaxed, limit=settings.semantic_candidate_cap, extra=extra,
-                )
+                try:
+                    rows = search_mtg_database(
+                        self.conn, relaxed, limit=settings.semantic_candidate_cap, extra=extra,
+                    )
+                except (FilterError, QueryCompileError):
+                    rows = []
                 if rows:
                     filters = relaxed
                     relaxed_note = " (relaxed AND→OR)"
@@ -254,28 +263,6 @@ class SemanticPipeline:
         report.invalid_indices.extend(invalid)
         return [batch[i] for i in valid]
 
-    # -- stage 6 -----------------------------------------------------------
-
-    async def summarise(self, prompt: str, cards: list[dict], report: GuardReport) -> str:
-        if not cards:
-            return "The database returned no cards matching this query."
-        try:
-            payload = await ollama.chat_json(
-                prompts.SUMMARY_SYSTEM,
-                f"User request: {prompt}\n\n"
-                f"The database returned {len(cards)} cards. "
-                f"Mana values present: "
-                f"{sorted({int(c['cmc']) for c in cards if c.get('cmc') is not None})}. "
-                f"Colour identities present: "
-                f"{sorted({c.get('color_identity') or 'C' for c in cards})}.\n"
-                "Write the analysis. Do not name any card.",
-                prompts.SUMMARY_SCHEMA,
-                num_predict=512,
-            )
-        except OllamaError:
-            return deterministic_summary(cards)
-        return audit_prose(payload.get("analysis", ""), self.names, cards, report)
-
     # -- orchestration -----------------------------------------------------
 
     async def run(
@@ -314,9 +301,8 @@ class SemanticPipeline:
 
         if not candidates:
             yield Stage("complete", "No cards matched", {
-                "cards": [], "analysis": "The database returned no cards matching this query.",
-                "guard": report.as_dict(), "plans": stats, "warnings": warnings,
-                "candidate_count": 0,
+                "cards": [], "guard": report.as_dict(), "plans": stats,
+                "warnings": warnings, "candidate_count": 0,
             })
             return
 
@@ -334,12 +320,8 @@ class SemanticPipeline:
         selected.sort(key=lambda c: (c.get("edhrec_rank") is None, c.get("edhrec_rank") or 0))
         selected = selected[: settings.semantic_return_cap]
 
-        yield Stage("summarise", "Writing analysis")
-        analysis = await self.summarise(prompt, selected, report)
-
         yield Stage("complete", f"{len(selected)} cards selected", {
             "cards": selected,
-            "analysis": analysis,
             "guard": report.as_dict(),
             "plans": stats,
             "warnings": warnings,
