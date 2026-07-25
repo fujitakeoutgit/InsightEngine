@@ -7,7 +7,9 @@ import {
 } from '../lib/api'
 import { collection } from '../lib/collection'
 import { countTo, dissolveIn, riseIn } from '../lib/motion'
+import { fromResolutions, serialize, type DeckCard } from '../lib/deckModel'
 import { CardGrid } from '../components/CardGrid'
+import { DeckEditor } from '../components/DeckEditor'
 import { ManaCost } from '../components/ManaCost'
 
 const SAMPLE = `Commander
@@ -77,6 +79,8 @@ export function DeckPage() {
   // analysis — several screens down past the curve, resolution list and 21
   // format verdicts — so pressing the button looked like it did nothing.
   const [tab, setTab] = useState<'analysis' | 'recommendations'>('analysis')
+  const [mode, setMode] = useState<'text' | 'build'>('text')
+  const [deckCards, setDeckCards] = useState<DeckCard[]>([])
   const [recView, setRecView] = useState<'list' | 'grid'>('list')
   const [recSize, setRecSize] = useState(150)
   const [activeThemes, setActiveThemes] = useState<string[]>([])
@@ -105,6 +109,27 @@ export function DeckPage() {
 
   const refreshSaved = () =>
     api.savedDecks().then((r) => setSaved(r.decks)).catch(() => {})
+
+  /** Entering Build resolves the text once; edits then flow back to the text,
+   *  so save, analyse and recommend keep working off the same decklist. */
+  const enterBuildMode = async () => {
+    if (!text.trim()) { setMode('build'); setDeckCards([]); return }
+    setBusy('analyse')
+    try {
+      const report = await api.analyzeDeck(text)
+      setDeckCards(fromResolutions(report.entries))
+      setMode('build')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not read that decklist')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const applyEdits = (next: DeckCard[]) => {
+    setDeckCards(next)
+    setText(serialize(next))
+  }
 
   useEffect(() => { refreshSaved() }, [])
 
@@ -286,13 +311,34 @@ export function DeckPage() {
             </select>
           </div>
 
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={SAMPLE}
-            spellCheck={false}
-            aria-label="Decklist"
-          />
+          <div className="result-tabs" style={{ marginBottom: 12 }}>
+            <button
+              className={mode === 'text' ? 'on' : ''}
+              onClick={() => setMode('text')}
+            >
+              Text
+            </button>
+            <button
+              className={mode === 'build' ? 'on' : ''}
+              onClick={enterBuildMode}
+              disabled={busy === 'analyse' && mode === 'text'}
+            >
+              Build
+              {deckCards.length > 0 && <span className="faint"> {deckCards.length}</span>}
+            </button>
+          </div>
+
+          {mode === 'text' ? (
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={SAMPLE}
+              spellCheck={false}
+              aria-label="Decklist"
+            />
+          ) : (
+            <DeckEditor cards={deckCards} onChange={applyEdits} />
+          )}
 
           <div className="row gap-2 wrap">
             <button className="btn btn-primary" onClick={analyse} disabled={!!busy || !text.trim()}>
