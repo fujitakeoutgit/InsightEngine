@@ -869,11 +869,13 @@
    Deck lab
    -------------------------------------------------------------------------- */
 
-.deck { display: grid; grid-template-columns: minmax(300px, 420px) 1fr; gap: 26px; align-items: start; }
 
-.deck textarea {
+/* Class-based rather than descendant-scoped: the .deck wrapper was replaced by
+   the split pane, which silently stripped every one of these rules. */
+.decklist-input {
+  display: block;
   width: 100%;
-  min-height: 440px;
+  min-height: 460px;
   resize: vertical;
   font-family: var(--font-m);
   font-size: 13px;
@@ -883,9 +885,21 @@
   border: 1px solid var(--line);
   background: rgba(7, 8, 12, 0.6);
   color: var(--ink);
+  transition: border-color var(--dur-fast);
 }
 
-.deck textarea:focus { outline: none; border-color: var(--aether); }
+.decklist-input:focus { outline: none; border-color: var(--aether); }
+.decklist-input::placeholder { color: var(--faint); }
+
+/* Action row sits between the mode tabs and the editor's own toolbar. */
+.deck-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
 
 /* --------------------------------------------------------------------------
    Deck gallery
@@ -1485,8 +1499,7 @@
 @media (max-width: 1000px) {
   .detail { grid-template-columns: 1fr; }
   .detail-art { position: static; max-width: 300px; }
-  .deck { grid-template-columns: 1fr; }
-  .deck textarea { min-height: 280px; }
+  .decklist-input { min-height: 280px; }
   .form-row { grid-template-columns: 1fr; gap: 10px; }
   .form-row-label { padding-top: 0; }
 }
@@ -1508,6 +1521,19 @@
   .cond-row .fld { flex: 1 1 100%; min-width: 0; width: 100%; }
   .cond-row .remove-row { flex: none; }
 }
+
+/* Editor header: mode tabs on the left, actions on the right. Wraps to two
+   rows on narrow panes rather than compressing the buttons. */
+.editor-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.editor-actions .result-tabs { margin-bottom: 0; border-bottom: 0; }
+.editor-actions .row { padding-bottom: 8px; }
 
 /* Deck page header: back link, name and format together above the split. */
 .deck-head {

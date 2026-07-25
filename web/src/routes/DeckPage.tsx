@@ -261,8 +261,45 @@ export function DeckPage() {
         </button>
       </div>
 
+      {/* Directly under the tabs and above the editor's own toolbar, so the
+          actions are reachable without scrolling past the whole deck. */}
+      <div className="deck-actions">
+        <button className="btn btn-primary sm" onClick={analyse} disabled={!!busy || !text.trim()}>
+          {busy === 'analyse' && <span className="spinner" />}
+          {busy === 'analyse' ? 'Analysing' : 'Analyse'}
+        </button>
+        <button className="btn sm" onClick={getRecommendations} disabled={!!busy || !text.trim()}>
+          {busy === 'recommend' && <span className="spinner" />}
+          {busy === 'recommend' ? 'Thinking' : 'Recommend'}
+        </button>
+        {busy === 'ai' ? (
+          <button className="btn btn-danger sm" onClick={() => { aiStream.current?.stop(); setBusy(null) }}>
+            Stop AI
+          </button>
+        ) : (
+          <button className="btn sm" onClick={getAiRecommendations} disabled={!!busy || !text.trim()}>
+            AI recommend
+          </button>
+        )}
+        <button className="btn sm" onClick={save} disabled={!!busy || !text.trim()}>
+          {busy === 'save' && <span className="spinner" />}Save
+        </button>
+        <button
+          className="btn btn-ghost sm"
+          onClick={() => setPlaying((p) => !p)}
+          disabled={!deckCards.length}
+          title={deckCards.length ? 'Goldfish this deck' : 'Build or load a deck first'}
+        >
+          {playing ? 'Close playtest' : 'Playtest'}
+        </button>
+        {!text && (
+          <button className="btn btn-ghost sm push" onClick={() => setText(SAMPLE)}>Sample</button>
+        )}
+      </div>
+
       {mode === 'text' ? (
         <textarea
+          className="decklist-input"
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={SAMPLE}
@@ -272,40 +309,6 @@ export function DeckPage() {
       ) : (
         <DeckEditor cards={deckCards} onChange={applyEdits} onAddCard={addCollectedToDeck} />
       )}
-
-      <div className="row gap-2 wrap">
-        <button className="btn btn-primary" onClick={analyse} disabled={!!busy || !text.trim()}>
-          {busy === 'analyse' && <span className="spinner" />}
-          {busy === 'analyse' ? 'Analysing' : 'Analyse'}
-        </button>
-        <button className="btn" onClick={getRecommendations} disabled={!!busy || !text.trim()}>
-          {busy === 'recommend' && <span className="spinner" />}
-          {busy === 'recommend' ? 'Thinking' : 'Recommend'}
-        </button>
-        {busy === 'ai' ? (
-          <button className="btn btn-danger" onClick={() => { aiStream.current?.stop(); setBusy(null) }}>
-            Stop AI
-          </button>
-        ) : (
-          <button className="btn" onClick={getAiRecommendations} disabled={!!busy || !text.trim()}>
-            AI recommend
-          </button>
-        )}
-        <button className="btn" onClick={save} disabled={!!busy || !text.trim()}>
-          {busy === 'save' && <span className="spinner" />}Save
-        </button>
-        <button
-          className="btn btn-ghost"
-          onClick={() => setPlaying((p) => !p)}
-          disabled={!deckCards.length}
-          title={deckCards.length ? 'Goldfish this deck' : 'Build or load a deck first'}
-        >
-          {playing ? 'Close playtest' : 'Playtest'}
-        </button>
-        {!text && <button className="btn btn-ghost sm" onClick={() => setText(SAMPLE)}>Sample</button>}
-      </div>
-
-      {status && <p className="mono" style={{ fontSize: 12, color: 'var(--ok)' }}>{status}</p>}
     </div>
   )
 
@@ -501,17 +504,25 @@ export function DeckPage() {
 
   return (
     <section className="shell" style={{ paddingTop: 20 }}>
+      {/* Page-level actions live in the page header: they act on the whole
+          deck, and anywhere lower puts the Playtest button underneath the
+          panel it toggles. */}
       <div className="deck-head">
         <button className="back-link" onClick={() => navigate('/deck')}>← All decks</button>
-        <div className="row gap-2 wrap push">
-          <input className="fld deck-name" placeholder="Untitled deck" value={deckName}
-            onChange={(e) => setDeckName(e.target.value)} aria-label="Deck name" />
-          <select className="fld" style={{ width: 'auto' }} value={format}
-            onChange={(e) => setFormat(e.target.value)} aria-label="Format">
-            {REC_FORMATS.map((f) => <option key={f} value={f}>{f || 'Any format'}</option>)}
-          </select>
-        </div>
+        <input className="fld deck-name" placeholder="Untitled deck" value={deckName}
+          onChange={(e) => setDeckName(e.target.value)} aria-label="Deck name" />
+        <select className="fld" style={{ width: 'auto' }} value={format}
+          onChange={(e) => setFormat(e.target.value)} aria-label="Format">
+          {REC_FORMATS.map((f) => <option key={f} value={f}>{f || 'Any format'}</option>)}
+        </select>
+
       </div>
+
+      {status && (
+        <p className="mono" style={{ fontSize: 12, color: 'var(--ok)', marginBottom: 12 }}>
+          {status}
+        </p>
+      )}
 
       {playing && <Playtest deck={deckCards} onClose={() => setPlaying(false)} />}
 
