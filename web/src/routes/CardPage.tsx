@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { api, type CardDetail } from '../lib/api'
 import { collection, useIsCollected } from '../lib/collection'
-import { riseIn } from '../lib/motion'
+import { attachTilt, riseIn } from '../lib/motion'
 import { IdentityDots, ManaCost, OracleText } from '../components/ManaCost'
 
 const FORMAT_ORDER = [
@@ -22,6 +22,7 @@ export function CardPage() {
   const [detail, setDetail] = useState<CardDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
+  const artRef = useRef<HTMLDivElement>(null)
   const held = useIsCollected(oracleId ?? '')
 
   // history.back rather than a link to /: it re-renders the search page, which
@@ -44,6 +45,12 @@ export function CardPage() {
 
   useEffect(() => {
     if (detail) riseIn(bodyRef.current)
+  }, [detail])
+
+  // Attached after the art renders, and torn down on card change.
+  useEffect(() => {
+    if (!detail || !artRef.current) return
+    return attachTilt(artRef.current, 5)
   }, [detail])
 
   if (error) {
@@ -85,7 +92,9 @@ export function CardPage() {
       <section className="shell detail" ref={bodyRef}>
       <div className="detail-art">
         {card.image_normal ? (
-          <img src={card.image_normal} alt={card.name} />
+          <div className="detail-tilt" ref={artRef}>
+            <img src={card.image_normal} alt={card.name} />
+          </div>
         ) : (
           <div className="panel">No image available.</div>
         )}

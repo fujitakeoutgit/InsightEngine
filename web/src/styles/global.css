@@ -367,6 +367,16 @@ main { flex: 1; padding-bottom: 88px; }
   background: color-mix(in oklab, var(--aether) 12%, transparent);
 }
 
+/* Clickable chips (theme filters). Supporting themes read as present-but-
+   secondary: only signature themes qualify a card for recommendation. */
+button.chip {
+  cursor: pointer;
+  transition: border-color var(--dur-fast), color var(--dur-fast);
+}
+
+button.chip:hover { border-color: var(--aether); color: var(--ink); }
+button.chip.supporting { opacity: 0.6; border-style: dashed; }
+
 .fld {
   width: 100%;
   padding: 9px 11px;

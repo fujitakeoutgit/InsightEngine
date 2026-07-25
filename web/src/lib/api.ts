@@ -114,6 +114,9 @@ export interface DeckTheme {
   in_deck: number
   corpus: number
   score: number
+  /** Signature themes distinguish the deck; supporting ones are generic
+   *  functions it happens to run. Only signature themes qualify a card. */
+  signature: boolean
 }
 
 export interface Recommendation {
@@ -248,6 +251,11 @@ export const api = {
       text, commander: null, format: format || null, limit,
     }),
 
+  prepareAiRecommendations: (text: string, format?: string | null) =>
+    post<{ run_id: string; cards: number }>('/api/deck/recommend/prepare', {
+      text, commander: null, format: format || null,
+    }),
+
   savedDecks: () => get<{ decks: SavedDeck[] }>('/api/deck/saved'),
 
   saveDeck: (deck: { name: string; text: string; id?: number; format?: string | null }) =>
@@ -288,6 +296,56 @@ export const api = {
  * EventSource is used rather than fetch+ReadableStream because the run is long
  * and EventSource reconnects and parses framing for free. Returns a closer.
  */
+/** Stream the AI deck-recommendation pipeline. Same framing as `q:` search. */
+export function streamDeckRecommendations(
+  runId: string,
+  handlers: {
+    onStage: (stage: SemanticStage) => void
+    onComplete: (stage: SemanticStage) => void
+    onError: (message: string) => void
+    onCancelled?: () => void
+  },
+): { stop: () => void } {
+  const source = new EventSource(`/api/deck/recommend/stream?run_id=${runId}`)
+  let finished = false
+
+  source.addEventListener('stage', (event) => {
+    handlers.onStage(JSON.parse((event as MessageEvent).data))
+  })
+  source.addEventListener('complete', (event) => {
+    finished = true
+    source.close()
+    handlers.onComplete(JSON.parse((event as MessageEvent).data))
+  })
+  source.addEventListener('cancelled', () => {
+    finished = true
+    source.close()
+    handlers.onCancelled?.()
+  })
+  source.addEventListener('error', (event) => {
+    const data = (event as MessageEvent).data
+    if (data) {
+      finished = true
+      source.close()
+      handlers.onError(JSON.parse(data).message)
+      return
+    }
+    if (finished) { source.close(); return }
+    if (source.readyState === EventSource.CLOSED) {
+      source.close()
+      handlers.onError('Connection to the recommendation engine was lost.')
+    }
+  })
+
+  return {
+    stop: () => {
+      finished = true
+      source.close()
+      void fetch(`/api/semantic/cancel/${runId}`, { method: 'POST' }).catch(() => {})
+    },
+  }
+}
+
 export function streamSemantic(
   query: string,
   handlers: {

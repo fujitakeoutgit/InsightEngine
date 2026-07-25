@@ -501,7 +501,35 @@
 }
 
 .detail-art { position: sticky; top: 84px; }
-.detail-art img { width: 100%; border-radius: 4.75% / 3.5%; box-shadow: 0 34px 80px -36px rgba(0, 0, 0, 0.95); }
+
+/* Same tilt + specular treatment as a result tile, without the collect button
+   or price chip — on the detail page those would just cover the art. */
+.detail-tilt {
+  position: relative;
+  border-radius: 4.75% / 3.5%;
+  overflow: hidden;
+  transform-style: preserve-3d;
+  will-change: transform;
+  box-shadow: 0 34px 80px -36px rgba(0, 0, 0, 0.95);
+  --mx: 50%;
+  --my: 50%;
+}
+
+.detail-tilt img { width: 100%; display: block; border-radius: inherit; }
+
+.detail-tilt::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(34% 34% at var(--mx) var(--my),
+    rgba(255, 255, 255, 0.3), rgba(143, 169, 255, 0.12) 42%, transparent 72%);
+  transition: opacity var(--dur) var(--ease-out);
+  mix-blend-mode: screen;
+}
+
+.detail-tilt:hover::after { opacity: 1; }
 
 .detail h1 {
   font-family: var(--font-d);

@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import {
-  api, type DeckReport, type RecommendReport, type Resolution, type SavedDeck,
+  api, streamDeckRecommendations,
+  type DeckReport, type RecommendReport, type Resolution, type SavedDeck,
 } from '../lib/api'
 import { collection } from '../lib/collection'
 import { countTo, dissolveIn, riseIn } from '../lib/motion'
+import { CardGrid } from '../components/CardGrid'
 import { ManaCost } from '../components/ManaCost'
 
 const SAMPLE = `Commander
@@ -67,7 +69,7 @@ export function DeckPage() {
   const [deckName, setDeckName] = useState('')
   const [deckId, setDeckId] = useState<number | null>(null)
   const [recFormat, setRecFormat] = useState('commander')
-  const [busy, setBusy] = useState<'analyse' | 'recommend' | 'save' | null>(null)
+  const [busy, setBusy] = useState<'analyse' | 'recommend' | 'ai' | 'save' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const [showAll, setShowAll] = useState(false)
@@ -75,6 +77,26 @@ export function DeckPage() {
   // analysis — several screens down past the curve, resolution list and 21
   // format verdicts — so pressing the button looked like it did nothing.
   const [tab, setTab] = useState<'analysis' | 'recommendations'>('analysis')
+  const [recView, setRecView] = useState<'list' | 'grid'>('list')
+  const [recSize, setRecSize] = useState(150)
+  const [activeThemes, setActiveThemes] = useState<string[]>([])
+  const [aiMode, setAiMode] = useState(false)
+  const [aiStrategy, setAiStrategy] = useState<string | null>(null)
+  const [aiLog, setAiLog] = useState<string[]>([])
+  const aiStream = useRef<{ stop: () => void } | null>(null)
+
+  const toggleTheme = (slug: string) =>
+    setActiveThemes((current) =>
+      current.includes(slug) ? current.filter((s) => s !== slug) : [...current, slug],
+    )
+
+  // Chips narrow the visible list rather than navigating away from it.
+  const visibleRecs = (recs?.recommendations ?? []).filter(
+    (rec) => !activeThemes.length || rec.because.some((b) => activeThemes.includes(b)),
+  )
+  const reasonFor = new Map(
+    (recs?.recommendations ?? []).map((r) => [r.card.oracle_id, r.because]),
+  )
 
   const priceRef = useRef<HTMLSpanElement>(null)
   const countRef = useRef<HTMLSpanElement>(null)
@@ -112,12 +134,58 @@ export function DeckPage() {
     setBusy('recommend')
     setError(null)
     setTab('recommendations')
+    setAiMode(false)
+    setAiStrategy(null)
+    setActiveThemes([])
     try {
       setRecs(await api.recommendDeck(text, recFormat || null))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not build recommendations')
       setRecs(null)
     } finally {
+      setBusy(null)
+    }
+  }
+
+  /** The AI path: minutes, and judged against this deck's strategy. */
+  const getAiRecommendations = async () => {
+    if (!text.trim()) return
+    setBusy('ai')
+    setError(null)
+    setTab('recommendations')
+    setAiMode(true)
+    setAiStrategy(null)
+    setActiveThemes([])
+    setAiLog([])
+    setRecs(null)
+    try {
+      const { run_id } = await api.prepareAiRecommendations(text, recFormat || null)
+      aiStream.current?.stop()
+      aiStream.current = streamDeckRecommendations(run_id, {
+        onStage: (stage) => {
+          setAiLog((log) => [...log, `${stage.stage}  ${stage.message}`])
+          const strategy = (stage.detail as { strategy?: string }).strategy
+          if (strategy) setAiStrategy(strategy)
+        },
+        onComplete: (stage) => {
+          const detail = stage.detail as unknown as RecommendReport & { strategy?: string }
+          setRecs({
+            themes: [],
+            color_identity: undefined,
+            format: recFormat || null,
+            recommendations: detail.recommendations ?? [],
+            note: (detail.recommendations ?? []).length
+              ? null
+              : 'The model found nothing worth adding.',
+          })
+          if (detail.strategy) setAiStrategy(detail.strategy)
+          setBusy(null)
+        },
+        onCancelled: () => { setAiLog((l) => [...l, 'stopped  run cancelled']); setBusy(null) },
+        onError: (message) => { setError(message); setBusy(null) },
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not start the AI run')
       setBusy(null)
     }
   }
@@ -235,6 +303,18 @@ export function DeckPage() {
               {busy === 'recommend' && <span className="spinner" />}
               {busy === 'recommend' ? 'Thinking' : 'Recommendations'}
             </button>
+            {busy === 'ai' ? (
+              <button
+                className="btn btn-danger"
+                onClick={() => { aiStream.current?.stop(); setBusy(null) }}
+              >
+                Stop AI run
+              </button>
+            ) : (
+              <button className="btn" onClick={getAiRecommendations} disabled={!!busy || !text.trim()}>
+                AI recommendations
+              </button>
+            )}
             <button className="btn" onClick={save} disabled={!!busy || !text.trim()}>
               {busy === 'save' && <span className="spinner" />}
               {deckId ? 'Update saved' : 'Save deck'}
@@ -412,64 +492,120 @@ export function DeckPage() {
 
           {tab === 'recommendations' && recs && (
             <div className="panel" ref={recRef}>
-              <h3>
-                Recommendations
-                {recs.color_identity !== undefined && (
-                  <span className="faint"> · within {recs.color_identity || 'colourless'}</span>
-                )}
-              </h3>
+              <div className="row wrap gap-2" style={{ justifyContent: 'space-between', marginBottom: 10 }}>
+                <h3 style={{ margin: 0 }}>
+                  {aiMode ? 'AI recommendations' : 'Recommendations'}
+                  <span className="faint">
+                    {' · '}{visibleRecs.length} of {recs.recommendations.length}
+                    {recs.color_identity ? ` · within ${recs.color_identity}` : ''}
+                  </span>
+                </h3>
+                <div className="row gap-2">
+                  {recView === 'grid' && (
+                    <label className="size-slider" title="Card size">
+                      <input
+                        type="range" min={110} max={300} step={10} value={recSize}
+                        onChange={(e) => setRecSize(Number(e.target.value))}
+                        aria-label="Card image size"
+                      />
+                    </label>
+                  )}
+                  <button
+                    className="btn btn-ghost sm"
+                    onClick={() => setRecView(recView === 'list' ? 'grid' : 'list')}
+                  >
+                    {recView === 'list' ? 'Images' : 'List'}
+                  </button>
+                </div>
+              </div>
 
               {recs.note && <p className="muted" style={{ fontSize: 13 }}>{recs.note}</p>}
+
+              {aiMode && aiLog.length > 0 && (
+                <div className="console-log mono" style={{ marginBottom: 12, maxHeight: 120 }}>
+                  {aiLog.slice(-6).map((line, i) => (
+                    <div className="line" key={i}><span>{line}</span></div>
+                  ))}
+                </div>
+              )}
+
+              {aiStrategy && (
+                <p className="muted" style={{ fontSize: 13, marginBottom: 10 }}>
+                  {aiStrategy}
+                </p>
+              )}
 
               {recs.themes.length > 0 && (
                 <>
                   <p className="faint" style={{ fontSize: 11, marginBottom: 8 }}>
-                    Themes read from the tags your cards already carry — weighted against how
-                    common each tag is overall, so generic mechanics don’t drown out the deck.
+                    Themes read from the tags your cards carry, weighted against how common
+                    each tag is overall. Solid chips are signature themes — cards must hit one
+                    to be suggested. Click any chip to narrow the list.
                   </p>
                   <div className="row wrap gap-1" style={{ marginBottom: 14 }}>
                     {recs.themes.map((t) => (
-                      <Link
+                      <button
                         key={t.slug}
-                        to={`/?q=${encodeURIComponent(`otag:${t.slug}`)}`}
-                        className="chip on"
-                        title={`${t.in_deck} in this deck, ${t.corpus} in the corpus`}
+                        className={`chip ${activeThemes.includes(t.slug) ? 'on' : ''} ${
+                          t.signature ? '' : 'supporting'
+                        }`}
+                        title={`${t.in_deck} in this deck, ${t.corpus} in the corpus${
+                          t.signature ? ' · signature' : ' · supporting'
+                        }`}
+                        onClick={() => toggleTheme(t.slug)}
                       >
                         {t.slug} <span className="faint">×{t.in_deck}</span>
-                      </Link>
+                      </button>
                     ))}
+                    {activeThemes.length > 0 && (
+                      <button className="btn btn-ghost sm" onClick={() => setActiveThemes([])}>
+                        Clear filter
+                      </button>
+                    )}
                   </div>
                 </>
               )}
 
-              {recs.recommendations.map((rec) => (
-                <div className="resolution rec-row" key={rec.card.oracle_id}>
-                  <span className="to">
-                    <Link to={`/card/${rec.card.oracle_id}`}>{rec.card.name}</Link>{' '}
-                    <ManaCost cost={rec.card.mana_cost} />
-                    <span className="faint" style={{ fontSize: 11, display: 'block' }}>
-                      {rec.because.slice(0, 3).join(' · ')}
+              {recView === 'grid' ? (
+                <CardGrid
+                  cards={visibleRecs.map((r) => r.card)}
+                  size={recSize}
+                  captionFor={(card) =>
+                    reasonFor.get(card.oracle_id)?.join(' · ')
+                  }
+                />
+              ) : (
+                visibleRecs.map((rec) => (
+                  <div className="resolution rec-row" key={rec.card.oracle_id}>
+                    <span className="to">
+                      <Link to={`/card/${rec.card.oracle_id}`}>{rec.card.name}</Link>{' '}
+                      <ManaCost cost={rec.card.mana_cost} />
+                      {rec.because.length > 0 && (
+                        <span className="faint" style={{ fontSize: 11, display: 'block' }}>
+                          {rec.because.slice(0, 3).join(' · ')}
+                        </span>
+                      )}
                     </span>
-                  </span>
-                  <span className="mono faint" style={{ fontSize: 11 }}>
-                    {rec.card.usd !== null ? `$${rec.card.usd.toFixed(2)}` : '—'}
-                  </span>
-                  <button
-                    className="btn btn-ghost sm"
-                    title="Add to Cards"
-                    onClick={() => collection.add(rec.card)}
-                  >
-                    +
-                  </button>
-                  <button
-                    className="btn btn-ghost sm"
-                    title="Append to the decklist"
-                    onClick={() => setText((t) => `${t.trimEnd()}\n1 ${rec.card.name}\n`)}
-                  >
-                    ↓ deck
-                  </button>
-                </div>
-              ))}
+                    <span className="mono faint" style={{ fontSize: 11 }}>
+                      {rec.card.usd !== null ? `$${rec.card.usd.toFixed(2)}` : '—'}
+                    </span>
+                    <button
+                      className="btn btn-ghost sm"
+                      title="Add to Cards"
+                      onClick={() => collection.add(rec.card)}
+                    >
+                      +
+                    </button>
+                    <button
+                      className="btn btn-ghost sm"
+                      title="Append to the decklist"
+                      onClick={() => setText((t) => `${t.trimEnd()}\n1 ${rec.card.name}\n`)}
+                    >
+                      ↓ deck
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           )}
         </div>
