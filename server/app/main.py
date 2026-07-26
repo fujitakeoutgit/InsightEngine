@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .llm.ollama import client as ollama
-from .routers import cards, deck, search, semantic, sets, spell
+from .routers import cards, catalog, deck, search, semantic, sets, spell
 from .scryfall import client as scryfall
 from .state import state
 
@@ -66,6 +66,7 @@ app.include_router(cards.router)
 app.include_router(sets.router)
 app.include_router(deck.router)
 app.include_router(spell.router)
+app.include_router(catalog.router)
 
 
 @app.get("/api/health")

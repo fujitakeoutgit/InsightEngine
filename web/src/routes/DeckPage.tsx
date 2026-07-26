@@ -14,6 +14,9 @@ import { CardGrid } from '../components/CardGrid'
 import { DeckEditor } from '../components/DeckEditor'
 import { ManaCost } from '../components/ManaCost'
 import { Playtest } from '../components/Playtest'
+import {
+  DECK_RAIL, EMPTY_CONSOLE, SemanticConsole, type ConsoleState,
+} from '../components/SemanticConsole'
 import { SplitPane } from '../components/SplitPane'
 
 const SAMPLE = `Commander
@@ -75,13 +78,13 @@ export function DeckPage() {
   const [report, setReport] = useState<DeckReport | null>(null)
   const [recs, setRecs] = useState<RecommendReport | null>(null)
 
-  const [tab, setTab] = useState<'analysis' | 'recommendations'>('analysis')
+  const [tab, setTab] = useState<'analysis' | 'recommendations' | 'pipeline'>('analysis')
+  const [pipeline, setPipeline] = useState<ConsoleState>(EMPTY_CONSOLE)
   const [recView, setRecView] = useState<'list' | 'grid'>('list')
   const [recSize, setRecSize] = useState(150)
   const [activeThemes, setActiveThemes] = useState<string[]>([])
   const [aiMode, setAiMode] = useState(false)
   const [aiStrategy, setAiStrategy] = useState<string | null>(null)
-  const [aiLog, setAiLog] = useState<string[]>([])
   const [playing, setPlaying] = useState(false)
   const [busy, setBusy] = useState<'load' | 'analyse' | 'recommend' | 'ai' | 'save' | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -179,19 +182,25 @@ export function DeckPage() {
 
   const getAiRecommendations = async () => {
     if (!text.trim()) return
-    setBusy('ai'); setError(null); setTab('recommendations')
-    setAiMode(true); setAiStrategy(null); setActiveThemes([]); setAiLog([]); setRecs(null)
+    // Opens on the pipeline tab: for a multi-minute run, watching the stages
+    // is the useful view until there is something to show.
+    setBusy('ai'); setError(null); setTab('pipeline')
+    setAiMode(true); setAiStrategy(null); setActiveThemes([]); setRecs(null)
+    setPipeline((p) => ({ ...EMPTY_CONSOLE, model: p.model, running: true }))
     try {
       const { run_id } = await api.prepareAiRecommendations(text, format || null)
       aiStream.current?.stop()
       aiStream.current = streamDeckRecommendations(run_id, {
         onStage: (stage) => {
-          setAiLog((l) => [...l, `${stage.stage}  ${stage.message}`])
+          setPipeline((p) => ({ ...p, stages: [...p.stages, stage], current: stage.stage }))
           const strategy = (stage.detail as { strategy?: string }).strategy
           if (strategy) setAiStrategy(strategy)
         },
         onComplete: (stage) => {
           const detail = stage.detail as unknown as RecommendReport & { strategy?: string }
+          setPipeline((p) => ({
+            ...p, stages: [...p.stages, stage], current: 'complete', running: false,
+          }))
           setRecs({
             themes: [], color_identity: undefined, format: format || null,
             recommendations: detail.recommendations ?? [],
@@ -199,12 +208,20 @@ export function DeckPage() {
           })
           if (detail.strategy) setAiStrategy(detail.strategy)
           setBusy(null)
+          setTab('recommendations')
         },
-        onCancelled: () => { setAiLog((l) => [...l, 'stopped  run cancelled']); setBusy(null) },
-        onError: (message) => { setError(message); setBusy(null) },
+        onCancelled: () => {
+          setPipeline((p) => ({ ...p, running: false, cancelled: true }))
+          setBusy(null)
+        },
+        onError: (message) => {
+          setPipeline((p) => ({ ...p, running: false, error: message }))
+          setError(message); setBusy(null)
+        },
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not start the AI run')
+      setPipeline((p) => ({ ...p, running: false }))
       setBusy(null)
     }
   }
@@ -323,7 +340,7 @@ export function DeckPage() {
         </div>
       )}
 
-      {(report || recs) && (
+      {(report || recs || pipeline.stages.length > 0) && (
         <div className="result-tabs">
           <button className={tab === 'analysis' ? 'on' : ''} disabled={!report}
             onClick={() => setTab('analysis')}>
@@ -333,7 +350,23 @@ export function DeckPage() {
             onClick={() => setTab('recommendations')}>
             Recommendations{recs && <span className="faint"> {recs.recommendations.length}</span>}
           </button>
+          <button className={tab === 'pipeline' ? 'on' : ''} disabled={!pipeline.stages.length}
+            onClick={() => setTab('pipeline')}>
+            Pipeline
+            {pipeline.running && <span className="spinner" style={{ marginLeft: 6 }} />}
+          </button>
         </div>
+      )}
+
+      {tab === 'pipeline' && pipeline.stages.length > 0 && (
+        <SemanticConsole
+          state={pipeline}
+          rail={DECK_RAIL}
+          title="Recommendation pipeline"
+          collapsed={false}
+          onToggle={() => {}}
+          onStop={() => { aiStream.current?.stop(); setBusy(null) }}
+        />
       )}
 
       {tab === 'analysis' && report && (
@@ -442,12 +475,6 @@ export function DeckPage() {
 
           {recs.note && <p className="muted" style={{ fontSize: 13 }}>{recs.note}</p>}
 
-          {aiMode && aiLog.length > 0 && (
-            <div className="console-log mono" style={{ marginBottom: 12, maxHeight: 120 }}>
-              {aiLog.slice(-6).map((line, i) => <div className="line" key={i}><span>{line}</span></div>)}
-            </div>
-          )}
-
           {aiStrategy && <p className="muted" style={{ fontSize: 13, marginBottom: 10 }}>{aiStrategy}</p>}
 
           {recs.themes.length > 0 && (
@@ -492,8 +519,15 @@ export function DeckPage() {
                 </span>
                 <button className="btn btn-ghost sm" title="Add to Cards"
                   onClick={() => collection.add(rec.card)}>+</button>
-                <button className="btn btn-ghost sm" title="Append to the decklist"
-                  onClick={() => applyEdits([...deckCards, addedCard(rec.card)])}>↓ deck</button>
+                <button className="btn btn-ghost sm" title="Add straight to the deck"
+                  onClick={() => applyEdits([...deckCards, addedCard(rec.card, 'main')])}>
+                  ↓ deck
+                </button>
+                {/* Most suggestions want considering, not committing. */}
+                <button className="btn btn-ghost sm" title="Add to the maybeboard"
+                  onClick={() => applyEdits([...deckCards, addedCard(rec.card, 'maybeboard')])}>
+                  ↓ maybe
+                </button>
               </div>
             ))
           )}

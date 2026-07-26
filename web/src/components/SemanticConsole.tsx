@@ -1,14 +1,23 @@
 import { useEffect, useRef } from 'react'
 import type { GuardReport, SemanticStage } from '../lib/api'
 
-/** Pipeline stages in execution order. Summarisation was removed. */
-const RAIL = [
+/** Search pipeline stages in execution order. Summarisation was removed. */
+export const SEARCH_RAIL = [
   { key: 'concepts', label: 'Interpret' },
   { key: 'vocabulary', label: 'Vocabulary' },
   { key: 'plans', label: 'Plan' },
   { key: 'execute', label: 'Query' },
   { key: 'evaluate', label: 'Evaluate' },
-] as const
+]
+
+/** The deck recommender asks a different question, so it has its own stages. */
+export const DECK_RAIL = [
+  { key: 'read', label: 'Read deck' },
+  { key: 'vocabulary', label: 'Vocabulary' },
+  { key: 'plans', label: 'Plan' },
+  { key: 'execute', label: 'Query' },
+  { key: 'judge', label: 'Judge' },
+]
 
 export interface ConsoleState {
   running: boolean
@@ -56,13 +65,18 @@ export function SemanticConsole({
   onToggle,
   onStop,
   below = false,
+  rail = SEARCH_RAIL,
+  title = 'Semantic pipeline',
 }: {
   state: ConsoleState
   collapsed: boolean
   onToggle: () => void
   onStop: () => void
   below?: boolean
+  rail?: { key: string; label: string }[]
+  title?: string
 }) {
+  const RAIL = rail
   const logRef = useRef<HTMLDivElement>(null)
 
   // Keep the newest line in view as events stream in.
@@ -97,7 +111,7 @@ export function SemanticConsole({
         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onToggle()}
       >
         <span className="caret">▾</span>
-        <span className="label">Semantic pipeline</span>
+        <span className="label">{title}</span>
         <span className="model mono">{state.model}</span>
         {state.running && <span className="spinner" />}
         <span className="mono faint" style={{ fontSize: 11 }}>

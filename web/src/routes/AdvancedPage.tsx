@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { api, type SetInfo } from '../lib/api'
 import { quoteIfNeeded } from '../lib/query'
+import { TypeAhead } from '../components/TypeAhead'
 
 /* --------------------------------------------------------------------------
    Vocabulary
@@ -192,14 +192,9 @@ function Check({
 
 export function AdvancedPage() {
   const [b, setB] = useState<Builder>(INITIAL)
-  const [sets, setSets] = useState<SetInfo[]>([])
   const navigate = useNavigate()
 
   const query = useMemo(() => buildQuery(b), [b])
-
-  useEffect(() => {
-    api.sets().then((r) => setSets(r.sets.filter((s) => !s.digital))).catch(() => {})
-  }, [])
 
   const set = <K extends keyof Builder>(key: K, value: Builder[K]) =>
     setB((s) => ({ ...s, [key]: value }))
@@ -263,14 +258,14 @@ export function AdvancedPage() {
           />
         </Row>
 
-        <Row label="Type Line" hint="Space-separated types are ANDed">
-          <input
-            className="fld" value={b.typeLine} placeholder="Enter a type, e.g. legendary creature"
-            onChange={(e) => set('typeLine', e.target.value)}
+        <Row label="Type Line" hint="Matches as you type. Enter adds it and starts the next.">
+          <TypeAhead
+            kind="types" value={b.typeLine} onChange={(v) => set('typeLine', v)}
+            placeholder="Enter a type, e.g. legendary creature"
           />
-          <input
-            className="fld" value={b.typeExclude} placeholder="Exclude types, e.g. token"
-            onChange={(e) => set('typeExclude', e.target.value)}
+          <TypeAhead
+            kind="types" value={b.typeExclude} onChange={(v) => set('typeExclude', v)}
+            placeholder="Exclude types, e.g. token"
           />
         </Row>
 
@@ -378,15 +373,13 @@ export function AdvancedPage() {
           <button className="add-row" onClick={() => addRow('formats')}>+ Add another format</button>
         </Row>
 
-        <Row label="Sets" hint="Set codes, space separated">
-          <input
-            className="fld" value={b.sets} list="set-codes"
-            placeholder="Enter a set code or choose from the list"
-            onChange={(e) => set('sets', e.target.value)}
+        <Row label="Sets" hint="Matches as you type. Enter adds it and starts the next.">
+          <TypeAhead
+            kind="sets" value={b.sets} onChange={(v) => set('sets', v)}
+            placeholder="Enter a set name or code"
+            // The catalog reads "mh3 — Modern Horizons 3"; the query wants the code.
+            transform={(entry) => entry.split(' — ')[0]}
           />
-          <datalist id="set-codes">
-            {sets.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
-          </datalist>
         </Row>
 
         <Row label="Rarity" hint="Any of the selected rarities">
@@ -441,17 +434,17 @@ export function AdvancedPage() {
           <button className="add-row" onClick={() => addRow('prices')}>+ Add another price</button>
         </Row>
 
-        <Row label="Keyword" hint="A keyword ability, e.g. flying">
-          <input
-            className="fld" value={b.keyword} placeholder="flying"
-            onChange={(e) => set('keyword', e.target.value)}
+        <Row label="Keyword" hint="Matches as you type. Enter adds it.">
+          <TypeAhead
+            kind="keywords" value={b.keyword} onChange={(v) => set('keyword', v)}
+            placeholder="flying" multi={false}
           />
         </Row>
 
-        <Row label="Artist" hint="Any artist name, e.g. “Magali”">
-          <input
-            className="fld" value={b.artist} placeholder="Any artist name"
-            onChange={(e) => set('artist', e.target.value)}
+        <Row label="Artist" hint="Matches as you type. Enter adds it.">
+          <TypeAhead
+            kind="artists" value={b.artist} onChange={(v) => set('artist', v)}
+            placeholder="Any artist name" multi={false}
           />
         </Row>
 
