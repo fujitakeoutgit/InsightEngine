@@ -15,6 +15,10 @@ import { SetsPage } from './routes/SetsPage'
 import './styles/global.css'
 import './styles/components.css'
 
+// The app restores its own scroll positions when returning to a cached view;
+// the browser's guess fights that and wins the race often enough to matter.
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
+
 const router = createBrowserRouter([
   {
     path: '/',

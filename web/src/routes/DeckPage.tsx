@@ -9,6 +9,7 @@ import { collection } from '../lib/collection'
 import {
   addedCard, fromResolutions, serialize, type DeckCard, type Section,
 } from '../lib/deckModel'
+import { recallDeckView, rememberDeckScroll, rememberDeckView } from '../lib/deckViewCache'
 import { attachTilt, dissolveIn, riseIn } from '../lib/motion'
 import { CardGrid } from '../components/CardGrid'
 import { DeckEditor } from '../components/DeckEditor'
@@ -157,6 +158,93 @@ export function DeckPage() {
     const timer = setTimeout(() => setStatus(null), 3000)
     return () => clearTimeout(timer)
   }, [status])
+
+  /* Returning from a card must not discard the recommendations.
+   *
+   * They take real work to produce -- the AI pipeline takes minutes -- so
+   * clicking a suggestion to read it and pressing Back has to come back to the
+   * same list, the same tab and the same place in it. */
+  const viewKey = deckId ?? 'new'
+  /** Set by the restore, cleared by the save it must not be undone by. */
+  const restoring = useRef<string | null>(null)
+
+  useEffect(() => {
+    const saved = recallDeckView(viewKey)
+    if (!saved) return
+    restoring.current = viewKey
+    setTab(saved.tab)
+    setRecs(saved.recs)
+    setAiMode(saved.aiMode)
+    setAiStrategy(saved.aiStrategy)
+    setActiveThemes(saved.activeThemes)
+    // Set here rather than only at startup: the router resets it, and the
+    // browser's own guess otherwise wins the race against the restore below.
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
+
+    // The panel is not on screen yet, so the page is still too short to scroll
+    // this far. Keep asking until the content has rendered tall enough to
+    // honour it, then stop.
+    //
+    // Timers rather than requestAnimationFrame: rAF does not run while the
+    // document is not compositing, which would leave the restore silently
+    // undone in a background tab.
+    // Re-asserted for a short while after it first lands, not just until then.
+    // Coming back restores focus to the link you clicked, and focusing scrolls
+    // it into view -- undoing the restore a beat after it succeeded.
+    let elapsed = 0
+    const settle = () => {
+      window.scrollTo(0, saved.scrollY)
+      elapsed += 30
+      if (elapsed < 700) timer = window.setTimeout(settle, 30)
+    }
+    let timer = window.setTimeout(settle, 0)
+    return () => window.clearTimeout(timer)
+  }, [viewKey])
+
+  useEffect(() => {
+    // The save that fires in the same commit as a restore still sees the
+    // pre-restore state, and writing it back would erase what was just read.
+    // Under StrictMode that is fatal rather than merely wasteful: effects are
+    // invoked twice on mount, so the second restore would read the blank view
+    // this had just written and faithfully restore *that*.
+    if (restoring.current === viewKey) {
+      restoring.current = null
+      return
+    }
+    rememberDeckView(viewKey, {
+      tab, recs, aiMode, aiStrategy, activeThemes, scrollY: window.scrollY,
+    })
+  }, [viewKey, tab, recs, aiMode, aiStrategy, activeThemes])
+
+  useEffect(() => {
+    // Recorded on scroll *and* on any click, then written once on the way out.
+    //
+    // The click matters: a click is what precedes leaving, and at that instant
+    // the position is still correct. Reading window.scrollY during teardown
+    // does not work -- navigating to a card scrolls to the top first, so the
+    // teardown read records zero. Capture phase, so it runs before the handler
+    // that navigates.
+    let live = true
+    let last = 0
+    let captured = false
+    const capture = () => {
+      if (!live) return
+      last = window.scrollY
+      captured = true
+    }
+    window.addEventListener('scroll', capture, { passive: true })
+    document.addEventListener('click', capture, { capture: true })
+    return () => {
+      live = false
+      window.removeEventListener('scroll', capture)
+      document.removeEventListener('click', capture, { capture: true })
+      // Only if something was actually observed. StrictMode tears every effect
+      // down and rebuilds it immediately on mount, and an unconditional write
+      // there would put this page's initial scroll of zero over the position
+      // saved on the way out -- which the restore has not read yet.
+      if (captured) rememberDeckScroll(viewKey, last)
+    }
+  }, [viewKey])
 
   /* Undo history.
    *
