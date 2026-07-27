@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { Card } from '../lib/api'
 import { useCardFace } from '../lib/faces'
+import { solidDragImage } from '../lib/useQuietDrag'
 import { canAnimate, gsap } from '../lib/motion'
 import { type DeckCard } from '../lib/deckModel'
 
@@ -361,6 +362,7 @@ function PlayCard({
       onDragStart={(e) => {
         e.dataTransfer.setData('text/plain', inst.iid)
         e.dataTransfer.effectAllowed = 'move'
+        solidDragImage(e, e.currentTarget as HTMLElement)
         // Where in the card you grabbed, so it does not snap its corner to the
         // pointer when dropped.
         const rect = e.currentTarget.getBoundingClientRect()

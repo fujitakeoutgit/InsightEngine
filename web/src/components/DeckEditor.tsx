@@ -9,6 +9,7 @@ import {
 } from '../lib/deckModel'
 import { useCardFace } from '../lib/faces'
 import { attachTilt } from '../lib/motion'
+import { solidDragImage, useQuietDrag } from '../lib/useQuietDrag'
 import { usePersisted } from '../lib/usePersisted'
 import { CARD_DRAG_TYPE } from './DeckSearch'
 import { FlipButton } from './FlipButton'
@@ -113,19 +114,13 @@ export function DeckEditor({
     value: deckValue(cards),
   }), [cards])
 
+  // The "no drop" cursor is suppressed document-wide by useQuietDrag; scoping
+  // it to this container was not enough, because the gaps a drag crosses are
+  // everywhere -- panel padding, the splitter, the page background.
+  useQuietDrag()
+
   return (
-    // Accepting the drag at the top level suppresses the browser's "no drop"
-    // cursor. Without it, every pixel between two drop targets flashes a stop
-    // sign, which reads as an error while you are simply moving the pointer.
-    // A drop that lands here rather than on a section is just ignored.
-    <div
-      className="editor"
-      onDragOver={(e) => {
-        e.preventDefault()
-        e.dataTransfer.dropEffect = 'move'
-      }}
-      onDrop={(e) => e.preventDefault()}
-    >
+    <div className="editor">
       <div className="editor-bar">
         <input
           className="fld"
@@ -337,6 +332,7 @@ function EditorRow({
     onDragStart: (e: React.DragEvent) => {
       e.dataTransfer.setData('text/plain', entry.uid)
       e.dataTransfer.effectAllowed = 'move'
+      solidDragImage(e, e.currentTarget as HTMLElement)
       onDragStart()
     },
     onDragEnd,

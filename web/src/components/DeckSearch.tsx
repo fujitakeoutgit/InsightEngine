@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { api, type Card } from '../lib/api'
 import { useCardFace } from '../lib/faces'
+import { solidDragImage } from '../lib/useQuietDrag'
 import { attachTilt, dissolveIn } from '../lib/motion'
 import { usePersisted } from '../lib/usePersisted'
 import { FlipButton } from './FlipButton'
@@ -40,6 +41,7 @@ function SearchTile({ card }: { card: Card }) {
         // and a green plus over every card is noise on a drag whose whole
         // purpose is obvious.
         e.dataTransfer.effectAllowed = 'move'
+        solidDragImage(e, e.currentTarget as HTMLElement)
       }}
       title={`${card.name} — ${card.type_line ?? ''}`}
     >
