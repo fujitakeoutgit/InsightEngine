@@ -40,6 +40,18 @@
   --mana-g: #55a96f;
   --mana-c: #a6a8b5;
 
+  /* Rarity. These follow Magic's own convention rather than a generated ramp
+     -- silver is supposed to read as silver -- so they fail the categorical
+     lightness/chroma bands by design. What they do pass, measured against the
+     #0d0f16 panel: every adjacent pair separates by ΔE 16.0 normal / 12.6
+     protan, and all five clear 3:1 contrast. Nothing here is encoded by colour
+     alone in any case: each swatch is printed beside its name and count. */
+  --rarity-common: #6f7789;
+  --rarity-uncommon: #b9c6d4;
+  --rarity-rare: #e0bc45;
+  --rarity-mythic: #e0452c;
+  --rarity-special: #b07fd8;
+
   /* --- type ---------------------------------------------------------- */
   --font-d: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
   --font-b: 'Instrument Sans', 'Segoe UI', system-ui, sans-serif;

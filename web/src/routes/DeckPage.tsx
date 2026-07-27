@@ -14,6 +14,7 @@ import { CardGrid } from '../components/CardGrid'
 import { DeckEditor } from '../components/DeckEditor'
 import { ManaCost } from '../components/ManaCost'
 import { DeckCharts } from '../components/DeckCharts'
+import { DeckInfo } from '../components/DeckInfo'
 import { Playtest } from '../components/Playtest'
 import {
   DECK_RAIL, EMPTY_CONSOLE, SemanticConsole, type ConsoleState,
@@ -72,6 +73,7 @@ export function DeckPage() {
   const [text, setText] = useState('')
   const [deckName, setDeckName] = useState('')
   const [savedId, setSavedId] = useState<number | null>(null)
+  const [savedAt, setSavedAt] = useState<{ created: string; updated: string } | null>(null)
   const [format, setFormat] = useState('commander')
   const [description, setDescription] = useState("")
 
@@ -123,6 +125,7 @@ export function DeckPage() {
         setText(deck.text ?? '')
         setDeckName(deck.name)
         setSavedId(deck.id)
+        setSavedAt({ created: deck.created_at, updated: deck.updated_at })
         setDescription(deck.description ?? "")
         if (deck.format) setFormat(deck.format)
         const analysed = await analyseText(deck.text ?? '')
@@ -301,17 +304,6 @@ export function DeckPage() {
             AI recommend
           </button>
         )}
-        <button className="btn sm" onClick={save} disabled={!!busy || !text.trim()}>
-          {busy === 'save' && <span className="spinner" />}Save
-        </button>
-        <button
-          className="btn btn-ghost sm"
-          onClick={() => setPlaying((p) => !p)}
-          disabled={!deckCards.length}
-          title={deckCards.length ? 'Goldfish this deck' : 'Build or load a deck first'}
-        >
-          {playing ? 'Close playtest' : 'Playtest'}
-        </button>
         {!text && (
           <button className="btn btn-ghost sm push" onClick={() => setText(SAMPLE)}>Sample</button>
         )}
@@ -429,20 +421,31 @@ export function DeckPage() {
             </div>
           </div>
 
-          <div className="panel">
-            <div className="row" style={{ justifyContent: 'space-between', marginBottom: 10 }}>
-              <h3 style={{ margin: 0 }}>
-                Name resolution
-                {uncertain.length > 0 && <span style={{ color: 'var(--warn)' }}> · {uncertain.length} to check</span>}
-              </h3>
-              <button className="btn btn-ghost sm" onClick={() => setShowAll(!showAll)}>
-                {showAll ? 'Only uncertain' : `All ${report.entries.length}`}
-              </button>
+          {/* Only worth a panel when there is something to resolve. A panel
+              whose entire content is "nothing went wrong" is noise. */}
+          {uncertain.length > 0 && (
+            <div className="panel">
+              <div className="row" style={{ justifyContent: 'space-between', marginBottom: 10 }}>
+                <h3 style={{ margin: 0 }}>
+                  Name resolution
+                  <span style={{ color: 'var(--warn)' }}> · {uncertain.length} to check</span>
+                </h3>
+                <button className="btn btn-ghost sm" onClick={() => setShowAll(!showAll)}>
+                  {showAll ? 'Only uncertain' : `All ${report.entries.length}`}
+                </button>
+              </div>
+              {shown.map((entry, i) => <ResolutionRow key={i} entry={entry} />)}
             </div>
-            {shown.length === 0
-              ? <p className="muted" style={{ fontSize: 13 }}>Every name resolved exactly.</p>
-              : shown.map((entry, i) => <ResolutionRow key={i} entry={entry} />)}
-          </div>
+          )}
+
+          {report.stats && !report.stats.empty && (
+            <DeckInfo
+              report={report}
+              stats={report.stats}
+              createdAt={savedAt?.created}
+              updatedAt={savedAt?.updated}
+            />
+          )}
 
           {report.stats && !report.stats.empty && <DeckCharts stats={report.stats} />}
         </div>
@@ -548,6 +551,22 @@ export function DeckPage() {
           {REC_FORMATS.map((f) => <option key={f} value={f}>{f || 'Any format'}</option>)}
         </select>
 
+        {/* Save and Playtest act on the deck as a whole, not on whichever tab
+            is open, so they sit with the deck's name rather than beside the
+            per-tab actions. */}
+        <div className="row gap-2 push">
+          <button className="btn btn-primary sm" onClick={save} disabled={!!busy || !text.trim()}>
+            {busy === 'save' && <span className="spinner" />}Save
+          </button>
+          <button
+            className="btn sm"
+            onClick={() => setPlaying((p) => !p)}
+            disabled={!deckCards.length}
+            title={deckCards.length ? 'Goldfish this deck' : 'Build or load a deck first'}
+          >
+            {playing ? 'Close playtest' : 'Playtest'}
+          </button>
+        </div>
       </div>
 
       {status && (

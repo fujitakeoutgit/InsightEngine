@@ -965,7 +965,12 @@
 .decklist-input {
   display: block;
   width: 100%;
-  min-height: 460px;
+  /* Fill the window rather than a fixed box. The subtrahend is the chrome
+     above it -- header, deck head, tabs, actions, description -- so the field
+     ends near the bottom of the viewport at any window size. Still draggable
+     past that; the floor keeps it usable on short screens. */
+  height: calc(100dvh - 430px);
+  min-height: 320px;
   resize: vertical;
   font-family: var(--font-m);
   font-size: 13px;
@@ -980,6 +985,51 @@
 
 .decklist-input:focus { outline: none; border-color: var(--aether); }
 .decklist-input::placeholder { color: var(--faint); }
+
+/* Deck info: the vitals panel that replaced the format-legality grid. */
+.deck-info { display: grid; gap: 18px; }
+
+.deck-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 1px;
+  background: var(--line-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+
+.deck-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 13px;
+  background: var(--bg-hi);
+}
+
+.deck-stat .v { font-size: 17px; color: var(--ink); line-height: 1.1; }
+.deck-stat .faint { font-size: 10px; }
+
+.rarity-split { display: grid; gap: 8px; }
+
+.rarity-bar {
+  display: flex;
+  height: 9px;
+  border-radius: 99px;
+  overflow: hidden;
+  /* A hairline of surface between segments, so neighbouring fills read as
+     separate quantities rather than one continuous smear. */
+  gap: 2px;
+}
+
+.rarity-bar span { display: block; min-width: 2px; }
+
+.rarity-keys { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11.5px; color: var(--muted); }
+.rarity-key { display: inline-flex; align-items: center; gap: 6px; text-transform: capitalize; }
+.rarity-key i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.rarity-key b { color: var(--ink); font-weight: 500; font-size: 11px; }
+
+.token-list { display: grid; gap: 7px; }
 
 /* Action row sits between the mode tabs and the editor's own toolbar. */
 .deck-actions {
