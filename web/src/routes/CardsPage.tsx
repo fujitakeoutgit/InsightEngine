@@ -1,18 +1,20 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import type { Card } from '../lib/api'
 import { collection, useCollection } from '../lib/collection'
+import { CardMenu } from '../components/CardMenu'
+import { SIZE_KEY, usePersisted, VIEW_KEY } from '../lib/usePersisted'
 import { CardGrid } from '../components/CardGrid'
 import { PageHead } from '../components/PageHead'
-
-const SIZE_KEY = 'insight-enigma:card-size'
 
 /** Cards collected from search results with the hover [x] button. */
 export function CardsPage() {
   const cards = useCollection()
-  const [view, setView] = useState<'grid' | 'list'>('grid')
-  const [size, setSize] = useState(() => Number(localStorage.getItem(SIZE_KEY)) || 190)
+  const [view, setView] = usePersisted<'grid' | 'list'>(VIEW_KEY, 'grid')
+  const [size, setSize] = usePersisted(SIZE_KEY, 190)
   const [copied, setCopied] = useState(false)
+  const [picked, setPicked] = useState<{ card: Card; at: { x: number; y: number } } | null>(null)
 
   const totals = useMemo(() => {
     const priced = cards.filter((c) => c.usd !== null && c.usd !== undefined)
@@ -73,7 +75,21 @@ export function CardsPage() {
           <Link to="/" className="btn" style={{ marginTop: 16 }}>Go search</Link>
         </div>
       ) : (
-        <CardGrid cards={cards} view={view} size={size} />
+        <CardGrid
+          cards={cards}
+          view={view}
+          size={size}
+          onPick={(card, at) => setPicked({ card, at })}
+        />
+      )}
+
+      {picked && (
+        <CardMenu
+          card={picked.card}
+          at={picked.at}
+          onClose={() => setPicked(null)}
+          onRemove={() => collection.toggle(picked.card)}
+        />
       )}
     </section>
   )

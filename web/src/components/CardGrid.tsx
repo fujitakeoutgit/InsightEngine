@@ -9,6 +9,9 @@ function money(value: number | null) {
   return value === null || value === undefined ? '—' : `$${value.toFixed(2)}`
 }
 
+/** Opens a per-card menu at the click point instead of navigating. */
+export type CardPick = (card: Card, at: { x: number; y: number }) => void
+
 function CollectButton({ card }: { card: Card }) {
   const held = useIsCollected(card.oracle_id)
   return (
@@ -29,8 +32,8 @@ function CollectButton({ card }: { card: Card }) {
 }
 
 function CardTile({
-  card, collectable, caption,
-}: { card: Card; collectable: boolean; caption?: string }) {
+  card, collectable, caption, onPick,
+}: { card: Card; collectable: boolean; caption?: string; onPick?: CardPick }) {
   const ref = useRef<HTMLAnchorElement>(null)
   const [loaded, setLoaded] = useState(false)
   const image = card.image_normal ?? card.image_small
@@ -45,6 +48,12 @@ function CardTile({
       ref={ref}
       to={`/card/${card.oracle_id}`}
       className="card-tile"
+      // With a picker attached the tile opens a menu instead of navigating;
+      // Info is one of the menu's own entries, so nothing becomes unreachable.
+      onClick={onPick && ((event) => {
+        event.preventDefault()
+        onPick(card, { x: event.clientX, y: event.clientY })
+      })}
       title={
         caption
           ? `${card.name} — ${card.type_line ?? ''}\n${caption}`
@@ -75,11 +84,17 @@ function CardTile({
   )
 }
 
-function CardRow({ card }: { card: Card }) {
+function CardRow({ card, onPick }: { card: Card; onPick?: CardPick }) {
   const navigate = useNavigate()
   const held = useIsCollected(card.oracle_id)
   return (
-    <tr onClick={() => navigate(`/card/${card.oracle_id}`)}>
+    <tr
+      onClick={(event) =>
+        onPick
+          ? onPick(card, { x: event.clientX, y: event.clientY })
+          : navigate(`/card/${card.oracle_id}`)
+      }
+    >
       <td>
         <button
           className="btn btn-ghost sm"
@@ -116,6 +131,7 @@ export function CardGrid({
   size = 190,
   collectable = true,
   captionFor,
+  onPick,
 }: {
   cards: Card[]
   view?: 'grid' | 'list'
@@ -125,6 +141,8 @@ export function CardGrid({
   /** Extra hover text per card — used to keep recommendation reasons visible
    *  in image view, where there is no room to print them. */
   captionFor?: (card: Card) => string | undefined
+  /** When set, clicking a card opens a menu here rather than navigating. */
+  onPick?: CardPick
 }) {
   const container = useRef<HTMLDivElement>(null)
 
@@ -155,7 +173,7 @@ export function CardGrid({
           </thead>
           <tbody>
             {cards.map((card) => (
-              <CardRow key={card.oracle_id} card={card} />
+              <CardRow key={card.oracle_id} card={card} onPick={onPick} />
             ))}
           </tbody>
         </table>
@@ -175,6 +193,7 @@ export function CardGrid({
           card={card}
           collectable={collectable}
           caption={captionFor?.(card)}
+          onPick={onPick}
         />
       ))}
     </div>

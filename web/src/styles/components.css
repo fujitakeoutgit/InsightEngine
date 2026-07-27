@@ -986,6 +986,51 @@
 .decklist-input:focus { outline: none; border-color: var(--aether); }
 .decklist-input::placeholder { color: var(--faint); }
 
+/* Per-card action menu, opened by clicking a tile on the Cards page. */
+.menu-backdrop { position: fixed; inset: 0; z-index: 300; }
+
+.card-menu {
+  position: fixed;
+  min-width: 208px;
+  max-width: 300px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: color-mix(in oklab, var(--bg-hi) 92%, transparent);
+  backdrop-filter: blur(16px) saturate(140%);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transform-origin: top left;
+}
+
+.menu-title {
+  padding: 7px 9px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line-soft);
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 9px;
+  border-radius: 3px;
+  font-size: 12.5px;
+  color: var(--muted);
+  transition: background-color var(--dur-fast), color var(--dur-fast);
+}
+
+.menu-item:hover { background: var(--glass-hi); color: var(--ink); }
+.menu-item.danger:hover { color: var(--danger); }
+.menu-item.back { color: var(--faint); border-top: 1px solid var(--line-soft); margin-top: 4px; border-radius: 0; }
+.menu-note { padding: 9px; font-size: 12px; color: var(--ok); }
+
 /* Deck info: the vitals panel that replaced the format-legality grid. */
 .deck-info { display: grid; gap: 18px; }
 

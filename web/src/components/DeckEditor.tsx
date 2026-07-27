@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import type { Card } from '../lib/api'
@@ -7,6 +7,7 @@ import {
   SECTIONS, countCards, deckValue, filterCards, groupCards, sortDeckCards,
   type DeckCard, type GroupBy, type Section, type SortBy,
 } from '../lib/deckModel'
+import { usePersisted } from '../lib/usePersisted'
 import { ManaCost } from './ManaCost'
 
 const GROUPINGS: [GroupBy, string][] = [
@@ -37,18 +38,12 @@ export function DeckEditor({
 }) {
   const [groupBy, setGroupBy] = useState<GroupBy>('type')
   const [sortBy, setSortBy] = useState<SortBy>('name')
-  const [view, setView] = useState<'list' | 'grid'>('list')
-  const [tileSize, setTileSize] = useState(
-    () => Number(localStorage.getItem('insight-enigma:editor-tile')) || 120,
-  )
+  const [view, setView] = usePersisted<'list' | 'grid'>('insight-enigma:deck-view', 'list')
+  const [tileSize, setTileSize] = usePersisted('insight-enigma:editor-tile', 120)
   const [query, setQuery] = useState('')
   const [dragging, setDragging] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<Section | null>(null)
   const collected = useCollection()
-
-  useEffect(() => {
-    localStorage.setItem('insight-enigma:editor-tile', String(tileSize))
-  }, [tileSize])
 
   const patch = (uid: string, change: Partial<DeckCard>) =>
     onChange(cards.map((c) => (c.uid === uid ? { ...c, ...change } : c)))
@@ -99,7 +94,7 @@ export function DeckEditor({
         {view === 'grid' && (
           <label className="size-slider" title="Card size">
             <input
-              type="range" min={80} max={220} step={10} value={tileSize}
+              type="range" min={80} max={300} step={10} value={tileSize}
               onChange={(e) => setTileSize(Number(e.target.value))}
               aria-label="Card image size"
             />

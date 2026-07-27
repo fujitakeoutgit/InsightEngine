@@ -15,6 +15,7 @@ import { DeckEditor } from '../components/DeckEditor'
 import { ManaCost } from '../components/ManaCost'
 import { DeckCharts } from '../components/DeckCharts'
 import { DeckInfo } from '../components/DeckInfo'
+import { usePersisted } from '../lib/usePersisted'
 import { Playtest } from '../components/Playtest'
 import {
   DECK_RAIL, EMPTY_CONSOLE, SemanticConsole, type ConsoleState,
@@ -84,8 +85,8 @@ export function DeckPage() {
 
   const [tab, setTab] = useState<'analysis' | 'recommendations' | 'pipeline'>('analysis')
   const [pipeline, setPipeline] = useState<ConsoleState>(EMPTY_CONSOLE)
-  const [recView, setRecView] = useState<'list' | 'grid'>('list')
-  const [recSize, setRecSize] = useState(150)
+  const [recView, setRecView] = usePersisted<'list' | 'grid'>('insight-enigma:rec-view', 'list')
+  const [recSize, setRecSize] = usePersisted('insight-enigma:rec-size', 150)
   const [activeThemes, setActiveThemes] = useState<string[]>([])
   const [aiMode, setAiMode] = useState(false)
   const [aiStrategy, setAiStrategy] = useState<string | null>(null)

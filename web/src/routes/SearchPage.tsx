@@ -6,6 +6,7 @@ import { history, useHistory } from '../lib/history'
 import { countTo, riseIn } from '../lib/motion'
 import { hasSemantic } from '../lib/query'
 import { cacheKey, fromResponse, readCache, rememberScroll, writeCache } from '../lib/searchCache'
+import { SIZE_KEY, usePersisted, VIEW_KEY } from '../lib/usePersisted'
 import { CardGrid, GridSkeleton } from '../components/CardGrid'
 import { SearchBar } from '../components/SearchBar'
 import { ScrollTop } from '../components/ScrollTop'
@@ -20,8 +21,6 @@ const SORTS = [
   ['rarity', 'Rarity'],
   ['color', 'Colour'],
 ]
-
-const SIZE_KEY = 'insight-enigma:card-size'
 
 /** Sort an already-fetched list. Used for `q:` results, which arrive whole and
  *  must not be re-run just to reorder them. */
@@ -60,12 +59,10 @@ export function SearchPage() {
   const [collapsed, setCollapsed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [view, setView] = useState<'grid' | 'list'>('grid')
+  const [view, setView] = usePersisted<'grid' | 'list'>(VIEW_KEY, 'grid')
   const [sort, setSort] = useState('name')
   const [order, setOrder] = useState<'asc' | 'desc'>('asc')
-  const [cardSize, setCardSize] = useState(
-    () => Number(localStorage.getItem(SIZE_KEY)) || 190,
-  )
+  const [cardSize, setCardSize] = usePersisted(SIZE_KEY, 190)
   const [paperCards, setPaperCards] = useState(0)
 
   const countRef = useRef<HTMLSpanElement>(null)
@@ -80,10 +77,6 @@ export function SearchPage() {
   const key = cacheKey(query, isSemanticQuery ? '' : sort, isSemanticQuery ? '' : order)
 
   useEffect(() => setDraft(query), [query])
-
-  useEffect(() => {
-    localStorage.setItem(SIZE_KEY, String(cardSize))
-  }, [cardSize])
 
   // Hero count: the number of paper cards actually in the mirror.
   useEffect(() => {

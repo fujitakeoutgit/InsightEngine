@@ -1,5 +1,7 @@
 /** Typed client for the Insight Enigma API. Requests go through Vite's proxy. */
 
+import { addToSection, type Section } from './deckModel'
+
 export interface Card {
   oracle_id: string
   scryfall_id: string | null
@@ -271,6 +273,19 @@ export const api = {
     }),
 
   loadDeck: (id: number) => get<{ deck: SavedDeck }>(`/api/deck/saved/${id}`),
+
+  /** Add a card to a saved deck without opening it. Read-modify-write on the
+   *  decklist text, which is the deck's source of truth. */
+  addToDeck: async (id: number, name: string, section: Section = 'maybeboard') => {
+    const { deck } = await get<{ deck: SavedDeck }>(`/api/deck/saved/${id}`)
+    return post<{ deck: SavedDeck }>('/api/deck/saved', {
+      id,
+      name: deck.name,
+      text: addToSection(deck.text ?? '', name, section),
+      format: deck.format ?? null,
+      description: deck.description ?? null,
+    })
+  },
 
   deleteDeck: async (id: number) => {
     const resp = await fetch(`/api/deck/saved/${id}`, { method: 'DELETE' })

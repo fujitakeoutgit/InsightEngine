@@ -90,6 +90,44 @@ export function serialize(cards: DeckCard[]): string {
   return out.join('\n') + (out.length ? '\n' : '')
 }
 
+/**
+ * Add one copy of a card to a section of raw decklist text.
+ *
+ * Works on the text rather than the parsed model because the caller may not
+ * have the deck open -- adding to a deck from the Cards page, for instance.
+ * An existing entry has its quantity bumped instead of gaining a duplicate
+ * line, and a missing section header is appended.
+ */
+export function addToSection(text: string, name: string, section: Section): string {
+  const label = SECTIONS.find((s) => s.key === section)?.label ?? 'Deck'
+  const lines = text.replace(/\s+$/, '').split('\n')
+  const headers = new Set(SECTIONS.map((s) => s.label.toLowerCase()))
+
+  const start = lines.findIndex((line) => line.trim().toLowerCase() === label.toLowerCase())
+  if (start === -1) {
+    const body = lines.filter((l) => l.trim()).length ? [...lines, '', label] : [label]
+    return [...body, `1 ${name}`].join('\n') + '\n'
+  }
+
+  let end = start + 1
+  while (end < lines.length && !headers.has(lines[end].trim().toLowerCase())) end += 1
+
+  const folded = name.trim().toLowerCase()
+  for (let i = start + 1; i < end; i += 1) {
+    const match = lines[i].match(/^\s*(\d+)\s*x?\s+(.*?)\s*$/i)
+    if (match && match[2].toLowerCase() === folded) {
+      lines[i] = `${Number(match[1]) + 1} ${match[2]}`
+      return lines.join('\n') + '\n'
+    }
+  }
+
+  // Insert before the trailing blank that separates this section from the next.
+  let at = end
+  while (at > start + 1 && !lines[at - 1].trim()) at -= 1
+  lines.splice(at, 0, `1 ${name}`)
+  return lines.join('\n') + '\n'
+}
+
 export interface Group {
   key: string
   label: string

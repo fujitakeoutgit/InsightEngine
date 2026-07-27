@@ -27,3 +27,11 @@ export function usePersisted<T>(key: string, initial: T): [T, (next: T) => void]
 
   return [value, setValue]
 }
+
+/* Shared preference keys. The search grid and the Cards grid are the same
+   surface wearing different data, so they share one view mode and one size --
+   setting it in one place and finding the other unchanged is worse than not
+   remembering at all. The deck editor keeps its own, being a denser grid in a
+   narrower column. */
+export const VIEW_KEY = 'insight-enigma:card-view'
+export const SIZE_KEY = 'insight-enigma:card-size'
