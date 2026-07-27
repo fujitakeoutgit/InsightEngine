@@ -14,28 +14,51 @@ function money(value: number | null) {
 /** Opens a per-card menu at the click point instead of navigating. */
 export type CardPick = (card: Card, at: { x: number; y: number }) => void
 
-function CollectButton({ card }: { card: Card }) {
+/**
+ * The corner `+`.
+ *
+ * Defaults to the Cards collection, but a grid can override where a card goes
+ * -- the recommendation list sends it straight to that deck's maybeboard,
+ * because routing a suggestion through a queue on another page and importing
+ * it back is not "adding" it.
+ */
+function CollectButton({
+  card, onAdd, addLabel,
+}: { card: Card; onAdd?: (card: Card) => void; addLabel?: string }) {
   const held = useIsCollected(card.oracle_id)
+  const custom = Boolean(onAdd)
   return (
     <button
-      className={`collect-btn ${held ? 'held' : ''}`}
-      title={held ? 'Remove from Cards' : 'Add to Cards'}
-      aria-label={held ? `Remove ${card.name} from Cards` : `Add ${card.name} to Cards`}
+      className={`collect-btn ${!custom && held ? 'held' : ''}`}
+      title={custom ? addLabel ?? 'Add' : held ? 'Remove from Cards' : 'Add to Cards'}
+      aria-label={
+        custom
+          ? `${addLabel ?? 'Add'} — ${card.name}`
+          : held ? `Remove ${card.name} from Cards` : `Add ${card.name} to Cards`
+      }
       onClick={(event) => {
         // The tile is a link; collecting must not navigate.
         event.preventDefault()
         event.stopPropagation()
-        collection.toggle(card)
+        if (onAdd) onAdd(card)
+        else collection.toggle(card)
       }}
     >
-      {held ? '✓' : '+'}
+      {!custom && held ? '✓' : '+'}
     </button>
   )
 }
 
 function CardTile({
-  card, collectable, caption, onPick,
-}: { card: Card; collectable: boolean; caption?: string; onPick?: CardPick }) {
+  card, collectable, caption, onPick, onAdd, addLabel,
+}: {
+  card: Card
+  collectable: boolean
+  caption?: string
+  onPick?: CardPick
+  onAdd?: (card: Card) => void
+  addLabel?: string
+}) {
   const ref = useRef<HTMLAnchorElement>(null)
   const [loaded, setLoaded] = useState(false)
   const { flippable, faceName, src: image, flip } = useCardFace(card)
@@ -62,7 +85,7 @@ function CardTile({
           : `${card.name} — ${card.type_line ?? ''}`
       }
     >
-      {collectable && <CollectButton card={card} />}
+      {collectable && <CollectButton card={card} onAdd={onAdd} addLabel={addLabel} />}
       {flippable && <FlipButton onFlip={flip} faceName={faceName} />}
       {image ? (
         <img
@@ -135,6 +158,8 @@ export function CardGrid({
   collectable = true,
   captionFor,
   onPick,
+  onAdd,
+  addLabel,
 }: {
   cards: Card[]
   view?: 'grid' | 'list'
@@ -146,6 +171,9 @@ export function CardGrid({
   captionFor?: (card: Card) => string | undefined
   /** When set, clicking a card opens a menu here rather than navigating. */
   onPick?: CardPick
+  /** Overrides where the corner + sends the card. */
+  onAdd?: (card: Card) => void
+  addLabel?: string
 }) {
   const container = useRef<HTMLDivElement>(null)
 
@@ -197,6 +225,8 @@ export function CardGrid({
           collectable={collectable}
           caption={captionFor?.(card)}
           onPick={onPick}
+          onAdd={onAdd}
+          addLabel={addLabel}
         />
       ))}
     </div>

@@ -86,3 +86,18 @@ def test_gap_improves_when_a_dork_supplies_the_short_colour(conn, resolver):
     without = stats_for(conn, resolver, "4 Grizzly Bears\n2 Forest")
     green_without = next(b for b in without["balance"] if b["color"] == "G")
     assert green_short["sources"] > green_without["sources"]
+
+
+def test_gap_sign_reads_as_surplus_not_shortage(conn, resolver):
+    """Positive is mana to spare, negative is a colour you are short of.
+
+    The other way round, a deck making black mana it never spends reported a
+    *negative* number, which reads as a shortage of the thing it has too much
+    of. This is the sign convention, not an implementation detail.
+    """
+    s = stats_for(conn, resolver, "4 Lightning Bolt\n10 Mountain\n10 Swamp")
+    black = next(b for b in s["balance"] if b["color"] == "B")
+    red = next(b for b in s["balance"] if b["color"] == "R")
+    assert black["pips"] == 0 and black["sources"] > 0
+    assert black["gap"] > 0, "unspent black mana is a surplus"
+    assert red["gap"] < 0, "red is doing all the work, so it is stretched"

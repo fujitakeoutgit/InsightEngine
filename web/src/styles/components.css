@@ -2165,3 +2165,56 @@
 /* On the card page the art is the subject, so the control is always visible. */
 .detail-art .flip-btn { opacity: 1; transform: none; }
 
+
+/* The deck lives at the end of the hand, where it sits on a table. Clicking it
+   draws; the old separate Library pile is gone. */
+.pt-hand { display: flex; align-items: flex-end; gap: 14px; }
+.pt-hand .pt-cards { flex: 1 1 auto; min-width: 0; }
+
+.pt-library {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 4px;
+}
+
+.pt-deck {
+  display: block;
+  padding: 0;
+  border-radius: 5px;
+  transition: transform var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out);
+}
+
+.pt-deck:not(:disabled):hover {
+  transform: translateY(-4px) scale(1.04);
+  box-shadow: 0 18px 34px -16px rgba(0, 0, 0, 0.9);
+}
+
+.pt-deck:disabled { opacity: 0.35; cursor: default; }
+
+.pt-deck-back {
+  display: block;
+  width: 117px;
+  aspect-ratio: 488 / 680;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(60% 40% at 50% 40%, rgba(143, 169, 255, 0.22), transparent 70%),
+    repeating-linear-gradient(45deg,
+      rgba(143, 169, 255, 0.15) 0 5px, rgba(143, 169, 205, 0.05) 5px 10px);
+}
+
+/* Recommendations scroll inside their panel, so the theme chips and the
+   controls above them stay put while you read 150 suggestions. */
+.rec-scroll {
+  max-height: min(62vh, 720px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+
+@media (max-width: 720px) {
+  .pt-deck-back { width: 88px; }
+}

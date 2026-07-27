@@ -154,17 +154,17 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
   const tap = (iid: string) =>
     setCards((cs) => cs.map((c) => (c.iid === iid ? { ...c, tapped: !c.tapped } : c)))
 
-  /** Play a card. Instants and sorceries resolve to the graveyard: they never
-   *  sit on a battlefield, and leaving one there inflates the board you are
-   *  reading. Everything else lands where the mat is free. */
+  /** Play a card onto the mat.
+   *
+   * Everything, including instants and sorceries. This used to route them
+   * straight to the graveyard, which is where they end up by the rules -- but
+   * this is not a rules engine, and the effect was that clicking a card in hand
+   * made it vanish from the board you were trying to look at. Putting it down
+   * and dragging it to the graveyard when you are done is one gesture, and it
+   * is yours to make. */
   const play = (iid: string) => {
     const inst = cards.find((c) => c.iid === iid)
     if (!inst) return
-    if (/\b(Instant|Sorcery)\b/.test(inst.card.type_line ?? '')) {
-      move(iid, 'graveyard')
-      note(`Cast ${inst.card.name}`)
-      return
-    }
     // Dealt left-to-right in rows so a clicked card does not land on the last
     // one; drag it wherever you actually want it.
     const n = inZone.battlefield.length
@@ -253,7 +253,6 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
         <Pile name="command" cards={inZone.command} drag={drag} onMove={move} onPlay={play} />
         <Pile name="graveyard" cards={inZone.graveyard} drag={drag} onMove={move} />
         <Pile name="exile" cards={inZone.exile} drag={drag} onMove={move} />
-        <Pile name="library" cards={inZone.library} drag={drag} onMove={move} facedown />
       </div>
 
       <div className="pt-hand" ref={handRef}>
@@ -262,6 +261,30 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
             <PlayCard key={c.iid} inst={c} drag={drag} onPlay={play} />
           ))}
           {!inZone.hand.length && <p className="faint" style={{ fontSize: 12 }}>Empty hand.</p>}
+        </div>
+
+        {/* The deck sits at the end of your hand, where it does on a table, and
+            drawing is clicking it rather than hunting for a button. */}
+        <div
+          className="pt-library"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault()
+            const iid = e.dataTransfer.getData('text/plain') || drag.current?.iid
+            if (iid) move(iid, 'library')
+            drag.current = null
+          }}
+        >
+          <button
+            className="pt-deck"
+            onClick={() => draw(1)}
+            disabled={!inZone.library.length}
+            title={inZone.library.length ? 'Draw a card' : 'Library is empty'}
+            aria-label={`Draw a card — ${inZone.library.length} left`}
+          >
+            <span className="pt-deck-back" aria-hidden />
+          </button>
+          <span className="mono faint">{inZone.library.length}</span>
         </div>
       </div>
 
@@ -277,18 +300,17 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
 type DragRef = React.MutableRefObject<{ iid: string; dx: number; dy: number } | null>
 
 function Pile({
-  name, cards, drag, onMove, onPlay, facedown,
+  name, cards, drag, onMove, onPlay,
 }: {
   name: Zone
   cards: Instance[]
   drag: DragRef
   onMove: (iid: string, zone: Zone, at?: { x: number; y: number }) => void
   onPlay?: (iid: string) => void
-  facedown?: boolean
 }) {
   return (
     <div
-      className={`pt-pile ${facedown ? 'facedown' : ''}`}
+      className="pt-pile"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault()
@@ -302,14 +324,12 @@ function Pile({
         <span className="mono faint">{cards.length}</span>
       </div>
       <div className="pt-pile-body">
-        {facedown
-          ? <div className="pt-back" aria-hidden />
-          : cards.slice(-3).map((c, i) => (
+        {cards.slice(-3).map((c, i) => (
             <PlayCard
               key={c.iid} inst={c} drag={drag} onPlay={onPlay}
               style={{ marginLeft: i ? -34 : 0 }}
             />
-          ))}
+        ))}
       </div>
     </div>
   )

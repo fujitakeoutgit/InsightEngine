@@ -226,8 +226,9 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
             </button>
           </div>
           <p className="faint" style={{ fontSize: 11, marginBottom: 10 }}>
-            Pips your cards demand against the sources that supply them. A positive gap means
-            that colour is under-supplied. Sources count every permanent that makes mana —{' '}
+            Pips your cards demand against the sources that supply them. Positive is mana to
+            spare; negative is a colour you are short of. Sources count every permanent that
+            makes mana —{' '}
             {stats.lands} land{stats.lands === 1 ? '' : 's'}
             {stats.mana_rocks > 0 && `, ${stats.mana_rocks} rock${stats.mana_rocks === 1 ? '' : 's'}`}
             {stats.mana_dorks > 0 && `, ${stats.mana_dorks} dork${stats.mana_dorks === 1 ? '' : 's'}`}
@@ -243,7 +244,7 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
                   <div className="bal-need" style={{ width: `${b.pip_share * 100}%` }} />
                   <div className="bal-have" style={{ width: `${b.source_share * 100}%` }} />
                 </div>
-                <span className={`bal-gap mono ${b.gap > 0.08 ? 'short' : b.gap < -0.08 ? 'over' : ''}`}>
+                <span className={`bal-gap mono ${b.gap < -0.08 ? 'short' : b.gap > 0.08 ? 'over' : ''}`}>
                   {b.gap > 0 ? '+' : ''}{Math.round(b.gap * 100)}%
                 </span>
               </div>

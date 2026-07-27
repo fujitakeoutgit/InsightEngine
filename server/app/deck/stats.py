@@ -145,8 +145,12 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
             "pip_share": round(pips[colour] / total_pips, 4),
             "sources": produced[colour],
             "source_share": round(produced[colour] / total_sources, 4),
-            # Positive means under-supplied relative to what the deck asks for.
-            "gap": round(pips[colour] / total_pips - produced[colour] / total_sources, 4),
+            # Sources minus demand, so the sign reads the way a player thinks:
+            # positive is mana you have spare, negative is a colour you are
+            # short of. The other way round, a deck making black mana it never
+            # spends reported a *negative* number, which reads as a shortage of
+            # the very thing it has too much of.
+            "gap": round(produced[colour] / total_sources - pips[colour] / total_pips, 4),
         })
 
     return {

@@ -304,6 +304,20 @@ export function DeckPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [undo, redo])
 
+  /** A suggestion you want to think about. Already-present cards gain a copy
+   *  rather than a second row, matching how the search tab adds. */
+  const addToMaybe = (card: Card) => {
+    const existing = deckCards.find(
+      (c) => c.card.oracle_id === card.oracle_id && c.section === 'maybeboard',
+    )
+    applyEdits(
+      existing
+        ? deckCards.map((c) => (c.uid === existing.uid ? { ...c, quantity: c.quantity + 1 } : c))
+        : [...deckCards, addedCard(card, 'maybeboard')],
+    )
+    setStatus(`Added ${card.name} to the maybeboard`)
+  }
+
   const addCollectedToDeck = () => {
     const present = new Set(deckCards.map((c) => c.card.oracle_id))
     const additions = collection.snapshot()
@@ -751,8 +765,14 @@ export function DeckPage() {
             </>
           )}
 
+          {/* Its own scroll region: 150 suggestions otherwise push the theme
+              chips and the controls above them off the top of the page, and
+              you cannot refilter without scrolling back up. */}
+          <div className="rec-scroll">
           {recView === 'grid' ? (
             <CardGrid cards={visibleRecs.map((r) => r.card)} size={recSize}
+              onAdd={addToMaybe}
+              addLabel="Add to maybeboard"
               captionFor={(card) => reasonFor.get(card.oracle_id)?.join(' · ')} />
           ) : (
             visibleRecs.map((rec) => (
@@ -769,20 +789,20 @@ export function DeckPage() {
                 <span className="mono faint" style={{ fontSize: 11 }}>
                   {rec.card.usd !== null ? `$${rec.card.usd.toFixed(2)}` : '—'}
                 </span>
-                <button className="btn btn-ghost sm" title="Add to Cards"
-                  onClick={() => collection.add(rec.card)}>+</button>
+                {/* Most suggestions want considering, not committing, so the
+                    plain add goes to the maybeboard of this deck. It used to
+                    go to the Cards collection, which meant a suggestion landed
+                    in a queue on another page and had to be imported back. */}
+                <button className="btn btn-ghost sm" title="Add to the maybeboard"
+                  onClick={() => addToMaybe(rec.card)}>+ maybe</button>
                 <button className="btn btn-ghost sm" title="Add straight to the deck"
                   onClick={() => applyEdits([...deckCards, addedCard(rec.card, 'main')])}>
                   ↓ deck
                 </button>
-                {/* Most suggestions want considering, not committing. */}
-                <button className="btn btn-ghost sm" title="Add to the maybeboard"
-                  onClick={() => applyEdits([...deckCards, addedCard(rec.card, 'maybeboard')])}>
-                  ↓ maybe
-                </button>
               </div>
             ))
           )}
+          </div>
         </div>
       )}
     </div>
