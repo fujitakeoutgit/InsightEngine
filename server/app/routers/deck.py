@@ -14,6 +14,7 @@ from ..deck import storage
 from ..deck.analysis import FORMATS, analyse
 from ..deck.parser import parse_decklist
 from ..deck.recommend import recommend
+from ..deck.stats import compute as compute_stats
 from ..deck.resolver import Resolution
 from ..llm.deck_pipeline import DeckRecommendPipeline
 from ..state import state
@@ -62,6 +63,7 @@ async def analyze(request: DecklistRequest):
     parsed = parse_decklist(request.text)
 
     report = analyse(resolutions)
+    report["stats"] = compute_stats(state.require_conn(), resolutions)
     report["ignored_lines"] = parsed.ignored_lines
     report["unresolved"] = [
         {"raw_name": r.raw_name, "line_number": r.line_number, "alternatives": r.alternatives}

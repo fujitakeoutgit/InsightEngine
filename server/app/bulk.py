@@ -137,6 +137,9 @@ def _card_row(card: dict[str, Any], funny_sets: set[str]) -> tuple | None:
         int(bool(card.get("game_changer"))),
         int((card.get("set") or "") in funny_sets),
         json.dumps(games),
+        # Scryfall's own links to the tokens and emblems a card produces —
+        # far more reliable than pattern-matching rules text for "create ...".
+        json.dumps(card.get("all_parts")) if card.get("all_parts") else None,
         # Digital-only cards (Alchemy rebalances, Arena exclusives) are hidden
         # by default, matching Scryfall's own search behaviour.
         int("paper" not in games),
@@ -156,7 +159,7 @@ _CARD_COLUMNS = (
     "mana_cost, cmc, type_line, oracle_text, oracle_all, power, toughness, "
     "loyalty, defense, colors, color_identity, color_count, keywords, "
     "produced_mana, set_code, set_name, collector_number, rarity, artist, "
-    "edhrec_rank, penny_rank, reserved, game_changer, is_funny, games, digital, "
+    "edhrec_rank, penny_rank, reserved, game_changer, is_funny, games, all_parts, digital, "
     "legalities, prices, usd, image_small, image_normal, image_art_crop, "
     "scryfall_uri, card_faces"
 )
