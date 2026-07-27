@@ -1478,6 +1478,33 @@
 .pt-cards { display: flex; flex-wrap: wrap; gap: 6px; }
 .pt-cards .drop-hint { font-size: 11px; padding: 6px 2px; }
 
+/* Battlefield lanes: creatures forward, other permanents behind, lands at the
+   back -- the order a table is actually laid out in from the player's side. */
+.pt-zone.battlefield { display: grid; gap: 2px; }
+
+.pt-lane {
+  display: grid;
+  grid-template-columns: 108px 1fr;
+  align-items: start;
+  gap: 10px;
+  padding: 7px 0;
+  min-height: 46px;
+}
+
+.pt-lane + .pt-lane { border-top: 1px solid var(--line-soft); }
+.pt-lane-label { padding-top: 4px; color: var(--faint); }
+.pt-lane-label b { font-weight: 400; margin-left: 4px; }
+
+/* Lands read as the back row: smaller, and they stack rather than sprawl. */
+.pt-lane.lands .pt-card { width: 62px; }
+.pt-lane .drop-hint { color: var(--faint); opacity: 0.45; }
+
+.pt-card.actionable { cursor: pointer; }
+
+@media (max-width: 900px) {
+  .pt-lane { grid-template-columns: 1fr; gap: 4px; }
+}
+
 .pt-card {
   position: relative;
   width: 78px;

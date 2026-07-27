@@ -18,6 +18,29 @@ const ZONE_LABEL: Record<Zone, string> = {
   graveyard: 'Graveyard', exile: 'Exile', command: 'Command',
 }
 
+/**
+ * Where a permanent sits on the battlefield.
+ *
+ * The order is how a table is actually laid out from the player's side:
+ * creatures forward where combat happens, other permanents behind them, lands
+ * at the back. `primaryType` already resolves the awkward cases -- an Artifact
+ * Land is a land, an Artifact Creature is a creature.
+ */
+type Lane = 'creatures' | 'permanents' | 'lands'
+
+const LANES: { key: Lane; label: string }[] = [
+  { key: 'creatures', label: 'Creatures' },
+  { key: 'permanents', label: 'Other permanents' },
+  { key: 'lands', label: 'Lands' },
+]
+
+function laneOf(card: Card): Lane {
+  const type = primaryType(card)
+  if (type === 'Land') return 'lands'
+  if (type === 'Creature') return 'creatures'
+  return 'permanents'
+}
+
 /** Fisher-Yates. A biased shuffle would quietly invalidate every draw. */
 function shuffle<T>(items: T[]): T[] {
   const out = [...items]
@@ -123,6 +146,21 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
     note(`Turn ${turn + 1}`)
   }
 
+  const tap = (iid: string) =>
+    setCards((cs) => cs.map((c) => (c.iid === iid ? { ...c, tapped: !c.tapped } : c)))
+
+  /** Play a card from hand or the command zone. It goes to the battlefield
+   *  lane its own type dictates, so this needs no target. Instants and
+   *  sorceries resolve to the graveyard: they never sit on a battlefield, and
+   *  leaving one there quietly inflates the board you are reading. */
+  const play = (iid: string) => {
+    const inst = cards.find((c) => c.iid === iid)
+    if (!inst) return
+    const spell = /\b(Instant|Sorcery)\b/.test(inst.card.type_line ?? '')
+    move(iid, spell ? 'graveyard' : 'battlefield')
+    note(spell ? `Cast ${inst.card.name}` : `Played ${inst.card.name}`)
+  }
+
   const lands = inZone.battlefield.filter((c) => primaryType(c.card) === 'Land')
   const untappedLands = lands.filter((c) => !c.tapped).length
 
@@ -167,10 +205,40 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
       )}
 
       <div className="pt-zones">
-        <Zone name="battlefield" cards={inZone.battlefield} onMove={move} onTap={(iid) =>
-          setCards((cs) => cs.map((c) => (c.iid === iid ? { ...c, tapped: !c.tapped } : c)))
-        } />
-        <Zone name="command" cards={inZone.command} onMove={move} />
+        <div
+          className="pt-zone battlefield"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault()
+            const iid = e.dataTransfer.getData('text/plain')
+            if (iid) move(iid, 'battlefield')
+          }}
+        >
+          <div className="pt-zone-head">
+            <span className="label">Battlefield</span>
+            <span className="mono faint">{inZone.battlefield.length}</span>
+          </div>
+          {/* One lane per kind of permanent. A card lands in the right lane by
+              its own type, so playing it never asks you where to put it. */}
+          {LANES.map(({ key, label }) => {
+            const inLane = inZone.battlefield.filter((c) => laneOf(c.card) === key)
+            return (
+              <div className={`pt-lane ${key}`} key={key}>
+                <span className="pt-lane-label label">
+                  {label} <b className="mono faint">{inLane.length}</b>
+                </span>
+                <div className="pt-cards">
+                  {inLane.map((c) => (
+                    <PlayCard key={c.iid} inst={c} onMove={move} onTap={tap} />
+                  ))}
+                  {!inLane.length && <p className="faint drop-hint">—</p>}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <Zone name="command" cards={inZone.command} onMove={move} onPlay={play} />
         <div className="pt-row">
           <Zone name="graveyard" cards={inZone.graveyard} onMove={move} compact />
           <Zone name="exile" cards={inZone.exile} onMove={move} compact />
@@ -181,10 +249,11 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
         <div className="pt-zone-head">
           <span className="label">Hand</span>
           <span className="mono faint">{inZone.hand.length}</span>
+          <span className="faint" style={{ fontSize: 10.5 }}>click to play</span>
         </div>
         <div className="pt-cards">
           {inZone.hand.map((c) => (
-            <PlayCard key={c.iid} inst={c} onMove={move} inHand />
+            <PlayCard key={c.iid} inst={c} onMove={move} onPlay={play} inHand />
           ))}
           {!inZone.hand.length && <p className="faint" style={{ fontSize: 12 }}>Empty hand.</p>}
         </div>
@@ -200,12 +269,13 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
 }
 
 function Zone({
-  name, cards, onMove, onTap, compact,
+  name, cards, onMove, onTap, onPlay, compact,
 }: {
   name: Zone
   cards: Instance[]
   onMove: (iid: string, zone: Zone) => void
   onTap?: (iid: string) => void
+  onPlay?: (iid: string) => void
   compact?: boolean
 }) {
   return (
@@ -224,7 +294,7 @@ function Zone({
       </div>
       <div className="pt-cards">
         {cards.map((c) => (
-          <PlayCard key={c.iid} inst={c} onMove={onMove} onTap={onTap} />
+          <PlayCard key={c.iid} inst={c} onMove={onMove} onTap={onTap} onPlay={onPlay} />
         ))}
         {!cards.length && <p className="faint drop-hint">Drop here</p>}
       </div>
@@ -233,31 +303,35 @@ function Zone({
 }
 
 function PlayCard({
-  inst, onMove, onTap, inHand,
+  inst, onMove, onTap, onPlay, inHand,
 }: {
   inst: Instance
   onMove: (iid: string, zone: Zone) => void
   onTap?: (iid: string) => void
+  /** Present in hand and the command zone: click puts it onto the battlefield. */
+  onPlay?: (iid: string) => void
   inHand?: boolean
 }) {
   const image = inst.card.image_normal ?? inst.card.image_small
+  // A card is either somewhere it can be played from or somewhere it can be
+  // tapped, never both, so one click means one thing wherever you are.
+  const action = onPlay ?? onTap
+  const hint = onPlay ? ' — click to play' : onTap ? ' — click to tap' : ''
+
   return (
     <div
-      className={`pt-card ${inst.tapped ? 'tapped' : ''}`}
+      className={`pt-card ${inst.tapped ? 'tapped' : ''} ${action ? 'actionable' : ''}`}
       draggable
       onDragStart={(e) => e.dataTransfer.setData('text/plain', inst.iid)}
-      onClick={() => onTap?.(inst.iid)}
-      title={`${inst.card.name}${onTap ? ' — click to tap' : ''}`}
+      onClick={() => action?.(inst.iid)}
+      title={`${inst.card.name}${hint}`}
     >
       {image
         ? <img src={image} alt={inst.card.name} loading="lazy" />
         : <div className="pt-fallback">{inst.card.name}</div>}
       <div className="pt-acts">
         {inHand && (
-          <>
-            <button onClick={(e) => { e.stopPropagation(); onMove(inst.iid, 'battlefield') }} title="Play">▲</button>
-            <button onClick={(e) => { e.stopPropagation(); onMove(inst.iid, 'library') }} title="Bottom of library">↓</button>
-          </>
+          <button onClick={(e) => { e.stopPropagation(); onMove(inst.iid, 'library') }} title="Bottom of library">↓</button>
         )}
         <button onClick={(e) => { e.stopPropagation(); onMove(inst.iid, 'graveyard') }} title="Graveyard">✝</button>
       </div>
