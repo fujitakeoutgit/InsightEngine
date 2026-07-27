@@ -806,8 +806,13 @@
 }
 
 .query-preview {
-  /* Static, not sticky: it holds its place under the nav instead of chasing
-     the scroll and sliding over the content beneath it. */
+  /* Locked under the nav so the query you are building is on screen however
+     far down the form you scroll. It sits first in the page, above the title,
+     so pinning only ever moves it the 20px of its own top margin -- it does
+     not leap up over content the way it did when it followed the header. */
+  position: sticky;
+  top: 62px;
+  z-index: 20;
   margin-top: 20px;
   margin-bottom: 4px;
   padding: 14px 16px;
