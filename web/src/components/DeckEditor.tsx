@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import type { Card } from '../lib/api'
@@ -7,6 +7,7 @@ import {
   SECTIONS, countCards, deckValue, filterCards, groupCards, sortDeckCards,
   type DeckCard, type GroupBy, type Section, type SortBy,
 } from '../lib/deckModel'
+import { attachTilt } from '../lib/motion'
 import { usePersisted } from '../lib/usePersisted'
 import { CARD_DRAG_TYPE } from './DeckSearch'
 import { ManaCost } from './ManaCost'
@@ -135,7 +136,11 @@ export function DeckEditor({
       </div>
 
       <div className="sections">
-        {SECTIONS.map(({ key, label }) => {
+        {/* Commander is filtered here rather than dropped from SECTIONS, which
+            also drives serialize() -- removing it there would strip the
+            commander out of the decklist text entirely. The analysis tab shows
+            the card itself, so a one-card section here earned nothing. */}
+        {SECTIONS.filter((s) => s.key !== 'commander').map(({ key, label }) => {
           const inSection = visible.filter((c) => c.section === key)
           const count = inSection.reduce((n, c) => n + c.quantity, 0)
           const groups = groupCards(sortDeckCards(inSection, sortBy), groupBy)
@@ -215,10 +220,12 @@ export function DeckEditor({
                           key={entry.uid}
                           entry={entry}
                           view={view}
+                          section={key}
                           onDragStart={() => setDragging(entry.uid)}
                           onDragEnd={() => { setDragging(null); setDropTarget(null) }}
                           onAdjust={adjust}
                           onRemove={remove}
+                          onMove={move}
                         />
                       ))}
                     </div>
@@ -235,16 +242,26 @@ export function DeckEditor({
 }
 
 function EditorRow({
-  entry, view, onDragStart, onDragEnd, onAdjust, onRemove,
+  entry, view, section, onDragStart, onDragEnd, onAdjust, onRemove, onMove,
 }: {
   entry: DeckCard
   view: 'list' | 'grid'
+  section: Section
   onDragStart: () => void
   onDragEnd: () => void
   onAdjust: (uid: string, delta: number) => void
   onRemove: (uid: string) => void
+  onMove: (uid: string, section: Section) => void
 }) {
   const card: Card = entry.card
+  const tiltRef = useRef<HTMLDivElement>(null)
+
+  // Same pointer-tracking tilt the search grid uses, so a card behaves the
+  // same way wherever you meet it.
+  useEffect(() => {
+    if (view !== 'grid' || !tiltRef.current) return
+    return attachTilt(tiltRef.current, 6)
+  }, [view])
 
   const dragProps = {
     draggable: true,
@@ -258,16 +275,48 @@ function EditorRow({
 
   if (view === 'grid') {
     return (
-      <div className="editor-tile" {...dragProps} title={`${card.name} — ${card.type_line ?? ''}`}>
+      <div
+        className="editor-tile"
+        ref={tiltRef}
+        {...dragProps}
+        title={`${card.name} — ${card.type_line ?? ''}`}
+      >
         {card.image_normal ? (
           <img src={card.image_normal} alt={card.name} loading="lazy" />
         ) : (
           <div className="fallback"><div className="nm">{card.name}</div></div>
         )}
+
+        {/* Quantity floats top-left, price bottom-right — the same corners the
+            search tiles use, so the eye already knows where to look. */}
         <div className="tile-qty">
-          <button onClick={() => onAdjust(entry.uid, -1)} aria-label="One fewer">−</button>
+          <button onClick={() => onAdjust(entry.uid, -1)} aria-label="One fewer">▾</button>
           <span className="mono">{entry.quantity}</span>
-          <button onClick={() => onAdjust(entry.uid, 1)} aria-label="One more">+</button>
+          <button onClick={() => onAdjust(entry.uid, 1)} aria-label="One more">▴</button>
+        </div>
+
+        <span className="price mono">
+          {card.usd !== null ? `$${(card.usd * entry.quantity).toFixed(2)}` : '—'}
+        </span>
+
+        <Link
+          to={`/card/${card.oracle_id}`}
+          className="tile-info"
+          title={`Open ${card.name}`}
+          aria-label={`Open ${card.name}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          i
+        </Link>
+
+        <div className="tile-acts">
+          {section !== 'sideboard' && (
+            <button onClick={() => onMove(entry.uid, 'sideboard')}>Sideboard</button>
+          )}
+          {section !== 'maybeboard' && (
+            <button onClick={() => onMove(entry.uid, 'maybeboard')}>Maybe</button>
+          )}
+          <button className="danger" onClick={() => onRemove(entry.uid)}>Trash</button>
         </div>
       </div>
     )

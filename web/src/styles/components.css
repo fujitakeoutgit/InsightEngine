@@ -1041,33 +1041,38 @@
 .menu-item.back { color: var(--faint); border-top: 1px solid var(--line-soft); margin-top: 4px; border-radius: 0; }
 .menu-note { padding: 9px; font-size: 12px; color: var(--ok); }
 
-/* The commander leads the analysis tab, where the duplicated counts used to. */
+/* The commander leads the analysis tab, where the duplicated counts used to.
+   Just the card: name, cost and type are printed on it already, so repeating
+   them beside it was captioning a photograph with its own contents. */
 .commander-card {
   display: flex;
-  gap: 16px;
-  align-items: flex-start;
-  padding: 14px;
+  justify-content: center;
+  padding: 20px;
   border: 1px solid var(--line-soft);
   border-radius: var(--r);
   background: var(--glass);
 }
 
+.commander-card a { display: block; border-radius: 4.75% / 3.5%; }
+
 .commander-card img {
-  width: 132px;
-  flex: none;
+  width: 290px;
+  max-width: 100%;
   border-radius: 4.75% / 3.5%;
   display: block;
-  transition: transform var(--dur) var(--ease-out);
+  transition: transform var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out);
 }
 
-.commander-card a:hover img { transform: translateY(-3px) scale(1.02); }
-.commander-card h3 { font-size: 17px; letter-spacing: -0.01em; }
+.commander-card a:hover img {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 26px 50px -22px rgba(0, 0, 0, 0.95);
+}
 
 /* Marks a theme the description named. */
 .chip .described { color: var(--aether); }
 
 @media (max-width: 620px) {
-  .commander-card img { width: 96px; }
+  .commander-card img { width: 220px; }
 }
 
 /* Deck info: the vitals panel that replaced the format-legality grid. */
@@ -1435,24 +1440,111 @@
 .editor-tile img { width: 100%; height: 100%; object-fit: cover; }
 .editor-tile .fallback { position: absolute; inset: 0; padding: 8px; font-size: 11px; }
 
+/* Quantity, top-left. Arrows stack either side of the number so the control
+   is a single small column rather than a bar across the card. */
 .tile-qty {
   position: absolute;
-  left: 4px;
-  right: 4px;
-  bottom: 4px;
+  left: 6px;
+  top: 6px;
+  z-index: 2;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 2px;
   padding: 2px 4px;
   border-radius: 3px;
-  background: rgba(7, 8, 12, 0.86);
+  background: rgba(7, 8, 12, 0.82);
   backdrop-filter: blur(6px);
+  border: 1px solid var(--line-soft);
   opacity: 0;
-  transition: opacity var(--dur-fast);
+  transform: translateY(-3px);
+  transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
 }
 
-.editor-tile:hover .tile-qty { opacity: 1; }
-.tile-qty span { font-size: 11px; }
+.tile-qty span { font-size: 11px; min-width: 1.1em; text-align: center; color: var(--ink); }
+
+/* Info, top-right — opposite corner to the quantity so neither is in the way. */
+.tile-info {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  border: 1px solid var(--line-soft);
+  background: rgba(7, 8, 12, 0.82);
+  backdrop-filter: blur(6px);
+  font-family: var(--font-m);
+  font-size: 11px;
+  font-style: italic;
+  color: var(--muted);
+  opacity: 0;
+  transform: translateY(-3px);
+  transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out),
+              color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.tile-info:hover { color: var(--aether-hi); border-color: var(--aether); }
+
+/* Section moves along the bottom, clear of the price in the corner. */
+.tile-acts {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+
+.tile-acts button {
+  padding: 3px 7px;
+  border-radius: 3px;
+  border: 1px solid var(--line-soft);
+  background: rgba(7, 8, 12, 0.86);
+  backdrop-filter: blur(6px);
+  font-family: var(--font-m);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.tile-acts button:hover { color: var(--aether-hi); border-color: var(--aether); }
+.tile-acts button.danger:hover { color: var(--danger); border-color: var(--danger); }
+
+.editor-tile .price {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 2;
+  font-family: var(--font-m);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(7, 8, 12, 0.82);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--line-soft);
+  color: var(--muted);
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+
+.editor-tile:hover .tile-qty,
+.editor-tile:hover .tile-info,
+.editor-tile:hover .tile-acts,
+.editor-tile:hover .price,
+.editor-tile:focus-within .tile-qty,
+.editor-tile:focus-within .tile-info,
+.editor-tile:focus-within .tile-acts,
+.editor-tile:focus-within .price { opacity: 1; transform: translateY(0); }
 
 /* --------------------------------------------------------------------------
    Playtest

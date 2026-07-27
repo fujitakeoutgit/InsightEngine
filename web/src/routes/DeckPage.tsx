@@ -9,7 +9,7 @@ import { collection } from '../lib/collection'
 import {
   addedCard, fromResolutions, serialize, type DeckCard, type Section,
 } from '../lib/deckModel'
-import { dissolveIn, riseIn } from '../lib/motion'
+import { attachTilt, dissolveIn, riseIn } from '../lib/motion'
 import { CardGrid } from '../components/CardGrid'
 import { DeckEditor } from '../components/DeckEditor'
 import { ManaCost } from '../components/ManaCost'
@@ -39,6 +39,9 @@ Deck
 Sideboard
 2 Duress
 `
+
+/** Deep enough to cover a run of edits without holding a session's worth. */
+const UNDO_LIMIT = 60
 
 const UNCERTAIN = new Set(['fuzzy', 'ambiguous', 'prefix', 'unresolved'])
 const REC_FORMATS = ['', 'commander', 'standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper', 'brawl']
@@ -97,6 +100,7 @@ export function DeckPage() {
   const [showAll, setShowAll] = useState(false)
 
   const resultRef = useRef<HTMLDivElement>(null)
+  const commanderTilt = useRef<HTMLAnchorElement>(null)
   const recRef = useRef<HTMLDivElement>(null)
   const aiStream = useRef<{ stop: () => void } | null>(null)
 
@@ -116,6 +120,10 @@ export function DeckPage() {
   // both are what you want to see, and neither should need a second click.
   useEffect(() => {
     let cancelled = false
+    // A different deck is a different history. Without this, undoing on deck B
+    // would restore deck A's cards into it.
+    past.current = []
+    future.current = []
     if (isNew) { setBusy(null); return }
     setBusy('load')
     api.loadDeck(Number(deckId))
@@ -142,10 +150,63 @@ export function DeckPage() {
     return () => clearTimeout(timer)
   }, [status])
 
+  /* Undo history.
+   *
+   * Every deck mutation goes through applyEdits, so the whole editor gets undo
+   * from one place. Snapshots are whole card lists rather than diffs: a deck is
+   * a few hundred small objects, so the memory is irrelevant next to the
+   * complexity of inverting each kind of edit. */
+  const past = useRef<DeckCard[][]>([])
+  const future = useRef<DeckCard[][]>([])
+
   const applyEdits = (next: DeckCard[]) => {
+    past.current = [...past.current, deckCards].slice(-UNDO_LIMIT)
+    future.current = []
     setDeckCards(next)
     setText(serialize(next))
   }
+
+  const undo = useCallback(() => {
+    const previous = past.current[past.current.length - 1]
+    if (previous === undefined) return false
+    past.current = past.current.slice(0, -1)
+    setDeckCards((current) => {
+      future.current = [...future.current, current].slice(-UNDO_LIMIT)
+      return previous
+    })
+    setText(serialize(previous))
+    return true
+  }, [])
+
+  const redo = useCallback(() => {
+    const next = future.current[future.current.length - 1]
+    if (next === undefined) return false
+    future.current = future.current.slice(0, -1)
+    setDeckCards((current) => {
+      past.current = [...past.current, current].slice(-UNDO_LIMIT)
+      return next
+    })
+    setText(serialize(next))
+    return true
+  }, [])
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return
+      // Inside a text field the browser's own undo is the right one — the
+      // decklist textarea in particular has its own edit history.
+      const el = event.target as HTMLElement | null
+      const tag = el?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || el?.isContentEditable) return
+
+      const didSomething = event.shiftKey ? redo() : undo()
+      if (!didSomething) return
+      event.preventDefault()
+      setStatus(event.shiftKey ? 'Redid the last change' : 'Undid the last change')
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [undo, redo])
 
   const addCollectedToDeck = () => {
     const present = new Set(deckCards.map((c) => c.card.oracle_id))
@@ -285,8 +346,16 @@ export function DeckPage() {
   const reasonFor = new Map((recs?.recommendations ?? []).map((r) => [r.card.oracle_id, r.because]))
   const commanderCard =
     report?.entries.find((e) => e.section === 'commander' && e.card)?.card ?? null
+  const commanderCardId = commanderCard?.oracle_id ?? null
   const uncertain = report?.entries.filter((e) => UNCERTAIN.has(e.match)) ?? []
   const shown = showAll ? (report?.entries ?? []) : uncertain
+
+  // Declared after commanderCardId so the dependency is in scope; re-attached
+  // whenever the commander changes, and torn down with it.
+  useEffect(() => {
+    if (tab !== 'analysis' || !commanderTilt.current) return
+    return attachTilt(commanderTilt.current, 6)
+  }, [tab, commanderCardId])
 
   const editorPane = (
     <div className="stack gap-3" style={{ minWidth: 0 }}>
@@ -409,22 +478,18 @@ export function DeckPage() {
         <div className="stack gap-4">
           {/* The counts that used to sit here are in Deck info below, so this
               space goes to the card the deck is actually built around. */}
-          {commanderCard && (
+          {commanderCard?.image_normal && (
             <div className="commander-card">
-              {commanderCard.image_normal && (
-                <Link to={`/card/${commanderCard.oracle_id}`}>
-                  <img src={commanderCard.image_normal} alt={commanderCard.name} />
-                </Link>
-              )}
-              <div className="stack gap-2" style={{ minWidth: 0 }}>
-                <span className="eyebrow">Commander</span>
-                <h3 style={{ margin: 0 }}>{commanderCard.name}</h3>
-                <ManaCost cost={commanderCard.mana_cost} />
-                <span className="muted" style={{ fontSize: 12.5 }}>{commanderCard.type_line}</span>
-                {description.trim() && (
-                  <p className="faint" style={{ fontSize: 12, lineHeight: 1.55 }}>{description}</p>
-                )}
-              </div>
+              {/* The same pointer tilt the card grids use, but nothing overlaid
+                  on hover — everything those badges would say is printed on the
+                  card, and this one is a portrait, not a row in a list. */}
+              <Link
+                to={`/card/${commanderCard.oracle_id}`}
+                title={commanderCard.name}
+                ref={commanderTilt}
+              >
+                <img src={commanderCard.image_normal} alt={commanderCard.name} />
+              </Link>
             </div>
           )}
 

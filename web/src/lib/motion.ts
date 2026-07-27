@@ -260,7 +260,9 @@ export function countTo(
       gsap.to(state, {
         n: value,
         duration: 0.18,
-        delay: 0.22,
+        // A full second. Long enough that the number reads as settled and the
+        // last tick lands as a deliberate beat rather than a stutter.
+        delay: 1,
         ease: 'back.out(3)',
         onUpdate: () => {
           el.textContent = format(state.n)
