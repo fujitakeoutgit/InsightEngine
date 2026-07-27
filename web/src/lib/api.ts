@@ -112,6 +112,9 @@ export interface DeckReport {
   unresolved: { raw_name: string; line_number: number; alternatives: string[] }[]
 }
 
+/** The four functional kinds that can be requested by name. */
+export type Category = 'ramp' | 'removal' | 'counterspell' | 'draw'
+
 export interface DeckTheme {
   slug: string
   in_deck: number
@@ -136,6 +139,8 @@ export interface RecommendReport {
   format?: string | null
   recommendations: Recommendation[]
   note: string | null
+  /** Set when the list came from a category request rather than the themes. */
+  category?: Category
 }
 
 export interface SavedDeck {
@@ -262,6 +267,13 @@ export const api = {
     post<RecommendReport>('/api/deck/recommend', {
       text, commander: null, format: format || null, limit,
       description: description || null,
+    }),
+
+  recommendCategory: (
+    text: string, category: Category, format?: string | null, limit = 60,
+  ) =>
+    post<RecommendReport>('/api/deck/recommend/category', {
+      text, commander: null, format: format || null, category, limit,
     }),
 
   prepareAiRecommendations: (text: string, format?: string | null, description?: string | null) =>

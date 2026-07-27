@@ -36,19 +36,79 @@ CANDIDATES_PER_THEME = 120
 # a signature theme, which is what stops the list filling with staples.
 SIGNATURE_RATIO = 0.45
 
+#: The four jobs every deck does, as the tags that describe them. Grouped so a
+#: category can be asked for deliberately (see CATEGORY_TAGS) and so the
+#: redemption rule below can speak about a whole family at once.
+RAMP_TAGS = {
+    "ramp", "land-ramp", "multi-land-ramp", "combat-ramp", "ramp-with-set-s-mechanic",
+    "mana-rock", "utility-mana-rock", "mana-rock-with-set-s-mechanic",
+    "mana-dork", "mana-dork-egg",
+    "adds-multiple-mana", "manaless-value", "mana-fixing", "cost-reduction",
+    "tutor-land-basic", "tutor-land-to-battlefield", "fetchland",
+}
+
+REMOVAL_TAGS = {
+    "spot-removal", "removal-creature", "repeatable-removal", "removal-destroy",
+    "multi-removal", "removal-toughness", "removal-exile", "removal-nonland",
+    "removal-sacrifice", "removal-bounce", "removal-artifact", "removal-land",
+    "mass-removal", "board-wipe", "single-target-instant-sorcery",
+}
+
+COUNTER_TAGS = {
+    "counterspell", "counterspell-soft", "counterspell-reusable",
+    "counterspell-ability", "counterspell-creature", "counterspell-exile",
+    "counterspell-automatic", "counterspell-with-set-mechanic",
+}
+
+DRAW_TAGS = {
+    "draw-engine", "repeatable-pure-draw", "pure-draw", "burst-draw", "cantrip",
+    "delayed-cantrip", "card-advantage", "repeatable-card-advantage",
+    "impulsive-draw", "repeatable-impulsive-draw", "long-term-impulsive-draw",
+}
+
+CATEGORY_TAGS: dict[str, set[str]] = {
+    "ramp": RAMP_TAGS,
+    "removal": REMOVAL_TAGS,
+    "counterspell": COUNTER_TAGS,
+    "draw": DRAW_TAGS,
+}
+
 # Tags describing a generic job any deck wants done. On their own they are
 # never a reason to play a card here -- "it ramps" is true of a thousand cards.
 # They stay in the theme list (they are informative) but never qualify a
 # recommendation by themselves.
-FUNCTIONAL_TAGS = {
-    "mana-rock", "mana-dork", "adds-multiple-mana", "manaless-value",
-    "ramp", "land-ramp", "mana-fixing", "cost-reduction",
-    "draw-engine", "repeatable-pure-draw", "cantrip", "card-advantage",
-    "spot-removal", "removal-creature", "removal-destroy", "removal-exile",
-    "mass-removal", "board-wipe", "single-target-instant-sorcery",
+FUNCTIONAL_TAGS = RAMP_TAGS | REMOVAL_TAGS | COUNTER_TAGS | DRAW_TAGS | {
     "evasion", "combat-trick", "tapper-creature", "lifegain",
     "unique-type-line", "alliteration", "french-vanilla",
 }
+
+# ...unless the deck is specifically built to care. A landfall deck really does
+# want land ramp, and that is a synergy rather than a staple. Each entry reads
+# "these functional tags stop being generic when the deck carries any of these
+# payoffs", so redemption has to be earned by something already in the deck.
+REDEEMED_BY: list[tuple[set[str], set[str]]] = [
+    (
+        {"land-ramp", "multi-land-ramp", "tutor-land-basic",
+         "tutor-land-to-battlefield", "fetchland"},
+        {"landfall", "landfall-other", "lands-matter", "land-count-matters",
+         "differently-named-lands-matter", "sacrifice-outlet-land",
+         "graveyard-lands", "land-animation"},
+    ),
+    (
+        COUNTER_TAGS | {"single-target-instant-sorcery"},
+        {"magecraft", "prowess-anthem", "gives-prowess", "gains-prowess",
+         "off-turn-casting-matters", "cost-reducer-instant-sorcery"},
+    ),
+    (
+        DRAW_TAGS,
+        {"draw-matters", "second-draw-matters", "force-draw", "draw-hate"},
+    ),
+    (
+        {"mana-rock", "utility-mana-rock", "mana-dork", "adds-multiple-mana"},
+        {"artifacts-matter", "affinity", "improvise", "untap-permanent",
+         "big-mana-payoff", "mana-sink"},
+    ),
+]
 
 
 # Words that carry no theme, so a description containing them does not promote
@@ -183,15 +243,110 @@ def derive_themes(
     # scores, because "this deck plays mana rocks" recommends every mana rock
     # ever printed.
     if themes:
+        present = {t.slug for t in themes}
+        # A functional family is only generic until the deck proves it cares.
+        redeemed: set[str] = set()
+        for family, payoffs in REDEEMED_BY:
+            if present & payoffs:
+                redeemed |= family
+
         cutoff = themes[0].score * SIGNATURE_RATIO
         for theme in themes:
-            theme.signature = theme.score >= cutoff and theme.slug not in FUNCTIONAL_TAGS
-        # If the denylist removed every candidate, fall back to the top theme
-        # rather than returning nothing at all.
+            generic = theme.slug in FUNCTIONAL_TAGS and theme.slug not in redeemed
+            theme.signature = theme.score >= cutoff and not generic
+        # If the denylist removed every candidate, fall back to the best
+        # non-functional theme rather than returning nothing at all. Falling
+        # back to themes[0] unconditionally was how "land ramp" became a
+        # signature theme and filled the list with Cultivate and Harrow.
         if not any(t.signature for t in themes):
-            themes[0].signature = True
+            fallback = next((t for t in themes if t.slug not in FUNCTIONAL_TAGS), None)
+            if fallback:
+                fallback.signature = True
 
     return themes
+
+
+def _identity_filter(
+    resolutions: list[Resolution],
+    cards: list[dict[str, Any]],
+    format_key: str | None,
+) -> tuple[list[str], list[Any], str]:
+    """Colour-identity ceiling and format legality, shared by both entry points."""
+    commanders = [r.card for r in resolutions if r.card and r.section == "commander"]
+    source = commanders or cards
+    allowed: set[str] = set()
+    for card in source:
+        allowed |= set(card.get("color_identity") or "")
+
+    where = ["c.digital = 0", "c.is_funny = 0"]
+    params: list[Any] = []
+    for letter in (c for c in "WUBRG" if c not in allowed):
+        where.append("instr(c.color_identity, ?) = 0")
+        params.append(letter)
+    if format_key:
+        where.append("json_extract(c.legalities, ?) = 'legal'")
+        params.append(f"$.{format_key}")
+    return where, params, "".join(sorted(allowed))
+
+
+def recommend_category(
+    conn: sqlite3.Connection,
+    resolutions: list[Resolution],
+    category: str,
+    *,
+    format_key: str | None = None,
+    limit: int = 60,
+) -> dict[str, Any]:
+    """The best cards of one functional kind, asked for deliberately.
+
+    Ramp, removal, counterspells and draw are barred from theme-driven
+    recommendations because they are true of a thousand cards. That makes them
+    invisible, not unwanted -- so they get their own request, ranked by how
+    played they are rather than by how well they fit a theme.
+    """
+    tags = CATEGORY_TAGS.get(category)
+    if not tags:
+        raise ValueError(f"Unknown category '{category}'")
+
+    cards = _deck_cards(resolutions)
+    owned = {c["oracle_id"] for c in cards}
+    where, params, identity = _identity_filter(resolutions, cards, format_key)
+    slugs = sorted(tags)
+
+    rows = conn.execute(
+        f"""
+        SELECT {', '.join('c.' + col.strip() for col in LIST_COLUMNS.split(','))},
+               GROUP_CONCAT(tc.slug) AS matched
+        FROM cards c
+        JOIN tag_cards tc ON tc.oracle_id = c.oracle_id
+        WHERE tc.slug IN ({','.join('?' * len(slugs))})
+          AND {' AND '.join(where)}
+        GROUP BY c.oracle_id
+        ORDER BY (c.edhrec_rank IS NULL), c.edhrec_rank ASC
+        LIMIT ?
+        """,
+        (*slugs, *params, limit + len(owned) + 40),
+    ).fetchall()
+
+    out = []
+    for row in rows:
+        if row["oracle_id"] in owned:
+            continue
+        matched = sorted(set((row["matched"] or "").split(",")) & tags)
+        card = row_to_card(row)
+        card.pop("matched", None)
+        out.append({"card": card, "because": matched, "score": 0.0})
+        if len(out) >= limit:
+            break
+
+    return {
+        "themes": [],
+        "color_identity": identity,
+        "format": format_key,
+        "category": category,
+        "recommendations": out,
+        "note": f"Most-played {category} in these colours, by EDHREC rank.",
+    }
 
 
 def recommend(
@@ -215,28 +370,7 @@ def recommend(
             "note": "No distinctive themes found — the deck's cards share no uncommon tags.",
         }
 
-    # Colour identity ceiling: the commander's, or the union of the deck's.
-    commanders = [r.card for r in resolutions if r.card and r.section == "commander"]
-    if commanders:
-        allowed = set()
-        for card in commanders:
-            allowed |= set(card.get("color_identity") or "")
-    else:
-        allowed = set()
-        for card in cards:
-            allowed |= set(card.get("color_identity") or "")
-
-    outside = [c for c in "WUBRG" if c not in allowed]
-
-    where = ["c.digital = 0", "c.is_funny = 0"]
-    params: list[Any] = []
-    for letter in outside:
-        where.append("instr(c.color_identity, ?) = 0")
-        params.append(letter)
-    if format_key:
-        where.append("json_extract(c.legalities, ?) = 'legal'")
-        params.append(f"$.{format_key}")
-
+    where, params, identity = _identity_filter(resolutions, cards, format_key)
     slugs = [t.slug for t in themes]
     theme_weight = {t.slug: t.score for t in themes}
     signature = {t.slug for t in themes if t.signature}
@@ -278,7 +412,7 @@ def recommend(
 
     return {
         "themes": [t.as_dict() for t in themes],
-        "color_identity": "".join(sorted(allowed)),
+        "color_identity": identity,
         "format": format_key,
         "recommendations": [
             {"card": card, "because": matched, "score": round(score, 3)}

@@ -13,7 +13,7 @@ from ..config import settings
 from ..deck import storage
 from ..deck.analysis import FORMATS, analyse
 from ..deck.parser import parse_decklist
-from ..deck.recommend import recommend
+from ..deck.recommend import CATEGORY_TAGS, recommend, recommend_category
 from ..deck.stats import compute as compute_stats
 from ..deck.resolver import Resolution
 from ..llm.deck_pipeline import DeckRecommendPipeline
@@ -76,6 +76,7 @@ class RecommendRequest(DecklistRequest):
     format: str | None = Field(None, description="Restrict to cards legal in this format")
     description: str | None = Field(None, description="How the deck is meant to work")
     limit: int = Field(150, ge=1, le=400)
+    category: str | None = Field(None, description="ramp, removal, counterspell or draw")
 
 
 @router.post("/recommend")
@@ -93,6 +94,28 @@ async def recommendations(request: RecommendRequest):
         state.require_conn(), resolutions,
         format_key=request.format, limit=request.limit,
         description=request.description,
+    )
+
+
+@router.post("/recommend/category")
+async def recommendations_by_category(request: RecommendRequest):
+    """The most-played cards of one functional kind.
+
+    Ramp, removal, counterspells and draw never qualify on theme alone, which
+    makes them invisible rather than unwanted. This is how you ask for them.
+    """
+    if request.format and request.format not in FORMATS:
+        raise HTTPException(400, f"Unknown format '{request.format}'")
+    if request.category not in CATEGORY_TAGS:
+        raise HTTPException(
+            400, f"Unknown category '{request.category}'. "
+                 f"Expected one of: {', '.join(sorted(CATEGORY_TAGS))}",
+        )
+
+    resolutions = _resolve(request.text, request.commander)
+    return recommend_category(
+        state.require_conn(), resolutions, request.category,
+        format_key=request.format, limit=request.limit,
     )
 
 

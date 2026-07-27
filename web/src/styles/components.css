@@ -2097,3 +2097,7 @@
 .to-top.shown:hover { opacity: 1; color: var(--aether-hi); border-color: var(--aether); }
 
 .pip-svg { display: inline-block; vertical-align: middle; flex: none; filter: drop-shadow(0 1px 3px rgba(0,0,0,.5)); }
+
+/* The four category requests sit together so they read as one control rather
+   than four more buttons in the action row. */
+.cat-buttons { display: inline-flex; gap: 4px; flex-wrap: wrap; }

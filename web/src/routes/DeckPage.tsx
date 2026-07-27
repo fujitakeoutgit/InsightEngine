@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import {
-  api, streamDeckRecommendations,
+  api, streamDeckRecommendations, type Category,
   type Card, type DeckReport, type RecommendReport, type Resolution,
 } from '../lib/api'
 import { collection } from '../lib/collection'
@@ -42,6 +42,12 @@ Sideboard
 
 /** Deep enough to cover a run of edits without holding a session's worth. */
 const UNDO_LIMIT = 60
+
+/** The four jobs every deck does, asked for by name. */
+const CATEGORIES: [Category, string][] = [
+  ['ramp', 'Ramp'], ['removal', 'Removal'],
+  ['counterspell', 'Counters'], ['draw', 'Draw'],
+]
 
 const UNCERTAIN = new Set(['fuzzy', 'ambiguous', 'prefix', 'unresolved'])
 const REC_FORMATS = ['', 'commander', 'standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper', 'brawl']
@@ -94,7 +100,9 @@ export function DeckPage() {
   const [aiMode, setAiMode] = useState(false)
   const [aiStrategy, setAiStrategy] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
-  const [busy, setBusy] = useState<'load' | 'analyse' | 'recommend' | 'ai' | 'save' | null>(null)
+  const [busy, setBusy] = useState<
+    'load' | 'analyse' | 'recommend' | 'ai' | 'save' | Category | null
+  >(null)
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const [showAll, setShowAll] = useState(false)
@@ -261,6 +269,18 @@ export function DeckPage() {
     } finally { setBusy(null) }
   }
 
+  const getCategory = async (category: Category) => {
+    if (!text.trim()) return
+    setBusy(category); setError(null); setTab('recommendations')
+    setAiMode(false); setAiStrategy(null); setActiveThemes([])
+    try {
+      setRecs(await api.recommendCategory(text, category, format || null))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Could not load ${category}`)
+      setRecs(null)
+    } finally { setBusy(null) }
+  }
+
   const getAiRecommendations = async () => {
     if (!text.trim()) return
     // Opens on the pipeline tab: for a multi-minute run, watching the stages
@@ -377,6 +397,23 @@ export function DeckPage() {
           {busy === 'recommend' && <span className="spinner" />}
           {busy === 'recommend' ? 'Thinking' : 'Recommend'}
         </button>
+        {/* Ramp, removal, counterspells and draw never qualify on theme alone,
+            which makes them invisible rather than unwanted. This is how you ask
+            for them. */}
+        <span className="cat-buttons">
+          {CATEGORIES.map(([key, label]) => (
+            <button
+              key={key}
+              className="btn btn-ghost sm"
+              onClick={() => getCategory(key)}
+              disabled={!!busy || !text.trim()}
+              title={`Most-played ${label.toLowerCase()} in this deck's colours`}
+            >
+              {busy === key && <span className="spinner" />}
+              {label}
+            </button>
+          ))}
+        </span>
         {busy === 'ai' ? (
           <button className="btn btn-danger sm" onClick={() => { aiStream.current?.stop(); setBusy(null) }}>
             Stop AI
@@ -543,7 +580,9 @@ export function DeckPage() {
         <div className="panel" ref={recRef}>
           <div className="row wrap gap-2" style={{ justifyContent: 'space-between', marginBottom: 10 }}>
             <h3 style={{ margin: 0 }}>
-              {aiMode ? 'AI recommendations' : 'Recommendations'}
+              {recs.category
+                ? CATEGORIES.find(([k]) => k === recs.category)?.[1] ?? 'Recommendations'
+                : aiMode ? 'AI recommendations' : 'Recommendations'}
               <span className="faint">
                 {' · '}{visibleRecs.length} of {recs.recommendations.length}
                 {recs.color_identity ? ` · within ${recs.color_identity}` : ''}
