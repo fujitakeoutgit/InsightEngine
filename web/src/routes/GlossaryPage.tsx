@@ -73,7 +73,7 @@ export function GlossaryPage() {
   const topKeywords = Object.entries(frequency).slice(0, 60)
 
   return (
-    <section className="shell" style={{ paddingTop: 'var(--gap-4)' }} ref={rootRef}>
+    <section className="shell" ref={rootRef}>
       <PageHead
         eyebrow="Reference"
         title="Syntax &amp; symbols"
@@ -147,7 +147,7 @@ export function GlossaryPage() {
         <div className="row wrap gap-2" style={{ justifyContent: 'space-between', marginBottom: 'var(--gap-2)' }}>
           <h3 style={{ margin: 0 }}>Oracle tags</h3>
           <input
-            className="field"
+            className="fld"
             style={{ width: 'auto' }}
             placeholder="Search tags — e.g. sacrifice, tutor"
             value={tagQuery}

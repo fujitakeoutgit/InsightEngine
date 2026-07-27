@@ -35,7 +35,12 @@
   --manaline: linear-gradient(90deg, #e9e2c6, #4d93d6 30%, #8b8494 50%, #dd6b4e 70%, #55a96f);
   --mana-w: #e9e2c6;
   --mana-u: #4d93d6;
-  --mana-b: #8b8494;
+  /* Black is actually black. It was a mid grey, which collided with colourless
+     and left the two indistinguishable; grey now belongs to colourless alone.
+     A fill this dark only reaches ~1.5:1 against the chart panel, so segments
+     carry an outline for relief -- see .cc-seg / .donut-arc. */
+  --mana-b: #2f3145;
+  --mana-b-ink: #f2f3f8;
   --mana-r: #dd6b4e;
   --mana-g: #55a96f;
   --mana-c: #a6a8b5;

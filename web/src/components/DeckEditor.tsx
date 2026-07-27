@@ -13,7 +13,7 @@ import { ManaCost } from './ManaCost'
 
 const GROUPINGS: [GroupBy, string][] = [
   ['type', 'Type'], ['cmc', 'Mana value'], ['color', 'Colour'],
-  ['rarity', 'Rarity'], ['none', 'Ungrouped'],
+  ['rarity', 'Rarity'], ['none', 'None'],
 ]
 
 const SORTS: [SortBy, string][] = [
@@ -45,9 +45,19 @@ export function DeckEditor({
   const [view, setView] = usePersisted<'list' | 'grid'>('insight-enigma:deck-view', 'list')
   const [tileSize, setTileSize] = usePersisted('insight-enigma:editor-tile', 120)
   const [query, setQuery] = useState('')
+  /** Which group tab is open, per section. */
+  const [openGroups, setOpenGroups] = useState<Record<string, string>>({})
   const [dragging, setDragging] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<Section | null>(null)
   const collected = useCollection()
+
+  /** The open tab for a section, falling back to the first group. Editing can
+   *  empty the selected group out of existence, so the stored key is only
+   *  honoured while it still names a group that is there. */
+  const openGroup = (section: string, groups: { key: string }[]) => {
+    const chosen = openGroups[section]
+    return chosen && groups.some((g) => g.key === chosen) ? chosen : groups[0]?.key
+  }
 
   const patch = (uid: string, change: Partial<DeckCard>) =>
     onChange(cards.map((c) => (c.uid === uid ? { ...c, ...change } : c)))
@@ -98,7 +108,10 @@ export function DeckEditor({
         {view === 'grid' && (
           <label className="size-slider" title="Card size">
             <input
-              type="range" min={80} max={300} step={10} value={tileSize}
+              // Starts at 100, not 80: below that a card is an unreadable
+              // smudge, so the bottom of the travel was dead range. Dropping it
+              // spends the whole slider on sizes worth picking.
+              type="range" min={100} max={300} step={10} value={tileSize}
               onChange={(e) => setTileSize(Number(e.target.value))}
               aria-label="Card image size"
             />
@@ -165,14 +178,32 @@ export function DeckEditor({
                       : 'Drag cards here.'}
                 </p>
               ) : (
-                groups.map((group) => (
+                <>
+                  {/* Groups become tabs rather than stacking into one long
+                      scroll. Grouping is how you ask to look at one part of the
+                      deck; printing all the parts underneath each other answers
+                      a question nobody asked. */}
+                  {groupBy !== 'none' && groups.length > 1 && (
+                    <div className="group-tabs">
+                      {groups.map((group) => (
+                        <button
+                          key={group.key}
+                          className={openGroup(key, groups) === group.key ? 'on' : ''}
+                          onClick={() => setOpenGroups((g) => ({ ...g, [key]: group.key }))}
+                        >
+                          {group.label}
+                          <span className="mono faint"> {group.count}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {groups
+                    .filter((group) =>
+                      groupBy === 'none' || groups.length === 1 ||
+                      openGroup(key, groups) === group.key)
+                    .map((group) => (
                   <div className="deck-group" key={group.key}>
-                    {groupBy !== 'none' && (
-                      <div className="group-head">
-                        <span>{group.label}</span>
-                        <span className="mono faint">{group.count}</span>
-                      </div>
-                    )}
                     <div
                       className={view === 'grid' ? 'group-grid' : ''}
                       style={view === 'grid'
@@ -192,7 +223,8 @@ export function DeckEditor({
                       ))}
                     </div>
                   </div>
-                ))
+                ))}
+                </>
               )}
             </section>
           )

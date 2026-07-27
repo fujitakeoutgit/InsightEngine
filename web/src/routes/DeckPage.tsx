@@ -40,7 +40,6 @@ Sideboard
 2 Duress
 `
 
-const CURVE_KEYS = ['0', '1', '2', '3', '4', '5', '6', '7+']
 const UNCERTAIN = new Set(['fuzzy', 'ambiguous', 'prefix', 'unresolved'])
 const REC_FORMATS = ['', 'commander', 'standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper', 'brawl']
 
@@ -288,7 +287,6 @@ export function DeckPage() {
     (rec) => !activeThemes.length || rec.because.some((b) => activeThemes.includes(b)),
   )
   const reasonFor = new Map((recs?.recommendations ?? []).map((r) => [r.card.oracle_id, r.because]))
-  const maxCurve = report ? Math.max(1, ...CURVE_KEYS.map((k) => report.curve[k] ?? 0)) : 1
   const uncertain = report?.entries.filter((e) => UNCERTAIN.has(e.match)) ?? []
   const shown = showAll ? (report?.entries ?? []) : uncertain
 
@@ -424,29 +422,21 @@ export function DeckPage() {
               <span className="v mono" ref={priceRef}>${report.price_usd.toFixed(2)}</span>
               <span className="label">Est. value</span>
             </div>
-            <div className="stat">
-              <span className="v mono" style={{ color: report.unresolved_count ? 'var(--danger)' : 'var(--ok)' }}>
-                {report.unresolved_count}
-              </span>
-              <span className="label">Unresolved</span>
-            </div>
+            {/* Only shown when it is a problem. A green zero reports that
+                nothing went wrong, which is not worth a tile. */}
+            {report.unresolved_count > 0 && (
+              <div className="stat">
+                <span className="v mono" style={{ color: 'var(--danger)' }}>
+                  {report.unresolved_count}
+                </span>
+                <span className="label">Unresolved</span>
+              </div>
+            )}
           </div>
 
-          <div className="panel">
-            <h3>Mana curve (non-land)</h3>
-            <div className="curve">
-              {CURVE_KEYS.map((key) => {
-                const value = report.curve[key] ?? 0
-                return (
-                  <div className="bar" key={key}>
-                    <span className="cap">{value || ''}</span>
-                    <div className="fill" style={{ height: `${(value / maxCurve) * 100}%` }} />
-                    <span className="cap">{key}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+          {/* Charts first: the shape of the deck is what you opened this tab
+              for. DeckInfo is reference material and goes last. */}
+          {report.stats && !report.stats.empty && <DeckCharts stats={report.stats} />}
 
           {/* Only worth a panel when there is something to resolve. A panel
               whose entire content is "nothing went wrong" is noise. */}
@@ -473,8 +463,6 @@ export function DeckPage() {
               updatedAt={savedAt?.updated}
             />
           )}
-
-          {report.stats && !report.stats.empty && <DeckCharts stats={report.stats} />}
         </div>
       )}
 
@@ -565,12 +553,15 @@ export function DeckPage() {
   )
 
   return (
-    <section className="shell" style={{ paddingTop: 20 }}>
+    <section className="shell">
+      <div className="page-back">
+        <button className="back-link" onClick={() => navigate('/deck')}>← All decks</button>
+      </div>
+
       {/* Page-level actions live in the page header: they act on the whole
           deck, and anywhere lower puts the Playtest button underneath the
           panel it toggles. */}
       <div className="deck-head">
-        <button className="back-link" onClick={() => navigate('/deck')}>← All decks</button>
         <input className="fld deck-name" placeholder="Untitled deck" value={deckName}
           onChange={(e) => setDeckName(e.target.value)} aria-label="Deck name" />
         <select className="fld" style={{ width: 'auto' }} value={format}

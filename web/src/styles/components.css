@@ -30,6 +30,7 @@
   font-variant-numeric: tabular-nums;
 }
 
+
 .hero-sub { margin-top: 18px; }
 
 /* --------------------------------------------------------------------------
@@ -477,7 +478,7 @@
 
 .pipn[data-c='W'] { background: var(--mana-w); }
 .pipn[data-c='U'] { background: var(--mana-u); color: #f2f6ff; }
-.pipn[data-c='B'] { background: var(--mana-b); color: #12111a; }
+.pipn[data-c='B'] { background: var(--mana-b); color: var(--mana-b-ink); }
 .pipn[data-c='R'] { background: var(--mana-r); color: #fff1ea; }
 .pipn[data-c='G'] { background: var(--mana-g); color: #f0fff4; }
 .pipn[data-c='hybrid'] {
@@ -486,7 +487,7 @@
 }
 
 .identity-dots { display: inline-flex; gap: 3px; }
-.identity-dots i { width: 7px; height: 7px; border-radius: 50%; display: block; }
+.identity-dots i { width: 7px; height: 7px; border-radius: 50%; display: block; box-shadow: inset 0 0 0 1px rgba(148, 163, 205, 0.3); }
 
 /* --------------------------------------------------------------------------
    Card detail
@@ -805,11 +806,10 @@
 }
 
 .query-preview {
-  position: sticky;
-  /* Clears the sticky header, which is ~57px tall. */
-  top: 58px;
-  z-index: 20;
-  margin-bottom: 22px;
+  /* Static, not sticky: it holds its place under the nav instead of chasing
+     the scroll and sliding over the content beneath it. */
+  margin-top: 20px;
+  margin-bottom: 4px;
   padding: 14px 16px;
   border: 1px solid var(--aether);
   border-radius: var(--r);
@@ -1180,7 +1180,7 @@
 .deck-tile-plate p { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
 .deck-tile-plate .meta { font-size: 10.5px; margin-top: 5px; }
 
-.pip-dot { width: 8px; height: 8px; border-radius: 50%; display: block; }
+.pip-dot { width: 8px; height: 8px; border-radius: 50%; display: block; box-shadow: inset 0 0 0 1px rgba(148, 163, 205, 0.3); }
 
 /* The new-deck slot: a hairline plate with a large, quietly breathing plus. */
 .deck-tile-new {
@@ -1784,17 +1784,51 @@
 }
 
 .chart-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+
+/* The donut is a fixed-size SVG in a fluid grid cell, so it needs centring
+   rather than being left to sit against the panel's left edge. */
+.chart svg { display: block; margin-inline: auto; max-width: 100%; height: auto; }
 .chart-note { font-size: 10.5px; color: var(--muted); min-height: 1.2em; margin-top: 6px; }
 
-/* Letters sit on the segment because black/blue measured ΔE 11.4 for normal
-   vision — under the 15 floor, so the hue alone is not reliably readable. */
+/* Counts sit on the segment: the number is what you wanted to read, and it
+   doubles as the non-colour encoding. */
 .donut-label {
   font-family: var(--font-m);
-  font-size: 9px;
+  font-size: 9.5px;
   font-weight: 600;
   fill: #0b0d12;
   pointer-events: none;
 }
+
+/* Black's fill is genuinely dark, so its label flips rather than disappearing. */
+.donut-label.on-dark { fill: var(--mana-b-ink); }
+
+/* A hairline outline gives every arc a silhouette. Black measures only ~1.5:1
+   against the panel, which is below the 3:1 floor -- the outline is the relief
+   that makes the segment's extent legible anyway. */
+.donut-arc { stroke: rgba(148, 163, 205, 0.28); stroke-width: 0.75; }
+
+/* Group tabs inside a deck section. */
+.group-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.group-tabs button {
+  padding: 6px 11px;
+  font-size: 11.5px;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+  white-space: nowrap;
+}
+
+.group-tabs button:hover { color: var(--ink); }
+.group-tabs button.on { color: var(--ink); border-bottom-color: var(--aether); }
 
 .type-bars { display: flex; flex-direction: column; gap: 5px; }
 .type-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
@@ -1803,12 +1837,13 @@
 .tb-fill { height: 100%; border-radius: 2px; }
 .tb-val { width: 28px; text-align: right; font-size: 11px; color: var(--muted); }
 
-.curve-chart { display: flex; align-items: flex-end; gap: 4px; height: 150px; }
+.curve-chart { display: flex; align-items: flex-end; justify-content: center; gap: 4px; height: 150px; }
 .cc-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 3px; height: 100%; }
 .cc-total { font-size: 10px; color: var(--muted); }
 .cc-stack { width: 100%; display: flex; flex-direction: column-reverse; border-radius: 2px 2px 0 0; overflow: hidden; min-height: 2px; gap: 2px; }
-.cc-seg { display: grid; place-items: center; min-height: 3px; }
-.cc-lab { font-family: var(--font-m); font-size: 8.5px; font-weight: 600; color: #0b0d12; }
+.cc-seg { display: grid; place-items: center; min-height: 3px; box-shadow: inset 0 0 0 1px rgba(148, 163, 205, 0.22); }
+.cc-lab { font-family: var(--font-m); font-size: 9px; font-weight: 600; color: #0b0d12; }
+.cc-lab.on-dark { color: var(--mana-b-ink); }
 .cc-axis { font-size: 10px; color: var(--faint); }
 
 .balance { display: flex; flex-direction: column; gap: 8px; }

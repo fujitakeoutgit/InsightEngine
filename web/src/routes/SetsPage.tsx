@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { api, type SetInfo } from '../lib/api'
-import { dissolveIn, riseIn } from '../lib/motion'
+import { riseIn } from '../lib/motion'
 import { PageHead } from '../components/PageHead'
 
 const TYPE_LABELS: Record<string, string> = {
@@ -43,12 +43,12 @@ export function SetsPage() {
     })
   }, [sets, filter, type])
 
+  // The grid fades as one block rather than tile by tile. A stagger across
+  // hundreds of small, near-identical tiles reads as a ripple of flicker
+  // instead of a reveal -- there is no reading order in a set grid for it to
+  // follow, and refiltering restarts the whole wave.
   useEffect(() => {
-    if (gridRef.current) {
-      // No blur: these tiles are 28px icons and a line of text, so the blur is
-      // imperceptible but still costs a filter pass per tile.
-      dissolveIn(gridRef.current.querySelectorAll('.set-card'), { stagger: 0.008, blur: false })
-    }
+    riseIn(gridRef.current)
   }, [visible])
 
   const types = useMemo(
@@ -57,17 +57,17 @@ export function SetsPage() {
   )
 
   return (
-    <section className="shell" style={{ paddingTop: 'var(--gap-4)' }}>
+    <section className="shell">
       <PageHead eyebrow="Browse" title="Sets" ref={headRef}>
         <input
-          className="field"
+          className="fld"
           style={{ width: 'auto' }}
           placeholder="Filter by name or code"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
         <select
-          className="field"
+          className="fld"
           style={{ width: 'auto' }}
           value={type}
           onChange={(e) => setType(e.target.value)}

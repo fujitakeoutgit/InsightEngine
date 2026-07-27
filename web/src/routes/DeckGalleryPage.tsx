@@ -94,8 +94,8 @@ export function DeckGalleryPage() {
   }
 
   return (
-    <section className="shell" style={{ paddingTop: 26 }}>
-      <BackLink />
+    <section className="shell">
+      <div className="page-back"><BackLink /></div>
       <div className="gallery-head">
         <span className="eyebrow">Deck Lab</span>
         <h1 className="display" ref={titleRef}>Your decks</h1>

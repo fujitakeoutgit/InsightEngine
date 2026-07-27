@@ -237,10 +237,8 @@ export function SearchPage() {
           <>
             <h1 className="hero-title">
               Scry{' '}
-              {/* The full stop sits inside the gradient span so it is painted
-                  by the same manaline as the number, not left grey beside it. */}
               <span className="hero-count">
-                <span ref={heroCountRef}>{paperCards || '—'}</span>.
+                <span ref={heroCountRef}>{paperCards || '—'}</span>
               </span>
             </h1>
             <hr className="manaline" style={{ maxWidth: 420, marginTop: 10 }} />

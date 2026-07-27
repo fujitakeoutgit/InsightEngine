@@ -41,7 +41,7 @@ export const PageHead = forwardRef<HTMLDivElement, {
 }>(function PageHead({ eyebrow, title, subtitle, children, back = {} }, ref) {
   return (
     <div className="page-head" ref={ref}>
-      {back !== false && <BackLink {...back} />}
+      {back !== false && <div className="page-back"><BackLink {...back} /></div>}
       <div className="section-head">
         <div className="head-titles">
           {eyebrow && <span className="eyebrow">{eyebrow}</span>}

@@ -83,7 +83,7 @@ export function CardPage() {
     <>
       {/* Collect sits beside Back rather than under the art: both are actions
           about the card as a whole, and the art column is for the art. */}
-      <div className="shell row gap-3 wrap" style={{ paddingTop: 4 }}>
+      <div className="shell page-back">
         <BackLink label="Back to results" />
         <button
           className={held ? 'btn btn-primary sm' : 'btn sm'}

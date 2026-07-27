@@ -33,7 +33,7 @@ export function CardsPage() {
   }
 
   return (
-    <section className="shell" style={{ paddingTop: 22 }}>
+    <section className="shell">
       <PageHead eyebrow="Collected" title="Cards">
           <span className="mono muted" style={{ fontSize: 12 }}>
             {cards.length} card{cards.length === 1 ? '' : 's'} · ${totals.value.toFixed(2)}

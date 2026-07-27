@@ -233,16 +233,11 @@ export function AdvancedPage() {
   }
 
   return (
-    <section className="shell" style={{ paddingTop: 22 }}>
-      <PageHead
-        eyebrow="Query builder"
-        title="Advanced search"
-        subtitle="Every control writes query syntax. Watch the bar below to learn it."
-      />
-
-      {/* The query bar sits directly under the nav rather than pinned to the
-          bottom of the page: it is the thing being built, so it belongs where
-          the eye already is, not somewhere you have to look down for. */}
+    <section className="shell">
+      {/* First thing under the nav, above even the page title: it is the thing
+          being built, so it belongs where the eye already is rather than at the
+          bottom of a long form. It is the one page whose back control sits
+          lower than everywhere else, which is the cost of that. */}
       <div className="query-preview">
         <span className="label preview-tag">Query</span>
         <code>{query || 'Nothing selected yet'}</code>
@@ -259,6 +254,12 @@ export function AdvancedPage() {
           </button>
         </div>
       </div>
+
+      <PageHead
+        eyebrow="Query builder"
+        title="Advanced search"
+        subtitle="Every control writes query syntax. Watch the bar above to learn it."
+      />
 
       <div className="adv-form">
         <Row label="Card Name" hint="Any words in the name, e.g. “Fire”">

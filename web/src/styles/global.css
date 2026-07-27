@@ -216,8 +216,28 @@ main { flex: 1; padding-bottom: 88px; }
 
 /* The head is one block: back control above, then title and tools on a row.
    `.head-titles` keeps eyebrow/title/subtitle stacked, so a subtitle reads as
-   part of the title rather than being flung to the far edge by space-between. */
-.page-head .back-link { margin-bottom: -6px; }
+   part of the title rather than being flung to the far edge by space-between.
+
+   `.page-back` is the one rule that fixes where the back control sits and how
+   much room is under it. Every page wears it -- pages without a PageHead use it
+   directly -- so the control does not drift by a few pixels from route to
+   route. Pages must not set their own top padding on top of it. */
+.page-back {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 18px;
+  padding-bottom: 12px;
+  /* Fixed height so a page that puts a button beside Back -- the card page
+     does -- does not push the row taller and shift the link a few pixels
+     against every other route. */
+  min-height: 30px;
+  box-sizing: content-box;
+}
+
+.page-back .back-link { padding: 0; }
+.page-head .section-head { padding-top: 0; }
 .head-titles { min-width: 0; }
 .head-sub {
   font-size: var(--step--1);

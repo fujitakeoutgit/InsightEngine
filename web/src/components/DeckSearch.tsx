@@ -9,6 +9,29 @@ import { ManaCost } from './ManaCost'
 export const CARD_DRAG_TYPE = 'application/x-insight-card'
 
 /**
+ * Card art inside a `.card-tile`.
+ *
+ * `.card-tile img` starts at opacity 0 and fades in on a `loaded` class, so an
+ * `<img>` that never sets it stays invisible forever -- which is exactly what
+ * these tiles did.
+ */
+function SearchTileImage({ src, alt }: { src: string; alt: string }) {
+  const [loaded, setLoaded] = useState(false)
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      className={loaded ? 'loaded' : ''}
+      onLoad={() => setLoaded(true)}
+      // A cached image can finish before React attaches onLoad.
+      ref={(el) => { if (el?.complete) setLoaded(true) }}
+    />
+  )
+}
+
+/**
  * Name search inside the deck editor, for pulling cards into the list.
  *
  * Deliberately not the main search page in a panel. Here you already know
@@ -173,7 +196,7 @@ export function DeckSearch() {
                 title={`${card.name} — ${card.type_line ?? ''}`}
               >
                 {card.image_normal || card.image_small ? (
-                  <img src={card.image_normal ?? card.image_small!} alt={card.name} loading="lazy" />
+                  <SearchTileImage src={card.image_normal ?? card.image_small!} alt={card.name} />
                 ) : (
                   <div className="fallback">
                     <div>

@@ -6,13 +6,13 @@ import { canAnimate, gsap } from '../lib/motion'
 /**
  * Deck composition charts.
  *
- * Magic's five colours are semantically fixed — white must be pale, black and
- * colourless must be grey, and red/green is the canonical deuteranopia
- * confusion (measured ΔE 4.8, far under the ΔE 8 floor). Those hues cannot be
- * re-picked without making the charts wrong, so colour never carries meaning
- * alone here: every segment is labelled with its W/U/B/R/G letter, segments are
- * separated by a surface-coloured gap, and a table view carries the same
- * numbers.
+ * Magic's five colours are semantically fixed — white must be pale, black must
+ * be black, colourless must be grey, and red/green is the canonical
+ * deuteranopia confusion (measured ΔE 4.8, far under the ΔE 8 floor). Those
+ * hues cannot be re-picked without making the charts wrong, so colour never
+ * carries meaning alone here: every segment prints its own count, segments are
+ * separated by a surface-coloured gap and an outline, and a table view carries
+ * the same numbers.
  */
 
 const COLOR_ORDER = ['W', 'U', 'B', 'R', 'G', 'C', 'multi'] as const
@@ -83,13 +83,19 @@ function Donut({
           onMouseEnter={() => setHover(`${slice.label} · ${slice.value} (${Math.round(share * 100)}%)`)}
           onMouseLeave={() => setHover(null)}>
           <path
+            className="donut-arc"
             d={arc(cx, cy, radius, thickness, from + gap, Math.max(from + gap, angle - gap))}
             fill={slice.fill}
             opacity={hover && !hover.startsWith(slice.label) ? 0.45 : 1}
           />
+          {/* The count, not the colour's letter. A number is the thing you
+              wanted to read, and it doubles as the non-colour encoding the
+              letter used to provide. Too narrow a slice gets none: an
+              overlapping label is worse than the tooltip. */}
           {share > 0.07 && (
-            <text x={lx} y={ly} className="donut-label" textAnchor="middle" dominantBaseline="central">
-              {slice.key === 'multi' ? 'M' : slice.key}
+            <text x={lx} y={ly} textAnchor="middle" dominantBaseline="central"
+              className={`donut-label ${slice.key === 'B' ? 'on-dark' : ''}`}>
+              {slice.value}
             </text>
           )}
         </g>
@@ -158,8 +164,13 @@ function Curve({ curve }: { curve: Record<string, Record<string, number>> }) {
                   <div key={s.key} className="cc-seg"
                     style={{ flexGrow: s.value, background: s.fill }}
                     title={`${COLOR_NAME[s.key]}: ${s.value}`}>
-                    {s.value / max > 0.08 && (
-                      <span className="cc-lab">{s.key === 'multi' ? 'M' : s.key}</span>
+                    {/* Skipped on thin segments -- the label would spill past
+                        the band it belongs to and read as the neighbour's. */}
+                    {/* The stack is (total/max) of 150px and the segment is
+                        value/total of that, so the segment is simply
+                        (value/max) * 150 px tall. */}
+                    {(s.value / max) * 150 > 13 && (
+                      <span className={`cc-lab ${s.key === 'B' ? 'on-dark' : ''}`}>{s.value}</span>
                     )}
                   </div>
                 ))}
@@ -196,12 +207,14 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
 
   return (
     <div className="deck-charts" ref={ref}>
+      {/* Curve, then costs, then types: what the deck does turn by turn, then
+          what it demands, then what it is made of. */}
       <div className="chart-grid">
+        <Curve curve={stats.curve} />
         {(pips.length > 0 || sources.length > 0) && (
           <Donut outer={pips} inner={sources} outerLabel="Card costs" innerLabel="Land mana" />
         )}
         <TypeBars types={stats.types} />
-        <Curve curve={stats.curve} />
       </div>
 
       {stats.balance.length > 0 && (
