@@ -1,3 +1,5 @@
+import { ManaPip } from './ManaSprite'
+
 /** Renders a Scryfall mana-cost string ("{2}{W}{U/B}") as coloured pips. */
 
 const COLOR_KEYS = new Set(['W', 'U', 'B', 'R', 'G'])
@@ -6,6 +8,12 @@ const VAR = (c: string) => `var(--mana-${c.toLowerCase()})`
 
 function Pip({ symbol }: { symbol: string }) {
   const inner = symbol.replace(/[{}]/g, '')
+
+  // The five colours and colourless get their real Magic symbol. Generic
+  // numerals and everything else keep the numbered disc.
+  if (/^[WUBRGC]$/.test(inner)) {
+    return <ManaPip code={inner} />
+  }
 
   // Hybrid and Phyrexian symbols read as two halves.
   if (inner.includes('/')) {
@@ -50,7 +58,7 @@ export function IdentityDots({ identity }: { identity: string }) {
   if (!identity) {
     return (
       <span className="identity-dots" title="Colourless">
-        <i style={{ background: 'var(--mana-c)' }} />
+        <ManaPip code="c" size={11} />
       </span>
     )
   }

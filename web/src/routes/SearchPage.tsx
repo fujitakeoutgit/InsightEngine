@@ -8,6 +8,7 @@ import { hasSemantic } from '../lib/query'
 import { cacheKey, fromResponse, readCache, rememberScroll, writeCache } from '../lib/searchCache'
 import { CardGrid, GridSkeleton } from '../components/CardGrid'
 import { SearchBar } from '../components/SearchBar'
+import { ScrollTop } from '../components/ScrollTop'
 import { EMPTY_CONSOLE, SemanticConsole, type ConsoleState } from '../components/SemanticConsole'
 
 const SORTS = [
@@ -242,7 +243,12 @@ export function SearchPage() {
         {!query && (
           <>
             <h1 className="hero-title">
-              Scry <span className="hero-count" ref={heroCountRef}>{paperCards || '—'}</span>
+              Scry{' '}
+              {/* The full stop sits inside the gradient span so it is painted
+                  by the same manaline as the number, not left grey beside it. */}
+              <span className="hero-count">
+                <span ref={heroCountRef}>{paperCards || '—'}</span>.
+              </span>
             </h1>
             <hr className="manaline" style={{ maxWidth: 420, marginTop: 10 }} />
             <p className="lede hero-sub">
@@ -257,7 +263,6 @@ export function SearchPage() {
           value={draft}
           onChange={setDraft}
           onSubmit={submit}
-          showExamples={!query}
           autoFocus={!query}
         />
 
@@ -390,6 +395,8 @@ export function SearchPage() {
         )}
 
         {collapsed && consoleEl}
+
+        <ScrollTop watch={toolbarRef} />
       </section>
     </>
   )

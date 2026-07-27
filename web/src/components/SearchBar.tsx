@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
-import { EXAMPLE_QUERIES, describe, tokenizeQuery } from '../lib/query'
+import { describe, tokenizeQuery } from '../lib/query'
 import { buildSegments, checkWords, extractWords, suggestFor, type Segment } from '../lib/spell'
 
 interface MenuState {
@@ -28,13 +28,11 @@ export function SearchBar({
   value,
   onChange,
   onSubmit,
-  showExamples = false,
   autoFocus = false,
 }: {
   value: string
   onChange: (next: string) => void
   onSubmit: (query: string) => void
-  showExamples?: boolean
   autoFocus?: boolean
 }) {
   const [focused, setFocused] = useState(false)
@@ -292,22 +290,6 @@ export function SearchBar({
                 <span className="v">{token.value}</span>
               </span>
             ))}
-        </div>
-      )}
-
-      {showExamples && (
-        <div className="examples">
-          {EXAMPLE_QUERIES.map((example) => (
-            <button
-              key={example}
-              onClick={() => {
-                onChange(example)
-                onSubmit(example)
-              }}
-            >
-              {example}
-            </button>
-          ))}
         </div>
       )}
     </div>

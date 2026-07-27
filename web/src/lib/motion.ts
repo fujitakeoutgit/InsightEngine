@@ -219,16 +219,36 @@ export function countTo(
     el.textContent = format(value)
     return
   }
+  // Counts up to one short of the target, pauses, then ticks the last one on
+  // its own. The hitch is deliberate — it reads as the number arriving rather
+  // than a bar filling, and the final digit lands where the eye already is.
+  const penultimate = Math.abs(value) > 1 ? value - Math.sign(value) : value
   const state = { n: Number(el.dataset.value ?? 0) }
+
   gsap.to(state, {
-    n: value,
-    duration: 0.85,
+    n: penultimate,
+    duration: 0.8,
     ease: 'power2.out',
     onUpdate: () => {
       el.textContent = format(state.n)
     },
     onComplete: () => {
-      el.dataset.value = String(value)
+      if (penultimate === value) {
+        el.dataset.value = String(value)
+        return
+      }
+      gsap.to(state, {
+        n: value,
+        duration: 0.18,
+        delay: 0.22,
+        ease: 'back.out(3)',
+        onUpdate: () => {
+          el.textContent = format(state.n)
+        },
+        onComplete: () => {
+          el.dataset.value = String(value)
+        },
+      })
     },
   })
 }

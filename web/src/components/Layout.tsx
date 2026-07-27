@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useCollection } from '../lib/collection'
+import { ManaSprite } from './ManaSprite'
 
 const NAV = [
   { to: '/', label: 'Search', end: true },
@@ -15,6 +16,7 @@ export function Layout() {
 
   return (
     <div className="app">
+      <ManaSprite />
       {/* Ambient field: two drifting blobs behind a static turbulence grain. */}
       <div className="field" aria-hidden>
         <div className="blob a" />

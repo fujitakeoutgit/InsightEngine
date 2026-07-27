@@ -11,6 +11,7 @@ export function CardsPage() {
   const cards = useCollection()
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [size, setSize] = useState(() => Number(localStorage.getItem(SIZE_KEY)) || 190)
+  const [copied, setCopied] = useState(false)
 
   const totals = useMemo(() => {
     const priced = cards.filter((c) => c.usd !== null && c.usd !== undefined)
@@ -20,8 +21,12 @@ export function CardsPage() {
     }
   }, [cards])
 
-  const copyList = () => {
-    navigator.clipboard?.writeText(cards.map((c) => `1 ${c.name}`).join('\n'))
+  // Silent success is indistinguishable from a broken button, so the label
+  // reports back for a moment.
+  const copyList = async () => {
+    await navigator.clipboard?.writeText(cards.map((c) => `1 ${c.name}`).join('\n'))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1800)
   }
 
   return (
@@ -51,7 +56,12 @@ export function CardsPage() {
               <button className="btn btn-ghost sm" onClick={() => setView(view === 'grid' ? 'list' : 'grid')}>
                 {view === 'grid' ? 'List' : 'Grid'}
               </button>
-              <button className="btn btn-ghost sm" onClick={copyList}>Copy as list</button>
+              <button
+                className={copied ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
+                onClick={copyList}
+              >
+                {copied ? '✓ Copied' : 'Copy as list'}
+              </button>
               <button className="btn btn-danger sm" onClick={() => collection.clear()}>Clear</button>
             </>
           )}

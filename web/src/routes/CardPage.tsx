@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, type CardDetail } from '../lib/api'
 import { collection, useIsCollected } from '../lib/collection'
 import { attachTilt, riseIn } from '../lib/motion'
+import { Lightbox } from '../components/Lightbox'
 import { IdentityDots, ManaCost, OracleText } from '../components/ManaCost'
 
 const FORMAT_ORDER = [
@@ -24,6 +25,8 @@ export function CardPage() {
   const bodyRef = useRef<HTMLDivElement>(null)
   const artRef = useRef<HTMLDivElement>(null)
   const held = useIsCollected(oracleId ?? '')
+  const [zoomed, setZoomed] = useState<DOMRect | null>(null)
+  const [isZoomed, setIsZoomed] = useState(false)
 
   // history.back rather than a link to /: it re-renders the search page, which
   // restores its cached results and scroll position instead of re-querying.
@@ -84,28 +87,33 @@ export function CardPage() {
 
   return (
     <>
-      <div className="shell">
+      {/* Collect sits beside Back rather than under the art: both are actions
+          about the card as a whole, and the art column is for the art. */}
+      <div className="shell row gap-3 wrap" style={{ paddingTop: 4 }}>
         <button className="back-link" onClick={goBack}>
           ← Back to results
+        </button>
+        <button
+          className={held ? 'btn btn-primary sm' : 'btn sm'}
+          onClick={() => collection.toggle(card)}
+        >
+          {held ? '✓ In Cards' : '+ Add to Cards'}
         </button>
       </div>
       <section className="shell detail" ref={bodyRef}>
       <div className="detail-art">
         {card.image_normal ? (
-          <div className="detail-tilt" ref={artRef}>
+          <div
+            className="detail-tilt"
+            ref={artRef}
+            onClick={() => { setZoomed(artRef.current?.getBoundingClientRect() ?? null); setIsZoomed(true) }}
+            title="Click to enlarge"
+          >
             <img src={card.image_normal} alt={card.name} />
           </div>
         ) : (
           <div className="panel">No image available.</div>
         )}
-        <div className="row wrap gap-2" style={{ marginTop: 16 }}>
-          <button
-            className={held ? 'btn btn-primary' : 'btn'}
-            onClick={() => collection.toggle(card)}
-          >
-            {held ? '✓ In Cards' : '+ Add to Cards'}
-          </button>
-        </div>
         {vendors.tcgplayer && (
           <a
             className="btn"
@@ -151,9 +159,36 @@ export function CardPage() {
             {card.cmc !== null && <span className="mono faint">MV {card.cmc}</span>}
             {card.edhrec_rank && <span className="mono faint">EDHREC #{card.edhrec_rank}</span>}
           </div>
-          <p className="type-line" style={{ marginTop: 'var(--gap-2)' }}>
-            {card.type_line}
-          </p>
+          {/* Every part of the type line is a query: supertypes, card types
+              and creature types alike. They were previously plain text while
+              keywords beside them were clickable, which is arbitrary. */}
+          <div className="type-links" style={{ marginTop: 10 }}>
+            {(card.type_line ?? '').split(/\s*(—|\/\/)\s*/).map((chunk, i) =>
+              chunk === '—' || chunk === '//' ? (
+                <span className="sep" key={`s${i}`}>{chunk}</span>
+              ) : (
+                chunk.split(/\s+/).filter(Boolean).map((word) => (
+                  <Link
+                    key={`${i}-${word}`}
+                    to={`/?q=${encodeURIComponent(`t:${word.toLowerCase()}`)}`}
+                    className="meta-link"
+                    title={`Search for ${word}`}
+                  >
+                    {word}
+                  </Link>
+                ))
+              ),
+            )}
+            {card.set_code && (
+              <Link
+                to={`/?q=${encodeURIComponent(`s:${card.set_code}`)}`}
+                className="meta-link set"
+                title={`Browse ${card.set_name}`}
+              >
+                {card.set_code.toUpperCase()} · {card.set_name}
+              </Link>
+            )}
+          </div>
         </div>
 
         {faces.length > 0 ? (
@@ -299,6 +334,15 @@ export function CardPage() {
         </p>
       </div>
     </section>
+
+    {isZoomed && card.image_normal && (
+      <Lightbox
+        src={card.image_normal}
+        alt={card.name}
+        from={zoomed}
+        onClose={() => setIsZoomed(false)}
+      />
+    )}
     </>
   )
 }
