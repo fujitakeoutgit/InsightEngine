@@ -92,6 +92,7 @@ async def recommendations(request: RecommendRequest):
     return recommend(
         state.require_conn(), resolutions,
         format_key=request.format, limit=request.limit,
+        description=request.description,
     )
 
 

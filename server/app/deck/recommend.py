@@ -15,6 +15,7 @@ commander's colour identity, legal in the format, and not already included.
 from __future__ import annotations
 
 import math
+import re
 import sqlite3
 from dataclasses import dataclass
 from typing import Any
@@ -50,6 +51,51 @@ FUNCTIONAL_TAGS = {
 }
 
 
+# Words that carry no theme, so a description containing them does not promote
+# whatever tag happens to share the letters.
+_STOPWORDS = {
+    "this", "that", "with", "from", "then", "them", "they", "have", "into",
+    "your", "when", "what", "which", "while", "will", "would", "about",
+    "deck", "card", "cards", "play", "plays", "played", "playing", "game",
+    "table", "turn", "turns", "some", "most", "much", "many", "more", "over",
+    "also", "just", "like", "want", "wants", "make", "makes", "made", "good",
+    "very", "lots", "well", "keep", "keeps", "does", "doing", "back",
+}
+
+# How much an explicitly described theme outranks the same theme derived from
+# the cards alone. Enough to clear the signature cutoff from mid-table, not
+# enough to overturn a theme the deck demonstrably revolves around.
+DESCRIPTION_BOOST = 1.6
+
+_WORD = re.compile(r"[a-z]{4,}")
+
+
+def description_terms(description: str | None) -> set[str]:
+    """Content words from the builder's description, for matching tag slugs.
+
+    Crude on purpose. This only ever *reweights themes the deck already has* --
+    it cannot introduce one -- so a loose match costs a bit of ranking, never a
+    card that does not belong. Anything cleverer than substring matching wants
+    the model, and that is what AI mode is for.
+    """
+    if not description:
+        return set()
+    terms: set[str] = set()
+    for word in _WORD.findall(description.lower()):
+        if word in _STOPWORDS:
+            continue
+        terms.add(word)
+        # Tag slugs are singular ("token-maker", not "tokens-maker"), and
+        # builders write prose, so shed a plural before matching.
+        if word.endswith("s") and len(word) > 4:
+            terms.add(word[:-1])
+    return terms
+
+
+def _describes(slug: str, terms: set[str]) -> bool:
+    return any(term in slug for term in terms)
+
+
 @dataclass
 class Theme:
     slug: str
@@ -57,6 +103,8 @@ class Theme:
     corpus: int
     score: float
     signature: bool = False
+    #: The builder's description named this theme.
+    described: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -65,6 +113,7 @@ class Theme:
             "corpus": self.corpus,
             "score": round(self.score, 3),
             "signature": self.signature,
+            "described": self.described,
         }
 
 
@@ -72,8 +121,20 @@ def _deck_cards(resolutions: list[Resolution]) -> list[dict[str, Any]]:
     return [r.card for r in resolutions if r.card and r.section != "maybeboard"]
 
 
-def derive_themes(conn: sqlite3.Connection, oracle_ids: list[str]) -> list[Theme]:
-    """Rank the deck's tags by how much they distinguish it from the corpus."""
+def derive_themes(
+    conn: sqlite3.Connection,
+    oracle_ids: list[str],
+    description: str | None = None,
+) -> list[Theme]:
+    """Rank the deck's tags by how much they distinguish it from the corpus.
+
+    A decklist states what a deck contains; the description states what it is
+    *for*. Where the two agree, the description settles which of several
+    plausible themes is the point -- a sacrifice deck and a tokens deck share
+    most of their tags, and the cards alone cannot say which one you built. The
+    description can only boost tags the deck already carries, so it steers the
+    ranking without ever putting an unrelated card in front of you.
+    """
     if not oracle_ids:
         return []
 
@@ -107,6 +168,13 @@ def derive_themes(conn: sqlite3.Connection, oracle_ids: list[str]) -> list[Theme
         )
         for row in rows
     ]
+    terms = description_terms(description)
+    if terms:
+        for theme in themes:
+            if _describes(theme.slug, terms):
+                theme.score *= DESCRIPTION_BOOST
+                theme.described = True
+
     themes.sort(key=lambda t: t.score, reverse=True)
     themes = themes[:MAX_THEMES]
 
@@ -132,13 +200,14 @@ def recommend(
     *,
     format_key: str | None = None,
     limit: int = 150,
+    description: str | None = None,
 ) -> dict[str, Any]:
     cards = _deck_cards(resolutions)
     if not cards:
         return {"themes": [], "recommendations": [], "note": "No resolved cards to work from."}
 
     owned = {c["oracle_id"] for c in cards}
-    themes = derive_themes(conn, sorted(owned))
+    themes = derive_themes(conn, sorted(owned), description)
     if not themes:
         return {
             "themes": [],

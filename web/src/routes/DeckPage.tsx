@@ -9,7 +9,7 @@ import { collection } from '../lib/collection'
 import {
   addedCard, fromResolutions, serialize, type DeckCard, type Section,
 } from '../lib/deckModel'
-import { countTo, dissolveIn, riseIn } from '../lib/motion'
+import { dissolveIn, riseIn } from '../lib/motion'
 import { CardGrid } from '../components/CardGrid'
 import { DeckEditor } from '../components/DeckEditor'
 import { ManaCost } from '../components/ManaCost'
@@ -96,8 +96,6 @@ export function DeckPage() {
   const [status, setStatus] = useState<string | null>(null)
   const [showAll, setShowAll] = useState(false)
 
-  const priceRef = useRef<HTMLSpanElement>(null)
-  const countRef = useRef<HTMLSpanElement>(null)
   const resultRef = useRef<HTMLDivElement>(null)
   const recRef = useRef<HTMLDivElement>(null)
   const aiStream = useRef<{ stop: () => void } | null>(null)
@@ -195,7 +193,7 @@ export function DeckPage() {
     setBusy('recommend'); setError(null); setTab('recommendations')
     setAiMode(false); setAiStrategy(null); setActiveThemes([])
     try {
-      setRecs(await api.recommendDeck(text, format || null))
+      setRecs(await api.recommendDeck(text, format || null, description))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not build recommendations')
       setRecs(null)
@@ -268,8 +266,6 @@ export function DeckPage() {
   useEffect(() => {
     if (!report) return
     riseIn(resultRef.current)
-    countTo(countRef.current, report.total_cards)
-    countTo(priceRef.current, report.price_usd, (n) => `$${n.toFixed(2)}`)
     if (resultRef.current) dissolveIn(resultRef.current.querySelectorAll('.verdict'), { stagger: 0.02 })
   }, [report])
 
@@ -287,6 +283,8 @@ export function DeckPage() {
     (rec) => !activeThemes.length || rec.because.some((b) => activeThemes.includes(b)),
   )
   const reasonFor = new Map((recs?.recommendations ?? []).map((r) => [r.card.oracle_id, r.because]))
+  const commanderCard =
+    report?.entries.find((e) => e.section === 'commander' && e.card)?.card ?? null
   const uncertain = report?.entries.filter((e) => UNCERTAIN.has(e.match)) ?? []
   const shown = showAll ? (report?.entries ?? []) : uncertain
 
@@ -409,30 +407,39 @@ export function DeckPage() {
 
       {tab === 'analysis' && report && (
         <div className="stack gap-4">
-          <div className="stat-row">
-            <div className="stat">
-              <span className="v mono" ref={countRef}>{report.total_cards}</span>
-              <span className="label">Cards</span>
+          {/* The counts that used to sit here are in Deck info below, so this
+              space goes to the card the deck is actually built around. */}
+          {commanderCard && (
+            <div className="commander-card">
+              {commanderCard.image_normal && (
+                <Link to={`/card/${commanderCard.oracle_id}`}>
+                  <img src={commanderCard.image_normal} alt={commanderCard.name} />
+                </Link>
+              )}
+              <div className="stack gap-2" style={{ minWidth: 0 }}>
+                <span className="eyebrow">Commander</span>
+                <h3 style={{ margin: 0 }}>{commanderCard.name}</h3>
+                <ManaCost cost={commanderCard.mana_cost} />
+                <span className="muted" style={{ fontSize: 12.5 }}>{commanderCard.type_line}</span>
+                {description.trim() && (
+                  <p className="faint" style={{ fontSize: 12, lineHeight: 1.55 }}>{description}</p>
+                )}
+              </div>
             </div>
-            <div className="stat">
-              <span className="v mono">{report.unique_cards}</span>
-              <span className="label">Unique</span>
-            </div>
-            <div className="stat">
-              <span className="v mono" ref={priceRef}>${report.price_usd.toFixed(2)}</span>
-              <span className="label">Est. value</span>
-            </div>
-            {/* Only shown when it is a problem. A green zero reports that
-                nothing went wrong, which is not worth a tile. */}
-            {report.unresolved_count > 0 && (
+          )}
+
+          {/* Only shown when it is a problem. A green zero reports that
+              nothing went wrong, which is not worth a tile. */}
+          {report.unresolved_count > 0 && (
+            <div className="stat-row">
               <div className="stat">
                 <span className="v mono" style={{ color: 'var(--danger)' }}>
                   {report.unresolved_count}
                 </span>
                 <span className="label">Unresolved</span>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Charts first: the shape of the deck is what you opened this tab
               for. DeckInfo is reference material and goes last. */}
@@ -497,14 +504,19 @@ export function DeckPage() {
             <>
               <p className="faint" style={{ fontSize: 11, marginBottom: 8 }}>
                 Themes from the tags your cards carry, weighted against how common each tag is.
-                Solid chips are signature themes — a card must hit one to be suggested. Click to filter.
+                Solid chips are signature themes — a card must hit one to be suggested. ✦ marks
+                themes your description named, which are ranked up. Click to filter.
               </p>
               <div className="row wrap gap-1" style={{ marginBottom: 14 }}>
                 {recs.themes.map((t) => (
                   <button key={t.slug}
                     className={`chip ${activeThemes.includes(t.slug) ? 'on' : ''} ${t.signature ? '' : 'supporting'}`}
-                    title={`${t.in_deck} here, ${t.corpus} in the corpus`}
+                    title={
+                      `${t.in_deck} here, ${t.corpus} in the corpus`
+                      + (t.described ? ' · named in your description, so ranked up' : '')
+                    }
                     onClick={() => toggleTheme(t.slug)}>
+                    {t.described && <span className="described" aria-hidden>✦ </span>}
                     {t.slug} <span className="faint">×{t.in_deck}</span>
                   </button>
                 ))}

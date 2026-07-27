@@ -120,6 +120,8 @@ export interface DeckTheme {
   /** Signature themes distinguish the deck; supporting ones are generic
    *  functions it happens to run. Only signature themes qualify a card. */
   signature: boolean
+  /** The deck description named this theme, so it was ranked up. */
+  described: boolean
 }
 
 export interface Recommendation {
@@ -254,9 +256,12 @@ export const api = {
   analyzeDeck: (text: string, commander?: string) =>
     post<DeckReport>('/api/deck/analyze', { text, commander: commander ?? null }),
 
-  recommendDeck: (text: string, format?: string | null, limit = 150) =>
+  recommendDeck: (
+    text: string, format?: string | null, description?: string | null, limit = 150,
+  ) =>
     post<RecommendReport>('/api/deck/recommend', {
       text, commander: null, format: format || null, limit,
+      description: description || null,
     }),
 
   prepareAiRecommendations: (text: string, format?: string | null, description?: string | null) =>

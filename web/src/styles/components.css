@@ -1041,6 +1041,35 @@
 .menu-item.back { color: var(--faint); border-top: 1px solid var(--line-soft); margin-top: 4px; border-radius: 0; }
 .menu-note { padding: 9px; font-size: 12px; color: var(--ok); }
 
+/* The commander leads the analysis tab, where the duplicated counts used to. */
+.commander-card {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r);
+  background: var(--glass);
+}
+
+.commander-card img {
+  width: 132px;
+  flex: none;
+  border-radius: 4.75% / 3.5%;
+  display: block;
+  transition: transform var(--dur) var(--ease-out);
+}
+
+.commander-card a:hover img { transform: translateY(-3px) scale(1.02); }
+.commander-card h3 { font-size: 17px; letter-spacing: -0.01em; }
+
+/* Marks a theme the description named. */
+.chip .described { color: var(--aether); }
+
+@media (max-width: 620px) {
+  .commander-card img { width: 96px; }
+}
+
 /* Deck info: the vitals panel that replaced the format-legality grid. */
 .deck-info { display: grid; gap: 18px; }
 
