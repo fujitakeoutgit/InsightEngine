@@ -377,6 +377,16 @@ export function DeckPage() {
     return attachTilt(commanderTilt.current, 6)
   }, [tab, commanderCardId])
 
+  // Playtesting takes the whole screen. Goldfishing is its own activity, and
+  // the decklist beside the board is exactly what you are trying to stop
+  // reading: the point is to see what the deck does, not what is in it.
+  //
+  // Below every hook. Returning earlier skips the ones declared after it, and
+  // React counts hooks per render -- which is precisely the crash this caused.
+  if (playing) {
+    return <Playtest deck={deckCards} onClose={() => setPlaying(false)} />
+  }
+
   const editorPane = (
     <div className="stack gap-3" style={{ minWidth: 0 }}>
       <div className="result-tabs">
@@ -730,7 +740,6 @@ export function DeckPage() {
         </p>
       )}
 
-      {playing && <Playtest deck={deckCards} onClose={() => setPlaying(false)} />}
 
       <SplitPane storageKey="insight-enigma:deck-split" left={editorPane} right={analysisPane} />
     </section>

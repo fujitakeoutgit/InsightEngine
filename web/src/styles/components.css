@@ -1574,12 +1574,22 @@
    Playtest
    -------------------------------------------------------------------------- */
 
+/* --------------------------------------------------------------------------
+   Playtest — a full-screen playmat
+   -------------------------------------------------------------------------- */
+
 .playtest {
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  background: var(--glass);
-  padding: 14px;
-  margin-bottom: 22px;
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px 14px;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(143, 169, 255, 0.07), transparent 60%),
+    var(--bg);
+  overflow: hidden;
 }
 
 .pt-bar {
@@ -1587,79 +1597,69 @@
   align-items: center;
   gap: 14px;
   flex-wrap: wrap;
-  padding-bottom: 12px;
-  margin-bottom: 12px;
-  border-bottom: 1px solid var(--line-soft);
+  flex: none;
   font-size: 12px;
 }
 
+.pt-bar .back-link { padding: 0; }
 .pt-bar .row-act { display: inline-grid; width: 18px; height: 18px; }
 
-.pt-hint {
-  font-size: 11px;
-  color: var(--warn);
-  padding: 6px 8px;
-  border-left: 2px solid var(--warn);
-  margin-bottom: 12px;
-}
+.pt-hint { font-size: 11px; color: var(--warn); flex: none; }
 
-.pt-zones { display: flex; flex-direction: column; gap: 10px; }
-.pt-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-
-.pt-zone {
-  border: 1px dashed var(--line-soft);
-  border-radius: var(--r);
-  padding: 8px 10px 10px;
-  min-height: 96px;
-  transition: border-color var(--dur-fast), background-color var(--dur-fast);
-}
-
-.pt-zone:hover { border-color: var(--line); }
-.pt-zone.compact { min-height: 74px; }
-
-.pt-zone-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.pt-cards { display: flex; flex-wrap: wrap; gap: 6px; }
-.pt-cards .drop-hint { font-size: 11px; padding: 6px 2px; }
-
-/* Battlefield lanes: creatures forward, other permanents behind, lands at the
-   back -- the order a table is actually laid out in from the player's side. */
-.pt-zone.battlefield { display: grid; gap: 2px; }
-
-.pt-lane {
-  display: grid;
-  grid-template-columns: 108px 1fr;
-  align-items: start;
-  gap: 10px;
-  padding: 7px 0;
-  min-height: 46px;
-}
-
-.pt-lane + .pt-lane { border-top: 1px solid var(--line-soft); }
-.pt-lane-label { padding-top: 4px; color: var(--faint); }
-.pt-lane-label b { font-weight: 400; margin-left: 4px; }
-
-/* Lands read as the back row: smaller, and they stack rather than sprawl. */
-.pt-lane.lands .pt-card { width: 62px; }
-.pt-lane .drop-hint { color: var(--faint); opacity: 0.45; }
-
-.pt-card.actionable { cursor: pointer; }
-
-@media (max-width: 900px) {
-  .pt-lane { grid-template-columns: 1fr; gap: 4px; }
-}
-
-.pt-card {
+/* The mat itself. No border and no lanes: a real table has no lines on it,
+   and where you put a permanent carries meaning a layout cannot guess. */
+.pt-mat {
   position: relative;
-  width: 78px;
+  flex: 1 1 auto;
+  min-height: 0;
+  border-radius: var(--r);
+  background:
+    radial-gradient(80% 60% at 50% 45%, rgba(148, 163, 205, 0.05), transparent 70%);
+}
+
+.pt-mat .pt-card { position: absolute; }
+
+.pt-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 12.5px;
+  pointer-events: none;
+}
+
+.pt-piles { display: flex; gap: 10px; flex: none; flex-wrap: wrap; }
+
+.pt-pile {
+  min-width: 116px;
+  padding: 6px 8px 8px;
+  border-radius: var(--r);
+  background: var(--glass);
+  transition: background-color var(--dur-fast);
+}
+
+.pt-pile:hover { background: var(--glass-hi); }
+.pt-pile-head { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; }
+.pt-pile-body { display: flex; min-height: 52px; }
+
+.pt-back {
+  width: 38px;
   aspect-ratio: 488 / 680;
   border-radius: 4px;
+  background: repeating-linear-gradient(45deg,
+    rgba(143, 169, 255, 0.16) 0 4px, rgba(143, 169, 255, 0.06) 4px 8px);
+  border: 1px solid var(--line-soft);
+}
+
+.pt-pile .pt-card { width: 52px; }
+
+/* Cards are 50% larger than they were: this is the view where you are reading
+   the board, not scanning a list. */
+.pt-card {
+  position: relative;
+  width: 117px;
+  aspect-ratio: 488 / 680;
+  border-radius: 5px;
   overflow: hidden;
   cursor: grab;
   background: var(--bg-hi);
@@ -1668,6 +1668,8 @@
   will-change: transform;
 }
 
+.pt-card:active { cursor: grabbing; }
+.pt-card.actionable { cursor: pointer; }
 .pt-card img { width: 100%; height: 100%; object-fit: cover; }
 
 .pt-card:hover {
@@ -1682,7 +1684,7 @@
 
 .pt-fallback {
   padding: 6px;
-  font-size: 9.5px;
+  font-size: 10px;
   line-height: 1.2;
   color: var(--muted);
   height: 100%;
@@ -1691,49 +1693,68 @@
   text-align: center;
 }
 
-.pt-acts {
+/* Info upper right, flip below it — the same corners as every other card. */
+.pt-info,
+.pt-flip {
   position: absolute;
-  inset: auto 0 0 0;
-  display: flex;
-  justify-content: center;
-  gap: 2px;
-  padding: 3px 2px;
-  background: rgba(7, 8, 12, 0.88);
-  opacity: 0;
-  transition: opacity var(--dur-fast);
-}
-
-.pt-card:hover .pt-acts { opacity: 1; }
-
-.pt-acts button {
-  width: 20px;
-  height: 18px;
-  border-radius: 2px;
-  color: var(--muted);
+  right: 4px;
+  z-index: 2;
+  width: 19px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  border: 1px solid var(--line-soft);
+  background: rgba(7, 8, 12, 0.84);
+  backdrop-filter: blur(6px);
+  font-family: var(--font-m);
   font-size: 10px;
   line-height: 1;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
 }
 
-.pt-acts button:hover { color: var(--aether-hi); }
+.pt-info { top: 4px; font-style: italic; }
+.pt-flip { top: 27px; }
+
+.pt-card:hover .pt-info,
+.pt-card:hover .pt-flip { opacity: 1; }
+.pt-info:hover,
+.pt-flip:hover { color: var(--aether-hi); border-color: var(--aether); }
 
 .pt-hand {
-  margin-top: 12px;
-  padding-top: 12px;
+  flex: none;
+  padding-top: 10px;
   border-top: 1px solid var(--line-soft);
   perspective: 900px;
 }
 
-.pt-hand .pt-card { width: 92px; }
+.pt-hand .pt-cards {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.pt-hand .pt-card { flex: none; }
 
 .pt-log {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line-soft);
+  position: absolute;
+  right: 16px;
+  bottom: 200px;
   font-size: 10.5px;
   color: var(--faint);
+  text-align: right;
+  pointer-events: none;
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+@media (max-width: 720px) {
+  .pt-card { width: 88px; }
+  .pt-log { display: none; }
 }
 
 /* Analysis / Recommendations switch in the Deck Lab results column. */
@@ -2143,3 +2164,4 @@
 
 /* On the card page the art is the subject, so the control is always visible. */
 .detail-art .flip-btn { opacity: 1; transform: none; }
+

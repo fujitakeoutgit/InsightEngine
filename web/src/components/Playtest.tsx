@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { Card } from '../lib/api'
+import { useCardFace } from '../lib/faces'
 import { canAnimate, gsap } from '../lib/motion'
-import { primaryType, type DeckCard } from '../lib/deckModel'
+import { type DeckCard } from '../lib/deckModel'
 
 type Zone = 'library' | 'hand' | 'battlefield' | 'graveyard' | 'exile' | 'command'
 
@@ -11,34 +12,15 @@ interface Instance {
   card: Card
   zone: Zone
   tapped: boolean
+  /** Position on the playmat, as a fraction of its size. Only meaningful on
+   *  the battlefield; kept as fractions so the board survives a resize. */
+  x: number
+  y: number
 }
 
 const ZONE_LABEL: Record<Zone, string> = {
   library: 'Library', hand: 'Hand', battlefield: 'Battlefield',
   graveyard: 'Graveyard', exile: 'Exile', command: 'Command',
-}
-
-/**
- * Where a permanent sits on the battlefield.
- *
- * The order is how a table is actually laid out from the player's side:
- * creatures forward where combat happens, other permanents behind them, lands
- * at the back. `primaryType` already resolves the awkward cases -- an Artifact
- * Land is a land, an Artifact Creature is a creature.
- */
-type Lane = 'creatures' | 'permanents' | 'lands'
-
-const LANES: { key: Lane; label: string }[] = [
-  { key: 'creatures', label: 'Creatures' },
-  { key: 'permanents', label: 'Other permanents' },
-  { key: 'lands', label: 'Lands' },
-]
-
-function laneOf(card: Card): Lane {
-  const type = primaryType(card)
-  if (type === 'Land') return 'lands'
-  if (type === 'Creature') return 'creatures'
-  return 'permanents'
 }
 
 /** Fisher-Yates. A biased shuffle would quietly invalidate every draw. */
@@ -51,17 +33,19 @@ function shuffle<T>(items: T[]): T[] {
   return out
 }
 
+/** Expand quantities into individual copies. */
 function build(deck: DeckCard[]): Instance[] {
-  let n = 0
   const out: Instance[] = []
   for (const entry of deck) {
     if (entry.section === 'sideboard' || entry.section === 'maybeboard') continue
     for (let i = 0; i < entry.quantity; i++) {
       out.push({
-        iid: `pi${++n}`,
+        iid: `${entry.uid}-${i}`,
         card: entry.card,
         zone: entry.section === 'commander' ? 'command' : 'library',
         tapped: false,
+        x: 0.5,
+        y: 0.5,
       })
     }
   }
@@ -69,25 +53,36 @@ function build(deck: DeckCard[]): Instance[] {
 }
 
 /**
- * Goldfish simulator.
+ * Goldfishing.
  *
  * Deliberately not a rules engine: it shuffles, draws, and lets you move cards
- * between zones and tap them. Nothing is enforced or prevented, which is the
- * point — you are testing whether the deck *does things*, not adjudicating a
- * game. London mulligan, because that is the one that changes how you keep.
+ * around and tap them. Nothing is enforced or prevented, which is the point --
+ * you are checking whether the deck does anything, not adjudicating a game.
+ *
+ * The battlefield is a bare playmat rather than a set of labelled lanes. A real
+ * table has no lines on it, and where you put a permanent carries meaning that
+ * a layout algorithm cannot guess: attackers pushed forward, an untapped
+ * blocker held back, a combo lined up in a corner.
  */
 export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => void }) {
   const [cards, setCards] = useState<Instance[]>([])
   const [turn, setTurn] = useState(1)
   const [life, setLife] = useState(40)
   const [mulligans, setMulligans] = useState(0)
-  const [toBottom, setToBottom] = useState(0)
   const [log, setLog] = useState<string[]>([])
+  const matRef = useRef<HTMLDivElement>(null)
   const handRef = useRef<HTMLDivElement>(null)
+
+  /** The in-flight drag: which card, and where in it you grabbed. Kept in a
+   *  ref because dataTransfer only yields its payload on drop, and the grab
+   *  offset is needed to stop cards jumping to their corner. */
+  const drag = useRef<{ iid: string; dx: number; dy: number } | null>(null)
+  /** Cards drawn by the last action, so only they animate in. */
+  const [entering, setEntering] = useState<string[]>([])
 
   const note = useCallback((line: string) => setLog((l) => [line, ...l].slice(0, 40)), [])
 
-  const newGame = useCallback((mullCount = 0) => {
+  const newGame = useCallback((mull = 0) => {
     const pool = shuffle(build(deck))
     const library = pool.filter((c) => c.zone === 'library')
     const command = pool.filter((c) => c.zone === 'command')
@@ -95,10 +90,11 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
     const rest = library.slice(7)
     setCards([...command, ...hand, ...rest])
     setTurn(1)
-    setMulligans(mullCount)
-    setToBottom(mullCount)
-    note(mullCount ? `Mulligan to ${7 - mullCount} — put ${mullCount} on the bottom` : 'New game, 7 cards')
-  }, [deck, note])
+    setLife(40)
+    setMulligans(mull)
+    setEntering(hand.map((c) => c.iid))
+    setLog([mull ? `Mulligan to ${7 - mull}` : 'New game — drew 7'])
+  }, [deck])
 
   useEffect(() => { newGame(0) }, [newGame])
 
@@ -110,34 +106,43 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
     return map
   }, [cards])
 
-  const move = (iid: string, zone: Zone) => {
-    setCards((cs) => cs.map((c) => (c.iid === iid ? { ...c, zone, tapped: false } : c)))
+  const move = (iid: string, zone: Zone, at?: { x: number; y: number }) => {
+    setCards((cs) => cs.map((c) => (
+      c.iid === iid
+        ? { ...c, zone, tapped: zone === 'battlefield' ? c.tapped : false, ...(at ?? {}) }
+        : c
+    )))
   }
 
   const draw = (count = 1) => {
+    let drawn: string[] = []
     setCards((cs) => {
       const library = cs.filter((c) => c.zone === 'library')
-      const taking = new Set(library.slice(0, count).map((c) => c.iid))
+      drawn = library.slice(0, count).map((c) => c.iid)
+      const taking = new Set(drawn)
       return cs.map((c) => (taking.has(c.iid) ? { ...c, zone: 'hand' } : c))
     })
+    // Only the new cards animate. Re-revealing the whole hand every turn made
+    // it impossible to see which card had actually arrived.
+    setEntering(drawn)
     note(count === 1 ? 'Drew a card' : `Drew ${count} cards`)
   }
 
-  // New hands animate in; the reveal is how you notice the hand changed.
   useEffect(() => {
-    if (!handRef.current || !canAnimate()) return
-    const tiles = handRef.current.querySelectorAll('.pt-card')
+    if (!handRef.current || !entering.length || !canAnimate()) return
+    const tiles = entering
+      .map((iid) => handRef.current!.querySelector(`[data-iid="${iid}"]`))
+      .filter(Boolean) as Element[]
     if (!tiles.length) return
     gsap.fromTo(tiles,
-      { opacity: 0, y: 22, rotateX: -28, filter: 'blur(10px)' },
-      { opacity: 1, y: 0, rotateX: 0, filter: 'blur(0px)', duration: 0.55,
-        ease: 'power3.out', stagger: { amount: 0.28 } },
+      { opacity: 0, y: 26, rotateX: -30, filter: 'blur(10px)' },
+      { opacity: 1, y: 0, rotateX: 0, filter: 'blur(0px)', duration: 0.5,
+        ease: 'power3.out', stagger: { amount: 0.22 } },
     )
-  }, [inZone.hand.length, mulligans])
+  }, [entering])
 
-  const untapAll = () => {
+  const untapAll = () =>
     setCards((cs) => cs.map((c) => (c.zone === 'battlefield' ? { ...c, tapped: false } : c)))
-  }
 
   const nextTurn = () => {
     untapAll()
@@ -149,25 +154,49 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
   const tap = (iid: string) =>
     setCards((cs) => cs.map((c) => (c.iid === iid ? { ...c, tapped: !c.tapped } : c)))
 
-  /** Play a card from hand or the command zone. It goes to the battlefield
-   *  lane its own type dictates, so this needs no target. Instants and
-   *  sorceries resolve to the graveyard: they never sit on a battlefield, and
-   *  leaving one there quietly inflates the board you are reading. */
+  /** Play a card. Instants and sorceries resolve to the graveyard: they never
+   *  sit on a battlefield, and leaving one there inflates the board you are
+   *  reading. Everything else lands where the mat is free. */
   const play = (iid: string) => {
     const inst = cards.find((c) => c.iid === iid)
     if (!inst) return
-    const spell = /\b(Instant|Sorcery)\b/.test(inst.card.type_line ?? '')
-    move(iid, spell ? 'graveyard' : 'battlefield')
-    note(spell ? `Cast ${inst.card.name}` : `Played ${inst.card.name}`)
+    if (/\b(Instant|Sorcery)\b/.test(inst.card.type_line ?? '')) {
+      move(iid, 'graveyard')
+      note(`Cast ${inst.card.name}`)
+      return
+    }
+    // Dealt left-to-right in rows so a clicked card does not land on the last
+    // one; drag it wherever you actually want it.
+    const n = inZone.battlefield.length
+    move(iid, 'battlefield', { x: 0.07 + (n % 8) * 0.11, y: 0.16 + Math.floor(n / 8) * 0.26 })
+    note(`Played ${inst.card.name}`)
   }
 
-  const lands = inZone.battlefield.filter((c) => primaryType(c.card) === 'Land')
+  /** Drop onto the mat: place the card where the pointer released it. */
+  const onMatDrop = (event: React.DragEvent) => {
+    event.preventDefault()
+    const mat = matRef.current
+    const held = drag.current
+    const iid = event.dataTransfer.getData('text/plain') || held?.iid
+    if (!mat || !iid) return
+    const rect = mat.getBoundingClientRect()
+    const x = (event.clientX - rect.left - (held?.dx ?? 0)) / rect.width
+    const y = (event.clientY - rect.top - (held?.dy ?? 0)) / rect.height
+    move(iid, 'battlefield', {
+      x: Math.min(0.97, Math.max(0, x)),
+      y: Math.min(0.94, Math.max(0, y)),
+    })
+    drag.current = null
+  }
+
+  const lands = inZone.battlefield.filter((c) => /\bLand\b/.test(c.card.type_line ?? ''))
   const untappedLands = lands.filter((c) => !c.tapped).length
+  const toBottom = Math.max(0, inZone.hand.length - (7 - mulligans))
 
   return (
     <div className="playtest">
       <div className="pt-bar">
-        <span className="label">Playtest</span>
+        <button className="back-link" onClick={onClose}>← Back to deck</button>
         <span className="mono">Turn {turn}</span>
         <span className="mono">
           Life{' '}
@@ -193,67 +222,44 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
             Mulligan {mulligans > 0 && `(${7 - mulligans})`}
           </button>
           <button className="btn btn-ghost sm" onClick={() => newGame(0)}>Reset</button>
-          <button className="btn btn-ghost sm" onClick={onClose}>Close</button>
         </div>
       </div>
 
       {toBottom > 0 && (
         <p className="pt-hint mono">
           London mulligan — put {toBottom} card{toBottom > 1 ? 's' : ''} from hand on the
-          bottom (click ↓ Library), then play on.
+          bottom (drag to Library), then play on.
         </p>
       )}
 
-      <div className="pt-zones">
-        <div
-          className="pt-zone battlefield"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault()
-            const iid = e.dataTransfer.getData('text/plain')
-            if (iid) move(iid, 'battlefield')
-          }}
-        >
-          <div className="pt-zone-head">
-            <span className="label">Battlefield</span>
-            <span className="mono faint">{inZone.battlefield.length}</span>
-          </div>
-          {/* One lane per kind of permanent. A card lands in the right lane by
-              its own type, so playing it never asks you where to put it. */}
-          {LANES.map(({ key, label }) => {
-            const inLane = inZone.battlefield.filter((c) => laneOf(c.card) === key)
-            return (
-              <div className={`pt-lane ${key}`} key={key}>
-                <span className="pt-lane-label label">
-                  {label} <b className="mono faint">{inLane.length}</b>
-                </span>
-                <div className="pt-cards">
-                  {inLane.map((c) => (
-                    <PlayCard key={c.iid} inst={c} onMove={move} onTap={tap} />
-                  ))}
-                  {!inLane.length && <p className="faint drop-hint">—</p>}
-                </div>
-              </div>
-            )
-          })}
-        </div>
+      {/* The mat. No border, no lanes, no labels: cards sit where you put them. */}
+      <div
+        className="pt-mat"
+        ref={matRef}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={onMatDrop}
+      >
+        {inZone.battlefield.map((c) => (
+          <PlayCard
+            key={c.iid} inst={c} drag={drag} onTap={tap} placed
+          />
+        ))}
+        {!inZone.battlefield.length && (
+          <p className="pt-empty faint">Click a card in hand to play it, or drag it here.</p>
+        )}
+      </div>
 
-        <Zone name="command" cards={inZone.command} onMove={move} onPlay={play} />
-        <div className="pt-row">
-          <Zone name="graveyard" cards={inZone.graveyard} onMove={move} compact />
-          <Zone name="exile" cards={inZone.exile} onMove={move} compact />
-        </div>
+      <div className="pt-piles">
+        <Pile name="command" cards={inZone.command} drag={drag} onMove={move} onPlay={play} />
+        <Pile name="graveyard" cards={inZone.graveyard} drag={drag} onMove={move} />
+        <Pile name="exile" cards={inZone.exile} drag={drag} onMove={move} />
+        <Pile name="library" cards={inZone.library} drag={drag} onMove={move} facedown />
       </div>
 
       <div className="pt-hand" ref={handRef}>
-        <div className="pt-zone-head">
-          <span className="label">Hand</span>
-          <span className="mono faint">{inZone.hand.length}</span>
-          <span className="faint" style={{ fontSize: 10.5 }}>click to play</span>
-        </div>
         <div className="pt-cards">
           {inZone.hand.map((c) => (
-            <PlayCard key={c.iid} inst={c} onMove={move} onPlay={play} inHand />
+            <PlayCard key={c.iid} inst={c} drag={drag} onPlay={play} />
           ))}
           {!inZone.hand.length && <p className="faint" style={{ fontSize: 12 }}>Empty hand.</p>}
         </div>
@@ -261,58 +267,67 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
 
       {log.length > 0 && (
         <div className="pt-log mono">
-          {log.slice(0, 5).map((line, i) => <div key={i}>{line}</div>)}
+          {log.slice(0, 4).map((line, i) => <div key={i}>{line}</div>)}
         </div>
       )}
     </div>
   )
 }
 
-function Zone({
-  name, cards, onMove, onTap, onPlay, compact,
+type DragRef = React.MutableRefObject<{ iid: string; dx: number; dy: number } | null>
+
+function Pile({
+  name, cards, drag, onMove, onPlay, facedown,
 }: {
   name: Zone
   cards: Instance[]
-  onMove: (iid: string, zone: Zone) => void
-  onTap?: (iid: string) => void
+  drag: DragRef
+  onMove: (iid: string, zone: Zone, at?: { x: number; y: number }) => void
   onPlay?: (iid: string) => void
-  compact?: boolean
+  facedown?: boolean
 }) {
   return (
     <div
-      className={`pt-zone ${compact ? 'compact' : ''}`}
+      className={`pt-pile ${facedown ? 'facedown' : ''}`}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault()
-        const iid = e.dataTransfer.getData('text/plain')
+        const iid = e.dataTransfer.getData('text/plain') || drag.current?.iid
         if (iid) onMove(iid, name)
+        drag.current = null
       }}
     >
-      <div className="pt-zone-head">
+      <div className="pt-pile-head">
         <span className="label">{ZONE_LABEL[name]}</span>
         <span className="mono faint">{cards.length}</span>
       </div>
-      <div className="pt-cards">
-        {cards.map((c) => (
-          <PlayCard key={c.iid} inst={c} onMove={onMove} onTap={onTap} onPlay={onPlay} />
-        ))}
-        {!cards.length && <p className="faint drop-hint">Drop here</p>}
+      <div className="pt-pile-body">
+        {facedown
+          ? <div className="pt-back" aria-hidden />
+          : cards.slice(-3).map((c, i) => (
+            <PlayCard
+              key={c.iid} inst={c} drag={drag} onPlay={onPlay}
+              style={{ marginLeft: i ? -34 : 0 }}
+            />
+          ))}
       </div>
     </div>
   )
 }
 
 function PlayCard({
-  inst, onMove, onTap, onPlay, inHand,
+  inst, drag, onTap, onPlay, placed, style,
 }: {
   inst: Instance
-  onMove: (iid: string, zone: Zone) => void
+  drag: DragRef
   onTap?: (iid: string) => void
   /** Present in hand and the command zone: click puts it onto the battlefield. */
   onPlay?: (iid: string) => void
-  inHand?: boolean
+  /** On the mat, so it is positioned absolutely. */
+  placed?: boolean
+  style?: React.CSSProperties
 }) {
-  const image = inst.card.image_normal ?? inst.card.image_small
+  const face = useCardFace(inst.card)
   // A card is either somewhere it can be played from or somewhere it can be
   // tapped, never both, so one click means one thing wherever you are.
   const action = onPlay ?? onTap
@@ -321,20 +336,53 @@ function PlayCard({
   return (
     <div
       className={`pt-card ${inst.tapped ? 'tapped' : ''} ${action ? 'actionable' : ''}`}
+      data-iid={inst.iid}
       draggable
-      onDragStart={(e) => e.dataTransfer.setData('text/plain', inst.iid)}
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/plain', inst.iid)
+        e.dataTransfer.effectAllowed = 'move'
+        // Where in the card you grabbed, so it does not snap its corner to the
+        // pointer when dropped.
+        const rect = e.currentTarget.getBoundingClientRect()
+        drag.current = {
+          iid: inst.iid,
+          dx: e.clientX - rect.left,
+          dy: e.clientY - rect.top,
+        }
+      }}
       onClick={() => action?.(inst.iid)}
       title={`${inst.card.name}${hint}`}
+      style={placed
+        ? { ...style, left: `${inst.x * 100}%`, top: `${inst.y * 100}%` }
+        : style}
     >
-      {image
-        ? <img src={image} alt={inst.card.name} loading="lazy" />
+      {face.src
+        ? <img src={face.src} alt={face.faceName} loading="lazy" />
         : <div className="pt-fallback">{inst.card.name}</div>}
-      <div className="pt-acts">
-        {inHand && (
-          <button onClick={(e) => { e.stopPropagation(); onMove(inst.iid, 'library') }} title="Bottom of library">↓</button>
-        )}
-        <button onClick={(e) => { e.stopPropagation(); onMove(inst.iid, 'graveyard') }} title="Graveyard">✝</button>
-      </div>
+
+      {/* A new tab: navigating away would end the game. */}
+      <a
+        className="pt-info"
+        href={`/card/${inst.card.oracle_id}`}
+        target="_blank"
+        rel="noreferrer noopener"
+        title={`Open ${inst.card.name}`}
+        aria-label={`Open ${inst.card.name}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        i
+      </a>
+
+      {face.flippable && (
+        <button
+          className="pt-flip"
+          title={`Turn over — showing ${face.faceName}`}
+          aria-label="Turn card over"
+          onClick={(e) => { e.stopPropagation(); face.flip() }}
+        >
+          ⟳
+        </button>
+      )}
     </div>
   )
 }
