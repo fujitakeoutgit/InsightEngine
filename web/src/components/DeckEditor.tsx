@@ -19,6 +19,10 @@ const GROUPINGS: [GroupBy, string][] = [
   ['rarity', 'Rarity'], ['none', 'None'],
 ]
 
+/** The three editable sections, as tabs. Commander is excluded deliberately —
+ *  see the note where these are rendered. */
+const SECTION_TABS = SECTIONS.filter((s) => s.key !== 'commander')
+
 const SORTS: [SortBy, string][] = [
   ['name', 'Name'], ['cmc', 'Mana value'], ['price', 'Price'],
   ['rarity', 'Rarity'], ['color', 'Colour'],
@@ -52,7 +56,33 @@ export function DeckEditor({
   const [openGroups, setOpenGroups] = useState<Record<string, string>>({})
   const [dragging, setDragging] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<Section | null>(null)
+  const [activeSection, setActiveSection] = useState<Section>('main')
+  /** Springs a hovered tab open mid-drag. */
+  const springTimer = useRef<number | undefined>(undefined)
   const collected = useCollection()
+
+  useEffect(() => () => window.clearTimeout(springTimer.current), [])
+
+  /** Drop onto a section, whether that is its tab or its body.
+   *
+   * A card dragged in from the Search tab is an addition; a uid dragged from
+   * another section is a move. The card is checked first, since that drag also
+   * carries a text/plain fallback for dropping into other applications. */
+  const onDropInto = (event: React.DragEvent, section: Section) => {
+    event.preventDefault()
+    window.clearTimeout(springTimer.current)
+    setDropTarget(null)
+    const payload = event.dataTransfer.getData(CARD_DRAG_TYPE)
+    if (payload) {
+      try {
+        onAddSearched?.(JSON.parse(payload) as Card, section)
+      } catch { /* not ours after all */ }
+      return
+    }
+    const uid = dragging ?? event.dataTransfer.getData('text/plain')
+    if (uid) move(uid, section)
+    setDragging(null)
+  }
 
   /** The open tab for a section, falling back to the first group. Editing can
    *  empty the selected group out of existence, so the stored key is only
@@ -84,7 +114,18 @@ export function DeckEditor({
   }), [cards])
 
   return (
-    <div className="editor">
+    // Accepting the drag at the top level suppresses the browser's "no drop"
+    // cursor. Without it, every pixel between two drop targets flashes a stop
+    // sign, which reads as an error while you are simply moving the pointer.
+    // A drop that lands here rather than on a section is just ignored.
+    <div
+      className="editor"
+      onDragOver={(e) => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+      }}
+      onDrop={(e) => e.preventDefault()}
+    >
       <div className="editor-bar">
         <input
           className="fld"
@@ -137,45 +178,70 @@ export function DeckEditor({
         )}
       </div>
 
+      {/* Deck, Sideboard and Maybeboard are tabs rather than three stacked
+          lists. Only one is ever the thing you are working on, and the other
+          two were pushing it up the page.
+
+          Commander is filtered out here rather than dropped from SECTIONS,
+          which also drives serialize() -- removing it there would strip the
+          commander out of the decklist text entirely. The analysis tab shows
+          the card itself, so a one-card section earned nothing. */}
+      <div className="section-tabs">
+        {SECTION_TABS.map(({ key, label }) => {
+          const count = cards
+            .filter((c) => c.section === key)
+            .reduce((n, c) => n + c.quantity, 0)
+          return (
+            <button
+              key={key}
+              className={[
+                activeSection === key ? 'on' : '',
+                dropTarget === key ? 'drop' : '',
+              ].filter(Boolean).join(' ')}
+              onClick={() => setActiveSection(key)}
+              // A tab is a drop target, so a card can be moved to a section
+              // without opening it first. Hovering also *springs* the tab open
+              // after a beat, which is what lets you drop into a group inside
+              // it rather than only onto the section as a whole.
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+                if (dropTarget !== key) {
+                  setDropTarget(key)
+                  window.clearTimeout(springTimer.current)
+                  springTimer.current = window.setTimeout(() => setActiveSection(key), 550)
+                }
+              }}
+              onDragLeave={() => {
+                window.clearTimeout(springTimer.current)
+                setDropTarget((t) => (t === key ? null : t))
+              }}
+              onDrop={(e) => onDropInto(e, key)}
+            >
+              {label}
+              <span className="mono faint"> {count}</span>
+            </button>
+          )
+        })}
+      </div>
+
       <div className="sections">
-        {/* Commander is filtered here rather than dropped from SECTIONS, which
-            also drives serialize() -- removing it there would strip the
-            commander out of the decklist text entirely. The analysis tab shows
-            the card itself, so a one-card section here earned nothing. */}
-        {SECTIONS.filter((s) => s.key !== 'commander').map(({ key, label }) => {
+        {SECTION_TABS.filter((s) => s.key === activeSection).map(({ key }) => {
           const inSection = visible.filter((c) => c.section === key)
-          const count = inSection.reduce((n, c) => n + c.quantity, 0)
           const groups = groupCards(sortDeckCards(inSection, sortBy), groupBy)
 
           return (
             <section
               key={key}
               className={`deck-section ${dropTarget === key ? 'drop' : ''}`}
-              onDragOver={(e) => { e.preventDefault(); setDropTarget(key) }}
-              onDragLeave={() => setDropTarget((t) => (t === key ? null : t))}
-              onDrop={(e) => {
+              onDragOver={(e) => {
                 e.preventDefault()
-                setDropTarget(null)
-                // A card dragged in from the Search tab is an addition; a uid
-                // dragged from another section is a move. Check for the card
-                // first, since that drag also carries a text/plain fallback.
-                const payload = e.dataTransfer.getData(CARD_DRAG_TYPE)
-                if (payload) {
-                  try {
-                    onAddSearched?.(JSON.parse(payload) as Card, key)
-                  } catch { /* not ours after all */ }
-                  return
-                }
-                const uid = dragging ?? e.dataTransfer.getData('text/plain')
-                if (uid) move(uid, key)
-                setDragging(null)
+                e.dataTransfer.dropEffect = 'move'
+                setDropTarget(key)
               }}
+              onDragLeave={() => setDropTarget((t) => (t === key ? null : t))}
+              onDrop={(e) => onDropInto(e, key)}
             >
-              <header>
-                <span className="label">{label}</span>
-                <span className="mono faint">{count}</span>
-              </header>
-
               {inSection.length === 0 ? (
                 <p className="faint empty">
                   {query

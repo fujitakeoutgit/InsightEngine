@@ -2209,3 +2209,35 @@
 @media (max-width: 720px) {
   .pt-deck-back { width: 88px; }
 }
+
+/* Deck / Sideboard / Maybeboard. Each is also a drop target, so a card can be
+   sent to a section without opening it first. */
+.section-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.section-tabs button {
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  border-radius: var(--r) var(--r) 0 0;
+  transition: color var(--dur-fast), border-color var(--dur-fast),
+              background-color var(--dur-fast), transform var(--dur-fast) var(--ease-out);
+}
+
+.section-tabs button:hover { color: var(--ink); }
+.section-tabs button.on { color: var(--ink); border-bottom-color: var(--aether); }
+
+/* Held over during a drag: the tab lifts and lights up, then springs open. */
+.section-tabs button.drop {
+  color: var(--aether-hi);
+  border-bottom-color: var(--aether);
+  background: color-mix(in oklab, var(--aether) 16%, transparent);
+  transform: translateY(-2px);
+}

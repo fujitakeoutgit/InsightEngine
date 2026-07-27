@@ -36,7 +36,10 @@ function SearchTile({ card }: { card: Card }) {
         // means a drop anywhere else pastes a usable decklist line.
         e.dataTransfer.setData(CARD_DRAG_TYPE, JSON.stringify(card))
         e.dataTransfer.setData('text/plain', `1 ${card.name}`)
-        e.dataTransfer.effectAllowed = 'copy'
+        // 'move' rather than 'copy': the browser draws a badge for the effect,
+        // and a green plus over every card is noise on a drag whose whole
+        // purpose is obvious.
+        e.dataTransfer.effectAllowed = 'move'
       }}
       title={`${card.name} — ${card.type_line ?? ''}`}
     >
