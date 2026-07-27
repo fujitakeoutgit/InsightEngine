@@ -1914,7 +1914,14 @@
 }
 
 .deck-head .back-link { padding: 0; }
-.deck-head .deck-name { max-width: 260px; }
+
+.deck-title {
+  margin: 0;
+  font-size: clamp(20px, 2.4vw, 27px);
+  letter-spacing: -0.02em;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 
 /* --------------------------------------------------------------------------
    Deck charts
@@ -2101,3 +2108,38 @@
 /* The four category requests sit together so they read as one control rather
    than four more buttons in the action row. */
 .cat-buttons { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+
+/* Turn a double-faced card over. Upper right, or a row lower when an info
+   control already owns that corner. */
+.flip-btn {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  z-index: 3;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  border: 1px solid var(--line-soft);
+  background: rgba(7, 8, 12, 0.82);
+  backdrop-filter: blur(6px);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--muted);
+  opacity: 0;
+  transform: translateY(-3px);
+  transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out),
+              color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.flip-btn.below { top: 32px; }
+.flip-btn:hover { color: var(--aether-hi); border-color: var(--aether); }
+
+.card-tile:hover .flip-btn,
+.editor-tile:hover .flip-btn,
+.card-tile:focus-within .flip-btn,
+.editor-tile:focus-within .flip-btn { opacity: 1; transform: translateY(0); }
+
+/* On the card page the art is the subject, so the control is always visible. */
+.detail-art .flip-btn { opacity: 1; transform: none; }

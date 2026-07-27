@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import type { Card } from '../lib/api'
 import { collection, useIsCollected } from '../lib/collection'
 import { attachTilt, dissolveIn } from '../lib/motion'
+import { useCardFace } from '../lib/faces'
+import { FlipButton } from './FlipButton'
 import { IdentityDots, ManaCost } from './ManaCost'
 
 function money(value: number | null) {
@@ -36,7 +38,7 @@ function CardTile({
 }: { card: Card; collectable: boolean; caption?: string; onPick?: CardPick }) {
   const ref = useRef<HTMLAnchorElement>(null)
   const [loaded, setLoaded] = useState(false)
-  const image = card.image_normal ?? card.image_small
+  const { flippable, faceName, src: image, flip } = useCardFace(card)
 
   useEffect(() => {
     if (!ref.current) return
@@ -61,10 +63,11 @@ function CardTile({
       }
     >
       {collectable && <CollectButton card={card} />}
+      {flippable && <FlipButton onFlip={flip} faceName={faceName} />}
       {image ? (
         <img
           src={image}
-          alt={card.name}
+          alt={faceName}
           loading="lazy"
           decoding="async"
           className={loaded ? 'loaded' : ''}

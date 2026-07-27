@@ -7,9 +7,11 @@ import {
   SECTIONS, countCards, deckValue, filterCards, groupCards, sortDeckCards,
   type DeckCard, type GroupBy, type Section, type SortBy,
 } from '../lib/deckModel'
+import { useCardFace } from '../lib/faces'
 import { attachTilt } from '../lib/motion'
 import { usePersisted } from '../lib/usePersisted'
 import { CARD_DRAG_TYPE } from './DeckSearch'
+import { FlipButton } from './FlipButton'
 import { ManaCost } from './ManaCost'
 
 const GROUPINGS: [GroupBy, string][] = [
@@ -255,6 +257,7 @@ function EditorRow({
 }) {
   const card: Card = entry.card
   const tiltRef = useRef<HTMLDivElement>(null)
+  const face = useCardFace(card)
 
   // Same pointer-tracking tilt the search grid uses, so a card behaves the
   // same way wherever you meet it.
@@ -281,10 +284,15 @@ function EditorRow({
         {...dragProps}
         title={`${card.name} — ${card.type_line ?? ''}`}
       >
-        {card.image_normal ? (
-          <img src={card.image_normal} alt={card.name} loading="lazy" />
+        {face.src ? (
+          <img src={face.src} alt={face.faceName} loading="lazy" />
         ) : (
           <div className="fallback"><div className="nm">{card.name}</div></div>
+        )}
+
+        {/* Below the info control, which already owns this corner. */}
+        {face.flippable && (
+          <FlipButton onFlip={face.flip} faceName={face.faceName} below />
         )}
 
         {/* Quantity floats top-left, price bottom-right — the same corners the

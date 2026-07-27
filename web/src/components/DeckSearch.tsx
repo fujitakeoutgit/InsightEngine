@@ -1,20 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { api, type Card } from '../lib/api'
+import { useCardFace } from '../lib/faces'
 import { attachTilt, dissolveIn } from '../lib/motion'
 import { usePersisted } from '../lib/usePersisted'
+import { FlipButton } from './FlipButton'
 import { ManaCost } from './ManaCost'
 
 /** Dragging a card out of here carries this; the deck sections read it. */
 export const CARD_DRAG_TYPE = 'application/x-insight-card'
 
-/**
- * Card art inside a `.card-tile`.
- *
- * `.card-tile img` starts at opacity 0 and fades in on a `loaded` class, so an
- * `<img>` that never sets it stays invisible forever -- which is exactly what
- * these tiles did.
- */
 /**
  * One result tile.
  *
@@ -24,6 +19,7 @@ export const CARD_DRAG_TYPE = 'application/x-insight-card'
  */
 function SearchTile({ card }: { card: Card }) {
   const ref = useRef<HTMLDivElement>(null)
+  const face = useCardFace(card)
 
   useEffect(() => {
     if (!ref.current) return
@@ -44,8 +40,9 @@ function SearchTile({ card }: { card: Card }) {
       }}
       title={`${card.name} — ${card.type_line ?? ''}`}
     >
-      {card.image_normal || card.image_small ? (
-        <SearchTileImage src={card.image_normal ?? card.image_small!} alt={card.name} />
+      {face.flippable && <FlipButton onFlip={face.flip} faceName={face.faceName} />}
+      {face.src ? (
+        <SearchTileImage src={face.src} alt={face.faceName} />
       ) : (
         <div className="fallback">
           <div>
@@ -59,6 +56,13 @@ function SearchTile({ card }: { card: Card }) {
   )
 }
 
+/**
+ * Card art inside a `.card-tile`.
+ *
+ * `.card-tile img` starts at opacity 0 and fades in on a `loaded` class, so an
+ * `<img>` that never sets it stays invisible forever -- which is exactly what
+ * these tiles did.
+ */
 function SearchTileImage({ src, alt }: { src: string; alt: string }) {
   const [loaded, setLoaded] = useState(false)
   return (

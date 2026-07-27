@@ -429,6 +429,27 @@ export function DeckPage() {
       </div>
 
       {mode === 'text' && (
+        <div className="row gap-2 wrap">
+          <label className="stack gap-1" style={{ flex: '1 1 240px', minWidth: 0 }}>
+            <span className="label">Deck name</span>
+            <input
+              className="fld" placeholder="Untitled deck" value={deckName}
+              onChange={(e) => setDeckName(e.target.value)} aria-label="Deck name"
+            />
+          </label>
+          <label className="stack gap-1">
+            <span className="label">Format</span>
+            <select
+              className="fld" style={{ width: 'auto' }} value={format}
+              onChange={(e) => setFormat(e.target.value)} aria-label="Format"
+            >
+              {REC_FORMATS.map((f) => <option key={f} value={f}>{f || 'Any format'}</option>)}
+            </select>
+          </label>
+        </div>
+      )}
+
+      {mode === 'text' && (
         <label className="stack gap-1">
           <span className="label">How this deck works</span>
           <textarea
@@ -679,12 +700,11 @@ export function DeckPage() {
           deck, and anywhere lower puts the Playtest button underneath the
           panel it toggles. */}
       <div className="deck-head">
-        <input className="fld deck-name" placeholder="Untitled deck" value={deckName}
-          onChange={(e) => setDeckName(e.target.value)} aria-label="Deck name" />
-        <select className="fld" style={{ width: 'auto' }} value={format}
-          onChange={(e) => setFormat(e.target.value)} aria-label="Format">
-          {REC_FORMATS.map((f) => <option key={f} value={f}>{f || 'Any format'}</option>)}
-        </select>
+        {/* Read-only here. The title bar is the deck's identity, not a form:
+            the field and the dropdown live under Text, where you are already
+            editing what the deck is. */}
+        <h2 className="deck-title">{deckName.trim() || 'Untitled deck'}</h2>
+        <span className="chip">{format || 'Any format'}</span>
 
         {/* Save and Playtest act on the deck as a whole, not on whichever tab
             is open, so they sit with the deck's name rather than beside the

@@ -4,6 +4,8 @@ import { Link, useParams } from 'react-router-dom'
 import { api, type CardDetail } from '../lib/api'
 import { collection, useIsCollected } from '../lib/collection'
 import { attachTilt, riseIn } from '../lib/motion'
+import { useCardFace } from '../lib/faces'
+import { FlipButton } from '../components/FlipButton'
 import { Lightbox } from '../components/Lightbox'
 import { BackLink } from '../components/PageHead'
 import { IdentityDots, ManaCost, OracleText } from '../components/ManaCost'
@@ -28,6 +30,7 @@ export function CardPage() {
   const held = useIsCollected(oracleId ?? '')
   const [zoomed, setZoomed] = useState<DOMRect | null>(null)
   const [isZoomed, setIsZoomed] = useState(false)
+  const face = useCardFace(detail?.card)
 
   useEffect(() => {
     if (!oracleId) return
@@ -94,14 +97,15 @@ export function CardPage() {
       </div>
       <section className="shell detail" ref={bodyRef}>
       <div className="detail-art">
-        {card.image_normal ? (
+        {face.src ? (
           <div
             className="detail-tilt"
             ref={artRef}
             onClick={() => { setZoomed(artRef.current?.getBoundingClientRect() ?? null); setIsZoomed(true) }}
             title="Click to enlarge"
           >
-            <img src={card.image_normal} alt={card.name} />
+            <img src={face.src} alt={face.faceName} />
+            {face.flippable && <FlipButton onFlip={face.flip} faceName={face.faceName} />}
           </div>
         ) : (
           <div className="panel">No image available.</div>
@@ -185,19 +189,19 @@ export function CardPage() {
 
         {faces.length > 0 ? (
           <div className="stack gap-3">
-            {faces.map((face, i) => (
+            {faces.map((cardFace, i) => (
               <div className="panel" key={i}>
-                <h3>{face.name}</h3>
+                <h3>{cardFace.name}</h3>
                 <div className="row gap-2 wrap" style={{ marginBottom: 'var(--gap-2)' }}>
-                  <ManaCost cost={face.mana_cost} />
-                  <span className="muted">{face.type_line}</span>
+                  <ManaCost cost={cardFace.mana_cost} />
+                  <span className="muted">{cardFace.type_line}</span>
                 </div>
                 <div className="oracle">
-                  <OracleText text={face.oracle_text} />
+                  <OracleText text={cardFace.oracle_text} />
                 </div>
-                {face.power && (
+                {cardFace.power && (
                   <span className="pt-badge mono" style={{ marginTop: 'var(--gap-2)', display: 'inline-block' }}>
-                    {face.power}/{face.toughness}
+                    {cardFace.power}/{cardFace.toughness}
                   </span>
                 )}
               </div>
@@ -327,10 +331,11 @@ export function CardPage() {
       </div>
     </section>
 
-    {isZoomed && card.image_normal && (
+    {/* The face you were looking at, not always the front. */}
+    {isZoomed && face.src && (
       <Lightbox
-        src={card.image_normal}
-        alt={card.name}
+        src={face.src}
+        alt={face.faceName}
         from={zoomed}
         onClose={() => setIsZoomed(false)}
       />
