@@ -396,7 +396,7 @@ export function SearchPage() {
 
         {collapsed && consoleEl}
 
-        <ScrollTop watch={toolbarRef} />
+        <ScrollTop watch={toolbarRef} ready={cards.length > 0} />
       </section>
     </>
   )

@@ -806,8 +806,10 @@
 
 .query-preview {
   position: sticky;
-  bottom: 0;
-  margin-top: 22px;
+  /* Clears the sticky header, which is ~57px tall. */
+  top: 58px;
+  z-index: 20;
+  margin-bottom: 22px;
   padding: 14px 16px;
   border: 1px solid var(--aether);
   border-radius: var(--r);

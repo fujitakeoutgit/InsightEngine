@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 
 import { api, type SetInfo } from '../lib/api'
 import { dissolveIn, riseIn } from '../lib/motion'
+import { PageHead } from '../components/PageHead'
 
 const TYPE_LABELS: Record<string, string> = {
   core: 'Core', expansion: 'Expansion', masters: 'Masters', commander: 'Commander',
@@ -44,7 +45,9 @@ export function SetsPage() {
 
   useEffect(() => {
     if (gridRef.current) {
-      dissolveIn(gridRef.current.querySelectorAll('.set-card'), { stagger: 0.008 })
+      // No blur: these tiles are 28px icons and a line of text, so the blur is
+      // imperceptible but still costs a filter pass per tile.
+      dissolveIn(gridRef.current.querySelectorAll('.set-card'), { stagger: 0.008, blur: false })
     }
   }, [visible])
 
@@ -55,31 +58,28 @@ export function SetsPage() {
 
   return (
     <section className="shell" style={{ paddingTop: 'var(--gap-4)' }}>
-      <div className="section-head" ref={headRef}>
-        <h2>Sets</h2>
-        <div className="row gap-2 wrap">
-          <input
-            className="field"
-            style={{ width: 'auto' }}
-            placeholder="Filter by name or code"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
-          <select
-            className="field"
-            style={{ width: 'auto' }}
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-          >
-            <option value="primary">Main sets</option>
-            <option value="all">All types</option>
-            {types.map((t) => (
-              <option key={t} value={t}>{TYPE_LABELS[t] ?? t}</option>
-            ))}
-          </select>
-          <span className="count mono muted">{visible.length}</span>
-        </div>
-      </div>
+      <PageHead eyebrow="Browse" title="Sets" ref={headRef}>
+        <input
+          className="field"
+          style={{ width: 'auto' }}
+          placeholder="Filter by name or code"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+        <select
+          className="field"
+          style={{ width: 'auto' }}
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+        >
+          <option value="primary">Main sets</option>
+          <option value="all">All types</option>
+          {types.map((t) => (
+            <option key={t} value={t}>{TYPE_LABELS[t] ?? t}</option>
+          ))}
+        </select>
+        <span className="count mono muted">{visible.length}</span>
+      </PageHead>
 
       {error && (
         <div className="notice error">

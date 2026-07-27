@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 
 import { collection, useCollection } from '../lib/collection'
 import { CardGrid } from '../components/CardGrid'
+import { PageHead } from '../components/PageHead'
 
 const SIZE_KEY = 'insight-enigma:card-size'
 
@@ -31,12 +32,7 @@ export function CardsPage() {
 
   return (
     <section className="shell" style={{ paddingTop: 22 }}>
-      <div className="section-head">
-        <div>
-          <span className="eyebrow">Collected</span>
-          <h2>Cards</h2>
-        </div>
-        <div className="row gap-2 wrap">
+      <PageHead eyebrow="Collected" title="Cards">
           <span className="mono muted" style={{ fontSize: 12 }}>
             {cards.length} card{cards.length === 1 ? '' : 's'} · ${totals.value.toFixed(2)}
             {totals.unpriced > 0 && ` · ${totals.unpriced} unpriced`}
@@ -65,8 +61,7 @@ export function CardsPage() {
               <button className="btn btn-danger sm" onClick={() => collection.clear()}>Clear</button>
             </>
           )}
-        </div>
-      </div>
+      </PageHead>
 
       {cards.length === 0 ? (
         <div className="notice">

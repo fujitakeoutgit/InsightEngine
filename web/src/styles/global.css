@@ -214,6 +214,19 @@ main { flex: 1; padding-bottom: 88px; }
   line-height: 1.05;
 }
 
+/* The head is one block: back control above, then title and tools on a row.
+   `.head-titles` keeps eyebrow/title/subtitle stacked, so a subtitle reads as
+   part of the title rather than being flung to the far edge by space-between. */
+.page-head .back-link { margin-bottom: -6px; }
+.head-titles { min-width: 0; }
+.head-sub {
+  font-size: var(--step--1);
+  max-width: 62ch;
+  margin-top: 7px;
+  line-height: 1.5;
+}
+.head-tools { align-items: center; padding-bottom: 3px; }
+
 /* --------------------------------------------------------------------------
    Top bar
    -------------------------------------------------------------------------- */

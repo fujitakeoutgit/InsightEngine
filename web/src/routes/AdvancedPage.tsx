@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { quoteIfNeeded } from '../lib/query'
+import { PageHead } from '../components/PageHead'
 import { TypeAhead } from '../components/TypeAhead'
 
 /* --------------------------------------------------------------------------
@@ -233,14 +234,30 @@ export function AdvancedPage() {
 
   return (
     <section className="shell" style={{ paddingTop: 22 }}>
-      <div className="section-head">
-        <div>
-          <span className="eyebrow">Query builder</span>
-          <h2>Advanced search</h2>
+      <PageHead
+        eyebrow="Query builder"
+        title="Advanced search"
+        subtitle="Every control writes query syntax. Watch the bar below to learn it."
+      />
+
+      {/* The query bar sits directly under the nav rather than pinned to the
+          bottom of the page: it is the thing being built, so it belongs where
+          the eye already is, not somewhere you have to look down for. */}
+      <div className="query-preview">
+        <span className="label preview-tag">Query</span>
+        <code>{query || 'Nothing selected yet'}</code>
+        <div className="row gap-2 wrap preview-actions">
+          <button className="btn btn-ghost sm" onClick={() => setB(INITIAL)}>Reset</button>
+          <button
+            className="btn btn-ghost sm" disabled={!query}
+            onClick={() => navigator.clipboard?.writeText(query)}
+          >
+            Copy
+          </button>
+          <button className="btn btn-primary" disabled={!query} onClick={run}>
+            Search with these options
+          </button>
         </div>
-        <p className="muted" style={{ fontSize: 13, maxWidth: '46ch' }}>
-          Every control writes query syntax. Watch the bar at the bottom to learn it.
-        </p>
       </div>
 
       <div className="adv-form">
@@ -485,22 +502,6 @@ export function AdvancedPage() {
         </Row>
       </div>
 
-      <div className="query-preview">
-        <span className="label preview-tag">Query</span>
-        <code>{query || 'Nothing selected yet'}</code>
-        <div className="row gap-2 wrap preview-actions">
-          <button className="btn btn-ghost sm" onClick={() => setB(INITIAL)}>Reset</button>
-          <button
-            className="btn btn-ghost sm" disabled={!query}
-            onClick={() => navigator.clipboard?.writeText(query)}
-          >
-            Copy
-          </button>
-          <button className="btn btn-primary" disabled={!query} onClick={run}>
-            Search with these options
-          </button>
-        </div>
-      </div>
     </section>
   )
 }

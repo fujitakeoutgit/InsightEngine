@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { FIELDS } from '../lib/query'
 import { dissolveIn, riseIn } from '../lib/motion'
+import { PageHead } from '../components/PageHead'
 
 interface Symbol_ {
   symbol: string
@@ -73,12 +74,11 @@ export function GlossaryPage() {
 
   return (
     <section className="shell" style={{ paddingTop: 'var(--gap-4)' }} ref={rootRef}>
-      <div className="section-head">
-        <h2>Reference</h2>
-        <p className="muted" style={{ fontSize: 'var(--step--1)' }}>
-          Syntax, symbols, keywords and the tag vocabulary.
-        </p>
-      </div>
+      <PageHead
+        eyebrow="Reference"
+        title="Syntax &amp; symbols"
+        subtitle="Every operator the search bar understands, the mana symbols, the keywords players actually use, and the tag vocabulary the semantic engine draws from."
+      />
 
       <div className="panel" style={{ marginBottom: 'var(--gap-4)' }}>
         <h3>Query syntax</h3>

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 
 import { api, type SavedDeck } from '../lib/api'
 import { canAnimate, gsap, splitChars } from '../lib/motion'
+import { BackLink } from '../components/PageHead'
 
 const COLOR_VAR: Record<string, string> = {
   W: 'var(--mana-w)', U: 'var(--mana-u)', B: 'var(--mana-b)',
@@ -94,6 +95,7 @@ export function DeckGalleryPage() {
 
   return (
     <section className="shell" style={{ paddingTop: 26 }}>
+      <BackLink />
       <div className="gallery-head">
         <span className="eyebrow">Deck Lab</span>
         <h1 className="display" ref={titleRef}>Your decks</h1>

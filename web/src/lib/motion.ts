@@ -99,29 +99,49 @@ export function revealTitle(el: HTMLElement | null) {
 }
 
 /** Grid/list reveal. Used for result batches; safe to call repeatedly. */
-export function dissolveIn(targets: Element[] | NodeListOf<Element>, opts?: { stagger?: number }) {
+export function dissolveIn(
+  targets: Element[] | NodeListOf<Element>,
+  opts?: { stagger?: number; blur?: boolean },
+) {
   const items = Array.from(targets)
   if (!items.length) return
+  const rest = { opacity: 1, y: 0, scale: 1, filter: 'none' }
   if (!canAnimate()) {
-    gsap.set(items, { opacity: 1, y: 0, scale: 1, filter: 'none' })
+    gsap.set(items, rest)
     return
   }
+
+  // Only animate what is actually on screen. The sets page renders several
+  // hundred tiles at once, and animating a blur on all of them means compositing
+  // hundreds of offscreen layers per frame -- which stutters, to reveal things
+  // nobody is looking at. Everything below the fold goes straight to rest.
+  const fold = innerHeight + 120
+  const onscreen: Element[] = []
+  const offscreen: Element[] = []
+  for (const item of items) {
+    const top = item.getBoundingClientRect().top
+    ;(top < fold && top > -240 ? onscreen : offscreen).push(item)
+  }
+  if (offscreen.length) gsap.set(offscreen, rest)
+  if (!onscreen.length) return
+
   // `amount` spreads the stagger across a fixed window rather than adding a
   // fixed delay per item. A Scryfall page is 175 cards, which at a per-item
   // delay would leave the last tile invisible for over four seconds.
   const per = opts?.stagger ?? 0.028
-  const window = Math.min(0.85, items.length * per)
+  const span = Math.min(0.85, onscreen.length * per)
+  const blur = opts?.blur ?? true
   gsap.fromTo(
-    items,
-    { opacity: 0, y: 26, scale: 0.965, filter: 'blur(10px)' },
+    onscreen,
+    { opacity: 0, y: 26, scale: 0.965, ...(blur ? { filter: 'blur(10px)' } : null) },
     {
       opacity: 1,
       y: 0,
       scale: 1,
-      filter: 'blur(0px)',
+      ...(blur ? { filter: 'blur(0px)' } : null),
       duration: 0.78,
       ease: 'power3.out',
-      stagger: { amount: window, from: 'start' },
+      stagger: { amount: span, from: 'start' },
       overwrite: 'auto',
     },
   )

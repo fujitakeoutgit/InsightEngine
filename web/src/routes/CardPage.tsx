@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 
 import { api, type CardDetail } from '../lib/api'
 import { collection, useIsCollected } from '../lib/collection'
 import { attachTilt, riseIn } from '../lib/motion'
 import { Lightbox } from '../components/Lightbox'
+import { BackLink } from '../components/PageHead'
 import { IdentityDots, ManaCost, OracleText } from '../components/ManaCost'
 
 const FORMAT_ORDER = [
@@ -19,7 +20,7 @@ function money(value: string | null | undefined, prefix = '$') {
 
 export function CardPage() {
   const { oracleId } = useParams()
-  const navigate = useNavigate()
+
   const [detail, setDetail] = useState<CardDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -27,13 +28,6 @@ export function CardPage() {
   const held = useIsCollected(oracleId ?? '')
   const [zoomed, setZoomed] = useState<DOMRect | null>(null)
   const [isZoomed, setIsZoomed] = useState(false)
-
-  // history.back rather than a link to /: it re-renders the search page, which
-  // restores its cached results and scroll position instead of re-querying.
-  const goBack = () => {
-    if (window.history.length > 1) navigate(-1)
-    else navigate('/')
-  }
 
   useEffect(() => {
     if (!oracleId) return
@@ -90,9 +84,7 @@ export function CardPage() {
       {/* Collect sits beside Back rather than under the art: both are actions
           about the card as a whole, and the art column is for the art. */}
       <div className="shell row gap-3 wrap" style={{ paddingTop: 4 }}>
-        <button className="back-link" onClick={goBack}>
-          ← Back to results
-        </button>
+        <BackLink label="Back to results" />
         <button
           className={held ? 'btn btn-primary sm' : 'btn sm'}
           onClick={() => collection.toggle(card)}
