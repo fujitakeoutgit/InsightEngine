@@ -8,6 +8,7 @@ import {
   type DeckCard, type GroupBy, type Section, type SortBy,
 } from '../lib/deckModel'
 import { usePersisted } from '../lib/usePersisted'
+import { CARD_DRAG_TYPE } from './DeckSearch'
 import { ManaCost } from './ManaCost'
 
 const GROUPINGS: [GroupBy, string][] = [
@@ -31,10 +32,13 @@ export function DeckEditor({
   cards,
   onChange,
   onAddCard,
+  onAddSearched,
 }: {
   cards: DeckCard[]
   onChange: (next: DeckCard[]) => void
   onAddCard?: () => void
+  /** A card dragged in from the Search tab, dropped on a section. */
+  onAddSearched?: (card: Card, section: Section) => void
 }) {
   const [groupBy, setGroupBy] = useState<GroupBy>('type')
   const [sortBy, setSortBy] = useState<SortBy>('name')
@@ -131,10 +135,20 @@ export function DeckEditor({
               onDragLeave={() => setDropTarget((t) => (t === key ? null : t))}
               onDrop={(e) => {
                 e.preventDefault()
+                setDropTarget(null)
+                // A card dragged in from the Search tab is an addition; a uid
+                // dragged from another section is a move. Check for the card
+                // first, since that drag also carries a text/plain fallback.
+                const payload = e.dataTransfer.getData(CARD_DRAG_TYPE)
+                if (payload) {
+                  try {
+                    onAddSearched?.(JSON.parse(payload) as Card, key)
+                  } catch { /* not ours after all */ }
+                  return
+                }
                 const uid = dragging ?? e.dataTransfer.getData('text/plain')
                 if (uid) move(uid, key)
                 setDragging(null)
-                setDropTarget(null)
               }}
             >
               <header>

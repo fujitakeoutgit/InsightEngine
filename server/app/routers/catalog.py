@@ -14,11 +14,13 @@ from functools import lru_cache
 
 from fastapi import APIRouter, HTTPException, Query
 
+from ..db import fold_name
+from ..search_local import visibility_clause
 from ..state import state
 
 router = APIRouter(prefix="/api/catalog", tags=["catalog"])
 
-KINDS = ("types", "keywords", "artists", "sets", "tags", "criteria")
+KINDS = ("types", "keywords", "artists", "sets", "tags", "criteria", "names")
 
 # `is:` predicates are a fixed vocabulary, not data.
 CRITERIA = [
@@ -81,6 +83,30 @@ def _catalog(kind: str) -> list[str]:
     return []
 
 
+def _names(needle: str, limit: int) -> dict:
+    """Card names matching a prefix, then a substring.
+
+    Queried rather than cached like the other catalogs: there are ~30k names,
+    and folded_name is indexed, so SQLite answers a keystroke faster than we
+    could scan a Python list -- and without holding the list in memory.
+    """
+    conn = state.require_conn()
+    if not needle:
+        return {"kind": "names", "values": [], "total": 0}
+
+    folded = fold_name(needle)
+    # Folded on both sides, so "fire//fall", "fire fall" and "firefall" all
+    # find the same card. Prefix ranks above substring: "sol" offers Sol Ring
+    # before Consulate Dreadnought.
+    rows = conn.execute(
+        f"SELECT name FROM cards WHERE {visibility_clause(False, False)} "
+        "AND name_fold LIKE ? "
+        "ORDER BY (name_fold LIKE ?) DESC, length(name), name LIMIT ?",
+        (f"%{folded}%", f"{folded}%", limit),
+    ).fetchall()
+    return {"kind": "names", "values": [r["name"] for r in rows], "total": len(rows)}
+
+
 @router.get("/{kind}")
 async def catalog(
     kind: str,
@@ -91,6 +117,9 @@ async def catalog(
         raise HTTPException(404, f"Unknown catalog '{kind}'. Try one of {list(KINDS)}.")
     if not state.ready:
         raise HTTPException(503, "Local mirror is empty. Run: python -m app.bulk")
+
+    if kind == "names":
+        return _names(q.strip(), limit)
 
     values = _catalog(kind)
     needle = q.strip().lower()

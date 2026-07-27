@@ -3,11 +3,11 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import {
   api, streamDeckRecommendations,
-  type DeckReport, type RecommendReport, type Resolution,
+  type Card, type DeckReport, type RecommendReport, type Resolution,
 } from '../lib/api'
 import { collection } from '../lib/collection'
 import {
-  addedCard, fromResolutions, serialize, type DeckCard,
+  addedCard, fromResolutions, serialize, type DeckCard, type Section,
 } from '../lib/deckModel'
 import { countTo, dissolveIn, riseIn } from '../lib/motion'
 import { CardGrid } from '../components/CardGrid'
@@ -15,6 +15,7 @@ import { DeckEditor } from '../components/DeckEditor'
 import { ManaCost } from '../components/ManaCost'
 import { DeckCharts } from '../components/DeckCharts'
 import { DeckInfo } from '../components/DeckInfo'
+import { DeckSearch } from '../components/DeckSearch'
 import { usePersisted } from '../lib/usePersisted'
 import { Playtest } from '../components/Playtest'
 import {
@@ -83,7 +84,7 @@ export function DeckPage() {
   const [report, setReport] = useState<DeckReport | null>(null)
   const [recs, setRecs] = useState<RecommendReport | null>(null)
 
-  const [tab, setTab] = useState<'analysis' | 'recommendations' | 'pipeline'>('analysis')
+  const [tab, setTab] = useState<'analysis' | 'search' | 'recommendations' | 'pipeline'>('analysis')
   const [pipeline, setPipeline] = useState<ConsoleState>(EMPTY_CONSOLE)
   const [recView, setRecView] = usePersisted<'list' | 'grid'>('insight-enigma:rec-view', 'list')
   const [recSize, setRecSize] = usePersisted('insight-enigma:rec-size', 150)
@@ -155,6 +156,21 @@ export function DeckPage() {
       .filter((card) => !present.has(card.oracle_id))
       .map((card) => addedCard(card))
     if (additions.length) applyEdits([...deckCards, ...additions])
+  }
+
+  /** A card dragged from the Search tab onto one of the deck's sections. An
+   *  existing copy gains a quantity rather than a second row. */
+  const addSearchedCard = (card: Card, section: Section) => {
+    const existing = deckCards.find(
+      (c) => c.card.oracle_id === card.oracle_id && c.section === section,
+    )
+    applyEdits(
+      existing
+        ? deckCards.map((c) =>
+            c.uid === existing.uid ? { ...c, quantity: c.quantity + 1 } : c)
+        : [...deckCards, addedCard(card, section)],
+    )
+    setStatus(`Added ${card.name} to ${section}`)
   }
 
   const enterBuildMode = async () => {
@@ -338,7 +354,12 @@ export function DeckPage() {
           aria-label="Decklist"
         />
       ) : (
-        <DeckEditor cards={deckCards} onChange={applyEdits} onAddCard={addCollectedToDeck} />
+        <DeckEditor
+          cards={deckCards}
+          onChange={applyEdits}
+          onAddCard={addCollectedToDeck}
+          onAddSearched={addSearchedCard}
+        />
       )}
     </div>
   )
@@ -347,28 +368,33 @@ export function DeckPage() {
     <div ref={resultRef} style={{ minWidth: 0 }}>
       {error && <div className="notice error"><h3>Could not continue</h3><p>{error}</p></div>}
 
-      {!report && !recs && !error && (
+      {/* Always rendered: Search works before there is anything to analyse,
+          which is exactly when you are looking cards up. */}
+      <div className="result-tabs">
+        <button className={tab === 'analysis' ? 'on' : ''} disabled={!report}
+          onClick={() => setTab('analysis')}>
+          Analysis{report && <span className="faint"> {report.total_cards}</span>}
+        </button>
+        <button className={tab === 'search' ? 'on' : ''} onClick={() => setTab('search')}>
+          Search
+        </button>
+        <button className={tab === 'recommendations' ? 'on' : ''} disabled={!recs}
+          onClick={() => setTab('recommendations')}>
+          Recommendations{recs && <span className="faint"> {recs.recommendations.length}</span>}
+        </button>
+        <button className={tab === 'pipeline' ? 'on' : ''} disabled={!pipeline.stages.length}
+          onClick={() => setTab('pipeline')}>
+          Pipeline
+          {pipeline.running && <span className="spinner" style={{ marginLeft: 6 }} />}
+        </button>
+      </div>
+
+      {tab === 'search' && <DeckSearch />}
+
+      {tab === 'analysis' && !report && !error && (
         <div className="notice">
           <h3>{busy === 'load' ? 'Loading…' : 'Nothing analysed yet'}</h3>
           <p>Build or paste a decklist, then Analyse it or ask for recommendations.</p>
-        </div>
-      )}
-
-      {(report || recs || pipeline.stages.length > 0) && (
-        <div className="result-tabs">
-          <button className={tab === 'analysis' ? 'on' : ''} disabled={!report}
-            onClick={() => setTab('analysis')}>
-            Analysis{report && <span className="faint"> {report.total_cards}</span>}
-          </button>
-          <button className={tab === 'recommendations' ? 'on' : ''} disabled={!recs}
-            onClick={() => setTab('recommendations')}>
-            Recommendations{recs && <span className="faint"> {recs.recommendations.length}</span>}
-          </button>
-          <button className={tab === 'pipeline' ? 'on' : ''} disabled={!pipeline.stages.length}
-            onClick={() => setTab('pipeline')}>
-            Pipeline
-            {pipeline.running && <span className="spinner" style={{ marginLeft: 6 }} />}
-          </button>
         </div>
       )}
 

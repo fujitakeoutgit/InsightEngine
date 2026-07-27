@@ -986,6 +986,11 @@
 .decklist-input:focus { outline: none; border-color: var(--aether); }
 .decklist-input::placeholder { color: var(--faint); }
 
+/* Search tab inside the deck editor. */
+.deck-search .typeahead { position: relative; }
+.deck-search .card-tile.draggable { cursor: grab; }
+.deck-search .card-tile.draggable:active { cursor: grabbing; }
+
 /* Per-card action menu, opened by clicking a tile on the Cards page. */
 .menu-backdrop { position: fixed; inset: 0; z-index: 300; }
 
