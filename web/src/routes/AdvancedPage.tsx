@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { quoteIfNeeded } from '../lib/query'
+import { ManaPip } from '../components/ManaSprite'
 import { PageHead } from '../components/PageHead'
 import { TypeAhead } from '../components/TypeAhead'
 
@@ -294,6 +295,7 @@ export function AdvancedPage() {
                 key={code} colour={code} on={b.colors.includes(code)}
                 onClick={() => toggle('colors', code)}
               >
+                <ManaPip code={code} size={17} />
                 {label}
               </Check>
             ))}
@@ -316,6 +318,7 @@ export function AdvancedPage() {
                 key={code} colour={code} on={b.identity.includes(code)}
                 onClick={() => toggle('identity', code)}
               >
+                <ManaPip code={code} size={17} />
                 {label}
               </Check>
             ))}

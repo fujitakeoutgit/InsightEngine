@@ -479,7 +479,8 @@ export function DeckPage() {
           {/* The counts that used to sit here are in Deck info below, so this
               space goes to the card the deck is actually built around. */}
           {commanderCard?.image_normal && (
-            <div className="commander-card">
+            <div className="chart commander-card">
+              <div className="chart-head"><span className="label">Commander</span></div>
               {/* The same pointer tilt the card grids use, but nothing overlaid
                   on hover — everything those badges would say is printed on the
                   card, and this one is a portrait, not a row in a list. */}

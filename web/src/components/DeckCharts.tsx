@@ -226,8 +226,13 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
             </button>
           </div>
           <p className="faint" style={{ fontSize: 11, marginBottom: 10 }}>
-            Pips your cards demand against sources your lands provide. A positive gap means
-            that colour is under-supplied.
+            Pips your cards demand against the sources that supply them. A positive gap means
+            that colour is under-supplied. Sources count every permanent that makes mana —{' '}
+            {stats.lands} land{stats.lands === 1 ? '' : 's'}
+            {stats.mana_rocks > 0 && `, ${stats.mana_rocks} rock${stats.mana_rocks === 1 ? '' : 's'}`}
+            {stats.mana_dorks > 0 && `, ${stats.mana_dorks} dork${stats.mana_dorks === 1 ? '' : 's'}`}
+            {stats.other_mana_sources > 0 && `, ${stats.other_mana_sources} other`}
+            {' '}— but not one-shot rituals, which are not a mana base.
           </p>
           <div className="balance">
             {stats.balance.map((b) => (

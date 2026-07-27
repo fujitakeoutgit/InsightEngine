@@ -16,6 +16,12 @@ from typing import Any
 from .resolver import Resolution
 
 COLOURS = ("W", "U", "B", "R", "G")
+
+# A mana source has to stay on the battlefield to be one. Scryfall lists
+# produced_mana for rituals too, and counting Dark Ritual as a black source
+# would flatter every mana base that runs one.
+_PERMANENT = re.compile(r"\b(Artifact|Creature|Enchantment|Planeswalker|Battle)\b")
+_ONE_SHOT = re.compile(r"\b(Instant|Sorcery)\b")
 CURVE_KEYS = ("0", "1", "2", "3", "4", "5", "6", "7+")
 
 _SYMBOL = re.compile(r"\{([^}]+)\}")
@@ -55,6 +61,10 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
     total_mv = 0.0
     lands = 0
     untapped_lands = 0
+    # Non-land mana sources, split by what they are.
+    rocks = 0
+    dorks = 0
+    other_sources = 0
 
     for res in cards:
         card = res.card
@@ -79,16 +89,34 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
         for colour, n in card_pips.items():
             pips[colour] += n * qty
 
+        # Whether a card is a mana source and which colours it supplies are two
+        # different questions. Sol Ring makes only C, so it is very much a rock
+        # while contributing to no colour's balance.
+        all_makes = card.get("produced_mana") or []
+        makes = [s for s in all_makes if s in COLOURS]
+
         if is_land:
             lands += qty
-            for symbol in (card.get("produced_mana") or []):
-                if symbol in COLOURS:
-                    produced[symbol] += qty
+            for symbol in makes:
+                produced[symbol] += qty
             text = (card.get("oracle_text") or "").lower()
             if "enters the battlefield tapped" not in text and "enters tapped" not in text:
                 untapped_lands += qty
         else:
             nonland_cards += qty
+            # Rocks, dorks and mana enchantments are mana sources too, and a
+            # base judged on lands alone badly understates a deck that ramps on
+            # artifacts. Permanents only: a ritual produces mana once, which is
+            # not the repeatable source this balance is measuring.
+            if all_makes and _PERMANENT.search(line) and not _ONE_SHOT.search(line):
+                for symbol in makes:
+                    produced[symbol] += qty
+                if "Creature" in line:
+                    dorks += qty
+                elif "Artifact" in line:
+                    rocks += qty
+                else:
+                    other_sources += qty
             mv = int(card.get("cmc") or 0)
             total_mv += (card.get("cmc") or 0) * qty
             bucket = "7+" if mv >= 7 else str(mv)
@@ -126,6 +154,10 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
         "total_cards": total_cards,
         "lands": lands,
         "untapped_lands": untapped_lands,
+        "mana_rocks": rocks,
+        "mana_dorks": dorks,
+        "other_mana_sources": other_sources,
+        "nonland_sources": rocks + dorks + other_sources,
         "avg_cmc": round(total_mv / nonland_cards, 2) if nonland_cards else 0.0,
         "pips": {c: pips[c] for c in COLOURS if pips[c]},
         "produced": {c: produced[c] for c in COLOURS if produced[c]},

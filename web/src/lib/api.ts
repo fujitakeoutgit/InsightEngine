@@ -443,6 +443,10 @@ export interface DeckStats {
   total_cards: number
   lands: number
   untapped_lands: number
+  mana_rocks: number
+  mana_dorks: number
+  other_mana_sources: number
+  nonland_sources: number
   avg_cmc: number
   pips: Record<string, number>
   produced: Record<string, number>

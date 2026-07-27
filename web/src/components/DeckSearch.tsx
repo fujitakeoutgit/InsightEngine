@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { api, type Card } from '../lib/api'
-import { dissolveIn } from '../lib/motion'
+import { attachTilt, dissolveIn } from '../lib/motion'
 import { usePersisted } from '../lib/usePersisted'
 import { ManaCost } from './ManaCost'
 
@@ -15,6 +15,50 @@ export const CARD_DRAG_TYPE = 'application/x-insight-card'
  * `<img>` that never sets it stays invisible forever -- which is exactly what
  * these tiles did.
  */
+/**
+ * One result tile.
+ *
+ * A component rather than inline JSX so each tile owns the ref `attachTilt`
+ * needs -- these are the same `.card-tile` as the search page, and were the one
+ * place rendering them without the tilt and sheen driving `--mx`/`--my`.
+ */
+function SearchTile({ card }: { card: Card }) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!ref.current) return
+    return attachTilt(ref.current)
+  }, [])
+
+  return (
+    <div
+      className="card-tile draggable"
+      ref={ref}
+      draggable
+      onDragStart={(e) => {
+        // Both types: the custom one carries the card, and text/plain
+        // means a drop anywhere else pastes a usable decklist line.
+        e.dataTransfer.setData(CARD_DRAG_TYPE, JSON.stringify(card))
+        e.dataTransfer.setData('text/plain', `1 ${card.name}`)
+        e.dataTransfer.effectAllowed = 'copy'
+      }}
+      title={`${card.name} — ${card.type_line ?? ''}`}
+    >
+      {card.image_normal || card.image_small ? (
+        <SearchTileImage src={card.image_normal ?? card.image_small!} alt={card.name} />
+      ) : (
+        <div className="fallback">
+          <div>
+            <div className="nm">{card.name}</div>
+            <ManaCost cost={card.mana_cost} />
+          </div>
+          <div className="tl">{card.type_line}</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SearchTileImage({ src, alt }: { src: string; alt: string }) {
   const [loaded, setLoaded] = useState(false)
   return (
@@ -182,31 +226,7 @@ export function DeckSearch() {
           <span className="label">{cards.length} result{cards.length === 1 ? '' : 's'} · drag to add</span>
           <div className="card-grid" ref={gridRef} style={{ ['--card-w' as string]: `${size}px` }}>
             {cards.map((card) => (
-              <div
-                className="card-tile draggable"
-                key={card.oracle_id}
-                draggable
-                onDragStart={(e) => {
-                  // Both types: the custom one carries the card, and text/plain
-                  // means a drop anywhere else pastes a usable decklist line.
-                  e.dataTransfer.setData(CARD_DRAG_TYPE, JSON.stringify(card))
-                  e.dataTransfer.setData('text/plain', `1 ${card.name}`)
-                  e.dataTransfer.effectAllowed = 'copy'
-                }}
-                title={`${card.name} — ${card.type_line ?? ''}`}
-              >
-                {card.image_normal || card.image_small ? (
-                  <SearchTileImage src={card.image_normal ?? card.image_small!} alt={card.name} />
-                ) : (
-                  <div className="fallback">
-                    <div>
-                      <div className="nm">{card.name}</div>
-                      <ManaCost cost={card.mana_cost} />
-                    </div>
-                    <div className="tl">{card.type_line}</div>
-                  </div>
-                )}
-              </div>
+              <SearchTile key={card.oracle_id} card={card} />
             ))}
           </div>
         </>

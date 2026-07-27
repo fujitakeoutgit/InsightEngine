@@ -8,6 +8,7 @@ import { hasSemantic } from '../lib/query'
 import { cacheKey, fromResponse, readCache, rememberScroll, writeCache } from '../lib/searchCache'
 import { SIZE_KEY, usePersisted, VIEW_KEY } from '../lib/usePersisted'
 import { CardGrid, GridSkeleton } from '../components/CardGrid'
+import { BackLink } from '../components/PageHead'
 import { SearchBar } from '../components/SearchBar'
 import { ScrollTop } from '../components/ScrollTop'
 import { EMPTY_CONSOLE, SemanticConsole, type ConsoleState } from '../components/SemanticConsole'
@@ -232,6 +233,13 @@ export function SearchPage() {
 
   return (
     <>
+      {/* Only once there is a query. The splash state is the top of the app --
+          there is nowhere for Back to go from there. */}
+      {query && (
+        <div className="shell page-back">
+          <BackLink />
+        </div>
+      )}
       <section className="shell hero">
         {!query && (
           <>
