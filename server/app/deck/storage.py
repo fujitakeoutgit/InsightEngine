@@ -29,6 +29,7 @@ def _row(row: sqlite3.Row, *, with_text: bool = True) -> dict[str, Any]:
         "id": row["id"],
         "name": row["name"],
         "commander": row["commander"],
+        "description": row["description"] if "description" in keys else None,
         "format": row["format"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
@@ -82,6 +83,7 @@ def save(
     deck_id: int | None = None,
     commander: str | None = None,
     format_key: str | None = None,
+    description: str | None = None,
 ) -> dict[str, Any]:
     name = (name or "").strip() or "Untitled deck"
     if len(text.encode("utf-8")) > MAX_DECK_BYTES:
@@ -94,16 +96,16 @@ def save(
     if deck_id is not None:
         cursor = conn.execute(
             "UPDATE decks SET name = ?, text = ?, commander = ?, commander_oracle_id = ?, "
-            "format = ?, updated_at = ? WHERE id = ?",
-            (name, text, commander, oracle_id, format_key, now, deck_id),
+            "format = ?, description = ?, updated_at = ? WHERE id = ?",
+            (name, text, commander, oracle_id, format_key, description, now, deck_id),
         )
         if cursor.rowcount == 0:
             raise DeckError(f"No saved deck with id {deck_id}.")
     else:
         cursor = conn.execute(
             "INSERT INTO decks(name, text, commander, commander_oracle_id, format, "
-            "created_at, updated_at) VALUES(?,?,?,?,?,?,?)",
-            (name, text, commander, oracle_id, format_key, now, now),
+            "description, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?)",
+            (name, text, commander, oracle_id, format_key, description, now, now),
         )
         deck_id = cursor.lastrowid
     conn.commit()

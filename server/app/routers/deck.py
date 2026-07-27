@@ -26,7 +26,7 @@ MAX_LINES = 2000
 MAX_PREPARED = 8
 
 # Decks staged between /recommend/prepare and /recommend/stream.
-_PREPARED: dict[str, tuple[list[Resolution], str | None]] = {}
+_PREPARED: dict[str, tuple[list[Resolution], str | None, str | None]] = {}
 
 
 def _resolve(text: str, commander: str | None) -> list[Resolution]:
@@ -74,6 +74,7 @@ async def analyze(request: DecklistRequest):
 
 class RecommendRequest(DecklistRequest):
     format: str | None = Field(None, description="Restrict to cards legal in this format")
+    description: str | None = Field(None, description="How the deck is meant to work")
     limit: int = Field(150, ge=1, le=400)
 
 
@@ -109,7 +110,7 @@ async def prepare_ai_recommendations(request: RecommendRequest):
         raise HTTPException(400, "No cards in that list could be resolved.")
 
     run_id = uuid.uuid4().hex
-    _PREPARED[run_id] = (resolutions, request.format)
+    _PREPARED[run_id] = (resolutions, request.format, request.description)
     # Bound the staging area; these are only alive between prepare and stream.
     while len(_PREPARED) > MAX_PREPARED:
         _PREPARED.pop(next(iter(_PREPARED)))
@@ -121,7 +122,7 @@ async def stream_ai_recommendations(run_id: str = Query(...)):
     staged = _PREPARED.pop(run_id, None)
     if staged is None:
         raise HTTPException(404, "No prepared deck for that id; prepare it again.")
-    resolutions, format_key = staged
+    resolutions, format_key, description = staged
 
     if len(_RUNS) >= settings.semantic_max_concurrent:
         raise HTTPException(429, "A search or recommendation run is already in progress.")
@@ -131,7 +132,9 @@ async def stream_ai_recommendations(run_id: str = Query(...)):
 
     async def produce() -> None:
         try:
-            async for step in pipeline.run(resolutions, format_key=format_key):
+            async for step in pipeline.run(
+                resolutions, format_key=format_key, description=description,
+            ):
                 event = "complete" if step.name == "complete" else "stage"
                 await queue.put((event, step.as_dict()))
         except asyncio.CancelledError:
@@ -182,6 +185,7 @@ class SaveRequest(BaseModel):
     id: int | None = None
     commander: str | None = None
     format: str | None = None
+    description: str | None = None
 
 
 @router.get("/saved")
@@ -195,6 +199,7 @@ async def save_deck(request: SaveRequest):
         deck = storage.save(
             state.require_conn(), request.name, request.text,
             deck_id=request.id, commander=request.commander, format_key=request.format,
+            description=request.description,
         )
     except storage.DeckError as exc:
         raise HTTPException(400, str(exc)) from exc

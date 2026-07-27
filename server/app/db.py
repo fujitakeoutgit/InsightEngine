@@ -220,6 +220,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     # User tables are migrated, never rebuilt: dropping `decks` would throw
     # away the only data in this database the user actually created.
     _add_column_if_missing(conn, "decks", "commander_oracle_id", "TEXT")
+    _add_column_if_missing(conn, "decks", "description", "TEXT")
 
     set_meta(conn, "schema_version", SCHEMA_VERSION)
     conn.commit()

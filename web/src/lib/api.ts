@@ -95,6 +95,7 @@ export interface FormatVerdict {
 }
 
 export interface DeckReport {
+  stats: DeckStats
   total_cards: number
   sideboard_cards: number
   unique_cards: number
@@ -136,6 +137,7 @@ export interface RecommendReport {
 export interface SavedDeck {
   id: number
   name: string
+  description?: string | null
   commander: string | null
   format: string | null
   created_at: string
@@ -250,21 +252,22 @@ export const api = {
   analyzeDeck: (text: string, commander?: string) =>
     post<DeckReport>('/api/deck/analyze', { text, commander: commander ?? null }),
 
-  recommendDeck: (text: string, format?: string | null, limit = 40) =>
+  recommendDeck: (text: string, format?: string | null, limit = 150) =>
     post<RecommendReport>('/api/deck/recommend', {
       text, commander: null, format: format || null, limit,
     }),
 
-  prepareAiRecommendations: (text: string, format?: string | null) =>
-    post<{ run_id: string; cards: number }>('/api/deck/recommend/prepare', {
-      text, commander: null, format: format || null,
+  prepareAiRecommendations: (text: string, format?: string | null, description?: string | null) =>
+    post<{ run_id: string; cards: number }>("/api/deck/recommend/prepare", {
+      text, commander: null, format: format || null, description: description || null,
     }),
 
   savedDecks: () => get<{ decks: SavedDeck[] }>('/api/deck/saved'),
 
-  saveDeck: (deck: { name: string; text: string; id?: number; format?: string | null }) =>
+  saveDeck: (deck: { name: string; text: string; id?: number; format?: string | null ; description?: string | null }) =>
     post<{ deck: SavedDeck }>('/api/deck/saved', {
       name: deck.name, text: deck.text, id: deck.id ?? null, format: deck.format ?? null,
+      description: deck.description ?? null,
     }),
 
   loadDeck: (id: number) => get<{ deck: SavedDeck }>(`/api/deck/saved/${id}`),
@@ -413,4 +416,26 @@ export function streamSemantic(
   }
 
   return { stop, runId }
+}
+
+export interface DeckStats {
+  empty: boolean
+  total_cards: number
+  lands: number
+  untapped_lands: number
+  avg_cmc: number
+  pips: Record<string, number>
+  produced: Record<string, number>
+  balance: {
+    color: string; pips: number; pip_share: number
+    sources: number; source_share: number; gap: number
+  }[]
+  types: Record<string, number>
+  rarity: { main: Record<string, number>; sideboard: Record<string, number> }
+  curve: Record<string, Record<string, number>>
+  tokens: {
+    oracle_id: string; name: string; type_line: string | null
+    pt: string | null; color_identity: string | null
+    image: string | null; is_emblem: boolean
+  }[]
 }

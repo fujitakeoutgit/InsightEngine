@@ -70,11 +70,17 @@ class DeckRecommendPipeline:
 
     # -- stage 1 -----------------------------------------------------------
 
-    async def read_deck(self, listing: str, themes: list[str]) -> dict[str, Any]:
+    async def read_deck(
+        self, listing: str, themes: list[str], description: str | None = None,
+    ) -> dict[str, Any]:
         user = (
-            f"DECK:\n{listing}\n\n"
-            f"Oracle tags concentrated in this deck: {', '.join(themes) or 'none'}\n\n"
-            "What is this deck's engine, and what effects would strengthen it?"
+            # The builder's own words lead: they state intent that a card list
+            # can only imply, and they are the cheapest accuracy win available.
+            (f"THE BUILDER DESCRIBES THIS DECK AS:\n{description.strip()}\n\n"
+             if description and description.strip() else "")
+            + f"DECK:\n{listing}\n\n"
+            + f"Oracle tags concentrated in this deck: {', '.join(themes) or 'none'}\n\n"
+            + "What is this deck's engine, and what effects would strengthen it?"
         )
         return await ollama.chat_json(
             prompts.DECK_READ_SYSTEM, user, prompts.DECK_READ_SCHEMA, num_predict=1024
@@ -136,6 +142,7 @@ class DeckRecommendPipeline:
         resolutions: list[Resolution],
         *,
         format_key: str | None = None,
+        description: str | None = None,
     ) -> AsyncIterator[Stage]:
         report = GuardReport()
 
@@ -159,7 +166,7 @@ class DeckRecommendPipeline:
         theme_slugs = [t.slug for t in themes if t.signature]
 
         yield Stage("read", "Reading the deck")
-        read = await self.read_deck(listing, theme_slugs)
+        read = await self.read_deck(listing, theme_slugs, description)
         yield Stage("read", read.get("strategy", "Read"), {
             "strategy": read.get("strategy", ""),
             "wanted_roles": read.get("wanted_roles", []),

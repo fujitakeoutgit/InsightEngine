@@ -1636,3 +1636,62 @@
 
 .deck-head .back-link { padding: 0; }
 .deck-head .deck-name { max-width: 260px; }
+
+/* --------------------------------------------------------------------------
+   Deck charts
+   -------------------------------------------------------------------------- */
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 16px;
+}
+
+.chart {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r);
+  background: var(--glass);
+  padding: 14px;
+}
+
+.chart-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.chart-note { font-size: 10.5px; color: var(--muted); min-height: 1.2em; margin-top: 6px; }
+
+/* Letters sit on the segment because black/blue measured ΔE 11.4 for normal
+   vision — under the 15 floor, so the hue alone is not reliably readable. */
+.donut-label {
+  font-family: var(--font-m);
+  font-size: 9px;
+  font-weight: 600;
+  fill: #0b0d12;
+  pointer-events: none;
+}
+
+.type-bars { display: flex; flex-direction: column; gap: 5px; }
+.type-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.tb-name { width: 84px; flex: none; color: var(--muted); }
+.tb-track { flex: 1; height: 8px; background: var(--glass-hi); border-radius: 2px; overflow: hidden; }
+.tb-fill { height: 100%; border-radius: 2px; }
+.tb-val { width: 28px; text-align: right; font-size: 11px; color: var(--muted); }
+
+.curve-chart { display: flex; align-items: flex-end; gap: 4px; height: 150px; }
+.cc-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 3px; height: 100%; }
+.cc-total { font-size: 10px; color: var(--muted); }
+.cc-stack { width: 100%; display: flex; flex-direction: column-reverse; border-radius: 2px 2px 0 0; overflow: hidden; min-height: 2px; gap: 2px; }
+.cc-seg { display: grid; place-items: center; min-height: 3px; }
+.cc-lab { font-family: var(--font-m); font-size: 8.5px; font-weight: 600; color: #0b0d12; }
+.cc-axis { font-size: 10px; color: var(--faint); }
+
+.balance { display: flex; flex-direction: column; gap: 8px; }
+.bal-row { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
+.bal-pip { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-m); font-size: 10px; font-weight: 700; color: #0b0d12; flex: none; }
+.bal-name { width: 78px; flex: none; color: var(--muted); }
+.bal-track { flex: 1; position: relative; height: 14px; }
+.bal-need { position: absolute; inset: 0 auto 7px 0; height: 6px; background: var(--aether); border-radius: 2px; opacity: 0.85; }
+.bal-have { position: absolute; inset: 8px auto 0 0; height: 6px; background: var(--ok); border-radius: 2px; opacity: 0.85; }
+.bal-gap { width: 46px; text-align: right; font-size: 11px; color: var(--muted); }
+.bal-gap.short { color: var(--warn); }
+.bal-gap.over { color: var(--faint); }
+
+.deck-desc { width: 100%; min-height: 62px; resize: vertical; font-family: var(--font-b); font-size: 13.5px; line-height: 1.5; padding: 10px 12px; border-radius: var(--r); border: 1px solid var(--line); background: rgba(7,8,12,.6); color: var(--ink); }
+.deck-desc:focus { outline: none; border-color: var(--aether); }

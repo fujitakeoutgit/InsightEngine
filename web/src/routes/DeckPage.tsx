@@ -13,6 +13,7 @@ import { countTo, dissolveIn, riseIn } from '../lib/motion'
 import { CardGrid } from '../components/CardGrid'
 import { DeckEditor } from '../components/DeckEditor'
 import { ManaCost } from '../components/ManaCost'
+import { DeckCharts } from '../components/DeckCharts'
 import { Playtest } from '../components/Playtest'
 import {
   DECK_RAIL, EMPTY_CONSOLE, SemanticConsole, type ConsoleState,
@@ -72,6 +73,7 @@ export function DeckPage() {
   const [deckName, setDeckName] = useState('')
   const [savedId, setSavedId] = useState<number | null>(null)
   const [format, setFormat] = useState('commander')
+  const [description, setDescription] = useState("")
 
   const [mode, setMode] = useState<'text' | 'build'>('build')
   const [deckCards, setDeckCards] = useState<DeckCard[]>([])
@@ -121,6 +123,7 @@ export function DeckPage() {
         setText(deck.text ?? '')
         setDeckName(deck.name)
         setSavedId(deck.id)
+        setDescription(deck.description ?? "")
         if (deck.format) setFormat(deck.format)
         const analysed = await analyseText(deck.text ?? '')
         if (!cancelled && analysed) setDeckCards(fromResolutions(analysed.entries))
@@ -188,7 +191,7 @@ export function DeckPage() {
     setAiMode(true); setAiStrategy(null); setActiveThemes([]); setRecs(null)
     setPipeline((p) => ({ ...EMPTY_CONSOLE, model: p.model, running: true }))
     try {
-      const { run_id } = await api.prepareAiRecommendations(text, format || null)
+      const { run_id } = await api.prepareAiRecommendations(text, format || null, description)
       aiStream.current?.stop()
       aiStream.current = streamDeckRecommendations(run_id, {
         onStage: (stage) => {
@@ -232,7 +235,7 @@ export function DeckPage() {
     try {
       const { deck } = await api.saveDeck({
         name: deckName || 'Untitled deck', text,
-        id: savedId ?? undefined, format: format || null,
+        id: savedId ?? undefined, format: format || null, description,
       })
       setSavedId(deck.id)
       setDeckName(deck.name)
@@ -313,6 +316,24 @@ export function DeckPage() {
           <button className="btn btn-ghost sm push" onClick={() => setText(SAMPLE)}>Sample</button>
         )}
       </div>
+
+      {mode === 'text' && (
+        <label className="stack gap-1">
+          <span className="label">How this deck works</span>
+          <textarea
+            className="deck-desc"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Sacrifice creatures for value and drain the table. Teysa doubles the death triggers."
+            spellCheck={false}
+            aria-label="Deck description"
+          />
+          <span className="faint" style={{ fontSize: 10.5 }}>
+            Saved with the deck, and given to the AI recommender before it reads the cards —
+            it states intent the card list can only imply.
+          </span>
+        </label>
+      )}
 
       {mode === 'text' ? (
         <textarea
@@ -423,30 +444,7 @@ export function DeckPage() {
               : shown.map((entry, i) => <ResolutionRow key={i} entry={entry} />)}
           </div>
 
-          <div className="panel">
-            <h3>Format legality</h3>
-            <div className="verdicts">
-              {report.formats.map((verdict) => (
-                <div className={`verdict ${verdict.legal ? 'yes' : 'no'}`} key={verdict.format}>
-                  <div className="row" style={{ justifyContent: 'space-between', gap: 10 }}>
-                    <span className="nm">{verdict.label}</span>
-                    <span className={`st ${verdict.legal ? 'legal' : 'banned'}`}>
-                      {verdict.legal ? 'legal' : 'no'}
-                    </span>
-                  </div>
-                  {!verdict.legal && (
-                    <div className="why">
-                      {verdict.issues.slice(0, 2).map((issue, i) => <div key={i}>{issue}</div>)}
-                      {verdict.problem_cards.slice(0, 3).map((p, i) => (
-                        <div key={`p${i}`}>{p.name} — {p.reason}</div>
-                      ))}
-                      {verdict.problem_cards.length > 3 && <div>+{verdict.problem_cards.length - 3} more</div>}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
+          {report.stats && !report.stats.empty && <DeckCharts stats={report.stats} />}
         </div>
       )}
 

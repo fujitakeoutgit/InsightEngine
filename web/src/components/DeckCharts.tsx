@@ -1,0 +1,262 @@
+import { useEffect, useRef, useState } from 'react'
+
+import type { DeckStats } from '../lib/api'
+import { canAnimate, gsap } from '../lib/motion'
+
+/**
+ * Deck composition charts.
+ *
+ * Magic's five colours are semantically fixed — white must be pale, black and
+ * colourless must be grey, and red/green is the canonical deuteranopia
+ * confusion (measured ΔE 4.8, far under the ΔE 8 floor). Those hues cannot be
+ * re-picked without making the charts wrong, so colour never carries meaning
+ * alone here: every segment is labelled with its W/U/B/R/G letter, segments are
+ * separated by a surface-coloured gap, and a table view carries the same
+ * numbers.
+ */
+
+const COLOR_ORDER = ['W', 'U', 'B', 'R', 'G', 'C', 'multi'] as const
+
+const FILL: Record<string, string> = {
+  W: 'var(--mana-w)', U: 'var(--mana-u)', B: 'var(--mana-b)',
+  R: 'var(--mana-r)', G: 'var(--mana-g)', C: 'var(--mana-c)',
+  multi: 'var(--accent-multi, #c9a227)',
+}
+
+const COLOR_NAME: Record<string, string> = {
+  W: 'White', U: 'Blue', B: 'Black', R: 'Red', G: 'Green',
+  C: 'Colourless', multi: 'Multicolour',
+}
+
+const TYPE_FILL: Record<string, string> = {
+  Land: 'var(--mana-c)', Creature: 'var(--aether)', Artifact: '#9aa4b8',
+  Enchantment: 'var(--ok)', Instant: '#7fb2e5', Sorcery: '#c98bd6',
+  Planeswalker: 'var(--accent-warm, #e8b96a)', Other: 'var(--faint)',
+}
+
+/** An arc path for a donut segment. */
+function arc(cx: number, cy: number, r: number, thickness: number, from: number, to: number) {
+  const inner = r - thickness
+  const large = to - from > Math.PI ? 1 : 0
+  const p = (radius: number, a: number) =>
+    [cx + radius * Math.cos(a - Math.PI / 2), cy + radius * Math.sin(a - Math.PI / 2)]
+  const [x1, y1] = p(r, from)
+  const [x2, y2] = p(r, to)
+  const [x3, y3] = p(inner, to)
+  const [x4, y4] = p(inner, from)
+  return `M${x1} ${y1}A${r} ${r} 0 ${large} 1 ${x2} ${y2}L${x3} ${y3}A${inner} ${inner} 0 ${large} 0 ${x4} ${y4}Z`
+}
+
+interface Slice { key: string; label: string; value: number; fill: string }
+
+function Donut({
+  outer, inner, size = 190, outerLabel, innerLabel,
+}: {
+  outer: Slice[]
+  inner: Slice[]
+  size?: number
+  outerLabel: string
+  innerLabel: string
+}) {
+  const cx = size / 2
+  const cy = size / 2
+  const [hover, setHover] = useState<string | null>(null)
+
+  const ring = (slices: Slice[], radius: number, thickness: number, ringKey: string) => {
+    const total = slices.reduce((n, s) => n + s.value, 0) || 1
+    let angle = 0
+    return slices.map((slice) => {
+      const sweep = (slice.value / total) * Math.PI * 2
+      const from = angle
+      // A 2px surface gap between fills, per the mark spec — it also does real
+      // work here, separating hues that CVD readers cannot tell apart.
+      const gap = slices.length > 1 ? 0.018 : 0
+      angle += sweep
+      const mid = from + sweep / 2
+      const labelR = radius - thickness / 2
+      const lx = cx + labelR * Math.cos(mid - Math.PI / 2)
+      const ly = cy + labelR * Math.sin(mid - Math.PI / 2)
+      const id = `${ringKey}-${slice.key}`
+      const share = slice.value / total
+      return (
+        <g key={id}
+          onMouseEnter={() => setHover(`${slice.label} · ${slice.value} (${Math.round(share * 100)}%)`)}
+          onMouseLeave={() => setHover(null)}>
+          <path
+            d={arc(cx, cy, radius, thickness, from + gap, Math.max(from + gap, angle - gap))}
+            fill={slice.fill}
+            opacity={hover && !hover.startsWith(slice.label) ? 0.45 : 1}
+          />
+          {share > 0.07 && (
+            <text x={lx} y={ly} className="donut-label" textAnchor="middle" dominantBaseline="central">
+              {slice.key === 'multi' ? 'M' : slice.key}
+            </text>
+          )}
+        </g>
+      )
+    })
+  }
+
+  return (
+    <div className="chart">
+      <div className="chart-head">
+        <span className="label">{outerLabel} <span className="faint">(outer)</span></span>
+        <span className="label">{innerLabel} <span className="faint">(inner)</span></span>
+      </div>
+      <svg viewBox={`0 0 ${size} ${size}`} width="100%" style={{ maxWidth: size }} role="img"
+        aria-label={`${outerLabel} and ${innerLabel} by colour`}>
+        {ring(outer, size / 2 - 4, 26, 'o')}
+        {ring(inner, size / 2 - 36, 24, 'i')}
+      </svg>
+      <p className="chart-note mono">{hover ?? ' '}</p>
+    </div>
+  )
+}
+
+function TypeBars({ types }: { types: Record<string, number> }) {
+  const entries = Object.entries(types).sort((a, b) => b[1] - a[1])
+  const total = entries.reduce((n, [, v]) => n + v, 0) || 1
+  return (
+    <div className="chart">
+      <div className="chart-head"><span className="label">Card types</span></div>
+      <div className="type-bars">
+        {entries.map(([name, value]) => (
+          <div className="type-row" key={name} title={`${name}: ${value}`}>
+            <span className="tb-name">{name}</span>
+            <div className="tb-track">
+              <div className="tb-fill" style={{
+                width: `${(value / total) * 100}%`,
+                background: TYPE_FILL[name] ?? 'var(--faint)',
+              }} />
+            </div>
+            <span className="tb-val mono">{value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function Curve({ curve }: { curve: Record<string, Record<string, number>> }) {
+  const keys = ['0', '1', '2', '3', '4', '5', '6', '7+']
+  const totals = keys.map((k) => Object.values(curve[k] ?? {}).reduce((n, v) => n + v, 0))
+  const max = Math.max(1, ...totals)
+  return (
+    <div className="chart">
+      <div className="chart-head"><span className="label">Mana curve</span></div>
+      <div className="curve-chart">
+        {keys.map((k, i) => {
+          const bucket = curve[k] ?? {}
+          const stack = COLOR_ORDER.filter((c) => bucket[c]).map((c) => ({
+            key: c, value: bucket[c], fill: FILL[c],
+          }))
+          return (
+            <div className="cc-col" key={k}>
+              <span className="cc-total mono">{totals[i] || ''}</span>
+              <div className="cc-stack" style={{ height: `${(totals[i] / max) * 100}%` }}>
+                {stack.map((s) => (
+                  <div key={s.key} className="cc-seg"
+                    style={{ flexGrow: s.value, background: s.fill }}
+                    title={`${COLOR_NAME[s.key]}: ${s.value}`}>
+                    {s.value / max > 0.08 && (
+                      <span className="cc-lab">{s.key === 'multi' ? 'M' : s.key}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <span className="cc-axis mono">{k}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+export function DeckCharts({ stats }: { stats: DeckStats }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [showTable, setShowTable] = useState(false)
+
+  useEffect(() => {
+    if (!ref.current || !canAnimate()) return
+    gsap.fromTo(ref.current.querySelectorAll('.chart'),
+      { opacity: 0, y: 16, filter: 'blur(8px)' },
+      { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.6, stagger: { amount: 0.24 } })
+  }, [stats])
+
+  if (stats.empty) return null
+
+  const toSlices = (src: Record<string, number>): Slice[] =>
+    COLOR_ORDER.filter((c) => src[c]).map((c) => ({
+      key: c, label: COLOR_NAME[c], value: src[c], fill: FILL[c],
+    }))
+
+  const pips = toSlices(stats.pips)
+  const sources = toSlices(stats.produced)
+
+  return (
+    <div className="deck-charts" ref={ref}>
+      <div className="chart-grid">
+        {(pips.length > 0 || sources.length > 0) && (
+          <Donut outer={pips} inner={sources} outerLabel="Card costs" innerLabel="Land mana" />
+        )}
+        <TypeBars types={stats.types} />
+        <Curve curve={stats.curve} />
+      </div>
+
+      {stats.balance.length > 0 && (
+        <div className="panel" style={{ marginTop: 14 }}>
+          <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
+            <h3 style={{ margin: 0 }}>Mana base</h3>
+            <button className="btn btn-ghost sm" onClick={() => setShowTable((s) => !s)}>
+              {showTable ? 'Hide numbers' : 'Show numbers'}
+            </button>
+          </div>
+          <p className="faint" style={{ fontSize: 11, marginBottom: 10 }}>
+            Pips your cards demand against sources your lands provide. A positive gap means
+            that colour is under-supplied.
+          </p>
+          <div className="balance">
+            {stats.balance.map((b) => (
+              <div className="bal-row" key={b.color}>
+                <span className="bal-pip" style={{ background: FILL[b.color] }}>{b.color}</span>
+                <span className="bal-name">{COLOR_NAME[b.color]}</span>
+                <div className="bal-track">
+                  <div className="bal-need" style={{ width: `${b.pip_share * 100}%` }} />
+                  <div className="bal-have" style={{ width: `${b.source_share * 100}%` }} />
+                </div>
+                <span className={`bal-gap mono ${b.gap > 0.08 ? 'short' : b.gap < -0.08 ? 'over' : ''}`}>
+                  {b.gap > 0 ? '+' : ''}{Math.round(b.gap * 100)}%
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* The table is not optional decoration: with a palette this
+              CVD-hostile it is the accessible path to the same numbers. */}
+          {showTable && (
+            <div className="scroll-x" style={{ marginTop: 12 }}>
+              <table className="card-list">
+                <thead>
+                  <tr><th>Colour</th><th>Pips</th><th>Share</th><th>Sources</th><th>Share</th><th>Gap</th></tr>
+                </thead>
+                <tbody>
+                  {stats.balance.map((b) => (
+                    <tr key={b.color}>
+                      <td>{COLOR_NAME[b.color]}</td>
+                      <td className="num">{b.pips}</td>
+                      <td className="num">{Math.round(b.pip_share * 100)}%</td>
+                      <td className="num">{b.sources}</td>
+                      <td className="num">{Math.round(b.source_share * 100)}%</td>
+                      <td className="num">{b.gap > 0 ? '+' : ''}{Math.round(b.gap * 100)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
