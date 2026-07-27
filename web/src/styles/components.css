@@ -2206,15 +2206,6 @@
       rgba(143, 169, 255, 0.15) 0 5px, rgba(143, 169, 205, 0.05) 5px 10px);
 }
 
-/* Recommendations scroll inside their panel, so the theme chips and the
-   controls above them stay put while you read 150 suggestions. */
-.rec-scroll {
-  max-height: min(62vh, 720px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding-right: 4px;
-}
-
 @media (max-width: 720px) {
   .pt-deck-back { width: 88px; }
 }

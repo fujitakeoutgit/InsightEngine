@@ -765,10 +765,6 @@ export function DeckPage() {
             </>
           )}
 
-          {/* Its own scroll region: 150 suggestions otherwise push the theme
-              chips and the controls above them off the top of the page, and
-              you cannot refilter without scrolling back up. */}
-          <div className="rec-scroll">
           {recView === 'grid' ? (
             <CardGrid cards={visibleRecs.map((r) => r.card)} size={recSize}
               onAdd={addToMaybe}
@@ -802,7 +798,6 @@ export function DeckPage() {
               </div>
             ))
           )}
-          </div>
         </div>
       )}
     </div>
