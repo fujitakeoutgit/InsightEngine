@@ -80,6 +80,7 @@ export function SearchPage() {
   const heroCountRef = useRef<HTMLSpanElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
   const stream = useRef<{ stop: () => void } | null>(null)
+  const restoreTimer = useRef<number | undefined>(undefined)
   const recent = useHistory()
 
   // Semantic results arrive as one batch and are sorted here; everything else
@@ -104,12 +105,30 @@ export function SearchPage() {
   }, [paperCards, query])
 
   // Remember where the user was so returning from a card lands in place.
+  //
+  // Captured on scroll *and* on any click, then written once on the way out. A
+  // click is what precedes leaving, and at that instant the position is still
+  // right; reading it during teardown does not work, because opening a card
+  // scrolls to the top first and that reset lands before the write. The
+  // `captured` guard exists because StrictMode tears the effect down and
+  // rebuilds it immediately on mount, and an unconditional write there would
+  // put this page's initial zero over the position saved on the way out.
   useEffect(() => {
-    const remember = () => rememberScroll(key, window.scrollY)
-    window.addEventListener('scroll', remember, { passive: true })
+    let live = true
+    let last = 0
+    let captured = false
+    const capture = () => {
+      if (!live) return
+      last = window.scrollY
+      captured = true
+    }
+    window.addEventListener('scroll', capture, { passive: true })
+    document.addEventListener('click', capture, { capture: true })
     return () => {
-      remember()
-      window.removeEventListener('scroll', remember)
+      live = false
+      window.removeEventListener('scroll', capture)
+      document.removeEventListener('click', capture, { capture: true })
+      if (captured) rememberScroll(key, last)
     }
   }, [key])
 
@@ -200,14 +219,30 @@ export function SearchPage() {
         setCollapsed(true)
       }
       setLoading(false)
-      requestAnimationFrame(() => window.scrollTo(0, cached.scrollY))
+      // Re-asserted for a short while rather than once. The grid has not
+      // rendered when this first runs so the page is too short to scroll that
+      // far, and coming back restores focus to the card you clicked, which
+      // scrolls it into view a beat after the restore succeeded. Timers rather
+      // than rAF, which does not run while the document is not compositing.
+      if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
+      const target = cached.scrollY
+      let elapsed = 0
+      const settle = () => {
+        window.scrollTo(0, target)
+        elapsed += 30
+        if (elapsed < 700) restoreTimer.current = window.setTimeout(settle, 30)
+      }
+      restoreTimer.current = window.setTimeout(settle, 0)
       return
     }
 
     if (isSemanticQuery) runSemantic(query)
     else runStandard(query, sort, order, page)
 
-    return () => stream.current?.stop()
+    return () => {
+      stream.current?.stop()
+      window.clearTimeout(restoreTimer.current)
+    }
   }, [query, sort, order, page, key, isSemanticQuery, runSemantic, runStandard])
 
   useEffect(() => {

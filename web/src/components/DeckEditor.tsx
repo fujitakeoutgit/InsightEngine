@@ -388,7 +388,8 @@ function EditorRow({
         className="editor-tile"
         ref={tiltRef}
         {...dragProps}
-        title={`${card.name} — ${card.type_line ?? ''}`}
+        // No tooltip: the name and type are printed on the art itself.
+        title={undefined}
       >
         {face.src ? (
           <img src={face.src} alt={face.faceName} loading="lazy" />

@@ -19,6 +19,8 @@ import ctypes
 import os
 import subprocess
 import sys
+import traceback
+from datetime import datetime
 import threading
 import time
 import urllib.error
@@ -453,12 +455,35 @@ def single_instance() -> bool:
 TRAY: TrayApp
 
 
+def _startup_log(message: str) -> None:
+    """Record why a launch ended, since under pythonw there is nowhere else.
+
+    A tray app that fails at login fails invisibly: no console, no window, and
+    an exit code nobody sees. Without this, "it didn't start" is unfalsifiable
+    -- which is exactly the position this got into once.
+    """
+    try:
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().isoformat(timespec="seconds")
+        with open(LOG_DIR / "tray.log", "a", encoding="utf-8") as fh:
+            fh.write(f"{stamp} {message}\n")
+    except Exception:
+        pass  # logging must never be the reason the app dies
+
+
 def main() -> int:
     global TRAY
+    _startup_log(f"launch pid={os.getpid()} exe={sys.executable}")
     if not single_instance():
+        _startup_log("exit: another instance already holds the mutex")
         return 0
-    TRAY = TrayApp()
-    TRAY.run()
+    try:
+        TRAY = TrayApp()
+        TRAY.run()
+    except Exception:
+        _startup_log("crash:\n" + traceback.format_exc())
+        raise
+    _startup_log("exit: clean shutdown")
     return 0
 
 

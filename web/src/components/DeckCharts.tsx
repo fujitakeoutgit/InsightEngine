@@ -151,7 +151,7 @@ function Curve({ curve }: { curve: Record<string, Record<string, number>> }) {
   const totals = keys.map((k) => Object.values(curve[k] ?? {}).reduce((n, v) => n + v, 0))
   const max = Math.max(1, ...totals)
   return (
-    <div className="chart">
+    <div className="chart wide">
       <div className="chart-head"><span className="label">Mana curve</span></div>
       <div className="curve-chart">
         {keys.map((k, i) => {
@@ -229,14 +229,13 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
             </button>
           </div>
           <p className="faint" style={{ fontSize: 11, marginBottom: 10 }}>
-            Pips your cards demand against the sources that supply them. Positive is mana to
-            spare; negative is a colour you are short of. Sources count every permanent that
-            makes mana —{' '}
+            {/* Just what was counted. The sign convention and the ritual
+                exclusion live in the code that computes them; spelling both
+                out here turned a caption into a paragraph. */}
             {stats.lands} land{stats.lands === 1 ? '' : 's'}
             {stats.mana_rocks > 0 && `, ${stats.mana_rocks} rock${stats.mana_rocks === 1 ? '' : 's'}`}
             {stats.mana_dorks > 0 && `, ${stats.mana_dorks} dork${stats.mana_dorks === 1 ? '' : 's'}`}
             {stats.other_mana_sources > 0 && `, ${stats.other_mana_sources} other`}
-            {' '}— but not one-shot rituals, which are not a mana base.
           </p>
           <div className="balance">
             {stats.balance.map((b) => (

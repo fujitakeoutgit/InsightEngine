@@ -133,6 +133,9 @@ export function DeckPage() {
     // would restore deck A's cards into it.
     past.current = []
     future.current = []
+    // A deck opens on its analysis, not on whichever tab the last one left
+    // behind. The saved view still restores when you come *back* from a card.
+    setTab("analysis")
     if (isNew) { setBusy(null); return }
     setBusy('load')
     api.loadDeck(Number(deckId))
@@ -167,6 +170,19 @@ export function DeckPage() {
   const viewKey = deckId ?? 'new'
   /** Set by the restore, cleared by the save it must not be undone by. */
   const restoring = useRef<string | null>(null)
+
+  /* Opening a tab is the request; there is no separate button any more.
+   *
+   * Guarded on `busy` as well as on the result being absent, or the effect
+   * would fire again on the render that starts the work and run it twice. */
+  useEffect(() => {
+    if (busy || !text.trim()) return
+    if (tab === 'analysis' && !report) { void analyseText(text) }
+    else if (tab === 'recommendations' && !recs) { void getRecommendations() }
+    // getRecommendations is recreated every render; depending on it would
+    // restart the run it just finished.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, report, recs, busy, text, analyseText])
 
   useEffect(() => {
     const saved = recallDeckView(viewKey)
@@ -350,15 +366,6 @@ export function DeckPage() {
     setBusy(null)
   }
 
-  const analyse = async () => {
-    if (!text.trim()) return
-    setBusy('analyse')
-    setTab('analysis')
-    setError(null)
-    await analyseText(text)
-    setBusy(null)
-  }
-
   const getRecommendations = async () => {
     if (!text.trim()) return
     setBusy('recommend'); setError(null); setTab('recommendations')
@@ -501,14 +508,9 @@ export function DeckPage() {
       {/* Directly under the tabs and above the editor's own toolbar, so the
           actions are reachable without scrolling past the whole deck. */}
       <div className="deck-actions">
-        <button className="btn btn-primary sm" onClick={analyse} disabled={!!busy || !text.trim()}>
-          {busy === 'analyse' && <span className="spinner" />}
-          {busy === 'analyse' ? 'Analysing' : 'Analyse'}
-        </button>
-        <button className="btn sm" onClick={getRecommendations} disabled={!!busy || !text.trim()}>
-          {busy === 'recommend' && <span className="spinner" />}
-          {busy === 'recommend' ? 'Thinking' : 'Recommend'}
-        </button>
+        {/* Analyse and Recommend are gone: opening their tab runs them. A
+            button whose only job is "produce the thing this tab exists to
+            show" is a step between you and the answer. */}
         {/* Ramp, removal, counterspells and draw never qualify on theme alone,
             which makes them invisible rather than unwanted. This is how you ask
             for them. */}
@@ -531,7 +533,11 @@ export function DeckPage() {
             Stop AI
           </button>
         ) : (
-          <button className="btn sm" onClick={getAiRecommendations} disabled={!!busy || !text.trim()}>
+          <button
+            className="btn btn-primary sm"
+            onClick={getAiRecommendations}
+            disabled={!!busy || !text.trim()}
+          >
             AI recommend
           </button>
         )}
@@ -606,14 +612,15 @@ export function DeckPage() {
       {/* Always rendered: Search works before there is anything to analyse,
           which is exactly when you are looking cards up. */}
       <div className="result-tabs">
-        <button className={tab === 'analysis' ? 'on' : ''} disabled={!report}
+        {/* Not disabled on empty: opening the tab is what fills it. */}
+        <button className={tab === 'analysis' ? 'on' : ''} disabled={!text.trim()}
           onClick={() => setTab('analysis')}>
           Analysis{report && <span className="faint"> {report.total_cards}</span>}
         </button>
         <button className={tab === 'search' ? 'on' : ''} onClick={() => setTab('search')}>
           Search
         </button>
-        <button className={tab === 'recommendations' ? 'on' : ''} disabled={!recs}
+        <button className={tab === 'recommendations' ? 'on' : ''} disabled={!text.trim()}
           onClick={() => setTab('recommendations')}>
           Recommendations{recs && <span className="faint"> {recs.recommendations.length}</span>}
         </button>

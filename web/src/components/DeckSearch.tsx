@@ -43,7 +43,8 @@ function SearchTile({ card }: { card: Card }) {
         e.dataTransfer.effectAllowed = 'move'
         solidDragImage(e, e.currentTarget as HTMLElement)
       }}
-      title={`${card.name} — ${card.type_line ?? ''}`}
+      // No tooltip: the name and type are printed on the art itself.
+      title={undefined}
     >
       {face.flippable && <FlipButton onFlip={face.flip} faceName={face.faceName} />}
       {face.src ? (
