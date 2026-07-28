@@ -2434,9 +2434,6 @@
 
 .shuffle-empty { color: var(--muted); font-size: 14px; text-align: center; max-width: 24ch; }
 
-
-
-.shuffle-pile.yes .shuffle-pile.no 
 .shuffle-foot {
   flex: none;
   display: flex;
@@ -2449,8 +2446,6 @@
 
 @media (max-width: 720px) {
   .shuffle-stage { grid-template-columns: 1fr; }
-  .shuffle-pile { flex-direction: row; }
-  .shuffle-pile-top { width: 76px; }
 }
 
 /* Sort direction, at the far end of the section-tab row. */
@@ -2476,7 +2471,8 @@
 /* Pile labels sit either side of the layer; the cards themselves fly to
    coordinates rather than into a container. */
 .shuffle-pile-label {
-  align-self: center;
+  align-self: start;
+  margin-top: 6px;
   padding: 10px 16px;
   border-radius: var(--r);
   border: 1px solid var(--line-soft);
@@ -2503,3 +2499,7 @@
   line-height: 1;
   padding: 5px 10px;
 }
+
+/* A sorted card can be clicked to put it back on the stack. */
+.shuffle-card.sorted { cursor: pointer; }
+.shuffle-card.sorted:hover { filter: brightness(1.14); }

@@ -138,13 +138,13 @@ export function ShuffleTriage({
     setVerdicts((v) => v.map((x, i) => (i === cursor ? verdict : x)))
   }, [cursor, done])
 
+  const undoAt = (index: number) =>
+    setVerdicts((v) => v.map((x, j) => (j === index ? null : x)))
+
   const undoPile = (verdict: Verdict) => {
     // The most recently decided card on that side is the one to take back.
     for (let i = verdicts.length - 1; i >= 0; i--) {
-      if (verdicts[i] === verdict) {
-        setVerdicts((v) => v.map((x, j) => (j === i ? null : x)))
-        return
-      }
+      if (verdicts[i] === verdict) { undoAt(i); return }
     }
   }
 
@@ -240,7 +240,16 @@ export function ShuffleTriage({
             <div
               key={card.oracle_id}
               ref={(el) => { nodes.current[index] = el }}
-              className={`shuffle-card ${index === cursor ? 'active' : ''}`}
+              className={[
+                'shuffle-card',
+                index === cursor ? 'active' : '',
+                verdicts[index] ? 'sorted' : '',
+              ].filter(Boolean).join(' ')}
+              // A sorted card goes back on top of the stack. Clearing its
+              // verdict makes it the first undecided card, which *is* the
+              // cursor -- so it becomes the one being asked about again.
+              onClick={verdicts[index] ? () => undoAt(index) : undefined}
+              title={verdicts[index] ? `Put ${card.name} back on the stack` : undefined}
               onPointerDown={(e) => onPointerDown(e, index)}
               onPointerMove={onPointerMove}
               onPointerUp={endDrag}
