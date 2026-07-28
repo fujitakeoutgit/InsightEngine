@@ -89,10 +89,13 @@ export function ShuffleTriage({
     if (depth > VISIBLE_DEPTH) {
       return { x: 0, y: 0, rotation: 0, scale: 1, opacity: 0, zIndex: 1 }
     }
+    // Squared up, not scattered. The card you are deciding about is the whole
+    // point of this view, and jitter under it only made the edges shimmer.
+    // The piles keep theirs -- those were thrown, this one is presented.
     return {
-      x: jr(4) * 7 * Math.min(1, depth),
-      y: depth * 2.5 + jr(5) * 6 * Math.min(1, depth),
-      rotation: jr(6) * 5 * Math.min(1, depth * 0.6),
+      x: 0,
+      y: depth * 2.5,
+      rotation: 0,
       // Every card the same size: a scale ramp makes the stack read as
       // perspective, and the ask was a squared-up pile, not a funnel.
       scale: 1,
