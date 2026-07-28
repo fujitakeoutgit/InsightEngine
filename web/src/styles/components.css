@@ -1959,13 +1959,26 @@
   border-radius: var(--r);
   background: var(--glass);
   padding: 14px;
+  display: flex;
+  flex-direction: column;
 }
 
 .chart-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
 
 /* The donut is a fixed-size SVG in a fluid grid cell, so it needs centring
    rather than being left to sit against the panel's left edge. */
-.chart svg { display: block; margin-inline: auto; max-width: 100%; height: auto; }
+/* Bounded and centred. It deliberately does NOT grow to fill the panel: these
+   charts share a grid row, so a drawing that stretches to the row height gets
+   its size from whichever *other* panel happens to be tallest, and the two
+   then inflate each other. Size it from its own content and let the panel be
+   as tall as it needs. */
+.chart svg {
+  display: block;
+  margin-inline: auto;
+  width: 100%;
+  max-width: 300px;
+  height: auto;
+}
 .chart-note { font-size: 10.5px; color: var(--muted); min-height: 1.2em; margin-top: 6px; }
 
 /* Counts sit on the segment: the number is what you wanted to read, and it
@@ -2015,8 +2028,21 @@
 .tb-fill { height: 100%; border-radius: 2px; }
 .tb-val { width: 28px; text-align: right; font-size: 11px; color: var(--muted); }
 
-.curve-chart { display: flex; align-items: flex-end; justify-content: center; gap: 4px; height: 150px; }
-.cc-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 3px; height: 100%; }
+.curve-chart {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: clamp(4px, 0.8vw, 12px);
+  padding-inline: 2px;
+  /* Fills whatever the row leaves over. Safe only because the donut beside it
+     is fixed-size: if both grew, each would take its height from the other and
+     the row would run away -- which is exactly what happened when the SVG had
+     flex-grow. One filler per row, and it is this one. */
+  flex: 1 1 auto;
+  min-height: 150px;
+}
+
+.cc-col { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 3px; height: 100%; }
 .cc-total { font-size: 10px; color: var(--muted); }
 .cc-stack { width: 100%; display: flex; flex-direction: column-reverse; border-radius: 2px 2px 0 0; overflow: hidden; min-height: 2px; gap: 2px; }
 .cc-seg { display: grid; place-items: center; min-height: 3px; box-shadow: inset 0 0 0 1px rgba(148, 163, 205, 0.22); }
@@ -2261,17 +2287,6 @@
    when three columns remained, and pushed onto a row of its own when one did. */
 .deck-stat:last-child { grid-column-end: -1; }
 
-/* Height stays at the original 150px. Growing it inflated the whole grid row,
-   and the donut sharing that row ended up in a panel mostly made of empty
-   space. Only the horizontal spread changed: the bars now use the full width. */
-.curve-chart {
-  height: 150px;
-  align-items: flex-end;
-  gap: clamp(4px, 0.8vw, 12px);
-  padding-inline: 2px;
-}
-
-.cc-col { min-width: 0; }
 
 /* Flavour text is printed in italics on the card, so it is italic here. */
 .flavour {
@@ -2344,24 +2359,6 @@
 }
 
 .pt-deck-back::after { content: none; }
-
-/* Charts are a column so their drawing can take whatever height the head and
-   note leave over, rather than sitting at a fixed size with a gap beneath. */
-.chart { display: flex; flex-direction: column; }
-.chart .chart-head { flex: none; }
-.chart .chart-note { flex: none; margin-top: auto; }
-
-.chart svg {
-  display: block;
-  margin-inline: auto;
-  flex: 1 1 auto;
-  width: 100%;
-  /* Square, so height is the real constraint in a tall narrow cell and width
-     in a wide one. min() takes whichever binds first. */
-  max-width: min(100%, 340px);
-  min-height: 0;
-  height: auto;
-}
 
 /* --------------------------------------------------------------------------
    Shuffle — one card at a time
