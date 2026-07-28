@@ -180,7 +180,9 @@ export function groupCards(cards: DeckCard[], by: GroupBy): Group[] {
     .sort((a, b) => order(a.key) - order(b.key) || a.label.localeCompare(b.label))
 }
 
-export function sortDeckCards(cards: DeckCard[], by: SortBy): DeckCard[] {
+export function sortDeckCards(
+  cards: DeckCard[], by: SortBy, direction: "asc" | "desc" = "asc",
+): DeckCard[] {
   const value = (entry: DeckCard): string | number => {
     switch (by) {
       case 'cmc': return entry.card.cmc ?? 0
@@ -192,11 +194,14 @@ export function sortDeckCards(cards: DeckCard[], by: SortBy): DeckCard[] {
       default: return entry.card.name.toLowerCase()
     }
   }
+  const sign = direction === 'desc' ? -1 : 1
   return [...cards].sort((a, b) => {
     const av = value(a)
     const bv = value(b)
+    // Name is the tiebreak and stays ascending either way, so equal-valued
+    // cards keep a stable, readable order rather than flipping with the arrow.
     if (av === bv) return a.card.name.localeCompare(b.card.name)
-    return av < bv ? -1 : 1
+    return (av < bv ? -1 : 1) * sign
   })
 }
 

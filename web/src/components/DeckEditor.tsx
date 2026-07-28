@@ -60,6 +60,7 @@ export function DeckEditor({
   const [dropTarget, setDropTarget] = useState<Section | null>(null)
   const [activeSection, setActiveSection] = useState<Section>("main")
   const [shuffling, setShuffling] = useState(false)
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
   /** Springs a hovered tab open mid-drag. */
   const springTimer = useRef<number | undefined>(undefined)
   const collected = useCollection()
@@ -249,12 +250,24 @@ export function DeckEditor({
             </button>
           )
         })}
+
+        {/* Sort direction sits with the section it applies to, at the far end
+            of the same row. The sort *field* is a dropdown in the toolbar; its
+            direction is one bit and deserves one control, not a second menu. */}
+        <button
+          className="sort-dir push"
+          onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+          title={sortDir === 'asc' ? 'Ascending — click for descending' : 'Descending — click for ascending'}
+          aria-label={`Sort ${sortDir === 'asc' ? 'ascending' : 'descending'}`}
+        >
+          {sortDir === 'asc' ? '↑' : '↓'}
+        </button>
       </div>
 
       <div className="sections">
         {SECTION_TABS.filter((s) => s.key === activeSection).map(({ key }) => {
           const inSection = visible.filter((c) => c.section === key)
-          const groups = groupCards(sortDeckCards(inSection, sortBy), groupBy)
+          const groups = groupCards(sortDeckCards(inSection, sortBy, sortDir), groupBy)
 
           return (
             <section

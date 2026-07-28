@@ -254,6 +254,7 @@ def normalize_card(obj: dict[str, Any]) -> dict[str, Any]:
         "collector_number": obj.get("collector_number"),
         "rarity": obj.get("rarity"),
         "artist": obj.get("artist"),
+        "flavor_text": obj.get("flavor_text"),
         "released_at": obj.get("released_at"),
         "edhrec_rank": obj.get("edhrec_rank"),
         "reserved": bool(obj.get("reserved")),

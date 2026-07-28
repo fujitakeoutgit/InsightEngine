@@ -2477,3 +2477,18 @@
   .shuffle-pile { flex-direction: row; }
   .shuffle-pile-top { width: 76px; }
 }
+
+/* Sort direction, at the far end of the section-tab row. */
+.section-tabs .sort-dir {
+  padding: 6px 12px;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--muted);
+  border-radius: var(--r) var(--r) 0 0;
+  transition: color var(--dur-fast), background-color var(--dur-fast);
+}
+
+.section-tabs .sort-dir:hover {
+  color: var(--aether-hi);
+  background: var(--glass-hi);
+}
