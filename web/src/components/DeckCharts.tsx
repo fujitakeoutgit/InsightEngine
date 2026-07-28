@@ -109,7 +109,10 @@ function Donut({
         <span className="label">{outerLabel} <span className="faint">(outer)</span></span>
         <span className="label">{innerLabel} <span className="faint">(inner)</span></span>
       </div>
-      <svg viewBox={`0 0 ${size} ${size}`} width="100%" style={{ maxWidth: size }} role="img"
+      {/* No width cap here: the viewBox scales cleanly, so how big the donut
+          gets is a layout question and belongs in CSS. Capping it at the
+          drawing size left it marooned in the middle of a wide panel. */}
+      <svg viewBox={`0 0 ${size} ${size}`} role="img"
         aria-label={`${outerLabel} and ${innerLabel} by colour`}>
         {ring(outer, size / 2 - 4, 26, 'o')}
         {ring(inner, size / 2 - 36, 24, 'i')}

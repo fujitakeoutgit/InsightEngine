@@ -2255,18 +2255,17 @@
   box-shadow: 0 0 14px color-mix(in oklab, var(--aether) 75%, transparent);
 }
 
-/* The last cell absorbs whatever the auto-fit grid leaves over, so a row that
-   does not divide evenly ends in content rather than a hole. */
-.deck-stat:last-child { grid-column: span 2; }
+/* The last cell runs to the final grid line, whatever column it happens to
+   start in, so a row that does not divide evenly ends in content rather than a
+   hole. `span 2` guessed at the leftover and was wrong both ways: too narrow
+   when three columns remained, and pushed onto a row of its own when one did. */
+.deck-stat:last-child { grid-column-end: -1; }
 
-@media (max-width: 620px) {
-  .deck-stat:last-child { grid-column: auto; }
-}
-
-/* The curve is the panel's whole point, so it takes the height available
-   rather than a fixed 150px, and grows when the panel is wide. */
+/* Height stays at the original 150px. Growing it inflated the whole grid row,
+   and the donut sharing that row ended up in a panel mostly made of empty
+   space. Only the horizontal spread changed: the bars now use the full width. */
 .curve-chart {
-  height: clamp(150px, 22vw, 260px);
+  height: 150px;
   align-items: flex-end;
   gap: clamp(4px, 0.8vw, 12px);
   padding-inline: 2px;
@@ -2345,3 +2344,21 @@
 }
 
 .pt-deck-back::after { content: none; }
+
+/* Charts are a column so their drawing can take whatever height the head and
+   note leave over, rather than sitting at a fixed size with a gap beneath. */
+.chart { display: flex; flex-direction: column; }
+.chart .chart-head { flex: none; }
+.chart .chart-note { flex: none; margin-top: auto; }
+
+.chart svg {
+  display: block;
+  margin-inline: auto;
+  flex: 1 1 auto;
+  width: 100%;
+  /* Square, so height is the real constraint in a tall narrow cell and width
+     in a wide one. min() takes whichever binds first. */
+  max-width: min(100%, 340px);
+  min-height: 0;
+  height: auto;
+}
