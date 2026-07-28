@@ -5,7 +5,6 @@ import {
   api, streamDeckRecommendations, type Category,
   type Card, type DeckReport, type RecommendReport, type Resolution,
 } from '../lib/api'
-import { collection } from '../lib/collection'
 import {
   addedCard, fromResolutions, serialize, type DeckCard, type Section,
 } from '../lib/deckModel'
@@ -334,14 +333,6 @@ export function DeckPage() {
     setStatus(`Added ${card.name} to the maybeboard`)
   }
 
-  const addCollectedToDeck = () => {
-    const present = new Set(deckCards.map((c) => c.card.oracle_id))
-    const additions = collection.snapshot()
-      .filter((card) => !present.has(card.oracle_id))
-      .map((card) => addedCard(card))
-    if (additions.length) applyEdits([...deckCards, ...additions])
-  }
-
   /** A card dragged from the Search tab onto one of the deck's sections. An
    *  existing copy gains a quantity rather than a second row. */
   const addSearchedCard = (card: Card, section: Section) => {
@@ -515,18 +506,26 @@ export function DeckPage() {
             which makes them invisible rather than unwanted. This is how you ask
             for them. */}
         <span className="cat-buttons">
-          {CATEGORIES.map(([key, label]) => (
-            <button
-              key={key}
-              className="btn btn-ghost sm"
-              onClick={() => getCategory(key)}
-              disabled={!!busy || !text.trim()}
-              title={`Most-played ${label.toLowerCase()} in this deck's colours`}
-            >
-              {busy === key && <span className="spinner" />}
-              {label}
-            </button>
-          ))}
+          {CATEGORIES.map(([key, label]) => {
+            const on = recs?.category === key
+            return (
+              <button
+                key={key}
+                className={on ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
+                aria-pressed={on}
+                // Pressing the active one puts the theme recommendations back,
+                // so the button is a toggle rather than a one-way trip.
+                onClick={() => (on ? getRecommendations() : getCategory(key))}
+                disabled={!!busy || !text.trim()}
+                title={on
+                  ? `Showing ${label.toLowerCase()} — click to go back to themes`
+                  : `Most-played ${label.toLowerCase()} in this deck's colours`}
+              >
+                {busy === key && <span className="spinner" />}
+                {label}
+              </button>
+            )
+          })}
         </span>
         {busy === 'ai' ? (
           <button className="btn btn-danger sm" onClick={() => { aiStream.current?.stop(); setBusy(null) }}>
@@ -598,7 +597,6 @@ export function DeckPage() {
         <DeckEditor
           cards={deckCards}
           onChange={applyEdits}
-          onAddCard={addCollectedToDeck}
           onAddSearched={addSearchedCard}
         />
       )}
@@ -729,6 +727,17 @@ export function DeckPage() {
               </span>
             </h3>
             <div className="row gap-2">
+              {/* Throws the current list away and asks again from scratch —
+                  the way out of a category, a stale run or a filtered view. */}
+              <button
+                className="btn btn-ghost sm rec-reset"
+                onClick={() => { setActiveThemes([]); setAiMode(false); getRecommendations() }}
+                disabled={!!busy}
+                title="Recalculate recommendations"
+                aria-label="Recalculate recommendations"
+              >
+                ↻
+              </button>
               {recView === 'grid' && (
                 <label className="size-slider" title="Card size">
                   <input type="range" min={110} max={300} step={10} value={recSize}

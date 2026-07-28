@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import type { Card } from '../lib/api'
-import { collection, useCollection } from '../lib/collection'
+import { collection } from '../lib/collection'
 import {
   SECTIONS, countCards, deckValue, filterCards, groupCards, sortDeckCards,
   type DeckCard, type GroupBy, type Section, type SortBy,
@@ -40,12 +40,10 @@ const SORTS: [SortBy, string][] = [
 export function DeckEditor({
   cards,
   onChange,
-  onAddCard,
   onAddSearched,
 }: {
   cards: DeckCard[]
   onChange: (next: DeckCard[]) => void
-  onAddCard?: () => void
   /** A card dragged in from the Search tab, dropped on a section. */
   onAddSearched?: (card: Card, section: Section) => void
 }) {
@@ -63,7 +61,6 @@ export function DeckEditor({
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
   /** Springs a hovered tab open mid-drag. */
   const springTimer = useRef<number | undefined>(undefined)
-  const collected = useCollection()
 
   useEffect(() => () => window.clearTimeout(springTimer.current), [])
 
@@ -194,15 +191,6 @@ export function DeckEditor({
         <span className="push mono faint" style={{ fontSize: 11 }}>
           {totals.deck} cards · ${totals.value.toFixed(2)}
         </span>
-        {onAddCard && collected.length > 0 && (
-          <button
-            className="btn sm"
-            onClick={onAddCard}
-            title="Add every card from the Cards tab into this deck"
-          >
-            Add {collected.length} collected
-          </button>
-        )}
       </div>
 
       {/* Deck, Sideboard and Maybeboard are tabs rather than three stacked

@@ -2380,8 +2380,7 @@
 .shuffle-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
+  justify-content: center;
   flex: none;
   font-size: 12px;
 }
@@ -2398,9 +2397,9 @@
   gap: 18px;
 }
 
-.shuffle-stack {
+.shuffle-layer {
   position: relative;
-  width: min(46vh, 340px);
+  width: min(42vh, 300px);
   aspect-ratio: 488 / 680;
   display: grid;
   place-items: center;
@@ -2412,9 +2411,11 @@
   border-radius: 4.75% / 3.5%;
   overflow: hidden;
   background: var(--bg-hi);
-  box-shadow: 0 34px 70px -30px rgba(0, 0, 0, 0.95);
+  box-shadow: 0 20px 44px -22px rgba(0, 0, 0, 0.95);
   will-change: transform;
   user-select: none;
+  /* Transforms come from gsap only. A CSS transition here would fight the
+     tween and produce exactly the stutter this replaced. */
 }
 
 .shuffle-card.active { cursor: grab; touch-action: none; }
@@ -2433,39 +2434,17 @@
 
 .shuffle-empty { color: var(--muted); font-size: 14px; text-align: center; max-width: 24ch; }
 
-.shuffle-pile {
+
+
+.shuffle-pile.yes .shuffle-pile.no 
+.shuffle-foot {
+  flex: none;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-}
-
-.shuffle-pile-top {
-  width: min(20vh, 150px);
-  aspect-ratio: 488 / 680;
-  border-radius: 5px;
-  border: 1px dashed var(--line-soft);
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  padding: 0;
-  transition: transform var(--dur) var(--ease-out), border-color var(--dur-fast);
-}
-
-.shuffle-pile-top img { width: 100%; height: 100%; object-fit: cover; }
-.shuffle-pile-top:not(:disabled) { border-style: solid; cursor: pointer; }
-.shuffle-pile-top:not(:disabled):hover { transform: translateY(-5px) scale(1.03); }
-.shuffle-pile.yes .shuffle-pile-top:not(:disabled):hover { border-color: var(--ok); }
-.shuffle-pile.no .shuffle-pile-top:not(:disabled):hover { border-color: var(--danger); }
-
-.shuffle-foot {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
   font-size: 12px;
+  text-align: center;
 }
 
 @media (max-width: 720px) {
@@ -2493,3 +2472,34 @@
    left to right -- so squeezing it into a third of the width while the square
    donut beside it set the row height was the wrong way round for both. */
 .chart-grid > .chart.wide { grid-column: 1 / -1; }
+
+/* Pile labels sit either side of the layer; the cards themselves fly to
+   coordinates rather than into a container. */
+.shuffle-pile-label {
+  align-self: center;
+  padding: 10px 16px;
+  border-radius: var(--r);
+  border: 1px solid var(--line-soft);
+  font-family: var(--font-m);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: rgba(7, 8, 12, 0.6);
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+  z-index: 3000;
+}
+
+.shuffle-pile-label:not(:disabled):hover { color: var(--ink); }
+.shuffle-pile-label.yes:not(:disabled):hover { border-color: var(--ok); }
+.shuffle-pile-label.no:not(:disabled):hover { border-color: var(--danger); }
+.shuffle-card.active { cursor: grab; touch-action: none; }
+.shuffle-card.active:active { cursor: grabbing; }
+.shuffle-empty { z-index: 4000; }
+
+/* Reset, at the head of the recommendations panel. */
+.rec-reset {
+  font-size: 15px;
+  line-height: 1;
+  padding: 5px 10px;
+}

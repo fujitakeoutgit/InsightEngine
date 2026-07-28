@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import type { Card } from '../lib/api'
@@ -6,10 +6,21 @@ import { canAnimate, gsap } from '../lib/motion'
 
 /** How far a card must travel before releasing it counts as a decision. */
 const COMMIT_PX = 110
-/** How many cards are drawn behind the active one. */
-const DEPTH = 3
+/** Cards deeper than this in the stack are parked; drawing 600 is pointless. */
+const VISIBLE_DEPTH = 14
 
 type Verdict = 'yes' | 'no'
+
+/** Deterministic 0..1 from a string. Jitter has to be stable per card: rolling
+ *  it per render is what makes a stack visibly twitch. */
+function hash(text: string, salt: number): number {
+  let h = 2166136261 ^ salt
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return ((h >>> 0) % 10000) / 10000
+}
 
 /**
  * Triage a result set one card at a time.
@@ -20,11 +31,14 @@ type Verdict = 'yes' | 'no'
  * and nothing is committed until you submit -- a card sent to either pile can
  * be pulled back by clicking that pile.
  *
- * Deliberately modal and deliberately dark: it is a mode you are *in*, and the
- * results underneath would only invite you to go back to scanning them.
+ * Every card is mounted once and never reordered. The transform is the only
+ * thing that changes, driven by where the card currently belongs. The previous
+ * version re-rendered a three-card window, so React recycled DOM nodes as the
+ * array shifted and a half-finished tween carried onto whichever card landed
+ * in that slot -- which is what the judder was.
  */
 export function ShuffleTriage({
-  cards, onClose, onSubmit, keepLabel = "Keep", dropLabel = "Discard",
+  cards, onClose, onSubmit, keepLabel = 'Keep', dropLabel = 'Discard',
 }: {
   cards: Card[]
   onClose: () => void
@@ -33,83 +47,128 @@ export function ShuffleTriage({
   keepLabel?: string
   dropLabel?: string
 }) {
-  const [pending, setPending] = useState<Card[]>(cards)
-  const [yes, setYes] = useState<Card[]>([])
-  const [no, setNo] = useState<Card[]>([])
-  const [busy, setBusy] = useState(false)
+  /** Fixed for the lifetime of the mode: index i is always the same card. */
+  const order = useMemo(() => cards, [cards])
+  const [verdicts, setVerdicts] = useState<(Verdict | null)[]>(
+    () => order.map(() => null),
+  )
 
-  const cardRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
-  /** Live pointer drag on the top card. */
-  const drag = useRef<{ id: number; startX: number; startY: number } | null>(null)
+  const nodes = useRef<(HTMLDivElement | null)[]>([])
+  const drag = useRef<{ id: number; startX: number; startY: number; index: number } | null>(null)
+  const animating = useRef(false)
 
-  const active = pending[0] ?? null
-  const done = pending.length === 0
+  /** The card being asked about: the first without a verdict. */
+  const cursor = verdicts.findIndex((v) => v === null)
+  const done = cursor === -1
+  const yesCount = verdicts.filter((v) => v === 'yes').length
+  const noCount = verdicts.filter((v) => v === 'no').length
+
+  /* --- where each card belongs ------------------------------------------- */
+
+  /** Stack jitter is small -- a tidy pile someone squared up. Pile jitter is
+   *  large, because those were thrown. Both are seeded from the card. */
+  const place = useCallback((index: number) => {
+    const card = order[index]
+    const verdict = verdicts[index]
+    const jr = (salt: number) => hash(card.oracle_id, salt) - 0.5
+
+    if (verdict) {
+      const side = verdict === 'yes' ? 1 : -1
+      return {
+        x: side * (window.innerWidth * 0.34) + jr(1) * 46,
+        y: jr(2) * 54,
+        rotation: side * 6 + jr(3) * 34,
+        scale: 1,
+        opacity: 1,
+        zIndex: 10 + index,
+      }
+    }
+
+    const depth = index - cursor
+    if (depth > VISIBLE_DEPTH) {
+      return { x: 0, y: 0, rotation: 0, scale: 1, opacity: 0, zIndex: 1 }
+    }
+    return {
+      x: jr(4) * 7 * Math.min(1, depth),
+      y: depth * 2.5 + jr(5) * 6 * Math.min(1, depth),
+      rotation: jr(6) * 5 * Math.min(1, depth * 0.6),
+      // Every card the same size: a scale ramp makes the stack read as
+      // perspective, and the ask was a squared-up pile, not a funnel.
+      scale: 1,
+      opacity: 1,
+      zIndex: 1000 - depth,
+    }
+  }, [order, verdicts, cursor])
+
+  /** Move every card to where it now belongs. Tweened, so a decision reads as
+   *  the card travelling rather than teleporting. */
+  const settle = useCallback((animate: boolean) => {
+    order.forEach((_, index) => {
+      const el = nodes.current[index]
+      if (!el) return
+      const target = place(index)
+      if (!animate || !canAnimate()) {
+        gsap.set(el, target)
+        return
+      }
+      gsap.to(el, {
+        ...target,
+        duration: 0.42,
+        ease: 'power3.out',
+        overwrite: 'auto',
+      })
+    })
+  }, [order, place])
+
+  // Position on mount without animating, then animate every later change.
+  const mounted = useRef(false)
+  useLayoutEffect(() => {
+    settle(mounted.current)
+    mounted.current = true
+  }, [settle])
 
   /* --- deciding ---------------------------------------------------------- */
 
   const decide = useCallback((verdict: Verdict) => {
-    const card = pending[0]
-    if (!card || busy) return
-    const el = cardRef.current
+    if (done || animating.current) return
+    setVerdicts((v) => v.map((x, i) => (i === cursor ? verdict : x)))
+  }, [cursor, done])
 
-    const commit = () => {
-      setPending((p) => p.slice(1))
-      if (verdict === 'yes') setYes((y) => [card, ...y])
-      else setNo((n) => [card, ...n])
-      setBusy(false)
-      // The next card inherits the element, so its transform must be cleared
-      // or it would appear already flung aside.
-      if (el) gsap.set(el, { x: 0, y: 0, rotate: 0, opacity: 1 })
-    }
-
-    if (!canAnimate() || !el) { commit(); return }
-    setBusy(true)
-    gsap.to(el, {
-      x: verdict === 'yes' ? 620 : -620,
-      y: -40,
-      rotate: verdict === 'yes' ? 22 : -22,
-      opacity: 0,
-      duration: 0.34,
-      ease: 'power2.in',
-      onComplete: commit,
-    })
-  }, [pending, busy])
-
-  /** Take the most recent card back out of a pile and make it active again. */
   const undoPile = (verdict: Verdict) => {
-    if (busy) return
-    const pile = verdict === 'yes' ? yes : no
-    const card = pile[0]
-    if (!card) return
-    if (verdict === 'yes') setYes((y) => y.slice(1))
-    else setNo((n) => n.slice(1))
-    setPending((p) => [card, ...p])
-
-    // Fly it back in from the side it left on.
-    const el = cardRef.current
-    if (el && canAnimate()) {
-      gsap.fromTo(el,
-        { x: verdict === 'yes' ? 620 : -620, y: -40, rotate: verdict === 'yes' ? 22 : -22, opacity: 0 },
-        { x: 0, y: 0, rotate: 0, opacity: 1, duration: 0.4, ease: 'power3.out' })
+    // The most recently decided card on that side is the one to take back.
+    for (let i = verdicts.length - 1; i >= 0; i--) {
+      if (verdicts[i] === verdict) {
+        setVerdicts((v) => v.map((x, j) => (j === i ? null : x)))
+        return
+      }
     }
   }
 
-  /* --- pointer dragging -------------------------------------------------- */
+  /* --- dragging ---------------------------------------------------------- */
 
-  const onPointerDown = (event: React.PointerEvent) => {
-    if (busy || !active) return
-    drag.current = { id: event.pointerId, startX: event.clientX, startY: event.clientY }
+  const onPointerDown = (event: React.PointerEvent, index: number) => {
+    if (index !== cursor || animating.current) return
+    drag.current = {
+      id: event.pointerId, startX: event.clientX, startY: event.clientY, index,
+    }
     event.currentTarget.setPointerCapture(event.pointerId)
   }
 
   const onPointerMove = (event: React.PointerEvent) => {
     const held = drag.current
-    if (!held || held.id !== event.pointerId || !cardRef.current) return
+    if (!held || held.id !== event.pointerId) return
+    const el = nodes.current[held.index]
+    if (!el) return
     const dx = event.clientX - held.startX
     const dy = event.clientY - held.startY
-    // Rotation tied to travel, so the card leans the way it is going.
-    gsap.set(cardRef.current, { x: dx, y: dy, rotate: dx / 22 })
+    const base = place(held.index)
+    // set, not to: this follows the pointer and must not be tweened.
+    gsap.set(el, {
+      x: base.x + dx,
+      y: base.y + dy,
+      rotation: base.rotation + dx / 24,
+    })
   }
 
   const endDrag = (event: React.PointerEvent) => {
@@ -117,16 +176,8 @@ export function ShuffleTriage({
     if (!held || held.id !== event.pointerId) return
     drag.current = null
     const dx = event.clientX - held.startX
-    if (Math.abs(dx) >= COMMIT_PX) {
-      decide(dx > 0 ? 'yes' : 'no')
-      return
-    }
-    // Not far enough: spring back.
-    if (cardRef.current && canAnimate()) {
-      gsap.to(cardRef.current, { x: 0, y: 0, rotate: 0, duration: 0.34, ease: 'back.out(2)' })
-    } else if (cardRef.current) {
-      gsap.set(cardRef.current, { x: 0, y: 0, rotate: 0 })
-    }
+    if (Math.abs(dx) >= COMMIT_PX) decide(dx > 0 ? 'yes' : 'no')
+    else settle(true)  // not far enough: springs back to its place in the stack
   }
 
   /* --- keyboard ---------------------------------------------------------- */
@@ -146,19 +197,15 @@ export function ShuffleTriage({
     }
   }, [decide, onClose])
 
-  /* --- entrance ---------------------------------------------------------- */
-
   useEffect(() => {
     if (!rootRef.current || !canAnimate()) return
     gsap.fromTo(rootRef.current, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: 'power2.out' })
-    const stack = rootRef.current.querySelectorAll('.shuffle-card')
-    gsap.fromTo(stack,
-      { y: 60, opacity: 0, scale: 0.9 },
-      { y: 0, opacity: 1, scale: 1, duration: 0.5, ease: 'power3.out', stagger: 0.05 })
   }, [])
 
   const submit = () => {
-    const finish = () => onSubmit(yes, no)
+    const kept = order.filter((_, i) => verdicts[i] === 'yes')
+    const dropped = order.filter((_, i) => verdicts[i] === 'no')
+    const finish = () => onSubmit(kept, dropped)
     if (!rootRef.current || !canAnimate()) { finish(); return }
     gsap.to(rootRef.current, { opacity: 0, duration: 0.28, ease: 'power2.in', onComplete: finish })
   }
@@ -166,90 +213,77 @@ export function ShuffleTriage({
   return createPortal(
     <div className="shuffle" ref={rootRef} role="dialog" aria-modal="true" aria-label="Triage results">
       <div className="shuffle-head">
-        <button className="back-link" onClick={onClose}>← Cancel</button>
         <span className="mono faint">
-          {pending.length} left · {yes.length} kept · {no.length} discarded
+          {order.length - yesCount - noCount} left · {yesCount} {keepLabel.toLowerCase()} ·{' '}
+          {noCount} {dropLabel.toLowerCase()}
         </span>
       </div>
 
       <div className="shuffle-stage">
-        <Pile
-          side="no" label={dropLabel} cards={no} onUndo={() => undoPile("no")}
-        />
+        <button
+          className="shuffle-pile-label no"
+          onClick={() => undoPile('no')}
+          disabled={!noCount}
+          title={noCount ? 'Take the last one back' : 'Nothing here yet'}
+        >
+          {dropLabel} · {noCount}
+        </button>
 
-        <div className="shuffle-stack">
-          {done ? (
+        {/* One layer, every card in it. Piles are positions, not containers,
+            so a card moves between them by tweening rather than by being
+            unmounted and rebuilt somewhere else. */}
+        <div className="shuffle-layer">
+          {order.map((card, index) => (
+            <div
+              key={card.oracle_id}
+              ref={(el) => { nodes.current[index] = el }}
+              className={`shuffle-card ${index === cursor ? 'active' : ''}`}
+              onPointerDown={(e) => onPointerDown(e, index)}
+              onPointerMove={onPointerMove}
+              onPointerUp={endDrag}
+              onPointerCancel={endDrag}
+            >
+              {card.image_normal ?? card.image_small ? (
+                <img
+                  src={(card.image_normal ?? card.image_small)!}
+                  alt={card.name}
+                  draggable={false}
+                />
+              ) : (
+                <div className="shuffle-fallback">{card.name}</div>
+              )}
+            </div>
+          ))}
+
+          {done && (
             <p className="shuffle-empty">
-              Every card decided. Submit to {keepLabel.toLowerCase()} {yes.length} and {dropLabel.toLowerCase()} {no.length}.
+              Every card decided. Submit to {keepLabel.toLowerCase()} {yesCount} and{' '}
+              {dropLabel.toLowerCase()} {noCount}.
             </p>
-          ) : (
-            // Reverse order so the active card is painted last, on top.
-            pending.slice(0, DEPTH).map((card, i) => (
-              <div
-                key={card.oracle_id}
-                ref={i === 0 ? cardRef : undefined}
-                className={`shuffle-card ${i === 0 ? 'active' : ''}`}
-                style={{
-                  zIndex: DEPTH - i,
-                  // The ones behind peek out, so the stack reads as a stack.
-                  transform: i === 0 ? undefined : `translateY(${i * 10}px) scale(${1 - i * 0.04})`,
-                  opacity: i === 0 ? 1 : 0.55,
-                }}
-                onPointerDown={i === 0 ? onPointerDown : undefined}
-                onPointerMove={i === 0 ? onPointerMove : undefined}
-                onPointerUp={i === 0 ? endDrag : undefined}
-                onPointerCancel={i === 0 ? endDrag : undefined}
-              >
-                {card.image_normal ?? card.image_small ? (
-                  <img src={(card.image_normal ?? card.image_small)!} alt={card.name} draggable={false} />
-                ) : (
-                  <div className="shuffle-fallback">{card.name}</div>
-                )}
-              </div>
-            ))
           )}
         </div>
 
-        <Pile
-          side="yes" label={keepLabel} cards={yes} onUndo={() => undoPile("yes")}
-        />
+        <button
+          className="shuffle-pile-label yes"
+          onClick={() => undoPile('yes')}
+          disabled={!yesCount}
+          title={yesCount ? 'Take the last one back' : 'Nothing here yet'}
+        >
+          {keepLabel} · {yesCount}
+        </button>
       </div>
 
+      {/* Centred under the stack, because that is where you are looking. */}
       <div className="shuffle-foot">
-        <span className="faint">Drag, or use ← and →. Click a pile to take the last one back.</span>
-        <button className="btn btn-primary" onClick={submit} disabled={!yes.length && !no.length}>
-          Submit — {keepLabel.toLowerCase()} {yes.length}, {dropLabel.toLowerCase()} {no.length}
+        <button className="btn btn-primary" onClick={submit} disabled={!yesCount && !noCount}>
+          Submit — {keepLabel.toLowerCase()} {yesCount}, {dropLabel.toLowerCase()} {noCount}
         </button>
+        <button className="btn btn-danger sm" onClick={onClose}>
+          Cancel
+        </button>
+        <span className="faint">Drag, or use ← and →. Click a pile to take the last one back.</span>
       </div>
     </div>,
     document.body,
-  )
-}
-
-function Pile({
-  side, label, cards, onUndo,
-}: {
-  side: Verdict
-  label: string
-  cards: Card[]
-  onUndo: () => void
-}) {
-  const top = cards[0]
-  return (
-    <div className={`shuffle-pile ${side}`}>
-      <span className="label">{label} · {cards.length}</span>
-      <button
-        className="shuffle-pile-top"
-        onClick={onUndo}
-        disabled={!top}
-        title={top ? `Put ${top.name} back` : 'Nothing here yet'}
-      >
-        {top && (top.image_normal ?? top.image_small) ? (
-          <img src={(top.image_normal ?? top.image_small)!} alt={top.name} />
-        ) : (
-          <span className="faint">{side === "yes" ? "→" : "←"}</span>
-        )}
-      </button>
-    </div>
   )
 }
