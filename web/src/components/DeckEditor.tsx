@@ -13,6 +13,7 @@ import { solidDragImage, useQuietDrag } from '../lib/useQuietDrag'
 import { usePersisted } from '../lib/usePersisted'
 import { CARD_DRAG_TYPE } from './DeckSearch'
 import { FlipButton } from './FlipButton'
+import { ShuffleTriage } from './ShuffleTriage'
 import { ManaCost } from './ManaCost'
 
 const GROUPINGS: [GroupBy, string][] = [
@@ -57,7 +58,8 @@ export function DeckEditor({
   const [openGroups, setOpenGroups] = useState<Record<string, string>>({})
   const [dragging, setDragging] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<Section | null>(null)
-  const [activeSection, setActiveSection] = useState<Section>('main')
+  const [activeSection, setActiveSection] = useState<Section>("main")
+  const [shuffling, setShuffling] = useState(false)
   /** Springs a hovered tab open mid-drag. */
   const springTimer = useRef<number | undefined>(undefined)
   const collected = useCollection()
@@ -119,8 +121,29 @@ export function DeckEditor({
   // everywhere -- panel padding, the splitter, the page background.
   useQuietDrag()
 
+  /** Triage the open section: right keeps a card where it is, left sends it to
+   *  the maybeboard to decide on later. */
+  const shuffleCards = visible.filter((c) => c.section === activeSection)
+
   return (
     <div className="editor">
+      {shuffling && (
+        <ShuffleTriage
+          cards={shuffleCards.map((c) => c.card)}
+          keepLabel="Keep"
+          dropLabel="Maybe"
+          onClose={() => setShuffling(false)}
+          onSubmit={(_kept, maybes) => {
+            const moving = new Set(maybes.map((c) => c.oracle_id))
+            onChange(cards.map((c) => (
+              c.section === activeSection && moving.has(c.card.oracle_id)
+                ? { ...c, section: 'maybeboard' as Section }
+                : c
+            )))
+            setShuffling(false)
+          }}
+        />
+      )}
       <div className="editor-bar">
         <input
           className="fld"
@@ -158,6 +181,14 @@ export function DeckEditor({
         )}
         <button className="btn btn-ghost sm" onClick={() => setView(view === 'list' ? 'grid' : 'list')}>
           {view === 'list' ? 'Images' : 'List'}
+        </button>
+        <button
+          className="btn sm"
+          onClick={() => setShuffling(true)}
+          disabled={!visible.some((c) => c.section === activeSection)}
+          title="Go through this section one card at a time"
+        >
+          Shuffle
         </button>
         <span className="push mono faint" style={{ fontSize: 11 }}>
           {totals.deck} cards · ${totals.value.toFixed(2)}

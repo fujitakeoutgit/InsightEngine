@@ -5,9 +5,13 @@ import { api, streamSemantic, type Card } from '../lib/api'
 import { history, useHistory } from '../lib/history'
 import { countTo, riseIn } from '../lib/motion'
 import { hasSemantic, withCommanderDefault } from '../lib/query'
-import { cacheKey, fromResponse, readCache, rememberScroll, writeCache } from '../lib/searchCache'
+import {
+  cacheKey, forgetQuery, fromResponse, readCache, rememberScroll, writeCache,
+} from '../lib/searchCache'
 import { SIZE_KEY, usePersisted, VIEW_KEY } from '../lib/usePersisted'
+import { collection } from '../lib/collection'
 import { CardGrid, GridSkeleton } from '../components/CardGrid'
+import { ShuffleTriage } from '../components/ShuffleTriage'
 import { BackLink } from '../components/PageHead'
 import { SearchBar } from '../components/SearchBar'
 import { ScrollTop } from '../components/ScrollTop'
@@ -68,6 +72,7 @@ export function SearchPage() {
   const [order, setOrder] = useState<'asc' | 'desc'>('asc')
   const [cardSize, setCardSize] = usePersisted(SIZE_KEY, 190)
   const [paperCards, setPaperCards] = useState(0)
+  const [shuffling, setShuffling] = useState(false)
   /** 1-based. Lives in the URL so a page is linkable and survives a reload. */
   const page = Math.max(1, Number(params.get("page") ?? 1))
 
@@ -396,6 +401,13 @@ export function SearchPage() {
                 >
                   {view === 'grid' ? 'List' : 'Grid'}
                 </button>
+                <button
+                  className="btn sm"
+                  onClick={() => setShuffling(true)}
+                  title="Go through these one at a time, keeping or discarding each"
+                >
+                  Shuffle
+                </button>
               </div>
             </div>
 
@@ -430,6 +442,23 @@ export function SearchPage() {
               </div>
             )}
           </>
+        )}
+
+        {shuffling && (
+          <ShuffleTriage
+            cards={cards}
+            onClose={() => setShuffling(false)}
+            onSubmit={(kept, discarded) => {
+              kept.forEach((card) => collection.add(card))
+              const dropped = new Set(discarded.map((c) => c.oracle_id))
+              setCards((current) => current.filter((c) => !dropped.has(c.oracle_id)))
+              // Every cached page of this query still holds the discarded
+              // cards, and turning a page would bring them straight back.
+              // A new search repopulates the cache, which is the reset.
+              forgetQuery(query)
+              setShuffling(false)
+            }}
+          />
         )}
 
         {collapsed && consoleEl}
