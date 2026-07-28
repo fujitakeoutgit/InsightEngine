@@ -21,7 +21,7 @@ from .config import settings
 # Bump when the `cards`/`tags`/`rulings` layout changes. The mirror is derived
 # data, so a bump drops and rebuilds those tables from the cached bulk files
 # rather than attempting an ALTER migration. `http_cache` is preserved.
-SCHEMA_VERSION = "4"
+SCHEMA_VERSION = "5"
 
 DERIVED_TABLES = ("cards", "cards_fts", "tags", "tags_fts", "tag_cards", "rulings", "sets")
 
@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS cards (
     collector_number TEXT,
     rarity           TEXT,
     artist           TEXT,
+    flavor_text      TEXT,
     edhrec_rank      INTEGER,
     penny_rank       INTEGER,
     reserved         INTEGER DEFAULT 0,

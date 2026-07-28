@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { api, streamSemantic, type Card } from '../lib/api'
 import { history, useHistory } from '../lib/history'
 import { countTo, riseIn } from '../lib/motion'
-import { hasSemantic } from '../lib/query'
+import { hasSemantic, withCommanderDefault } from '../lib/query'
 import { cacheKey, fromResponse, readCache, rememberScroll, writeCache } from '../lib/searchCache'
 import { SIZE_KEY, usePersisted, VIEW_KEY } from '../lib/usePersisted'
 import { CardGrid, GridSkeleton } from '../components/CardGrid'
@@ -12,6 +12,10 @@ import { BackLink } from '../components/PageHead'
 import { SearchBar } from '../components/SearchBar'
 import { ScrollTop } from '../components/ScrollTop'
 import { EMPTY_CONSOLE, SemanticConsole, type ConsoleState } from '../components/SemanticConsole'
+
+/** Server page size. The API caps a page at 175; 60 keeps a page quick to
+ *  render and quick to scan. */
+const PER_PAGE = 60
 
 const SORTS = [
   ['name', 'Name'],
@@ -55,7 +59,6 @@ export function SearchPage() {
   const [cards, setCards] = useState<Card[]>([])
   const [total, setTotal] = useState(0)
   const [engine, setEngine] = useState<string>('none')
-  const [hasMore, setHasMore] = useState(false)
   const [console_, setConsole] = useState<ConsoleState>(EMPTY_CONSOLE)
   const [collapsed, setCollapsed] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -65,6 +68,8 @@ export function SearchPage() {
   const [order, setOrder] = useState<'asc' | 'desc'>('asc')
   const [cardSize, setCardSize] = usePersisted(SIZE_KEY, 190)
   const [paperCards, setPaperCards] = useState(0)
+  /** 1-based. Lives in the URL so a page is linkable and survives a reload. */
+  const page = Math.max(1, Number(params.get("page") ?? 1))
 
   const countRef = useRef<HTMLSpanElement>(null)
   const heroCountRef = useRef<HTMLSpanElement>(null)
@@ -75,7 +80,8 @@ export function SearchPage() {
   // Semantic results arrive as one batch and are sorted here; everything else
   // is sorted by the server, so the cache key includes sort/order.
   const isSemanticQuery = hasSemantic(query)
-  const key = cacheKey(query, isSemanticQuery ? '' : sort, isSemanticQuery ? '' : order)
+  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE))
+  const key = cacheKey(query, isSemanticQuery ? "" : sort, isSemanticQuery ? "" : order, page)
 
   useEffect(() => setDraft(query), [query])
 
@@ -148,16 +154,15 @@ export function SearchPage() {
     })
   }, [sort, order])
 
-  const runStandard = useCallback(async (q: string, s: string, o: string) => {
+  const runStandard = useCallback(async (q: string, s: string, o: string, p: number) => {
     setLoading(true)
     setError(null)
     try {
-      const response = await api.search({ q, sort: s, order: o, per_page: 60 })
+      const response = await api.search({ q, sort: s, order: o, page: p, per_page: PER_PAGE })
       setCards(response.cards)
       setTotal(response.total)
       setEngine(response.engine)
-      setHasMore(response.has_more)
-      writeCache(cacheKey(q, s, o), fromResponse(response))
+      writeCache(cacheKey(q, s, o, p), fromResponse(response))
       history.record(q, response.total, response.engine)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Search failed')
@@ -183,7 +188,6 @@ export function SearchPage() {
       setCards(cached.cards)
       setTotal(cached.total)
       setEngine(cached.engine)
-      setHasMore(cached.hasMore)
       if (cached.stages) {
         setConsole((c) => ({
           ...EMPTY_CONSOLE, model: c.model, stages: cached.stages!, current: 'complete',
@@ -196,10 +200,10 @@ export function SearchPage() {
     }
 
     if (isSemanticQuery) runSemantic(query)
-    else runStandard(query, sort, order)
+    else runStandard(query, sort, order, page)
 
     return () => stream.current?.stop()
-  }, [query, sort, order, key, isSemanticQuery, runSemantic, runStandard])
+  }, [query, sort, order, page, key, isSemanticQuery, runSemantic, runStandard])
 
   useEffect(() => {
     if (!loading && cards.length) {
@@ -209,8 +213,18 @@ export function SearchPage() {
   }, [loading, total, cards.length])
 
   const submit = (next: string) => {
-    const trimmed = next.trim()
+    const trimmed = withCommanderDefault(next.trim())
+    // A new search always starts at page 1; keeping the old page would show
+    // results from the middle of a list you have not seen the start of.
     setParams(trimmed ? { q: trimmed } : {})
+  }
+
+  const goToPage = (next: number) => {
+    const params_ = new URLSearchParams(params)
+    if (next <= 1) params_.delete("page")
+    else params_.set("page", String(next))
+    setParams(params_)
+    window.scrollTo({ top: 0 })
   }
 
   const stopRun = () => {
@@ -339,7 +353,7 @@ export function SearchPage() {
             <div className="toolbar" ref={toolbarRef}>
               <span className="count">
                 <b ref={countRef}>{total.toLocaleString()}</b> {total === 1 ? 'card' : 'cards'}
-                {hasMore && ' (page 1)'}
+                {totalPages > 1 && ` · page ${page} of ${totalPages}`}
               </span>
               <span className={`engine-badge ${engine}`}>{engine}</span>
 
@@ -390,6 +404,31 @@ export function SearchPage() {
               view={view}
               size={cardSize}
             />
+
+            {/* Semantic runs return every match in one batch, so they have no
+                pages to turn. */}
+            {!isSemanticQuery && totalPages > 1 && (
+              <div className="pager">
+                <button
+                  className="btn btn-ghost sm"
+                  onClick={() => goToPage(page - 1)}
+                  disabled={page <= 1 || loading}
+                >
+                  ← Previous
+                </button>
+                <span className="mono faint">
+                  {((page - 1) * PER_PAGE + 1).toLocaleString()}–
+                  {Math.min(page * PER_PAGE, total).toLocaleString()} of {total.toLocaleString()}
+                </span>
+                <button
+                  className="btn btn-ghost sm"
+                  onClick={() => goToPage(page + 1)}
+                  disabled={page >= totalPages || loading}
+                >
+                  Next →
+                </button>
+              </div>
+            )}
           </>
         )}
 

@@ -2241,3 +2241,107 @@
   background: color-mix(in oklab, var(--aether) 16%, transparent);
   transform: translateY(-2px);
 }
+
+/* The divider reads as a seam by default and brightens on contact, rather than
+   only existing once you find it. */
+.split-handle::before {
+  background: color-mix(in oklab, var(--aether) 55%, var(--line-soft));
+  box-shadow: 0 0 7px color-mix(in oklab, var(--aether) 28%, transparent);
+}
+
+.split-handle:hover::before,
+.split-handle.dragging::before {
+  background: var(--aether-hi, var(--aether));
+  box-shadow: 0 0 14px color-mix(in oklab, var(--aether) 75%, transparent);
+}
+
+/* The last cell absorbs whatever the auto-fit grid leaves over, so a row that
+   does not divide evenly ends in content rather than a hole. */
+.deck-stat:last-child { grid-column: span 2; }
+
+@media (max-width: 620px) {
+  .deck-stat:last-child { grid-column: auto; }
+}
+
+/* The curve is the panel's whole point, so it takes the height available
+   rather than a fixed 150px, and grows when the panel is wide. */
+.curve-chart {
+  height: clamp(150px, 22vw, 260px);
+  align-items: flex-end;
+  gap: clamp(4px, 0.8vw, 12px);
+  padding-inline: 2px;
+}
+
+.cc-col { min-width: 0; }
+
+/* Flavour text is printed in italics on the card, so it is italic here. */
+.flavour {
+  font-style: italic;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+  padding-left: 12px;
+  border-left: 2px solid var(--line-soft);
+  white-space: pre-line;
+}
+
+/* The bar carries a back link, three readouts and six buttons. It has to be
+   allowed to wrap onto a second line rather than clipping its own contents. */
+.pt-bar {
+  flex-wrap: wrap;
+  row-gap: 8px;
+  overflow: visible;
+  min-height: 0;
+}
+
+.pt-bar .push { margin-left: auto; }
+.pt-bar > span { white-space: nowrap; }
+
+/* A card back rather than a hatched placeholder: a dark border, an inner
+   frame, and a lighter panel inside it. Drawn rather than an image, so it
+   scales with the card and ships no asset. */
+.pt-deck-back {
+  display: block;
+  width: 117px;
+  aspect-ratio: 488 / 680;
+  border-radius: 5px;
+  border: 1px solid #0a0a0c;
+  background:
+    radial-gradient(58% 42% at 50% 46%, rgba(214, 188, 142, 0.30), transparent 72%),
+    linear-gradient(160deg, #4a3520 0%, #2b1d12 100%);
+  background-color: #2f2015;
+  position: relative;
+  box-shadow: inset 0 0 0 4px #1a1109, inset 0 0 0 5px rgba(214, 188, 142, 0.22);
+}
+
+.pt-deck-back::after {
+  content: '';
+  position: absolute;
+  inset: 12% 14%;
+  border-radius: 50% / 42%;
+  border: 1px solid rgba(214, 188, 142, 0.30);
+  background: radial-gradient(circle at 50% 42%, rgba(214, 188, 142, 0.16), transparent 68%);
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin: 26px 0 8px;
+  font-size: 12px;
+}
+
+/* The real card back if it has been dropped into web/public, and the drawn
+   one underneath as the fallback -- the image is not committed, so a fresh
+   checkout still gets something card-shaped rather than a broken tile. */
+.pt-deck-back {
+  background-image: url('/card-back.png'),
+    radial-gradient(58% 42% at 50% 46%, rgba(214, 188, 142, 0.30), transparent 72%),
+    linear-gradient(160deg, #4a3520 0%, #2b1d12 100%);
+  background-size: cover, auto, auto;
+  background-position: center;
+  box-shadow: none;
+}
+
+.pt-deck-back::after { content: none; }

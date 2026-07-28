@@ -21,6 +21,7 @@ export interface Card {
   collector_number: string | null
   rarity: string | null
   artist: string | null
+  flavor_text: string | null
   released_at: string | null
   edhrec_rank: number | null
   reserved: boolean

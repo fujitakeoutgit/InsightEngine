@@ -3,8 +3,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Card } from '../lib/api'
 import { useCardFace } from '../lib/faces'
 import { solidDragImage } from '../lib/useQuietDrag'
+import { Lightbox } from './Lightbox'
 import { canAnimate, gsap } from '../lib/motion'
 import { type DeckCard } from '../lib/deckModel'
+
+/** A card being looked at, and the rect it grew from. */
+interface ZoomView {
+  src: string
+  alt: string
+  from: DOMRect
+}
 
 type Zone = 'library' | 'hand' | 'battlefield' | 'graveyard' | 'exile' | 'command'
 
@@ -22,6 +30,29 @@ interface Instance {
 const ZONE_LABEL: Record<Zone, string> = {
   library: 'Library', hand: 'Hand', battlefield: 'Battlefield',
   graveyard: 'Graveyard', exile: 'Exile', command: 'Command',
+}
+
+/**
+ * Where a permanent is dealt, as fractions of the mat.
+ *
+ * The left two thirds is the board proper -- creatures and planeswalkers up
+ * top where combat happens, lands along the bottom where you tap them. The
+ * right third holds artifacts and enchantments, which sit to one side and are
+ * rarely touched once they are down. Nothing is enforced: this is only where a
+ * card *lands*, and dragging it elsewhere is always allowed.
+ */
+const REGIONS = {
+  creatures: { x: 0.02, y: 0.03, dx: 0.105, dy: 0.20, cols: 6 },
+  lands: { x: 0.02, y: 0.52, dx: 0.105, dy: 0.20, cols: 6 },
+  sides: { x: 0.68, y: 0.03, dx: 0.105, dy: 0.20, cols: 3 },
+} as const
+
+/** Land wins over Creature, so an Artifact Land is a land and an Artifact
+ *  Creature is a creature. */
+function regionFor(line: string): keyof typeof REGIONS {
+  if (/\bLand\b/.test(line)) return 'lands'
+  if (/\b(Creature|Planeswalker|Battle)\b/.test(line)) return 'creatures'
+  return 'sides'
 }
 
 /** Fisher-Yates. A biased shuffle would quietly invalidate every draw. */
@@ -80,6 +111,7 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
   const drag = useRef<{ iid: string; dx: number; dy: number } | null>(null)
   /** Cards drawn by the last action, so only they animate in. */
   const [entering, setEntering] = useState<string[]>([])
+  const [zoomed, setZoomed] = useState<ZoomView | null>(null)
 
   const note = useCallback((line: string) => setLog((l) => [line, ...l].slice(0, 40)), [])
 
@@ -155,21 +187,32 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
   const tap = (iid: string) =>
     setCards((cs) => cs.map((c) => (c.iid === iid ? { ...c, tapped: !c.tapped } : c)))
 
-  /** Play a card onto the mat.
-   *
-   * Everything, including instants and sorceries. This used to route them
-   * straight to the graveyard, which is where they end up by the rules -- but
-   * this is not a rules engine, and the effect was that clicking a card in hand
-   * made it vanish from the board you were trying to look at. Putting it down
-   * and dragging it to the graveyard when you are done is one gesture, and it
-   * is yours to make. */
+  /** Play a card: instants and sorceries resolve to the graveyard, permanents
+   *  are dealt into the region their type belongs to. */
   const play = (iid: string) => {
     const inst = cards.find((c) => c.iid === iid)
     if (!inst) return
-    // Dealt left-to-right in rows so a clicked card does not land on the last
-    // one; drag it wherever you actually want it.
-    const n = inZone.battlefield.length
-    move(iid, 'battlefield', { x: 0.07 + (n % 8) * 0.11, y: 0.16 + Math.floor(n / 8) * 0.26 })
+    const line = inst.card.type_line ?? ''
+
+    // Instants and sorceries resolve and are done; they never sit on a
+    // battlefield, and leaving one there inflates the board you are reading.
+    if (/\b(Instant|Sorcery)\b/.test(line)) {
+      move(iid, 'graveyard')
+      note(`Cast ${inst.card.name}`)
+      return
+    }
+
+    const name = regionFor(line)
+    const region = REGIONS[name]
+    // Filled left to right, then wrapped. Cards are only *dealt* here -- drag
+    // one anywhere you like once it is down.
+    const n = inZone.battlefield.filter(
+      (c) => regionFor(c.card.type_line ?? '') === name,
+    ).length
+    move(iid, 'battlefield', {
+      x: region.x + (n % region.cols) * region.dx,
+      y: region.y + Math.floor(n / region.cols) * region.dy,
+    })
     note(`Played ${inst.card.name}`)
   }
 
@@ -192,7 +235,6 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
 
   const lands = inZone.battlefield.filter((c) => /\bLand\b/.test(c.card.type_line ?? ''))
   const untappedLands = lands.filter((c) => !c.tapped).length
-  const toBottom = Math.max(0, inZone.hand.length - (7 - mulligans))
 
   return (
     <div className="playtest">
@@ -226,13 +268,6 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
         </div>
       </div>
 
-      {toBottom > 0 && (
-        <p className="pt-hint mono">
-          London mulligan — put {toBottom} card{toBottom > 1 ? 's' : ''} from hand on the
-          bottom (drag to Library), then play on.
-        </p>
-      )}
-
       {/* The mat. No border, no lanes, no labels: cards sit where you put them. */}
       <div
         className="pt-mat"
@@ -242,7 +277,7 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
       >
         {inZone.battlefield.map((c) => (
           <PlayCard
-            key={c.iid} inst={c} drag={drag} onTap={tap} placed
+            key={c.iid} inst={c} drag={drag} onTap={tap} onZoom={setZoomed} placed
           />
         ))}
         {!inZone.battlefield.length && (
@@ -250,16 +285,19 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
         )}
       </div>
 
+      {/* Ordered so the piles you reach for least are furthest from the deck:
+          graveyard, exile, command, then the deck itself at the end of the
+          hand. */}
       <div className="pt-piles">
-        <Pile name="command" cards={inZone.command} drag={drag} onMove={move} onPlay={play} />
-        <Pile name="graveyard" cards={inZone.graveyard} drag={drag} onMove={move} />
-        <Pile name="exile" cards={inZone.exile} drag={drag} onMove={move} />
+        <Pile name="graveyard" cards={inZone.graveyard} drag={drag} onMove={move} onZoom={setZoomed} />
+        <Pile name="exile" cards={inZone.exile} drag={drag} onMove={move} onZoom={setZoomed} />
+        <Pile name="command" cards={inZone.command} drag={drag} onMove={move} onPlay={play} onZoom={setZoomed} />
       </div>
 
       <div className="pt-hand" ref={handRef}>
         <div className="pt-cards">
           {inZone.hand.map((c) => (
-            <PlayCard key={c.iid} inst={c} drag={drag} onPlay={play} />
+            <PlayCard key={c.iid} inst={c} drag={drag} onPlay={play} onZoom={setZoomed} />
           ))}
           {!inZone.hand.length && <p className="faint" style={{ fontSize: 12 }}>Empty hand.</p>}
         </div>
@@ -294,6 +332,15 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
           {log.slice(0, 4).map((line, i) => <div key={i}>{line}</div>)}
         </div>
       )}
+
+      {zoomed && (
+        <Lightbox
+          src={zoomed.src}
+          alt={zoomed.alt}
+          from={zoomed.from}
+          onClose={() => setZoomed(null)}
+        />
+      )}
     </div>
   )
 }
@@ -301,13 +348,14 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
 type DragRef = React.MutableRefObject<{ iid: string; dx: number; dy: number } | null>
 
 function Pile({
-  name, cards, drag, onMove, onPlay,
+  name, cards, drag, onMove, onPlay, onZoom,
 }: {
   name: Zone
   cards: Instance[]
   drag: DragRef
   onMove: (iid: string, zone: Zone, at?: { x: number; y: number }) => void
   onPlay?: (iid: string) => void
+  onZoom: (view: ZoomView) => void
 }) {
   return (
     <div
@@ -327,7 +375,7 @@ function Pile({
       <div className="pt-pile-body">
         {cards.slice(-3).map((c, i) => (
             <PlayCard
-              key={c.iid} inst={c} drag={drag} onPlay={onPlay}
+              key={c.iid} inst={c} drag={drag} onPlay={onPlay} onZoom={onZoom}
               style={{ marginLeft: i ? -34 : 0 }}
             />
         ))}
@@ -337,13 +385,14 @@ function Pile({
 }
 
 function PlayCard({
-  inst, drag, onTap, onPlay, placed, style,
+  inst, drag, onTap, onPlay, onZoom, placed, style,
 }: {
   inst: Instance
   drag: DragRef
   onTap?: (iid: string) => void
   /** Present in hand and the command zone: click puts it onto the battlefield. */
   onPlay?: (iid: string) => void
+  onZoom: (view: ZoomView) => void
   /** On the mat, so it is positioned absolutely. */
   placed?: boolean
   style?: React.CSSProperties
@@ -382,18 +431,23 @@ function PlayCard({
         ? <img src={face.src} alt={face.faceName} loading="lazy" />
         : <div className="pt-fallback">{inst.card.name}</div>}
 
-      {/* A new tab: navigating away would end the game. */}
-      <a
+      {/* Zooms in place rather than opening the card page. Reading a card is
+          something you do mid-game; leaving the table to do it would end the
+          game you are in the middle of. */}
+      <button
         className="pt-info"
-        href={`/card/${inst.card.oracle_id}`}
-        target="_blank"
-        rel="noreferrer noopener"
-        title={`Open ${inst.card.name}`}
-        aria-label={`Open ${inst.card.name}`}
-        onClick={(e) => e.stopPropagation()}
+        title={`Look at ${inst.card.name}`}
+        aria-label={`Look at ${inst.card.name}`}
+        onClick={(event) => {
+          event.stopPropagation()
+          if (face.src) {
+            onZoom({ src: face.src, alt: face.faceName, from: event.currentTarget
+              .closest('.pt-card')!.getBoundingClientRect() })
+          }
+        }}
       >
         i
-      </a>
+      </button>
 
       {face.flippable && (
         <button

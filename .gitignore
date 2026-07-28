@@ -19,3 +19,7 @@ web/dist/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Wizards of the Coast card-back artwork. Used locally by the playtester; not
+# redistributed, so it is supplied per-machine rather than committed.
+web/public/card-back.png

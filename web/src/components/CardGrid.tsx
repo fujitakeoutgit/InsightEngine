@@ -79,11 +79,12 @@ function CardTile({
         event.preventDefault()
         onPick(card, { x: event.clientX, y: event.clientY })
       })}
-      title={
-        caption
-          ? `${card.name} — ${card.type_line ?? ''}\n${caption}`
-          : `${card.name} — ${card.type_line ?? ''}`
-      }
+      // Only when there is something to say that the art does not. The card's
+      // own name and type are printed on the image you are already looking at,
+      // so a tooltip repeating them is a label that follows the pointer around.
+      // Recommendation reasons are the exception -- image view has nowhere else
+      // to put them.
+      title={caption}
     >
       {collectable && <CollectButton card={card} onAdd={onAdd} addLabel={addLabel} />}
       {flippable && <FlipButton onFlip={flip} faceName={faceName} />}

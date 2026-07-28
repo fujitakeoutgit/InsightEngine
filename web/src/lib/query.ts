@@ -128,3 +128,21 @@ export const EXAMPLE_QUERIES = [
 export function quoteIfNeeded(value: string): string {
   return /[\s"']/.test(value) ? `"${value.replace(/"/g, '')}"` : value
 }
+
+/** Any operator that already states which format the search is about. */
+const NAMES_A_FORMAT = /\b(legal|banned|restricted|format)\s*:/i
+
+/**
+ * Add `legal:commander` to a query that does not already name a format.
+ *
+ * Commander is the format this app is used for, and a search without it
+ * returns cards you cannot play alongside ones you can, with nothing to tell
+ * them apart. Anything that already says `legal:`, `banned:` or `restricted:`
+ * is left alone -- it has stated its own opinion about legality, and adding a
+ * second one would silently contradict it.
+ */
+export function withCommanderDefault(query: string): string {
+  const trimmed = query.trim()
+  if (!trimmed || NAMES_A_FORMAT.test(trimmed)) return trimmed
+  return `${trimmed} legal:commander`
+}

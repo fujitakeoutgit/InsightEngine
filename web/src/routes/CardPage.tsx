@@ -238,13 +238,18 @@ export function CardPage() {
               <span className="v mono">{money(prices.usd_foil)}</span>
               <span className="label">USD foil</span>
             </div>
+            {/* Rarity and collector number rather than EUR and tix: you are
+                looking at a paper card, and those two identify the printing in
+                front of you. */}
             <div className="price-cell">
-              <span className="v mono">{money(prices.eur, '€')}</span>
-              <span className="label">EUR</span>
+              <span className="v mono" style={{ textTransform: 'capitalize' }}>
+                {card.rarity ?? '—'}
+              </span>
+              <span className="label">Rarity</span>
             </div>
             <div className="price-cell">
-              <span className="v mono">{money(prices.tix, '')}</span>
-              <span className="label">MTGO tix</span>
+              <span className="v mono">{card.collector_number ?? '—'}</span>
+              <span className="label">C#</span>
             </div>
           </div>
         </div>
@@ -325,8 +330,24 @@ export function CardPage() {
           </div>
         )}
 
+        {/* Flavour text is the only part of a card that is not mechanical, so
+            it gets the printed treatment rather than a metadata line. */}
+        {card.flavor_text && (
+          <p className="flavour">{card.flavor_text}</p>
+        )}
+
         <p className="faint" style={{ fontSize: 13 }}>
-          Artist: {card.artist ?? 'Unknown'} · Card data from Scryfall.
+          Artist:{' '}
+          {card.artist ? (
+            <Link
+              to={`/?q=${encodeURIComponent(`a:"${card.artist}"`)}`}
+              className="meta-link"
+              title={`Every card illustrated by ${card.artist}`}
+            >
+              {card.artist}
+            </Link>
+          ) : 'Unknown'}
+          {' · '}Card data from Scryfall.
         </p>
       </div>
     </section>

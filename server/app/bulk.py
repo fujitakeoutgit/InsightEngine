@@ -131,6 +131,7 @@ def _card_row(card: dict[str, Any], funny_sets: set[str]) -> tuple | None:
         card.get("collector_number"),
         card.get("rarity"),
         card.get("artist"),
+        card.get("flavor_text"),
         card.get("edhrec_rank"),
         card.get("penny_rank"),
         int(bool(card.get("reserved"))),
@@ -158,7 +159,7 @@ _CARD_COLUMNS = (
     "oracle_id, scryfall_id, name, name_norm, name_fold, released_at, layout, "
     "mana_cost, cmc, type_line, oracle_text, oracle_all, power, toughness, "
     "loyalty, defense, colors, color_identity, color_count, keywords, "
-    "produced_mana, set_code, set_name, collector_number, rarity, artist, "
+    "produced_mana, set_code, set_name, collector_number, rarity, artist, flavor_text, "
     "edhrec_rank, penny_rank, reserved, game_changer, is_funny, games, all_parts, digital, "
     "legalities, prices, usd, image_small, image_normal, image_art_crop, "
     "scryfall_uri, card_faces"

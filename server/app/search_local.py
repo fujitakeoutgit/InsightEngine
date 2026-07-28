@@ -20,7 +20,7 @@ from .query.sql import RARITY_ORDER, Compiled, compile_node
 LIST_COLUMNS = (
     "oracle_id, scryfall_id, name, mana_cost, cmc, type_line, oracle_text, "
     "power, toughness, loyalty, colors, color_identity, keywords, set_code, "
-    "set_name, collector_number, rarity, artist, released_at, edhrec_rank, "
+    "set_name, collector_number, rarity, artist, flavor_text, released_at, edhrec_rank, "
     "reserved, game_changer, digital, games, all_parts, produced_mana, "
     "legalities, prices, usd, "
     "image_small, image_normal, image_art_crop, scryfall_uri, card_faces, layout"
