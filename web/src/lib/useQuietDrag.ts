@@ -71,7 +71,11 @@ export function solidDragImage(event: React.DragEvent, source: HTMLElement) {
   const rect = source.getBoundingClientRect()
   const ghost = source.cloneNode(true) as HTMLElement
   ghost.style.position = 'fixed'
-  ghost.style.top = '-10000px'
+  // Off-screen horizontally but *within* the viewport vertically. Chrome
+  // rasterises the drag image from what it has painted, and an element parked
+  // at top:-10000px is outside the paint area -- it silently falls back to its
+  // own translucent snapshot, which is the faded card this was meant to fix.
+  ghost.style.top = '0'
   ghost.style.left = '-10000px'
   ghost.style.margin = '0'
   ghost.style.width = `${rect.width}px`

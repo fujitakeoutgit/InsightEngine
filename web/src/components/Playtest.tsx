@@ -294,7 +294,19 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
         <Pile name="command" cards={inZone.command} drag={drag} onMove={move} onPlay={play} onZoom={setZoomed} />
       </div>
 
-      <div className="pt-hand" ref={handRef}>
+      {/* The hand takes drops too: a card played by mistake, or one you want
+          to pick back up, has to have a way home. */}
+      <div
+        className="pt-hand"
+        ref={handRef}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+        onDrop={(e) => {
+          e.preventDefault()
+          const iid = e.dataTransfer.getData('text/plain') || drag.current?.iid
+          if (iid) move(iid, 'hand')
+          drag.current = null
+        }}
+      >
         <div className="pt-cards">
           {inZone.hand.map((c) => (
             <PlayCard key={c.iid} inst={c} drag={drag} onPlay={play} onZoom={setZoomed} />
