@@ -76,6 +76,7 @@ function SearchTileImage({ src, alt }: { src: string; alt: string }) {
       src={src}
       alt={alt}
       loading="lazy"
+      draggable={false}
       decoding="async"
       className={loaded ? 'loaded' : ''}
       onLoad={() => setLoaded(true)}

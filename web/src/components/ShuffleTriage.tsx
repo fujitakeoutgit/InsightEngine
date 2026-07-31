@@ -6,8 +6,6 @@ import { canAnimate, gsap } from '../lib/motion'
 
 /** How far a card must travel before releasing it counts as a decision. */
 const COMMIT_PX = 110
-/** Cards deeper than this in the stack are parked; drawing 600 is pointless. */
-const VISIBLE_DEPTH = 14
 
 type Verdict = 'yes' | 'no'
 
@@ -55,6 +53,9 @@ export function ShuffleTriage({
 
   const rootRef = useRef<HTMLDivElement>(null)
   const nodes = useRef<(HTMLDivElement | null)[]>([])
+  const layerRef = useRef<HTMLDivElement>(null)
+  const yesLabel = useRef<HTMLButtonElement>(null)
+  const noLabel = useRef<HTMLButtonElement>(null)
   const drag = useRef<{ id: number; startX: number; startY: number; index: number } | null>(null)
   const animating = useRef(false)
 
@@ -74,32 +75,39 @@ export function ShuffleTriage({
     const jr = (salt: number) => hash(card.oracle_id, salt) - 0.5
 
     if (verdict) {
-      const side = verdict === 'yes' ? 1 : -1
+      // Measured against the label rather than a guessed fraction of the
+      // viewport, so a pile always sits under its own heading whatever the
+      // window is doing.
+      const anchor = verdict === 'yes' ? yesLabel.current : noLabel.current
+      const layer = layerRef.current
+      let dx = (verdict === 'yes' ? 1 : -1) * window.innerWidth * 0.3
+      let dy = 0
+      if (anchor && layer) {
+        const a = anchor.getBoundingClientRect()
+        const l = layer.getBoundingClientRect()
+        dx = (a.left + a.width / 2) - (l.left + l.width / 2)
+        dy = (a.bottom + 18 + l.height / 2) - (l.top + l.height / 2)
+      }
       return {
-        x: side * (window.innerWidth * 0.34) + jr(1) * 46,
-        y: jr(2) * 54,
-        rotation: side * 6 + jr(3) * 34,
+        x: dx + jr(1) * 40,
+        y: dy + jr(2) * 26,
+        rotation: jr(3) * 30,
         scale: 1,
         opacity: 1,
         zIndex: 10 + index,
       }
     }
 
+    // Head-on, one card. The ones behind are parked exactly underneath at
+    // zero opacity: this is a card you are being asked about, not a deck you
+    // are being shown, and the depth offset was decoration around the subject.
     const depth = index - cursor
-    if (depth > VISIBLE_DEPTH) {
-      return { x: 0, y: 0, rotation: 0, scale: 1, opacity: 0, zIndex: 1 }
-    }
-    // Squared up, not scattered. The card you are deciding about is the whole
-    // point of this view, and jitter under it only made the edges shimmer.
-    // The piles keep theirs -- those were thrown, this one is presented.
     return {
       x: 0,
-      y: depth * 2.5,
+      y: 0,
       rotation: 0,
-      // Every card the same size: a scale ramp makes the stack read as
-      // perspective, and the ask was a squared-up pile, not a funnel.
       scale: 1,
-      opacity: 1,
+      opacity: depth === 0 ? 1 : 0,
       zIndex: 1000 - depth,
     }
   }, [order, verdicts, cursor])
@@ -225,6 +233,7 @@ export function ShuffleTriage({
       <div className="shuffle-stage">
         <button
           className="shuffle-pile-label no"
+          ref={noLabel}
           onClick={() => undoPile('no')}
           disabled={!noCount}
           title={noCount ? 'Take the last one back' : 'Nothing here yet'}
@@ -235,7 +244,7 @@ export function ShuffleTriage({
         {/* One layer, every card in it. Piles are positions, not containers,
             so a card moves between them by tweening rather than by being
             unmounted and rebuilt somewhere else. */}
-        <div className="shuffle-layer">
+        <div className="shuffle-layer" ref={layerRef}>
           {order.map((card, index) => (
             <div
               key={card.oracle_id}
@@ -277,6 +286,7 @@ export function ShuffleTriage({
 
         <button
           className="shuffle-pile-label yes"
+          ref={yesLabel}
           onClick={() => undoPile('yes')}
           disabled={!yesCount}
           title={yesCount ? 'Take the last one back' : 'Nothing here yet'}

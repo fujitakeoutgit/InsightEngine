@@ -428,7 +428,7 @@ function PlayCard({
         : style}
     >
       {face.src
-        ? <img src={face.src} alt={face.faceName} loading="lazy" />
+        ? <img src={face.src} alt={face.faceName} loading="lazy" draggable={false} />
         : <div className="pt-fallback">{inst.card.name}</div>}
 
       {/* Zooms in place rather than opening the card page. Reading a card is

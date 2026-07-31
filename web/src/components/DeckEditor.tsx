@@ -380,7 +380,7 @@ function EditorRow({
         title={undefined}
       >
         {face.src ? (
-          <img src={face.src} alt={face.faceName} loading="lazy" />
+          <img src={face.src} alt={face.faceName} loading="lazy" draggable={false} />
         ) : (
           <div className="fallback"><div className="nm">{card.name}</div></div>
         )}

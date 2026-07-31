@@ -93,6 +93,7 @@ function CardTile({
           src={image}
           alt={faceName}
           loading="lazy"
+          draggable={false}
           decoding="async"
           className={loaded ? 'loaded' : ''}
           onLoad={() => setLoaded(true)}
