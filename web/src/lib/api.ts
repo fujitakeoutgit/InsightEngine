@@ -238,11 +238,6 @@ export const api = {
 
   card: (oracleId: string) => get<CardDetail>(`/api/cards/${oracleId}`),
 
-  cardByName: (name: string) =>
-    get<{ card: Card; match: string; score: number; alternatives: string[] }>(
-      `/api/cards/named/${encodeURIComponent(name)}`,
-    ),
-
   sets: () => get<{ sets: SetInfo[] }>('/api/sets'),
 
   glossary: () =>
@@ -302,6 +297,28 @@ export const api = {
       text: addToSection(deck.text ?? '', name, section),
       format: deck.format ?? null,
       description: deck.description ?? null,
+    })
+  },
+
+  /** Rename without opening the deck. Read-modify-write like `addToDeck`:
+   *  the save endpoint takes a whole deck, so the text has to be fetched to be
+   *  handed straight back. */
+  renameDeck: async (id: number, name: string) => {
+    const { deck } = await get<{ deck: SavedDeck }>(`/api/deck/saved/${id}`)
+    return post<{ deck: SavedDeck }>('/api/deck/saved', {
+      id, name, text: deck.text ?? '',
+      format: deck.format ?? null, description: deck.description ?? null,
+    })
+  },
+
+  /** Copy a deck. Saved with no id, so the server allocates a new one and the
+   *  original is untouched — the point is to try a rebuild without losing what
+   *  the deck was. */
+  duplicateDeck: async (id: number) => {
+    const { deck } = await get<{ deck: SavedDeck }>(`/api/deck/saved/${id}`)
+    return post<{ deck: SavedDeck }>('/api/deck/saved', {
+      name: `${deck.name} (copy)`, text: deck.text ?? '', id: null,
+      format: deck.format ?? null, description: deck.description ?? null,
     })
   },
 

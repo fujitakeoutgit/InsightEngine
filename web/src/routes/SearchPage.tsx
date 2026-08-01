@@ -11,6 +11,7 @@ import {
 import { SIZE_KEY, usePersisted, VIEW_KEY } from '../lib/usePersisted'
 import { collection } from '../lib/collection'
 import { CardGrid, GridSkeleton } from '../components/CardGrid'
+import { CardMenu } from '../components/CardMenu'
 import { ShuffleTriage } from '../components/ShuffleTriage'
 import { BackLink } from '../components/PageHead'
 import { SearchBar } from '../components/SearchBar'
@@ -73,6 +74,7 @@ export function SearchPage() {
   const [cardSize, setCardSize] = usePersisted(SIZE_KEY, 190)
   const [paperCards, setPaperCards] = useState(0)
   const [shuffling, setShuffling] = useState(false)
+  const [picked, setPicked] = useState<{ card: Card; at: { x: number; y: number } } | null>(null)
   /** 1-based. Lives in the URL so a page is linkable and survives a reload. */
   const page = Math.max(1, Number(params.get("page") ?? 1))
 
@@ -340,12 +342,15 @@ export function SearchPage() {
                       <th>Query</th>
                       <th style={{ textAlign: 'right' }}>Results</th>
                       <th style={{ textAlign: 'right' }}>Engine</th>
+                      <th />
+                      <th />
                     </tr>
                   </thead>
                   <tbody>
                     {recent.map((entry) => (
                       <tr
                         key={entry.query}
+                        className={entry.locked ? 'locked' : ''}
                         onClick={() => { setDraft(entry.query); submit(entry.query) }}
                         title="Run this search again"
                       >
@@ -353,6 +358,39 @@ export function SearchPage() {
                         <td className="n">{entry.total.toLocaleString()}</td>
                         <td className="n">
                           <span className={`engine-badge ${entry.engine}`}>{entry.engine}</span>
+                        </td>
+                        {/* A query you keep coming back to should not be
+                            pushed out by five casual ones. Locked searches sit
+                            at the top, survive Clear, and are never evicted. */}
+                        <td className="n">
+                          <button
+                            className={`history-lock ${entry.locked ? 'on' : ''}`}
+                            title={entry.locked ? 'Unpin this search' : 'Pin this search'}
+                            aria-label={`${entry.locked ? 'Unpin' : 'Pin'} ${entry.query}`}
+                            aria-pressed={Boolean(entry.locked)}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              history.toggleLock(entry.query)
+                            }}
+                          >
+                            {entry.locked ? '★' : '☆'}
+                          </button>
+                        </td>
+                        {/* The list is five long and evicts from the bottom, so
+                            one typo otherwise sits here through four more
+                            searches and the only cure was discarding the lot. */}
+                        <td className="n">
+                          <button
+                            className="history-drop"
+                            title={`Forget “${entry.query}”`}
+                            aria-label={`Forget ${entry.query}`}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              history.remove(entry.query)
+                            }}
+                          >
+                            ✕
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -450,6 +488,11 @@ export function SearchPage() {
               cards={isSemanticQuery ? sortCards(cards, sort, order) : cards}
               view={view}
               size={cardSize}
+              // The corner `⋯`, not the tile's click: opening a card is what
+              // clicking a result is for, and getting a card into a deck used
+              // to mean collecting it, walking to the Cards page and adding it
+              // from there.
+              onMenu={(card, at) => setPicked({ card, at })}
             />
 
             {/* Semantic runs return every match in one batch, so they have no
@@ -493,6 +536,14 @@ export function SearchPage() {
               forgetQuery(query)
               setShuffling(false)
             }}
+          />
+        )}
+
+        {picked && (
+          <CardMenu
+            card={picked.card}
+            at={picked.at}
+            onClose={() => setPicked(null)}
           />
         )}
 

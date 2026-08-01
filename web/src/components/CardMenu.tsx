@@ -3,15 +3,21 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 
 import { api, type Card, type SavedDeck } from '../lib/api'
+import { collection, useIsCollected } from '../lib/collection'
 import { canAnimate, gsap } from '../lib/motion'
 
 /**
- * Per-card actions on the Cards page.
+ * Per-card actions, wherever a card is shown.
  *
  * Opens where it was clicked and flips to stay on screen near an edge. Adding
  * sends the card to the target deck's *maybeboard*, not the main list: a card
  * you collected while browsing is a candidate, and dropping it straight into
  * the deck would silently change the deck's legality and curve.
+ *
+ * `onRemove` is what distinguishes the Cards page from everywhere else. There
+ * the pile itself is the subject, so removing from it is a first-class action;
+ * on a results grid the same card is merely passing through, so the entry
+ * becomes a collect toggle instead. One meaning per menu.
  */
 export function CardMenu({
   card, at, onClose, onRemove,
@@ -20,8 +26,10 @@ export function CardMenu({
   /** Viewport coordinates of the click that opened this. */
   at: { x: number; y: number }
   onClose: () => void
-  onRemove: () => void
+  /** Only on the Cards page: drop this card from the collection. */
+  onRemove?: () => void
 }) {
+  const held = useIsCollected(card.oracle_id)
   const navigate = useNavigate()
   const ref = useRef<HTMLDivElement>(null)
   const [decks, setDecks] = useState<SavedDeck[] | null>(null)
@@ -99,9 +107,18 @@ export function CardMenu({
             <button className="menu-item" onClick={() => navigate(`/card/${card.oracle_id}`)}>
               Info
             </button>
-            <button className="menu-item danger" onClick={() => { onRemove(); onClose() }}>
-              Remove
-            </button>
+            {onRemove ? (
+              <button className="menu-item danger" onClick={() => { onRemove(); onClose() }}>
+                Remove
+              </button>
+            ) : (
+              <button
+                className="menu-item"
+                onClick={() => { collection.toggle(card); onClose() }}
+              >
+                {held ? 'Remove from Cards' : 'Add to Cards'}
+              </button>
+            )}
           </>
         )}
       </div>

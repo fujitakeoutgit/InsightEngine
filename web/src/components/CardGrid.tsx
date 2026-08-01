@@ -49,13 +49,40 @@ function CollectButton({
   )
 }
 
+/**
+ * The corner `⋯`.
+ *
+ * Separate from `onPick`, which replaces the tile's click outright. On a
+ * results grid opening the card *is* the click, so the actions need a control
+ * of their own rather than a hijacked one -- otherwise adding a way to reach
+ * the deck costs the way to read the card.
+ */
+function MenuButton({ card, onMenu }: { card: Card; onMenu: CardPick }) {
+  return (
+    <button
+      className="menu-btn"
+      title={`More for ${card.name}`}
+      aria-label={`Actions for ${card.name}`}
+      aria-haspopup="menu"
+      onClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        onMenu(card, { x: event.clientX, y: event.clientY })
+      }}
+    >
+      ⋯
+    </button>
+  )
+}
+
 function CardTile({
-  card, collectable, caption, onPick, onAdd, addLabel,
+  card, collectable, caption, onPick, onMenu, onAdd, addLabel,
 }: {
   card: Card
   collectable: boolean
   caption?: string
   onPick?: CardPick
+  onMenu?: CardPick
   onAdd?: (card: Card) => void
   addLabel?: string
 }) {
@@ -87,6 +114,7 @@ function CardTile({
       title={caption}
     >
       {collectable && <CollectButton card={card} onAdd={onAdd} addLabel={addLabel} />}
+      {onMenu && <MenuButton card={card} onMenu={onMenu} />}
       {flippable && <FlipButton onFlip={flip} faceName={faceName} />}
       {image ? (
         <img
@@ -112,7 +140,9 @@ function CardTile({
   )
 }
 
-function CardRow({ card, onPick }: { card: Card; onPick?: CardPick }) {
+function CardRow({
+  card, onPick, onMenu,
+}: { card: Card; onPick?: CardPick; onMenu?: CardPick }) {
   const navigate = useNavigate()
   const held = useIsCollected(card.oracle_id)
   return (
@@ -149,6 +179,22 @@ function CardRow({ card, onPick }: { card: Card; onPick?: CardPick }) {
       </td>
       <td className="muted mono">{card.set_code?.toUpperCase()}</td>
       <td className="num">{money(card.usd)}</td>
+      {onMenu && (
+        <td className="num">
+          <button
+            className="btn btn-ghost sm"
+            title={`More for ${card.name}`}
+            aria-label={`Actions for ${card.name}`}
+            aria-haspopup="menu"
+            onClick={(event) => {
+              event.stopPropagation()
+              onMenu(card, { x: event.clientX, y: event.clientY })
+            }}
+          >
+            ⋯
+          </button>
+        </td>
+      )}
     </tr>
   )
 }
@@ -160,6 +206,7 @@ export function CardGrid({
   collectable = true,
   captionFor,
   onPick,
+  onMenu,
   onAdd,
   addLabel,
 }: {
@@ -173,6 +220,8 @@ export function CardGrid({
   captionFor?: (card: Card) => string | undefined
   /** When set, clicking a card opens a menu here rather than navigating. */
   onPick?: CardPick
+  /** When set, a corner `⋯` opens a menu and the click still opens the card. */
+  onMenu?: CardPick
   /** Overrides where the corner + sends the card. */
   onAdd?: (card: Card) => void
   addLabel?: string
@@ -202,11 +251,12 @@ export function CardGrid({
               <th>ID</th>
               <th>Set</th>
               <th style={{ textAlign: 'right' }}>USD</th>
+              {onMenu && <th />}
             </tr>
           </thead>
           <tbody>
             {cards.map((card) => (
-              <CardRow key={card.oracle_id} card={card} onPick={onPick} />
+              <CardRow key={card.oracle_id} card={card} onPick={onPick} onMenu={onMenu} />
             ))}
           </tbody>
         </table>
@@ -227,6 +277,7 @@ export function CardGrid({
           collectable={collectable}
           caption={captionFor?.(card)}
           onPick={onPick}
+          onMenu={onMenu}
           onAdd={onAdd}
           addLabel={addLabel}
         />

@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { useEffect } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useCollection } from '../lib/collection'
 import { ManaSprite } from './ManaSprite'
 
@@ -13,6 +14,33 @@ const NAV = [
 
 export function Layout() {
   const collected = useCollection()
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
+
+  /* "Press / to search" is printed in the footer of every page, but the only
+   * handler lived inside SearchBar -- which renders on the search page alone,
+   * so on five of the seven pages the footer was promising a key that did
+   * nothing.
+   *
+   * Here it means "take me to the search box" rather than "focus it": there is
+   * no box on this page to focus. SearchBar autofocuses itself when it opens
+   * without a query, so arriving is the same as being focused, and its own
+   * handler still owns the key once you are there. */
+  useEffect(() => {
+    if (pathname === '/') return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) return
+      const target = event.target as HTMLElement | null
+      if (
+        target
+        && (['INPUT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable)
+      ) return
+      event.preventDefault()
+      navigate('/')
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [pathname, navigate])
 
   return (
     <div className="app">

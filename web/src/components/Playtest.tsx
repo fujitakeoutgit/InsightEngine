@@ -1,30 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import type { Card } from '../lib/api'
 import { useCardFace } from '../lib/faces'
 import { solidDragImage } from '../lib/useQuietDrag'
 import { Lightbox } from './Lightbox'
 import { canAnimate, gsap } from '../lib/motion'
 import { type DeckCard } from '../lib/deckModel'
+import {
+  deckSignature, recallGame, rememberGame, type Instance, type Zone,
+} from '../lib/playtestCache'
 
 /** A card being looked at, and the rect it grew from. */
 interface ZoomView {
   src: string
   alt: string
   from: DOMRect
-}
-
-type Zone = 'library' | 'hand' | 'battlefield' | 'graveyard' | 'exile' | 'command'
-
-interface Instance {
-  iid: string
-  card: Card
-  zone: Zone
-  tapped: boolean
-  /** Position on the playmat, as a fraction of its size. Only meaningful on
-   *  the battlefield; kept as fractions so the board survives a resize. */
-  x: number
-  y: number
 }
 
 const ZONE_LABEL: Record<Zone, string> = {
@@ -96,12 +85,24 @@ function build(deck: DeckCard[]): Instance[] {
  * a layout algorithm cannot guess: attackers pushed forward, an untapped
  * blocker held back, a combo lined up in a corner.
  */
-export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => void }) {
-  const [cards, setCards] = useState<Instance[]>([])
-  const [turn, setTurn] = useState(1)
-  const [life, setLife] = useState(40)
-  const [mulligans, setMulligans] = useState(0)
-  const [log, setLog] = useState<string[]>([])
+export function Playtest({
+  deck, gameKey, onClose,
+}: {
+  deck: DeckCard[]
+  /** Which deck's game this is, so closing and reopening resumes it. */
+  gameKey: string
+  onClose: () => void
+}) {
+  const signature = useMemo(() => deckSignature(deck), [deck])
+  // Read once, at mount. An effect would re-read under StrictMode's double
+  // invocation and could observe what this component had itself just written.
+  const [resumed] = useState(() => recallGame(gameKey, signature))
+
+  const [cards, setCards] = useState<Instance[]>(resumed?.cards ?? [])
+  const [turn, setTurn] = useState(resumed?.turn ?? 1)
+  const [life, setLife] = useState(resumed?.life ?? 40)
+  const [mulligans, setMulligans] = useState(resumed?.mulligans ?? 0)
+  const [log, setLog] = useState<string[]>(resumed?.log ?? [])
   const matRef = useRef<HTMLDivElement>(null)
   const handRef = useRef<HTMLDivElement>(null)
 
@@ -129,7 +130,20 @@ export function Playtest({ deck, onClose }: { deck: DeckCard[]; onClose: () => v
     setLog([mull ? `Mulligan to ${7 - mull}` : 'New game — drew 7'])
   }, [deck])
 
-  useEffect(() => { newGame(0) }, [newGame])
+  // Only when there is nothing to come back to. Editing the deck changes its
+  // signature, so a stale board is discarded rather than resumed as if it
+  // still described the deck.
+  useEffect(() => {
+    if (resumed) return
+    newGame(0)
+  }, [resumed, newGame])
+
+  // Written on every change rather than on the way out: unmount is too late to
+  // read state in an effect cleanup that has closed over an older render, and
+  // this is cheap -- a Map assignment against state React has already built.
+  useEffect(() => {
+    rememberGame(gameKey, { cards, turn, life, mulligans, log, signature })
+  }, [gameKey, signature, cards, turn, life, mulligans, log])
 
   const inZone = useMemo(() => {
     const map: Record<Zone, Instance[]> = {

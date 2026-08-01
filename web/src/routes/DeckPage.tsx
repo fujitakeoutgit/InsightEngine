@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom'
 
 import {
   api, streamDeckRecommendations, type Category,
@@ -52,7 +52,21 @@ const CATEGORIES: [Category, string][] = [
 const UNCERTAIN = new Set(['fuzzy', 'ambiguous', 'prefix', 'unresolved'])
 const REC_FORMATS = ['', 'commander', 'standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper', 'brawl']
 
-function ResolutionRow({ entry }: { entry: Resolution }) {
+/**
+ * One line of the name-resolution report.
+ *
+ * The alternatives are buttons, not prose. This panel exists to tell you a
+ * line went somewhere you may not have meant, and it used to stop there —
+ * printing the right answer next to the wrong one and leaving you to go and
+ * retype it in Text mode. Clicking one rewrites that line.
+ */
+function ResolutionRow({
+  entry, onReplace, busy,
+}: {
+  entry: Resolution
+  onReplace?: (entry: Resolution, name: string) => void
+  busy?: boolean
+}) {
   return (
     <div className="resolution">
       <span className="q mono">{entry.quantity}×</span>
@@ -63,8 +77,19 @@ function ResolutionRow({ entry }: { entry: Resolution }) {
           ? <Link to={`/card/${entry.card.oracle_id}`}>{entry.card.name}</Link>
           : <span style={{ color: 'var(--danger)' }}>no match</span>}
         {entry.alternatives.length > 0 && (
-          <span className="faint" style={{ fontSize: 11 }}>
-            {' '}· or {entry.alternatives.slice(0, 3).join(', ')}
+          <span className="alts">
+            <span className="faint">or</span>
+            {entry.alternatives.slice(0, 3).map((name) => (
+              <button
+                key={name}
+                className="alt-pick"
+                disabled={busy || !onReplace}
+                title={`Use “${name}” on this line instead`}
+                onClick={() => onReplace?.(entry, name)}
+              >
+                {name}
+              </button>
+            ))}
           </span>
         )}
       </span>
@@ -81,6 +106,10 @@ export function DeckPage() {
   const isNew = !deckId || deckId === 'new'
 
   const [text, setText] = useState('')
+  /** The decklist as it last existed on the server, so "has this changed?" is
+   *  a comparison rather than a flag that has to be cleared in every path that
+   *  touches the deck. */
+  const [savedText, setSavedText] = useState('')
   const [deckName, setDeckName] = useState('')
   const [savedId, setSavedId] = useState<number | null>(null)
   const [savedAt, setSavedAt] = useState<{ created: string; updated: string } | null>(null)
@@ -106,11 +135,21 @@ export function DeckPage() {
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const [showAll, setShowAll] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const resultRef = useRef<HTMLDivElement>(null)
   const commanderTilt = useRef<HTMLAnchorElement>(null)
   const recRef = useRef<HTMLDivElement>(null)
   const aiStream = useRef<{ stop: () => void } | null>(null)
+
+  /* Navigation this page performs *because* the deck is now safe.
+   *
+   * A ref, not state: saving a new deck and deleting one both settle the deck
+   * and then navigate in the same tick, so the `dirty` the blocker closes over
+   * is still the pre-save value and would challenge the page on its way out of
+   * a move it made itself. */
+  const leaving = useRef(false)
 
   const analyseText = useCallback(async (source: string) => {
     if (!source.trim()) { setReport(null); return null }
@@ -132,6 +171,8 @@ export function DeckPage() {
     // would restore deck A's cards into it.
     past.current = []
     future.current = []
+    // Arriving is the end of the departure that set it, if there was one.
+    leaving.current = false
     // A deck opens on its analysis, not on whichever tab the last one left
     // behind. The saved view still restores when you come *back* from a card.
     setTab("analysis")
@@ -141,6 +182,7 @@ export function DeckPage() {
       .then(async ({ deck }) => {
         if (cancelled) return
         setText(deck.text ?? '')
+        setSavedText(deck.text ?? '')
         setDeckName(deck.name)
         setSavedId(deck.id)
         setSavedAt({ created: deck.created_at, updated: deck.updated_at })
@@ -160,6 +202,45 @@ export function DeckPage() {
     const timer = setTimeout(() => setStatus(null), 3000)
     return () => clearTimeout(timer)
   }, [status])
+
+  /* Unsaved work.
+   *
+   * The editor keeps sixty steps of undo and none of it is written anywhere
+   * until Save, so leaving the page discarded the lot in silence -- no prompt,
+   * no autosave, no way back. Compared against the text the server last
+   * confirmed rather than tracked with a flag, because every path that changes
+   * the deck would otherwise have to remember to set one.
+   *
+   * Trimmed on both sides: serialize() and the textarea disagree about the
+   * trailing newline, which would otherwise report a deck as modified the
+   * instant it was opened. */
+  const dirty = text.trim() !== savedText.trim() && Boolean(text.trim())
+
+  // Closing the tab or reloading. The browser shows its own wording; the
+  // returned string is legacy but still required by some engines.
+  useEffect(() => {
+    if (!dirty) return
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+      return ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
+
+  // Navigating within the app. useBlocker needs the data router, which is what
+  // main.tsx builds. Playtesting is not navigation -- it renders in place --
+  // so it is unaffected.
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      !leaving.current && dirty && currentLocation.pathname !== nextLocation.pathname,
+  )
+
+  // A deck that has just been deleted has nothing left to save.
+  useEffect(() => {
+    if (!dirty && blocker.state === 'blocked') blocker.reset()
+  }, [dirty, blocker])
 
   /* Returning from a card must not discard the recommendations.
    *
@@ -266,13 +347,32 @@ export function DeckPage() {
    * Every deck mutation goes through applyEdits, so the whole editor gets undo
    * from one place. Snapshots are whole card lists rather than diffs: a deck is
    * a few hundred small objects, so the memory is irrelevant next to the
-   * complexity of inverting each kind of edit. */
-  const past = useRef<DeckCard[][]>([])
-  const future = useRef<DeckCard[][]>([])
+   * complexity of inverting each kind of edit.
+   *
+   * The text is snapshotted alongside the cards rather than regenerated from
+   * them on the way back. The two are not interchangeable: in Text mode the
+   * decklist is what the user is editing and the card list may not describe it
+   * at all, so an undo that rebuilt the text with serialize() would replace
+   * whatever they had typed with a rendering of an unrelated card list -- and
+   * where the card list was still empty, with nothing. It also means an undo
+   * restores the file as it was, comments and ordering included. */
+  interface Snapshot { cards: DeckCard[]; text: string }
+  const past = useRef<Snapshot[]>([])
+  const future = useRef<Snapshot[]>([])
+
+  /* The present, readable from the undo callbacks without making them depend
+   * on it. They are memoised with an empty dependency list so the key handler
+   * is bound once, which would otherwise close over the first render's deck. */
+  const live = useRef<Snapshot>({ cards: deckCards, text })
+  live.current = { cards: deckCards, text }
+
+  const remember = () => {
+    past.current = [...past.current, live.current].slice(-UNDO_LIMIT)
+    future.current = []
+  }
 
   const applyEdits = (next: DeckCard[]) => {
-    past.current = [...past.current, deckCards].slice(-UNDO_LIMIT)
-    future.current = []
+    remember()
     setDeckCards(next)
     setText(serialize(next))
   }
@@ -281,11 +381,9 @@ export function DeckPage() {
     const previous = past.current[past.current.length - 1]
     if (previous === undefined) return false
     past.current = past.current.slice(0, -1)
-    setDeckCards((current) => {
-      future.current = [...future.current, current].slice(-UNDO_LIMIT)
-      return previous
-    })
-    setText(serialize(previous))
+    future.current = [...future.current, live.current].slice(-UNDO_LIMIT)
+    setDeckCards(previous.cards)
+    setText(previous.text)
     return true
   }, [])
 
@@ -293,11 +391,9 @@ export function DeckPage() {
     const next = future.current[future.current.length - 1]
     if (next === undefined) return false
     future.current = future.current.slice(0, -1)
-    setDeckCards((current) => {
-      past.current = [...past.current, current].slice(-UNDO_LIMIT)
-      return next
-    })
-    setText(serialize(next))
+    past.current = [...past.current, live.current].slice(-UNDO_LIMIT)
+    setDeckCards(next.cards)
+    setText(next.text)
     return true
   }, [])
 
@@ -346,6 +442,71 @@ export function DeckPage() {
         : [...deckCards, addedCard(card, section)],
     )
     setStatus(`Added ${card.name} to ${section}`)
+  }
+
+  /* Rewrite one line of the decklist in place.
+   *
+   * Deliberately not routed through applyEdits, which rebuilds the text from
+   * serialize() and would flatten the rest of the file -- ordering, comments,
+   * blank lines -- as the price of correcting a single name. The undo entry is
+   * pushed by hand so the correction is still one Ctrl-Z away. */
+  const replaceName = async (entry: Resolution, name: string) => {
+    const lines = text.split('\n')
+    const index = entry.line_number - 1 // parse_decklist numbers from 1
+    if (index < 0 || index >= lines.length) return
+    // The quantity is re-emitted rather than preserved from the source line,
+    // which may carry a set code or collector number that named the printing
+    // this line failed to resolve.
+    lines[index] = `${entry.quantity} ${name}`
+    const next = lines.join('\n')
+
+    setBusy('analyse')
+    remember()
+    setText(next)
+    const analysed = await analyseText(next)
+    if (analysed) setDeckCards(fromResolutions(analysed.entries))
+    setBusy(null)
+    setStatus(`Line ${entry.line_number} is now ${name}`)
+  }
+
+  const copyList = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    } catch {
+      setError('The browser refused clipboard access.')
+    }
+  }
+
+  /** Download the decklist as a .txt. Every deckbuilding site reads this
+   *  format, which is the point of exporting at all. */
+  const download = () => {
+    const safe = (deckName.trim() || 'decklist').replace(/[^\w. -]+/g, '_')
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${safe}.txt`
+    link.click()
+    // Revoked on the next frame: revoking synchronously can beat the download
+    // the click just started.
+    setTimeout(() => URL.revokeObjectURL(url), 0)
+    setStatus(`Exported ${safe}.txt`)
+  }
+
+  const destroy = async () => {
+    if (savedId === null) return
+    setConfirmingDelete(false)
+    setBusy('save')
+    try {
+      await api.deleteDeck(savedId)
+      // The guard must not challenge a deck that no longer exists.
+      leaving.current = true
+      navigate('/deck', { replace: true })
+    } catch {
+      setError('Could not delete that deck.')
+      setBusy(null)
+    }
   }
 
   const enterBuildMode = async () => {
@@ -437,8 +598,13 @@ export function DeckPage() {
       })
       setSavedId(deck.id)
       setDeckName(deck.name)
+      setSavedText(text)
       setStatus(`Saved “${deck.name}”`)
-      if (isNew) navigate(`/deck/${deck.id}`, { replace: true })
+      if (isNew) {
+        // The deck is saved; the redirect onto its own URL is not a departure.
+        leaving.current = true
+        navigate(`/deck/${deck.id}`, { replace: true })
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save deck')
     } finally { setBusy(null) }
@@ -484,7 +650,13 @@ export function DeckPage() {
   // Below every hook. Returning earlier skips the ones declared after it, and
   // React counts hooks per render -- which is precisely the crash this caused.
   if (playing) {
-    return <Playtest deck={deckCards} onClose={() => setPlaying(false)} />
+    return (
+      <Playtest
+        deck={deckCards}
+        gameKey={viewKey}
+        onClose={() => setPlaying(false)}
+      />
+    )
   }
 
   const editorPane = (
@@ -699,7 +871,14 @@ export function DeckPage() {
                   {showAll ? 'Only uncertain' : `All ${report.entries.length}`}
                 </button>
               </div>
-              {shown.map((entry, i) => <ResolutionRow key={i} entry={entry} />)}
+              {shown.map((entry, i) => (
+                <ResolutionRow
+                  key={i}
+                  entry={entry}
+                  onReplace={replaceName}
+                  busy={busy !== null}
+                />
+              ))}
             </div>
           )}
 
@@ -790,7 +969,25 @@ export function DeckPage() {
             visibleRecs.map((rec) => (
               <div className="resolution rec-row" key={rec.card.oracle_id}>
                 <span className="to">
-                  <Link to={`/card/${rec.card.oracle_id}`}>{rec.card.name}</Link>{' '}
+                  {/* The name searches for the card; the `i` opens it.
+                      A suggestion is something you want to look into — see the
+                      printings, the price history, what else is like it — and
+                      the search page is where that happens. Reading the card
+                      itself keeps its own control so neither is lost. */}
+                  <Link
+                    to={`/?q=${encodeURIComponent(`!"${rec.card.name}"`)}`}
+                    title={`Search for ${rec.card.name}`}
+                  >
+                    {rec.card.name}
+                  </Link>{' '}
+                  <Link
+                    to={`/card/${rec.card.oracle_id}`}
+                    className="rec-info"
+                    title={`Open ${rec.card.name}`}
+                    aria-label={`Open ${rec.card.name}`}
+                  >
+                    i
+                  </Link>{' '}
                   <ManaCost cost={rec.card.mana_cost} />
                   {rec.because.length > 0 && (
                     <span className="faint" style={{ fontSize: 11, display: 'block' }}>
@@ -838,6 +1035,14 @@ export function DeckPage() {
         {/* Save and Playtest act on the deck as a whole, not on whichever tab
             is open, so they sit with the deck's name rather than beside the
             per-tab actions. */}
+        {/* Unsaved work is worth saying out loud, next to the button that
+            resolves it. */}
+        {dirty && (
+          <span className="mono" style={{ fontSize: 11, color: 'var(--warn)' }}>
+            unsaved
+          </span>
+        )}
+
         <div className="row gap-2 push">
           <button className="btn btn-primary sm" onClick={save} disabled={!!busy || !text.trim()}>
             {busy === 'save' && <span className="spinner" />}Save
@@ -850,6 +1055,35 @@ export function DeckPage() {
           >
             {playing ? 'Close playtest' : 'Playtest'}
           </button>
+          {/* A decklist is portable text, and every other site reads it. Not
+              being able to get one back out made this a place decks came to
+              and stayed. */}
+          <button
+            className={copied ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
+            onClick={copyList}
+            disabled={!text.trim()}
+            title="Copy the decklist to the clipboard"
+          >
+            {copied ? '✓ Copied' : 'Copy'}
+          </button>
+          <button
+            className="btn btn-ghost sm"
+            onClick={download}
+            disabled={!text.trim()}
+            title="Download as a .txt file"
+          >
+            Export
+          </button>
+          {savedId !== null && (
+            <button
+              className="btn btn-danger sm"
+              onClick={() => setConfirmingDelete(true)}
+              disabled={!!busy}
+              title="Delete this deck"
+            >
+              Delete
+            </button>
+          )}
         </div>
       </div>
 
@@ -859,6 +1093,56 @@ export function DeckPage() {
         </p>
       )}
 
+
+      {confirmingDelete && (
+        <div className="modal-backdrop" onClick={() => setConfirmingDelete(false)} role="presentation">
+          <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal>
+            <h3>Delete “{deckName.trim() || 'Untitled deck'}”?</h3>
+            <p className="muted">
+              The decklist, its description and its saved format go with it. This cannot be
+              undone.
+            </p>
+            <div className="row gap-2" style={{ marginTop: 'var(--gap-3)' }}>
+              <button className="btn btn-danger sm" onClick={destroy}>Delete deck</button>
+              <button className="btn btn-ghost sm" onClick={() => setConfirmingDelete(false)}>
+                Keep it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Three ways out, because all three are things people actually mean:
+          save and carry on leaving, leave anyway, or stay. A prompt offering
+          only the last two makes you cancel, save, and navigate again. */}
+      {blocker.state === 'blocked' && (
+        <div className="modal-backdrop" onClick={() => blocker.reset()} role="presentation">
+          <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal>
+            <h3>This deck has unsaved changes</h3>
+            <p className="muted">
+              Leaving now discards everything since the last save, including the undo history.
+            </p>
+            <div className="row gap-2 wrap" style={{ marginTop: 'var(--gap-3)' }}>
+              <button
+                className="btn btn-primary sm"
+                disabled={!!busy}
+                onClick={async () => {
+                  await save()
+                  blocker.proceed?.()
+                }}
+              >
+                {busy === 'save' && <span className="spinner" />}Save and leave
+              </button>
+              <button className="btn btn-danger sm" onClick={() => blocker.proceed?.()}>
+                Discard changes
+              </button>
+              <button className="btn btn-ghost sm" onClick={() => blocker.reset?.()}>
+                Stay here
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <SplitPane storageKey="insight-enigma:deck-split" left={editorPane} right={analysisPane} />
     </section>

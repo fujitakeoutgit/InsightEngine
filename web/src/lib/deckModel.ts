@@ -48,6 +48,22 @@ const COLOR_LABEL: Record<string, string> = {
   W: 'White', U: 'Blue', B: 'Black', R: 'Red', G: 'Green',
 }
 
+/**
+ * Whether offering "make this the commander" makes sense for a card.
+ *
+ * A hint, not a rule. Nothing in this app enforces legality — the analysis
+ * tab reports it — but putting the action on all hundred cards would bury it,
+ * and putting it on a Forest is noise. Planeswalkers and Backgrounds say so in
+ * their text rather than their type line, which is why both are checked.
+ */
+export function canBeCommander(card: Card): boolean {
+  if (/\bLegendary\b/.test(card.type_line ?? '')) return true
+  const text = [card.oracle_text ?? '', ...(card.card_faces ?? []).map((f) => f.oracle_text ?? '')]
+    .join(' ')
+    .toLowerCase()
+  return text.includes('can be your commander')
+}
+
 export function colorGroup(card: Card): string {
   const id = card.color_identity || ''
   if (!id) return 'Colourless'

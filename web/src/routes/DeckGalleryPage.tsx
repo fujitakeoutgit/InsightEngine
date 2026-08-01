@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { api, type SavedDeck } from '../lib/api'
@@ -9,6 +9,16 @@ const COLOR_VAR: Record<string, string> = {
   W: 'var(--mana-w)', U: 'var(--mana-u)', B: 'var(--mana-b)',
   R: 'var(--mana-r)', G: 'var(--mana-g)',
 }
+
+type SortBy = 'updated' | 'created' | 'name' | 'commander' | 'size'
+
+const SORTS: [SortBy, string][] = [
+  ['updated', 'Last edited'],
+  ['created', 'Newest'],
+  ['name', 'Name'],
+  ['commander', 'Commander'],
+  ['size', 'Size'],
+]
 
 function Pips({ identity }: { identity: string | null }) {
   const letters = (identity || '').split('').filter(Boolean)
@@ -22,18 +32,48 @@ function Pips({ identity }: { identity: string | null }) {
   )
 }
 
+function sortDecks(decks: SavedDeck[], by: SortBy): SavedDeck[] {
+  const out = [...decks]
+  switch (by) {
+    // Descending: the most recent is the one you want, and for a date that is
+    // the top of the list rather than the bottom.
+    case 'updated': return out.sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+    case 'created': return out.sort((a, b) => b.created_at.localeCompare(a.created_at))
+    case 'size': return out.sort((a, b) => (b.lines ?? 0) - (a.lines ?? 0))
+    case 'commander':
+      return out.sort((a, b) =>
+        (a.commander ?? '￿').localeCompare(b.commander ?? '￿')
+        || a.name.localeCompare(b.name))
+    default: return out.sort((a, b) => a.name.localeCompare(b.name))
+  }
+}
+
 /**
  * The Deck Lab landing: every deck as its commander's art.
  *
  * Tiles resolve out of blur on a stagger, then track the pointer with a
  * parallax on the art and a counter-shift on the plate, so the type appears to
  * float above the illustration rather than sit on it.
+ *
+ * Renaming, copying and deleting live here rather than inside a deck. They are
+ * things you do *to* a deck, and having to open one to rename it — or to find
+ * that you could not delete it at all — meant the list was the one place these
+ * belonged and the one place they were missing.
  */
 export function DeckGalleryPage() {
   const [decks, setDecks] = useState<SavedDeck[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [filter, setFilter] = useState('')
+  const [sortBy, setSortBy] = useState<SortBy>('updated')
+  /** The deck being renamed, and the draft name. */
+  const [renaming, setRenaming] = useState<{ id: number; value: string } | null>(null)
+  /** Deleting is two-step; this holds the deck awaiting its second click. */
+  const [confirming, setConfirming] = useState<number | null>(null)
+  const [busy, setBusy] = useState<number | null>(null)
+  const [status, setStatus] = useState<string | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef<HTMLHeadingElement>(null)
+  const renameRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -41,6 +81,12 @@ export function DeckGalleryPage() {
       .then((r) => setDecks(r.decks))
       .catch(() => setError('Could not load your decks.'))
   }, [])
+
+  useEffect(() => {
+    if (!status) return
+    const timer = setTimeout(() => setStatus(null), 2600)
+    return () => clearTimeout(timer)
+  }, [status])
 
   useLayoutEffect(() => {
     if (!titleRef.current) return
@@ -56,8 +102,22 @@ export function DeckGalleryPage() {
     )
   }, [])
 
+  const visible = useMemo(() => {
+    if (!decks) return null
+    const needle = filter.trim().toLowerCase()
+    const matched = needle
+      ? decks.filter((d) =>
+          d.name.toLowerCase().includes(needle)
+          || (d.commander ?? '').toLowerCase().includes(needle)
+          || (d.format ?? '').toLowerCase().includes(needle))
+      : decks
+    return sortDecks(matched, sortBy)
+  }, [decks, filter, sortBy])
+
+  // Keyed on the rendered list rather than on `decks`, so re-sorting and
+  // filtering replay the reveal instead of snapping to a new order.
   useLayoutEffect(() => {
-    if (!decks || !gridRef.current) return
+    if (!visible || !gridRef.current) return
     const tiles = gridRef.current.querySelectorAll('.deck-tile')
     if (!tiles.length) return
     if (!canAnimate()) {
@@ -69,7 +129,11 @@ export function DeckGalleryPage() {
       { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', duration: 0.85,
         ease: 'power3.out', stagger: { amount: Math.min(0.7, tiles.length * 0.06) } },
     )
-  }, [decks])
+  }, [visible])
+
+  useEffect(() => {
+    if (renaming) renameRef.current?.select()
+  }, [renaming])
 
   // Pointer parallax: art drifts with the cursor, plate drifts against it.
   const track = (event: React.PointerEvent<HTMLElement>) => {
@@ -93,6 +157,63 @@ export function DeckGalleryPage() {
     })
   }
 
+  /** Opening the deck is the tile's job, so every control on it has to say so
+   *  explicitly or a rename click navigates away mid-edit. */
+  const swallow = (event: React.SyntheticEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  const commitRename = async () => {
+    if (!renaming) return
+    const { id, value } = renaming
+    const name = value.trim()
+    const current = decks?.find((d) => d.id === id)
+    setRenaming(null)
+    if (!name || !current || name === current.name) return
+    setBusy(id)
+    try {
+      const { deck } = await api.renameDeck(id, name)
+      setDecks((ds) => (ds ?? []).map((d) => (d.id === id ? { ...d, ...deck } : d)))
+      setStatus(`Renamed to “${deck.name}”`)
+    } catch {
+      setError('Could not rename that deck.')
+    } finally { setBusy(null) }
+  }
+
+  const duplicate = async (deck: SavedDeck) => {
+    setBusy(deck.id)
+    try {
+      const { deck: copy } = await api.duplicateDeck(deck.id)
+      // Refetched rather than appended: the listing carries the commander art
+      // and colour identity, which the save response has no reason to join in.
+      const { decks: next } = await api.savedDecks()
+      setDecks(next)
+      setStatus(`Copied to “${copy.name}”`)
+    } catch {
+      setError('Could not copy that deck.')
+    } finally { setBusy(null) }
+  }
+
+  const destroy = async (deck: SavedDeck) => {
+    setConfirming(null)
+    setBusy(deck.id)
+    try {
+      await api.deleteDeck(deck.id)
+      setDecks((ds) => (ds ?? []).filter((d) => d.id !== deck.id))
+      setStatus(`Deleted “${deck.name}”`)
+    } catch {
+      setError('Could not delete that deck.')
+    } finally { setBusy(null) }
+  }
+
+  const open = (id: number) => {
+    // A tile mid-edit is not a link. Without this, pressing Enter to commit a
+    // rename would also open the deck you had just renamed.
+    if (renaming || confirming !== null) return
+    navigate(`/deck/${id}`)
+  }
+
   return (
     <section className="shell">
       <div className="page-back"><BackLink /></div>
@@ -102,7 +223,47 @@ export function DeckGalleryPage() {
         <hr className="manaline" style={{ maxWidth: 300, marginTop: 14 }} />
       </div>
 
-      {error && <div className="notice error"><h3>Unavailable</h3><p>{error}</p></div>}
+      {error && (
+        <div className="notice error">
+          <h3>Unavailable</h3>
+          <p>{error}</p>
+        </div>
+      )}
+
+      {status && (
+        <p className="mono" style={{ fontSize: 12, color: 'var(--ok)', marginBottom: 12 }}>
+          {status}
+        </p>
+      )}
+
+      {/* Only once there is enough to sift. Two decks do not need a sort
+          control, and an empty toolbar over an empty gallery is furniture. */}
+      {decks && decks.length > 1 && (
+        <div className="gallery-tools">
+          <input
+            className="fld"
+            style={{ maxWidth: 260 }}
+            placeholder="Filter by name, commander or format…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            aria-label="Filter decks"
+          />
+          <select
+            className="fld"
+            style={{ width: 'auto' }}
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortBy)}
+            aria-label="Sort decks"
+          >
+            {SORTS.map(([value, label]) => (
+              <option key={value} value={value}>Sort: {label}</option>
+            ))}
+          </select>
+          <span className="push mono faint" style={{ fontSize: 11 }}>
+            {visible?.length ?? 0} of {decks.length}
+          </span>
+        </div>
+      )}
 
       {decks === null && !error && (
         <div className="deck-gallery" aria-hidden>
@@ -110,39 +271,116 @@ export function DeckGalleryPage() {
         </div>
       )}
 
-      {decks && (
+      {visible && (
         <div className="deck-gallery" ref={gridRef}>
-          {decks.map((deck) => (
-            <article
-              key={deck.id}
-              className="deck-tile"
-              onPointerMove={track}
-              onPointerLeave={release}
-              onClick={() => navigate(`/deck/${deck.id}`)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && navigate(`/deck/${deck.id}`)}
-            >
-              <div className="deck-tile-art">
-                {deck.commander_art ? (
-                  <img src={deck.commander_art} alt="" loading="lazy" />
-                ) : (
-                  <div className="deck-tile-blank" />
-                )}
-              </div>
-              <div className="deck-tile-plate">
-                <div className="row gap-1" style={{ marginBottom: 6 }}>
-                  <Pips identity={deck.color_identity ?? null} />
+          {visible.map((deck) => {
+            const editing = renaming?.id === deck.id
+            return (
+              <article
+                key={deck.id}
+                className={`deck-tile ${busy === deck.id ? 'busy' : ''}`}
+                onPointerMove={track}
+                onPointerLeave={release}
+                onClick={() => open(deck.id)}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ${deck.name}`}
+                onKeyDown={(e) => {
+                  if (editing) return
+                  if (e.key === 'Enter' || e.key === ' ') open(deck.id)
+                }}
+              >
+                <div className="deck-tile-art">
+                  {deck.commander_art ? (
+                    <img src={deck.commander_art} alt="" loading="lazy" />
+                  ) : (
+                    <div className="deck-tile-blank" />
+                  )}
                 </div>
-                <h2>{deck.name}</h2>
-                <p className="mono">{deck.commander ?? 'No commander'}</p>
-                <p className="mono faint meta">
-                  {deck.lines ?? 0} lines · {deck.updated_at.slice(0, 10)}
-                </p>
-              </div>
-            </article>
-          ))}
 
+                <div className="deck-tile-acts" onClick={swallow}>
+                  <button
+                    title="Rename" aria-label={`Rename ${deck.name}`}
+                    onClick={(e) => {
+                      swallow(e)
+                      setConfirming(null)
+                      setRenaming({ id: deck.id, value: deck.name })
+                    }}
+                  >
+                    ✎
+                  </button>
+                  <button
+                    title="Duplicate" aria-label={`Duplicate ${deck.name}`}
+                    onClick={(e) => { swallow(e); void duplicate(deck) }}
+                  >
+                    ⧉
+                  </button>
+                  <button
+                    className="danger"
+                    title="Delete" aria-label={`Delete ${deck.name}`}
+                    onClick={(e) => { swallow(e); setRenaming(null); setConfirming(deck.id) }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Two-step rather than a browser confirm: a deck is the only
+                    copy of hours of work, and the second click should land on
+                    the deck it is about rather than in a dialog that has left
+                    it behind. */}
+                {confirming === deck.id && (
+                  <div className="deck-tile-confirm" onClick={swallow}>
+                    <p>Delete “{deck.name}”?</p>
+                    <p className="faint">This cannot be undone.</p>
+                    <div className="row gap-2">
+                      <button
+                        className="btn btn-danger sm"
+                        onClick={(e) => { swallow(e); void destroy(deck) }}
+                      >
+                        Delete
+                      </button>
+                      <button
+                        className="btn btn-ghost sm"
+                        onClick={(e) => { swallow(e); setConfirming(null) }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="deck-tile-plate">
+                  <div className="row gap-1" style={{ marginBottom: 6 }}>
+                    <Pips identity={deck.color_identity ?? null} />
+                  </div>
+                  {editing ? (
+                    <input
+                      ref={renameRef}
+                      className="fld deck-rename"
+                      value={renaming.value}
+                      onClick={swallow}
+                      onChange={(e) => setRenaming({ id: deck.id, value: e.target.value })}
+                      onBlur={commitRename}
+                      onKeyDown={(e) => {
+                        e.stopPropagation()
+                        if (e.key === 'Enter') { e.preventDefault(); void commitRename() }
+                        if (e.key === 'Escape') { e.preventDefault(); setRenaming(null) }
+                      }}
+                      aria-label={`New name for ${deck.name}`}
+                    />
+                  ) : (
+                    <h2>{deck.name}</h2>
+                  )}
+                  <p className="mono">{deck.commander ?? 'No commander'}</p>
+                  <p className="mono faint meta">
+                    {deck.lines ?? 0} lines · {deck.updated_at.slice(0, 10)}
+                  </p>
+                </div>
+              </article>
+            )
+          })}
+
+          {/* Filtering hides decks, never the way to make one. */}
           <article
             className="deck-tile deck-tile-new"
             onClick={() => navigate('/deck/new')}
@@ -158,6 +396,12 @@ export function DeckGalleryPage() {
             </div>
           </article>
         </div>
+      )}
+
+      {visible?.length === 0 && decks && decks.length > 0 && (
+        <p className="muted" style={{ fontSize: 13, marginTop: 12 }}>
+          No deck matches “{filter}”.
+        </p>
       )}
     </section>
   )

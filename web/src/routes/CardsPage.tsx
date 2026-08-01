@@ -14,6 +14,7 @@ export function CardsPage() {
   const [view, setView] = usePersisted<'grid' | 'list'>(VIEW_KEY, 'grid')
   const [size, setSize] = usePersisted(SIZE_KEY, 190)
   const [copied, setCopied] = useState(false)
+  const [failed, setFailed] = useState(false)
   const [picked, setPicked] = useState<{ card: Card; at: { x: number; y: number } } | null>(null)
 
   const totals = useMemo(() => {
@@ -25,11 +26,18 @@ export function CardsPage() {
   }, [cards])
 
   // Silent success is indistinguishable from a broken button, so the label
-  // reports back for a moment.
+  // reports back for a moment -- and so does silent failure, which is what
+  // this used to do: a browser that denies clipboard access rejects the write,
+  // and with nothing catching it the button simply did nothing at all.
   const copyList = async () => {
-    await navigator.clipboard?.writeText(cards.map((c) => `1 ${c.name}`).join('\n'))
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1800)
+    try {
+      await navigator.clipboard.writeText(cards.map((c) => `1 ${c.name}`).join('\n'))
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    } catch {
+      setFailed(true)
+      setTimeout(() => setFailed(false), 2400)
+    }
   }
 
   return (
@@ -55,10 +63,12 @@ export function CardsPage() {
                 {view === 'grid' ? 'List' : 'Grid'}
               </button>
               <button
-                className={copied ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
+                className={
+                  copied ? 'btn btn-primary sm' : failed ? 'btn btn-danger sm' : 'btn btn-ghost sm'
+                }
                 onClick={copyList}
               >
-                {copied ? '✓ Copied' : 'Copy as list'}
+                {copied ? '✓ Copied' : failed ? 'Clipboard blocked' : 'Copy as list'}
               </button>
               <button className="btn btn-danger sm" onClick={() => collection.clear()}>Clear</button>
             </>

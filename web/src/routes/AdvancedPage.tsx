@@ -97,7 +97,10 @@ const INITIAL: Builder = {
   name: '', oracle: '', typeLine: '', typeExclude: '',
   colors: [], colorMode: ':', identity: [], mana: '',
   stats: [{ a: 'mv', op: '<=', value: '' }],
-  formats: [{ status: 'legal', format: '' }],
+  // Commander by default, matching withCommanderDefault() on the splash page.
+  // Nearly every query here is for a Commander deck, and the row was starting
+  // on "Choose a format" — which quietly meant no legality filter at all.
+  formats: [{ status: 'legal', format: 'commander' }],
   sets: '', rarities: [], criteria: [],
   prices: [{ a: 'usd', op: '<=', value: '' }],
   artist: '', lore: '', keyword: '', semantic: '', sort: '', order: 'asc',

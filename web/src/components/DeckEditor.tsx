@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import type { Card } from '../lib/api'
 import { collection } from '../lib/collection'
 import {
-  SECTIONS, countCards, deckValue, filterCards, groupCards, sortDeckCards,
+  SECTIONS, canBeCommander, countCards, deckValue, filterCards, groupCards, sortDeckCards,
   type DeckCard, type GroupBy, type Section, type SortBy,
 } from '../lib/deckModel'
 import { useCardFace } from '../lib/faces'
@@ -21,9 +21,8 @@ const GROUPINGS: [GroupBy, string][] = [
   ['rarity', 'Rarity'], ['none', 'None'],
 ]
 
-/** The three editable sections, as tabs. Commander is excluded deliberately —
- *  see the note where these are rendered. */
-const SECTION_TABS = SECTIONS.filter((s) => s.key !== 'commander')
+/** Every section, as tabs — Commander included. */
+const SECTION_TABS = SECTIONS
 
 const SORTS: [SortBy, string][] = [
   ['name', 'Name'], ['cmc', 'Mana value'], ['price', 'Price'],
@@ -193,14 +192,16 @@ export function DeckEditor({
         </span>
       </div>
 
-      {/* Deck, Sideboard and Maybeboard are tabs rather than three stacked
-          lists. Only one is ever the thing you are working on, and the other
-          two were pushing it up the page.
+      {/* The sections are tabs rather than stacked lists. Only one is ever the
+          thing you are working on, and the others were pushing it up the page.
 
-          Commander is filtered out here rather than dropped from SECTIONS,
-          which also drives serialize() -- removing it there would strip the
-          commander out of the decklist text entirely. The analysis tab shows
-          the card itself, so a one-card section earned nothing. */}
+          Commander used to be filtered out here on the grounds that a one-card
+          section earns nothing and the analysis tab shows the card anyway.
+          That was true of *reading* it and wrong about writing it: with no tab
+          there was no drop target, and so no way to set or change a commander
+          in this editor at all -- you had to switch to Text mode and type a
+          section header, for the one card that decides the deck's colour
+          identity, its legality and its gallery art. */}
       <div className="section-tabs">
         {SECTION_TABS.map(({ key, label }) => {
           const count = cards
@@ -413,6 +414,15 @@ function EditorRow({
         </Link>
 
         <div className="tile-acts">
+          {/* Only where it could plausibly apply. Dragging onto the Commander
+              tab still works for anything, in keeping with the rest of the
+              editor enforcing nothing. */}
+          {section !== 'commander' && canBeCommander(card) && (
+            <button onClick={() => onMove(entry.uid, 'commander')}>Commander</button>
+          )}
+          {section !== 'main' && (
+            <button onClick={() => onMove(entry.uid, 'main')}>Deck</button>
+          )}
           {section !== 'sideboard' && (
             <button onClick={() => onMove(entry.uid, 'sideboard')}>Sideboard</button>
           )}
@@ -438,6 +448,25 @@ function EditorRow({
       <span className="push mono faint price">
         {card.usd !== null ? `$${(card.usd * entry.quantity).toFixed(2)}` : '—'}
       </span>
+      {/* List view has no hover panel, so the one move that cannot be reached
+          by dragging a row onto a tab you can already see gets a control. */}
+      {section === 'commander' ? (
+        <button
+          className="row-act" title="Move to the deck"
+          aria-label={`Move ${card.name} to the deck`}
+          onClick={() => onMove(entry.uid, 'main')}
+        >
+          ↓
+        </button>
+      ) : canBeCommander(card) && (
+        <button
+          className="row-act" title="Make this the commander"
+          aria-label={`Make ${card.name} the commander`}
+          onClick={() => onMove(entry.uid, 'commander')}
+        >
+          ♛
+        </button>
+      )}
       <button
         className="row-act" title="Add to Cards"
         onClick={() => collection.add(card)}

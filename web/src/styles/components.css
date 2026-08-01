@@ -59,7 +59,16 @@
 /* The input and its spell-check backdrop must share exact metrics, so both
    inherit from this one rule. */
 .searchbar input,
+/* Sits under the input, transparent text, so only the squiggles show. Its
+   metrics must match `.searchbar input` exactly or the underlines drift off
+   the words they mark. */
 .spell-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  color: transparent;
+  pointer-events: none;
+  user-select: none;
   font-family: var(--font-m);
   font-size: 14.5px;
   line-height: 1.5;
@@ -86,16 +95,6 @@
 }
 
 .searchbar input::placeholder { color: var(--faint); }
-
-/* Sits under the input, transparent text, so only the squiggles show. */
-.spell-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  color: transparent;
-  pointer-events: none;
-  user-select: none;
-}
 
 .spell-backdrop .bad {
   text-decoration: underline wavy var(--danger);
@@ -227,6 +226,48 @@
 }
 
 .history .n { font-family: var(--font-m); font-size: 11px; color: var(--muted); text-align: right; white-space: nowrap; }
+
+/* A pinned row keeps its star lit and carries a hairline marker, so the block
+   at the top reads as deliberate rather than as whatever was searched last. */
+.history tbody tr.locked .q { color: var(--aether-hi); }
+.history tbody tr.locked td:first-child { box-shadow: inset 2px 0 0 var(--aether); }
+
+.history-lock {
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity var(--dur-fast), color var(--dur-fast);
+}
+
+/* Unlike the discard control, a lit star stays visible — it is the state of
+   the row, not an action offered on hover. */
+.history-lock.on { opacity: 1; color: var(--aether); }
+.history tbody tr:hover .history-lock,
+.history-lock:focus-visible { opacity: 1; }
+.history-lock:hover { color: var(--aether-hi); }
+
+/* Only on hover: the row's job is to be re-run, and a discard control sitting
+   permanently beside five queries reads as the point of the list. */
+.history-drop {
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: var(--faint);
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity var(--dur-fast), color var(--dur-fast);
+}
+
+.history tbody tr:hover .history-drop,
+.history-drop:focus-visible { opacity: 1; }
+.history-drop:hover { color: var(--danger); }
 
 .examples { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 16px; }
 
@@ -430,6 +471,36 @@
   border-color: color-mix(in oklab, var(--ok) 60%, transparent);
 }
 
+/* The `⋯` menu. Bottom-left is the last free corner: collect holds top-left,
+   flip top-right, and the price bottom-right. */
+.menu-btn {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 3;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+  background: rgba(7, 8, 12, 0.86);
+  backdrop-filter: blur(6px);
+  color: var(--muted);
+  font-family: var(--font-m);
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity var(--dur-fast), transform var(--dur-fast),
+              color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.card-tile:hover .menu-btn,
+.menu-btn:focus-visible { opacity: 1; transform: translateY(0); }
+
+.menu-btn:hover { color: var(--aether-hi); border-color: var(--aether); }
+
 /* List view */
 .card-list { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 
@@ -512,6 +583,7 @@
   transform-style: preserve-3d;
   will-change: transform;
   box-shadow: 0 34px 80px -36px rgba(0, 0, 0, 0.95);
+  cursor: zoom-in;
   --mx: 50%;
   --my: 50%;
 }
@@ -1008,6 +1080,32 @@
 /* Per-card action menu, opened by clicking a tile on the Cards page. */
 .menu-backdrop { position: fixed; inset: 0; z-index: 300; }
 
+/* Centred dialogs, for the two questions worth stopping the page to ask:
+   deleting a deck, and leaving one with unsaved changes. Dimmed rather than
+   merely layered — both are decisions, not menus. */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(4, 5, 8, 0.7);
+  backdrop-filter: blur(4px);
+}
+
+.modal {
+  width: min(440px, 100%);
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: color-mix(in oklab, var(--bg-hi) 94%, transparent);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.66);
+}
+
+.modal h3 { margin-bottom: 8px; font-size: 16px; }
+.modal p { font-size: 13px; line-height: 1.45; }
+
 .card-menu {
   position: fixed;
   min-width: 208px;
@@ -1057,7 +1155,14 @@
 .commander-card { display: flex; flex-direction: column; }
 .commander-card > a { align-self: center; margin-top: 4px; }
 
-.commander-card a { display: block; border-radius: 4.75% / 3.5%; }
+/* Positioned, and carrying the pointer variables the tilt sheen reads. */
+.commander-card a {
+  display: block;
+  position: relative;
+  border-radius: 4.75% / 3.5%;
+  --mx: 50%;
+  --my: 50%;
+}
 
 .commander-card img {
   width: 290px;
@@ -1140,6 +1245,14 @@
 
 .gallery-head { margin-bottom: 32px; }
 .gallery-head .display { margin-top: 8px; }
+
+.gallery-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
 
 .deck-gallery {
   display: grid;
@@ -1225,6 +1338,75 @@
 
 .pip-dot { width: 8px; height: 8px; border-radius: 50%; display: block; box-shadow: inset 0 0 0 1px rgba(148, 163, 205, 0.3); }
 
+/* Rename, copy, delete. Top-right and hover-only: the tile is a picture of a
+   deck first, and three glyphs sitting on every commander's face permanently
+   would make it a toolbar with art behind it. */
+.deck-tile-acts {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  display: flex;
+  gap: 5px;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+
+.deck-tile:hover .deck-tile-acts,
+.deck-tile:focus-within .deck-tile-acts { opacity: 1; transform: translateY(0); }
+
+.deck-tile-acts button {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: rgba(7, 8, 12, 0.88);
+  backdrop-filter: blur(6px);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.deck-tile-acts button:hover { color: var(--aether-hi); border-color: var(--aether); }
+.deck-tile-acts button.danger:hover { color: var(--danger); border-color: var(--danger); }
+
+.deck-tile.busy { pointer-events: none; opacity: 0.55; }
+
+/* Covers the tile it is about, so the deck you are deleting is the thing you
+   are looking at while you decide. */
+.deck-tile-confirm {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  text-align: center;
+  cursor: default;
+  background: rgba(7, 8, 12, 0.93);
+  backdrop-filter: blur(8px);
+}
+
+.deck-tile-confirm p { font-size: 13px; line-height: 1.35; }
+.deck-tile-confirm p.faint { font-size: 11px; }
+
+.deck-rename {
+  width: 100%;
+  font-family: var(--font-d);
+  font-weight: 800;
+  font-size: clamp(16px, 1.9vw, 21px);
+  letter-spacing: -0.02em;
+  padding: 4px 8px;
+}
+
 /* The new-deck slot: a hairline plate with a large, quietly breathing plus. */
 .deck-tile-new {
   border-style: dashed;
@@ -1278,6 +1460,8 @@
   touch-action: none;
 }
 
+/* The divider reads as a seam by default and brightens on contact, rather than
+   only existing once you find it. */
 .split-handle::before {
   content: '';
   position: absolute;
@@ -1285,14 +1469,15 @@
   bottom: 0;
   left: 50%;
   width: 1px;
-  background: var(--line-soft);
+  background: color-mix(in oklab, var(--aether) 55%, var(--line-soft));
+  box-shadow: 0 0 7px color-mix(in oklab, var(--aether) 28%, transparent);
   transition: background-color var(--dur-fast), box-shadow var(--dur-fast);
 }
 
 .split-handle:hover::before,
 .split-handle.dragging::before {
-  background: var(--aether);
-  box-shadow: 0 0 10px color-mix(in oklab, var(--aether) 60%, transparent);
+  background: var(--aether-hi, var(--aether));
+  box-shadow: 0 0 14px color-mix(in oklab, var(--aether) 75%, transparent);
 }
 
 .split-handle::after {
@@ -1462,8 +1647,6 @@
 .editor-tile:hover::after,
 .commander-card a:hover::after { opacity: 1; }
 
-.commander-card a { position: relative; --mx: 50%; --my: 50%; }
-
 /* Quantity, top-left. Arrows stack either side of the number so the control
    is a single small column rather than a bar across the card. */
 .tile-qty {
@@ -1592,15 +1775,22 @@
   overflow: hidden;
 }
 
+/* The bar carries a back link, three readouts and six buttons, so it has to be
+   allowed to wrap onto a second line rather than clipping its own contents. */
 .pt-bar {
   display: flex;
   align-items: center;
   gap: 14px;
+  row-gap: 8px;
   flex-wrap: wrap;
   flex: none;
+  overflow: visible;
+  min-height: 0;
   font-size: 12px;
 }
 
+.pt-bar .push { margin-left: auto; }
+.pt-bar > span { white-space: nowrap; }
 .pt-bar .back-link { padding: 0; }
 .pt-bar .row-act { display: inline-grid; width: 18px; height: 18px; }
 
@@ -1723,7 +1913,12 @@
 .pt-info:hover,
 .pt-flip:hover { color: var(--aether-hi); border-color: var(--aether); }
 
+/* The deck lives at the end of the hand, where it sits on a table. Clicking it
+   draws; the old separate Library pile is gone. */
 .pt-hand {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
   flex: none;
   padding-top: 10px;
   border-top: 1px solid var(--line-soft);
@@ -1732,6 +1927,8 @@
 
 .pt-hand .pt-cards {
   display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
   gap: 6px;
   overflow-x: auto;
   padding-bottom: 4px;
@@ -1791,6 +1988,37 @@
 .resolution .q { font-family: var(--font-m); color: var(--faint); flex: none; width: 2.6em; }
 .resolution .arrow { color: var(--faint); flex: none; }
 .resolution .to { flex: 1; min-width: 0; }
+
+/* The alternatives are the fix, so they look pressable rather than printed. */
+.resolution .alts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 3px;
+  font-size: 11px;
+}
+
+.alt-pick {
+  font-family: var(--font-m);
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px dashed var(--line);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color var(--dur-fast), border-color var(--dur-fast), background-color var(--dur-fast);
+}
+
+.alt-pick:hover:not(:disabled) {
+  color: var(--aether-hi);
+  border-color: var(--aether);
+  border-style: solid;
+  background: color-mix(in oklab, var(--aether) 12%, transparent);
+}
+
+.alt-pick:disabled { opacity: 0.5; cursor: default; }
 
 .match-tag {
   font-family: var(--font-m);
@@ -2104,8 +2332,6 @@
 .lightbox-close:hover { color: var(--ink); border-color: var(--aether); }
 
 /* Card art is clickable, so it should say so. */
-.detail-tilt { cursor: zoom-in; }
-
 /* Type-line and set links: same affordance as the keyword chips. */
 .meta-link {
   display: inline-flex;
@@ -2191,11 +2417,6 @@
 .detail-art .flip-btn { opacity: 1; transform: none; }
 
 
-/* The deck lives at the end of the hand, where it sits on a table. Clicking it
-   draws; the old separate Library pile is gone. */
-.pt-hand { display: flex; align-items: flex-end; gap: 14px; }
-.pt-hand .pt-cards { flex: 1 1 auto; min-width: 0; }
-
 .pt-library {
   flex: none;
   display: flex;
@@ -2219,16 +2440,27 @@
 
 .pt-deck:disabled { opacity: 0.35; cursor: default; }
 
+/* A card back.
+ *
+ * The real image if it has been dropped into web/public, and a drawn one
+ * underneath as the fallback — the image is not committed, so a fresh checkout
+ * still gets something card-shaped rather than a broken tile. The drawn layers
+ * are a warm gradient rather than a hatch, which reads as a card rather than
+ * as a missing asset. */
 .pt-deck-back {
   display: block;
   width: 117px;
   aspect-ratio: 488 / 680;
   border-radius: 5px;
-  border: 1px solid var(--line);
-  background:
-    radial-gradient(60% 40% at 50% 40%, rgba(143, 169, 255, 0.22), transparent 70%),
-    repeating-linear-gradient(45deg,
-      rgba(143, 169, 255, 0.15) 0 5px, rgba(143, 169, 205, 0.05) 5px 10px);
+  border: 1px solid #0a0a0c;
+  position: relative;
+  background-image:
+    url('/card-back.png'),
+    radial-gradient(58% 42% at 50% 46%, rgba(214, 188, 142, 0.30), transparent 72%),
+    linear-gradient(160deg, #4a3520 0%, #2b1d12 100%);
+  background-size: cover, auto, auto;
+  background-position: center;
+  background-color: #2f2015;
 }
 
 @media (max-width: 720px) {
@@ -2267,19 +2499,6 @@
   transform: translateY(-2px);
 }
 
-/* The divider reads as a seam by default and brightens on contact, rather than
-   only existing once you find it. */
-.split-handle::before {
-  background: color-mix(in oklab, var(--aether) 55%, var(--line-soft));
-  box-shadow: 0 0 7px color-mix(in oklab, var(--aether) 28%, transparent);
-}
-
-.split-handle:hover::before,
-.split-handle.dragging::before {
-  background: var(--aether-hi, var(--aether));
-  box-shadow: 0 0 14px color-mix(in oklab, var(--aether) 75%, transparent);
-}
-
 /* The last cell runs to the final grid line, whatever column it happens to
    start in, so a row that does not divide evenly ends in content rather than a
    hole. `span 2` guessed at the leftover and was wrong both ways: too narrow
@@ -2298,44 +2517,6 @@
   white-space: pre-line;
 }
 
-/* The bar carries a back link, three readouts and six buttons. It has to be
-   allowed to wrap onto a second line rather than clipping its own contents. */
-.pt-bar {
-  flex-wrap: wrap;
-  row-gap: 8px;
-  overflow: visible;
-  min-height: 0;
-}
-
-.pt-bar .push { margin-left: auto; }
-.pt-bar > span { white-space: nowrap; }
-
-/* A card back rather than a hatched placeholder: a dark border, an inner
-   frame, and a lighter panel inside it. Drawn rather than an image, so it
-   scales with the card and ships no asset. */
-.pt-deck-back {
-  display: block;
-  width: 117px;
-  aspect-ratio: 488 / 680;
-  border-radius: 5px;
-  border: 1px solid #0a0a0c;
-  background:
-    radial-gradient(58% 42% at 50% 46%, rgba(214, 188, 142, 0.30), transparent 72%),
-    linear-gradient(160deg, #4a3520 0%, #2b1d12 100%);
-  background-color: #2f2015;
-  position: relative;
-  box-shadow: inset 0 0 0 4px #1a1109, inset 0 0 0 5px rgba(214, 188, 142, 0.22);
-}
-
-.pt-deck-back::after {
-  content: '';
-  position: absolute;
-  inset: 12% 14%;
-  border-radius: 50% / 42%;
-  border: 1px solid rgba(214, 188, 142, 0.30);
-  background: radial-gradient(circle at 50% 42%, rgba(214, 188, 142, 0.16), transparent 68%);
-}
-
 .pager {
   display: flex;
   align-items: center;
@@ -2344,20 +2525,6 @@
   margin: 26px 0 8px;
   font-size: 12px;
 }
-
-/* The real card back if it has been dropped into web/public, and the drawn
-   one underneath as the fallback -- the image is not committed, so a fresh
-   checkout still gets something card-shaped rather than a broken tile. */
-.pt-deck-back {
-  background-image: url('/card-back.png'),
-    radial-gradient(58% 42% at 50% 46%, rgba(214, 188, 142, 0.30), transparent 72%),
-    linear-gradient(160deg, #4a3520 0%, #2b1d12 100%);
-  background-size: cover, auto, auto;
-  background-position: center;
-  box-shadow: none;
-}
-
-.pt-deck-back::after { content: none; }
 
 /* --------------------------------------------------------------------------
    Shuffle — one card at a time
@@ -2432,7 +2599,15 @@
   color: var(--muted);
 }
 
-.shuffle-empty { color: var(--muted); font-size: 14px; text-align: center; max-width: 24ch; }
+/* Above the stage, which sits at a high z-index of its own — otherwise the
+   "nothing left" message renders behind the pile it is replacing. */
+.shuffle-empty {
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+  max-width: 24ch;
+  z-index: 4000;
+}
 
 .shuffle-foot {
   flex: none;
@@ -2489,9 +2664,24 @@
 .shuffle-pile-label:not(:disabled):hover { color: var(--ink); }
 .shuffle-pile-label.yes:not(:disabled):hover { border-color: var(--ok); }
 .shuffle-pile-label.no:not(:disabled):hover { border-color: var(--danger); }
-.shuffle-card.active { cursor: grab; touch-action: none; }
-.shuffle-card.active:active { cursor: grabbing; }
-.shuffle-empty { z-index: 4000; }
+/* The `i` beside a recommendation's name. Quiet by design: the name is the
+   action, and this is the way out to the card itself. */
+.rec-info {
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+  border: 1px solid var(--line-soft);
+  color: var(--faint);
+  font-family: var(--font-m);
+  font-size: 9px;
+  line-height: 1;
+  vertical-align: 1px;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.rec-info:hover { color: var(--aether-hi); border-color: var(--aether); }
 
 /* Reset, at the head of the recommendations panel. */
 .rec-reset {

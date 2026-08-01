@@ -5,6 +5,7 @@ import { api, type CardDetail } from '../lib/api'
 import { collection, useIsCollected } from '../lib/collection'
 import { attachTilt, riseIn } from '../lib/motion'
 import { useCardFace } from '../lib/faces'
+import { CardMenu } from '../components/CardMenu'
 import { FlipButton } from '../components/FlipButton'
 import { Lightbox } from '../components/Lightbox'
 import { BackLink } from '../components/PageHead'
@@ -30,6 +31,7 @@ export function CardPage() {
   const held = useIsCollected(oracleId ?? '')
   const [zoomed, setZoomed] = useState<DOMRect | null>(null)
   const [isZoomed, setIsZoomed] = useState(false)
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null)
   const face = useCardFace(detail?.card)
 
   useEffect(() => {
@@ -93,6 +95,17 @@ export function CardPage() {
           onClick={() => collection.toggle(card)}
         >
           {held ? '✓ In Cards' : '+ Add to Cards'}
+        </button>
+        {/* Reading a card is where you decide you want it. Without this the
+            only route into a deck was collecting it, opening the Cards page and
+            adding it from there — three steps to act on the decision you had
+            already made here. */}
+        <button
+          className="btn sm"
+          aria-haspopup="menu"
+          onClick={(event) => setMenuAt({ x: event.clientX, y: event.clientY })}
+        >
+          Add to deck
         </button>
       </div>
       <section className="shell detail" ref={bodyRef}>
@@ -351,6 +364,10 @@ export function CardPage() {
         </p>
       </div>
     </section>
+
+    {menuAt && (
+      <CardMenu card={card} at={menuAt} onClose={() => setMenuAt(null)} />
+    )}
 
     {/* The face you were looking at, not always the front. */}
     {isZoomed && face.src && (
