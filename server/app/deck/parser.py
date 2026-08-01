@@ -84,6 +84,15 @@ def parse_decklist(text: str) -> ParsedDeck:
                 match.group("name").lower(), "main"))
             continue
 
+        # A Tokens section -- which every exporter emits -- documents what the
+        # deck *makes*, not what is in it. Every count already excluded it, and
+        # the tokens a deck produces are derived from the cards' own all_parts
+        # rather than read from here, so carrying the lines any further only
+        # gave the resolver names it should never have been asked about.
+        if section == "tokens":
+            deck.ignored_lines.append(line)
+            continue
+
         forced_section = None
         if _SB_PREFIX_RE.match(stripped):
             stripped = _SB_PREFIX_RE.sub("", stripped)

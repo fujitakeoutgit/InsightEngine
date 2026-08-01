@@ -25,7 +25,7 @@ from typing import Any
 from rapidfuzz import fuzz, process
 
 from ..db import fold_name, row_to_card
-from ..search_local import LIST_COLUMNS
+from ..search_local import LIST_COLUMNS, deckable_clause
 
 # Below this, a suggestion is worse than admitting defeat.
 FUZZY_FLOOR = 82.0
@@ -72,7 +72,14 @@ class CardNameResolver:
         self._rank: dict[str, int] = {}       # oracle_id -> EDHREC rank
         self._choices: list[str] = []         # folded keys for rapidfuzz
 
-        for row in conn.execute("SELECT oracle_id, name, edhrec_rank FROM cards"):
+        # Tokens, emblems and art series are excluded outright. An art print
+        # carries its card's name verbatim -- "Sol Ring // Sol Ring" -- so
+        # indexing them meant a decklist line could resolve to a picture of the
+        # card instead of the card, and meant the ambiguity list offered those
+        # pictures as corrections.
+        for row in conn.execute(
+            f"SELECT oracle_id, name, edhrec_rank FROM cards WHERE {deckable_clause()}"
+        ):
             oracle_id, name = row["oracle_id"], row["name"]
             self._display[oracle_id] = name
             # Unranked cards sort last rather than first.

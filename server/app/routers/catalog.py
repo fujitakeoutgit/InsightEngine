@@ -15,7 +15,9 @@ from functools import lru_cache
 from fastapi import APIRouter, HTTPException, Query
 
 from ..db import fold_name
-from ..search_local import visibility_clause
+# Re-exported rather than redefined: the same list is now the search engine's
+# own default, and two copies would drift.
+from ..search_local import NOT_DECKABLE, visibility_clause
 from ..state import state
 
 router = APIRouter(prefix="/api/catalog", tags=["catalog"])
@@ -83,10 +85,6 @@ def _catalog(kind: str) -> list[str]:
     return []
 
 
-#: Layouts that are not cards you can put in a deck.
-NOT_DECKABLE = ("token", "double_faced_token", "emblem", "art_series", "vanguard")
-
-
 def _names(needle: str, limit: int) -> dict:
     """Card names matching a prefix, then a substring.
 
@@ -102,7 +100,8 @@ def _names(needle: str, limit: int) -> dict:
     # Folded on both sides, so "fire//fall", "fire fall" and "firefall" all
     # find the same card. Prefix ranks above substring: "sol" offers Sol Ring
     # before Consulate Dreadnought.
-    # DISTINCT, and no tokens or art prints.
+    # DISTINCT, and no tokens or art prints -- the latter now come free from
+    # visibility_clause, which excludes NOT_DECKABLE layouts by default.
     #
     # Dozens of token cards share a name -- "Elemental" is 31 separate rows,
     # "Cat" is 8 -- so a plain SELECT name offered the same word over and over
@@ -110,10 +109,9 @@ def _names(needle: str, limit: int) -> dict:
     # you can put in a deck, which is the only reason this box exists.
     rows = conn.execute(
         f"SELECT DISTINCT name FROM cards WHERE {visibility_clause(False, False)} "
-        f"AND layout NOT IN ({','.join('?' * len(NOT_DECKABLE))}) "
         "AND name_fold LIKE ? "
         "ORDER BY (name_fold LIKE ?) DESC, length(name), name LIMIT ?",
-        (*NOT_DECKABLE, f"%{folded}%", f"{folded}%", limit),
+        (f"%{folded}%", f"{folded}%", limit),
     ).fetchall()
     return {"kind": "names", "values": [r["name"] for r in rows], "total": len(rows)}
 

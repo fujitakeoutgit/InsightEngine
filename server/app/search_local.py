@@ -58,20 +58,62 @@ class SearchResult:
         return self.page * self.per_page < self.total
 
 
-def visibility_clause(include_digital: bool, include_funny: bool) -> str:
+#: Layouts that are not cards you can put in a deck. Scryfall calls these
+#: "extras" and hides them unless a query says `include:extras`; the mirror
+#: holds them because rulings and tokens are wanted elsewhere, so the same
+#: default has to be applied here or the two engines disagree.
+NOT_DECKABLE = ("token", "double_faced_token", "emblem", "art_series", "vanguard")
+
+_NOT_DECKABLE_SQL = ", ".join(f"'{layout}'" for layout in NOT_DECKABLE)
+
+
+def visibility_clause(
+    include_digital: bool, include_funny: bool, include_extras: bool = False,
+) -> str:
     """Default result hygiene, matching Scryfall's own search defaults.
 
-    Digital-only cards (Alchemy 'A-' rebalances, Arena exclusives) and joke-set
-    cards are excluded unless explicitly asked for, because they otherwise
-    crowd out real answers. An explicit `is:digital` / `is:funny` in the query
-    still works -- this clause only sets the default.
+    Digital-only cards (Alchemy 'A-' rebalances, Arena exclusives), joke-set
+    cards and non-deckable extras are excluded unless explicitly asked for,
+    because they otherwise crowd out real answers -- an art-series print shares
+    its card's name exactly, so "Delver of Secrets" returned the card and its
+    art card as two indistinguishable rows.
+
+    Returns bare SQL with no placeholders: every caller concatenates this onto
+    a WHERE clause it has already bound parameters for, so introducing one here
+    would silently misalign them. The layout names are a fixed constant, not
+    user input.
     """
     parts = []
     if not include_digital:
         parts.append("digital = 0")
     if not include_funny:
         parts.append("is_funny = 0")
+    if not include_extras:
+        parts.append(f"layout NOT IN ({_NOT_DECKABLE_SQL})")
     return " AND ".join(parts) if parts else "1 = 1"
+
+
+def deckable_clause() -> str:
+    """The layout filter on its own.
+
+    For callers that want every printing a decklist line could legitimately
+    mean -- funny and digital cards included, because someone may really be
+    building an Un-deck -- but never a token, emblem or art card, which no
+    decklist line ever means.
+    """
+    return f"layout NOT IN ({_NOT_DECKABLE_SQL})"
+
+
+def constrains_layout(compiled: Compiled) -> bool:
+    """Whether the query already says something about `layout`.
+
+    When it does, the extras default is dropped: a query that names a layout
+    has answered the question the default exists to answer, and `layout:token`
+    should find tokens. This is safe precisely because the constraint does the
+    filtering itself -- `is:transform` compiles to `layout = 'transform'`, which
+    no art-series or token row can satisfy anyway.
+    """
+    return "layout" in compiled.where
 
 
 def _order_clause(sort: str, order: str) -> str:
@@ -98,7 +140,10 @@ def search_ast(
 ) -> SearchResult:
     """Run a compiled AST against the mirror with pagination."""
     compiled: Compiled = compile_node(node) if not is_empty(node) else Compiled.always_true()
-    where = f"({compiled.where}) AND {visibility_clause(include_digital, include_funny)}"
+    where = (
+        f"({compiled.where}) AND "
+        f"{visibility_clause(include_digital, include_funny, constrains_layout(compiled))}"
+    )
     params = list(compiled.params)
 
     total = conn.execute(
@@ -131,7 +176,10 @@ def search_node_limited(
     a broken plan, and must never be treated as "select all".
     """
     compiled = compile_node(node) if not is_empty(node) else Compiled.always_false()
-    where = f"({compiled.where}) AND {visibility_clause(include_digital, include_funny)}"
+    where = (
+        f"({compiled.where}) AND "
+        f"{visibility_clause(include_digital, include_funny, constrains_layout(compiled))}"
+    )
     rows = conn.execute(
         f"SELECT {LIST_COLUMNS} FROM cards WHERE {where} "
         "ORDER BY (edhrec_rank IS NULL), edhrec_rank ASC, name COLLATE NOCASE ASC "
