@@ -232,7 +232,11 @@
 .history tbody tr.locked .q { color: var(--aether-hi); }
 .history tbody tr.locked td:first-child { box-shadow: inset 2px 0 0 var(--aether); }
 
-.history-lock {
+/* Pin and discard. Both appear on hover only: the row's job is to be re-run,
+   and two controls sitting permanently beside five queries would read as the
+   point of the list. */
+.history-lock,
+.history-drop {
   border: 0;
   background: none;
   padding: 2px 4px;
@@ -244,30 +248,18 @@
   transition: opacity var(--dur-fast), color var(--dur-fast);
 }
 
-/* Unlike the discard control, a lit star stays visible — it is the state of
-   the row, not an action offered on hover. */
-.history-lock.on { opacity: 1; color: var(--aether); }
 .history tbody tr:hover .history-lock,
-.history-lock:focus-visible { opacity: 1; }
-.history-lock:hover { color: var(--aether-hi); }
-
-/* Only on hover: the row's job is to be re-run, and a discard control sitting
-   permanently beside five queries reads as the point of the list. */
-.history-drop {
-  border: 0;
-  background: none;
-  padding: 2px 4px;
-  cursor: pointer;
-  color: var(--faint);
-  font-size: 11px;
-  line-height: 1;
-  opacity: 0;
-  transition: opacity var(--dur-fast), color var(--dur-fast);
-}
-
 .history tbody tr:hover .history-drop,
+.history-lock:focus-visible,
 .history-drop:focus-visible { opacity: 1; }
+
+.history-lock:hover { color: var(--aether-hi); }
+.history-drop { font-size: 11px; }
 .history-drop:hover { color: var(--danger); }
+
+/* A lit star is the exception: it stays visible, because it is the state of
+   the row rather than an action offered on hover. */
+.history-lock.on { opacity: 1; color: var(--aether); }
 
 .examples { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 16px; }
 
@@ -437,7 +429,11 @@
 .card-tile:hover .price { opacity: 1; transform: translateY(0); }
 
 /* Collect button — appears top-left on hover, adds to the Cards tab. */
-.collect-btn {
+/* The controls that sit on a card tile: a corner, a glyph, and the same dark
+   glass plate under all of them. They differ only in which corner they take
+   and which way they slide in, so the look lives here once. */
+.collect-btn,
+.menu-btn {
   position: absolute;
   top: 6px;
   left: 6px;
@@ -463,7 +459,8 @@
 .card-tile:hover .collect-btn,
 .collect-btn:focus-visible { opacity: 1; transform: translateY(0); }
 
-.collect-btn:hover { color: var(--aether-hi); border-color: var(--aether); }
+.collect-btn:hover,
+.menu-btn:hover { color: var(--aether-hi); border-color: var(--aether); }
 
 .collect-btn.held {
   opacity: 1;
@@ -472,34 +469,20 @@
 }
 
 /* The `⋯` menu. Bottom-left is the last free corner: collect holds top-left,
-   flip top-right, and the price bottom-right. */
+   flip top-right, and the price bottom-right. Shares everything but its corner
+   and its entry direction with `.collect-btn` above. */
 .menu-btn {
-  position: absolute;
-  left: 6px;
+  /* `top` has to be released explicitly: with both edges set and a fixed
+     height the box is over-constrained and `top` wins, which would stack this
+     on the collect button rather than opposite it. */
+  top: auto;
   bottom: 6px;
-  z-index: 3;
-  width: 24px;
-  height: 24px;
-  display: grid;
-  place-items: center;
-  border-radius: 3px;
-  border: 1px solid var(--line);
-  background: rgba(7, 8, 12, 0.86);
-  backdrop-filter: blur(6px);
-  color: var(--muted);
-  font-family: var(--font-m);
   font-size: 13px;
-  line-height: 1;
-  opacity: 0;
   transform: translateY(3px);
-  transition: opacity var(--dur-fast), transform var(--dur-fast),
-              color var(--dur-fast), border-color var(--dur-fast);
 }
 
 .card-tile:hover .menu-btn,
 .menu-btn:focus-visible { opacity: 1; transform: translateY(0); }
-
-.menu-btn:hover { color: var(--aether-hi); border-color: var(--aether); }
 
 /* List view */
 .card-list { width: 100%; border-collapse: collapse; font-size: 13.5px; }

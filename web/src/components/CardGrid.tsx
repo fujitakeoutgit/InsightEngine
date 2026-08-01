@@ -57,10 +57,12 @@ function CollectButton({
  * of their own rather than a hijacked one -- otherwise adding a way to reach
  * the deck costs the way to read the card.
  */
-function MenuButton({ card, onMenu }: { card: Card; onMenu: CardPick }) {
+function MenuButton({
+  card, onMenu, className = 'menu-btn',
+}: { card: Card; onMenu: CardPick; className?: string }) {
   return (
     <button
-      className="menu-btn"
+      className={className}
       title={`More for ${card.name}`}
       aria-label={`Actions for ${card.name}`}
       aria-haspopup="menu"
@@ -181,18 +183,7 @@ function CardRow({
       <td className="num">{money(card.usd)}</td>
       {onMenu && (
         <td className="num">
-          <button
-            className="btn btn-ghost sm"
-            title={`More for ${card.name}`}
-            aria-label={`Actions for ${card.name}`}
-            aria-haspopup="menu"
-            onClick={(event) => {
-              event.stopPropagation()
-              onMenu(card, { x: event.clientX, y: event.clientY })
-            }}
-          >
-            ⋯
-          </button>
+          <MenuButton card={card} onMenu={onMenu} className="btn btn-ghost sm" />
         </td>
       )}
     </tr>

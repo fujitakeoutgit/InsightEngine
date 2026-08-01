@@ -67,13 +67,3 @@ async def card_printings(oracle_id: str):
     return {"printings": [normalize_card(c) for c in raw]}
 
 
-@router.get("/named/{name}")
-async def card_by_name(name: str):
-    """Resolve a name through the local ladder, then return the full record."""
-    if not state.resolver:
-        raise HTTPException(503, "Local mirror is empty.")
-    resolution = state.resolver.resolve(name, 1, "main")
-    if not resolution.resolved:
-        raise HTTPException(404, f"No card matching '{name}'")
-    return {"card": resolution.card, "match": resolution.match,
-            "score": resolution.score, "alternatives": resolution.alternatives}

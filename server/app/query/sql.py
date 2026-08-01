@@ -93,6 +93,17 @@ _LIKE_ESCAPE = str.maketrans({"%": r"\%", "_": r"\_", "\\": r"\\"})
 class Compiled:
     where: str
     params: list[object]
+    #: Whether this clause pins `layout` to a value the row must actually have.
+    #:
+    #: Read by the search engine to decide whether to drop its "no tokens,
+    #: emblems or art cards" default: a query that has already said which layout
+    #: it wants does that filtering itself, so the default would only be in the
+    #: way. It has to be tracked here rather than recovered by looking for
+    #: "layout" in the finished SQL, because by then `layout = ?` and
+    #: `NOT (layout = ?)` are indistinguishable -- and the second one pins
+    #: nothing. `t:goblin -is:modal` is an ordinary query that reads that way,
+    #: and reading it that way put every Goblin token back in the results.
+    pins_layout: bool = False
 
     @staticmethod
     def always_true() -> "Compiled":
@@ -260,7 +271,7 @@ def compile_term(term: Term) -> Compiled:
     if key == "artist":
         return _contains("artist", value)
     if key == "layout":
-        return Compiled("layout = ?", [value.lower()])
+        return Compiled("layout = ?", [value.lower()], pins_layout=True)
     if key == "legal":
         return _format_status(term, "legal")
     if key == "banned":
@@ -295,7 +306,8 @@ def compile_term(term: Term) -> Compiled:
         predicate = IS_PREDICATES.get(value.lower())
         if predicate is None:
             raise QueryCompileError(f"unknown 'is:' filter '{value}'")
-        return Compiled(f"({predicate})", [])
+        # `is:transform` and friends are layout equality under another name.
+        return Compiled(f"({predicate})", [], pins_layout=predicate.startswith("layout ="))
     if key == "otag":
         return Compiled(
             "EXISTS (SELECT 1 FROM tag_cards tc WHERE tc.oracle_id = cards.oracle_id "
@@ -310,15 +322,22 @@ def compile_node(node: Node) -> Compiled:
         return compile_term(node)
     if isinstance(node, Not):
         inner = compile_node(node.child)
+        # Negation pins nothing: excluding one layout says nothing about which
+        # layouts the rows that survive may have.
         return Compiled(f"NOT ({inner.where})", inner.params)
     if isinstance(node, (And, Or)):
         if not node.children:
             return Compiled.always_true()
         joiner = " AND " if isinstance(node, And) else " OR "
-        parts, params = [], []
+        parts, params, pins = [], [], []
         for child in node.children:
             compiled = compile_node(child)
             parts.append(f"({compiled.where})")
             params.extend(compiled.params)
-        return Compiled(joiner.join(parts), params)
+            pins.append(compiled.pins_layout)
+        # AND only needs one branch to pin the layout for every result to have
+        # it; OR needs all of them, because a result can arrive through any
+        # branch and one unpinned branch admits anything.
+        constrained = any(pins) if isinstance(node, And) else bool(pins) and all(pins)
+        return Compiled(joiner.join(parts), params, pins_layout=constrained)
     return Compiled.always_true()

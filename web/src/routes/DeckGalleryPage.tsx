@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 
 import { api, type SavedDeck } from '../lib/api'
 import { canAnimate, gsap, splitChars } from '../lib/motion'
+import { useTransientMessage } from '../lib/usePersisted'
 import { BackLink } from '../components/PageHead'
 
 const COLOR_VAR: Record<string, string> = {
@@ -70,7 +71,7 @@ export function DeckGalleryPage() {
   /** Deleting is two-step; this holds the deck awaiting its second click. */
   const [confirming, setConfirming] = useState<number | null>(null)
   const [busy, setBusy] = useState<number | null>(null)
-  const [status, setStatus] = useState<string | null>(null)
+  const [status, setStatus] = useTransientMessage(2600)
   const gridRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef<HTMLHeadingElement>(null)
   const renameRef = useRef<HTMLInputElement>(null)
@@ -81,12 +82,6 @@ export function DeckGalleryPage() {
       .then((r) => setDecks(r.decks))
       .catch(() => setError('Could not load your decks.'))
   }, [])
-
-  useEffect(() => {
-    if (!status) return
-    const timer = setTimeout(() => setStatus(null), 2600)
-    return () => clearTimeout(timer)
-  }, [status])
 
   useLayoutEffect(() => {
     if (!titleRef.current) return
@@ -114,22 +109,32 @@ export function DeckGalleryPage() {
     return sortDecks(matched, sortBy)
   }, [decks, filter, sortBy])
 
-  // Keyed on the rendered list rather than on `decks`, so re-sorting and
-  // filtering replay the reveal instead of snapping to a new order.
+  /* The reveal, on arrival and on a re-sort — but not on filtering.
+   *
+   * Filtering is per keystroke, and replaying an 0.85s staggered blur on every
+   * one of them made the whole gallery strobe while you typed. Worse, nothing
+   * killed the previous run and GSAP does not overwrite by default, so a
+   * six-character filter left six tweens per tile writing `filter: blur()` to
+   * the same elements every frame. Tiles that appear when a filter loosens are
+   * simply visible, which is the right answer for a list you are narrowing. */
+  const reveal = useRef<gsap.core.Tween | null>(null)
   useLayoutEffect(() => {
-    if (!visible || !gridRef.current) return
+    if (!decks || !gridRef.current) return
     const tiles = gridRef.current.querySelectorAll('.deck-tile')
     if (!tiles.length) return
+    reveal.current?.kill()
     if (!canAnimate()) {
       gsap.set(tiles, { opacity: 1, y: 0, scale: 1, filter: 'none' })
       return
     }
-    gsap.fromTo(tiles,
+    reveal.current = gsap.fromTo(tiles,
       { opacity: 0, y: 30, scale: 0.94, filter: 'blur(14px)' },
       { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', duration: 0.85,
         ease: 'power3.out', stagger: { amount: Math.min(0.7, tiles.length * 0.06) } },
     )
-  }, [visible])
+  }, [decks, sortBy])
+
+  useEffect(() => () => { reveal.current?.kill() }, [])
 
   useEffect(() => {
     if (renaming) renameRef.current?.select()
@@ -298,11 +303,13 @@ export function DeckGalleryPage() {
                   )}
                 </div>
 
+                {/* One `swallow` on the wrapper covers every button inside it:
+                    the click reaches here before the tile, and stopping it here
+                    stops it for all of them. */}
                 <div className="deck-tile-acts" onClick={swallow}>
                   <button
                     title="Rename" aria-label={`Rename ${deck.name}`}
-                    onClick={(e) => {
-                      swallow(e)
+                    onClick={() => {
                       setConfirming(null)
                       setRenaming({ id: deck.id, value: deck.name })
                     }}
@@ -311,14 +318,14 @@ export function DeckGalleryPage() {
                   </button>
                   <button
                     title="Duplicate" aria-label={`Duplicate ${deck.name}`}
-                    onClick={(e) => { swallow(e); void duplicate(deck) }}
+                    onClick={() => void duplicate(deck)}
                   >
                     ⧉
                   </button>
                   <button
                     className="danger"
                     title="Delete" aria-label={`Delete ${deck.name}`}
-                    onClick={(e) => { swallow(e); setRenaming(null); setConfirming(deck.id) }}
+                    onClick={() => { setRenaming(null); setConfirming(deck.id) }}
                   >
                     ✕
                   </button>
@@ -333,16 +340,10 @@ export function DeckGalleryPage() {
                     <p>Delete “{deck.name}”?</p>
                     <p className="faint">This cannot be undone.</p>
                     <div className="row gap-2">
-                      <button
-                        className="btn btn-danger sm"
-                        onClick={(e) => { swallow(e); void destroy(deck) }}
-                      >
+                      <button className="btn btn-danger sm" onClick={() => void destroy(deck)}>
                         Delete
                       </button>
-                      <button
-                        className="btn btn-ghost sm"
-                        onClick={(e) => { swallow(e); setConfirming(null) }}
-                      >
+                      <button className="btn btn-ghost sm" onClick={() => setConfirming(null)}>
                         Cancel
                       </button>
                     </div>

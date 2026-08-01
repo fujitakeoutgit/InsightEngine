@@ -10,7 +10,8 @@ from __future__ import annotations
 import pytest
 
 from app.db import connect
-from app.routers.catalog import NOT_DECKABLE, _names
+from app.routers.catalog import _names
+from app.search_local import NOT_DECKABLE
 from app.state import state
 
 

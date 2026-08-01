@@ -27,9 +27,7 @@ from ..query.filters import FilterError
 from ..query.parser import Node, is_empty
 from ..query.sql import IS_PREDICATES, QueryCompileError
 from ..query.sql import compile_node
-from ..search_local import (
-    constrains_layout, search_mtg_database, search_node_limited, visibility_clause,
-)
+from ..search_local import search_mtg_database, search_node_limited, where_for
 from ..tags import expand_descendants, known_slugs, search_tags
 from . import prompts
 from .guard import GuardReport, validate_indices
@@ -337,10 +335,7 @@ class SemanticPipeline:
         if structured is None or is_empty(structured):
             return None
         compiled = compile_node(structured)
-        where = (
-            f"({compiled.where}) AND "
-            f"{visibility_clause(False, False, constrains_layout(compiled))}"
-        )
+        where = where_for(compiled)
         return self.conn.execute(
             f"SELECT COUNT(*) AS n FROM cards WHERE {where}", list(compiled.params)
         ).fetchone()["n"]

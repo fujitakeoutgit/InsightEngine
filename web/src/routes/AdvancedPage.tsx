@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import { copyText } from '../lib/clipboard'
 import { quoteIfNeeded } from '../lib/query'
+import { useTransient } from '../lib/usePersisted'
 import { ManaPip } from '../components/ManaSprite'
 import { PageHead } from '../components/PageHead'
 import { TypeAhead } from '../components/TypeAhead'
@@ -197,6 +199,7 @@ function Check({
 
 export function AdvancedPage() {
   const [b, setB] = useState<Builder>(INITIAL)
+  const [copied, flashCopied] = useTransient()
   const navigate = useNavigate()
 
   const query = useMemo(() => buildQuery(b), [b])
@@ -247,11 +250,14 @@ export function AdvancedPage() {
         <code>{query || 'Nothing selected yet'}</code>
         <div className="row gap-2 wrap preview-actions">
           <button className="btn btn-ghost sm" onClick={() => setB(INITIAL)}>Reset</button>
+          {/* Reports back. This used to fire and forget, so a browser that
+              refused the write left the button looking merely decorative. */}
           <button
-            className="btn btn-ghost sm" disabled={!query}
-            onClick={() => navigator.clipboard?.writeText(query)}
+            className={copied ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
+            disabled={!query}
+            onClick={async () => { if (await copyText(query)) flashCopied() }}
           >
-            Copy
+            {copied ? '✓ Copied' : 'Copy'}
           </button>
           <button className="btn btn-primary" disabled={!query} onClick={run}>
             Search with these options

@@ -16,7 +16,8 @@ import { ManaCost } from '../components/ManaCost'
 import { DeckCharts } from '../components/DeckCharts'
 import { DeckInfo } from '../components/DeckInfo'
 import { DeckSearch } from '../components/DeckSearch'
-import { usePersisted } from '../lib/usePersisted'
+import { useEscape, usePersisted, useTransient, useTransientMessage } from '../lib/usePersisted'
+import { copyText } from '../lib/clipboard'
 import { Playtest } from '../components/Playtest'
 import {
   DECK_RAIL, EMPTY_CONSOLE, SemanticConsole, type ConsoleState,
@@ -133,10 +134,11 @@ export function DeckPage() {
     'load' | 'analyse' | 'recommend' | 'ai' | 'save' | Category | null
   >(null)
   const [error, setError] = useState<string | null>(null)
-  const [status, setStatus] = useState<string | null>(null)
+  const [status, setStatus] = useTransientMessage()
   const [showAll, setShowAll] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copied, flashCopied] = useTransient()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  useEscape(() => setConfirmingDelete(false), confirmingDelete)
 
   const resultRef = useRef<HTMLDivElement>(null)
   const commanderTilt = useRef<HTMLAnchorElement>(null)
@@ -150,6 +152,13 @@ export function DeckPage() {
    * is still the pre-save value and would challenge the page on its way out of
    * a move it made itself. */
   const leaving = useRef(false)
+
+  /** Navigate away from a deck this page has just settled. Wrapping it means
+   *  the "tell the guard first" step cannot be forgotten by the next caller. */
+  const leave = useCallback((to: string) => {
+    leaving.current = true
+    navigate(to, { replace: true })
+  }, [navigate])
 
   const analyseText = useCallback(async (source: string) => {
     if (!source.trim()) { setReport(null); return null }
@@ -197,12 +206,6 @@ export function DeckPage() {
     return () => { cancelled = true }
   }, [deckId, isNew, analyseText])
 
-  useEffect(() => {
-    if (!status) return
-    const timer = setTimeout(() => setStatus(null), 3000)
-    return () => clearTimeout(timer)
-  }, [status])
-
   /* Unsaved work.
    *
    * The editor keeps sixty steps of undo and none of it is written anywhere
@@ -241,6 +244,10 @@ export function DeckPage() {
   useEffect(() => {
     if (!dirty && blocker.state === 'blocked') blocker.reset()
   }, [dirty, blocker])
+
+  // Escape means "stay here" — the safe half of the question, and the one you
+  // want when the prompt was a surprise.
+  useEscape(() => blocker.reset?.(), blocker.state === 'blocked')
 
   /* Returning from a card must not discard the recommendations.
    *
@@ -377,25 +384,23 @@ export function DeckPage() {
     setText(serialize(next))
   }
 
-  const undo = useCallback(() => {
-    const previous = past.current[past.current.length - 1]
-    if (previous === undefined) return false
-    past.current = past.current.slice(0, -1)
-    future.current = [...future.current, live.current].slice(-UNDO_LIMIT)
-    setDeckCards(previous.cards)
-    setText(previous.text)
+  /** Undo and redo are the same move in opposite directions: pop the stack you
+   *  are travelling towards, push the present onto the one you came from. */
+  const step = useCallback((
+    from: React.MutableRefObject<Snapshot[]>,
+    to: React.MutableRefObject<Snapshot[]>,
+  ) => {
+    const target = from.current[from.current.length - 1]
+    if (target === undefined) return false
+    from.current = from.current.slice(0, -1)
+    to.current = [...to.current, live.current].slice(-UNDO_LIMIT)
+    setDeckCards(target.cards)
+    setText(target.text)
     return true
   }, [])
 
-  const redo = useCallback(() => {
-    const next = future.current[future.current.length - 1]
-    if (next === undefined) return false
-    future.current = future.current.slice(0, -1)
-    past.current = [...past.current, live.current].slice(-UNDO_LIMIT)
-    setDeckCards(next.cards)
-    setText(next.text)
-    return true
-  }, [])
+  const undo = useCallback(() => step(past, future), [step])
+  const redo = useCallback(() => step(future, past), [step])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -470,13 +475,8 @@ export function DeckPage() {
   }
 
   const copyList = async () => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    } catch {
-      setError('The browser refused clipboard access.')
-    }
+    if (await copyText(text)) flashCopied()
+    else setError('The browser refused clipboard access.')
   }
 
   /** Download the decklist as a .txt. Every deckbuilding site reads this
@@ -501,8 +501,7 @@ export function DeckPage() {
     try {
       await api.deleteDeck(savedId)
       // The guard must not challenge a deck that no longer exists.
-      leaving.current = true
-      navigate('/deck', { replace: true })
+      leave('/deck')
     } catch {
       setError('Could not delete that deck.')
       setBusy(null)
@@ -600,11 +599,8 @@ export function DeckPage() {
       setDeckName(deck.name)
       setSavedText(text)
       setStatus(`Saved “${deck.name}”`)
-      if (isNew) {
-        // The deck is saved; the redirect onto its own URL is not a departure.
-        leaving.current = true
-        navigate(`/deck/${deck.id}`, { replace: true })
-      }
+      // The deck is saved; the redirect onto its own URL is not a departure.
+      if (isNew) leave(`/deck/${deck.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save deck')
     } finally { setBusy(null) }

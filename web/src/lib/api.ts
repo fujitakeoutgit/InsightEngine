@@ -287,40 +287,33 @@ export const api = {
 
   loadDeck: (id: number) => get<{ deck: SavedDeck }>(`/api/deck/saved/${id}`),
 
-  /** Add a card to a saved deck without opening it. Read-modify-write on the
-   *  decklist text, which is the deck's source of truth. */
-  addToDeck: async (id: number, name: string, section: Section = 'maybeboard') => {
-    const { deck } = await get<{ deck: SavedDeck }>(`/api/deck/saved/${id}`)
-    return post<{ deck: SavedDeck }>('/api/deck/saved', {
-      id,
-      name: deck.name,
-      text: addToSection(deck.text ?? '', name, section),
-      format: deck.format ?? null,
-      description: deck.description ?? null,
+  /** Change one thing about a saved deck without opening it.
+   *
+   * The save endpoint takes a whole deck, so every edit is a read-modify-write:
+   * fetch it, apply the change, hand the rest back untouched. Written once
+   * because there are three of these and the full field list has to be
+   * re-sent every time — a field added to `SavedDeck` and missed here is
+   * silently dropped by whichever verb forgot it. */
+  patchDeck: async (id: number, change: (deck: SavedDeck) => Partial<SavedDeck>) => {
+    const { deck } = await api.loadDeck(id)
+    const next = { ...deck, ...change(deck) }
+    return api.saveDeck({
+      id: next.id, name: next.name, text: next.text ?? '',
+      format: next.format, description: next.description,
     })
   },
 
-  /** Rename without opening the deck. Read-modify-write like `addToDeck`:
-   *  the save endpoint takes a whole deck, so the text has to be fetched to be
-   *  handed straight back. */
-  renameDeck: async (id: number, name: string) => {
-    const { deck } = await get<{ deck: SavedDeck }>(`/api/deck/saved/${id}`)
-    return post<{ deck: SavedDeck }>('/api/deck/saved', {
-      id, name, text: deck.text ?? '',
-      format: deck.format ?? null, description: deck.description ?? null,
-    })
-  },
+  /** Add a card to a saved deck. The decklist text is the source of truth. */
+  addToDeck: (id: number, name: string, section: Section = 'maybeboard') =>
+    api.patchDeck(id, (deck) => ({ text: addToSection(deck.text ?? '', name, section) })),
+
+  renameDeck: (id: number, name: string) => api.patchDeck(id, () => ({ name })),
 
   /** Copy a deck. Saved with no id, so the server allocates a new one and the
    *  original is untouched — the point is to try a rebuild without losing what
    *  the deck was. */
-  duplicateDeck: async (id: number) => {
-    const { deck } = await get<{ deck: SavedDeck }>(`/api/deck/saved/${id}`)
-    return post<{ deck: SavedDeck }>('/api/deck/saved', {
-      name: `${deck.name} (copy)`, text: deck.text ?? '', id: null,
-      format: deck.format ?? null, description: deck.description ?? null,
-    })
-  },
+  duplicateDeck: (id: number) =>
+    api.patchDeck(id, (deck) => ({ id: undefined, name: `${deck.name} (copy)` })),
 
   deleteDeck: async (id: number) => {
     const resp = await fetch(`/api/deck/saved/${id}`, { method: 'DELETE' })

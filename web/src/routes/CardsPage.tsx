@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom'
 
 import type { Card } from '../lib/api'
 import { collection, useCollection } from '../lib/collection'
+import { copyText } from '../lib/clipboard'
 import { CardMenu } from '../components/CardMenu'
-import { SIZE_KEY, usePersisted, VIEW_KEY } from '../lib/usePersisted'
+import { SIZE_KEY, usePersisted, useTransient, VIEW_KEY } from '../lib/usePersisted'
 import { CardGrid } from '../components/CardGrid'
 import { PageHead } from '../components/PageHead'
 
@@ -13,8 +14,8 @@ export function CardsPage() {
   const cards = useCollection()
   const [view, setView] = usePersisted<'grid' | 'list'>(VIEW_KEY, 'grid')
   const [size, setSize] = usePersisted(SIZE_KEY, 190)
-  const [copied, setCopied] = useState(false)
-  const [failed, setFailed] = useState(false)
+  const [copied, flashCopied] = useTransient()
+  const [failed, flashFailed] = useTransient(2400)
   const [picked, setPicked] = useState<{ card: Card; at: { x: number; y: number } } | null>(null)
 
   const totals = useMemo(() => {
@@ -30,14 +31,9 @@ export function CardsPage() {
   // this used to do: a browser that denies clipboard access rejects the write,
   // and with nothing catching it the button simply did nothing at all.
   const copyList = async () => {
-    try {
-      await navigator.clipboard.writeText(cards.map((c) => `1 ${c.name}`).join('\n'))
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    } catch {
-      setFailed(true)
-      setTimeout(() => setFailed(false), 2400)
-    }
+    const ok = await copyText(cards.map((c) => `1 ${c.name}`).join('\n'))
+    if (ok) flashCopied()
+    else flashFailed()
   }
 
   return (
@@ -98,7 +94,6 @@ export function CardsPage() {
           card={picked.card}
           at={picked.at}
           onClose={() => setPicked(null)}
-          onRemove={() => collection.toggle(picked.card)}
         />
       )}
     </section>

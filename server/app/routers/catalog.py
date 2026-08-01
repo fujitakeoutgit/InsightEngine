@@ -15,9 +15,7 @@ from functools import lru_cache
 from fastapi import APIRouter, HTTPException, Query
 
 from ..db import fold_name
-# Re-exported rather than redefined: the same list is now the search engine's
-# own default, and two copies would drift.
-from ..search_local import NOT_DECKABLE, visibility_clause
+from ..search_local import visibility_clause
 from ..state import state
 
 router = APIRouter(prefix="/api/catalog", tags=["catalog"])

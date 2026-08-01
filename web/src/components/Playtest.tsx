@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useCardFace } from '../lib/faces'
+import { useEscape } from '../lib/usePersisted'
 import { solidDragImage } from '../lib/useQuietDrag'
 import { Lightbox } from './Lightbox'
 import { ManaCost } from './ManaCost'
@@ -200,7 +201,7 @@ export function Playtest({
    * poured back into the slots the library cards already occupy. Rebuilding the
    * whole list would move the other zones around too, and the battlefield's
    * order is the order things were played. */
-  const shuffleLibrary = ({ silent = false }: { silent?: boolean } = {}) => {
+  const shuffleLibrary = (silent = false) => {
     setCards((cs) => {
       const shuffled = shuffle(cs.filter((c) => c.zone === 'library'))
       let next = 0
@@ -426,7 +427,7 @@ export function Playtest({
             move(iid, 'hand')
             // Searching your library shuffles it. Skipping that would leave the
             // order you just read still in place, which is not the same game.
-            shuffleLibrary({ silent: true })
+            shuffleLibrary(true)
             const found = cards.find((c) => c.iid === iid)
             note(`Tutored ${found?.card.name ?? 'a card'}, then shuffled`)
             setTutoring(false)
@@ -464,12 +465,10 @@ function Tutor({
   const [needle, setNeedle] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    inputRef.current?.focus()
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  useEscape(onClose)
+  // Mount only. Depending on `onClose` re-ran this on every parent render,
+  // which stole the caret back to the start of whatever had been typed.
+  useEffect(() => { inputRef.current?.focus() }, [])
 
   const term = needle.trim().toLowerCase()
   const shown = cards

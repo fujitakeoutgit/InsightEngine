@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { api, type Card, type SavedDeck } from '../lib/api'
 import { collection, useIsCollected } from '../lib/collection'
 import { canAnimate, gsap } from '../lib/motion'
+import { useEscape } from '../lib/usePersisted'
 
 /**
  * Per-card actions, wherever a card is shown.
@@ -14,20 +15,19 @@ import { canAnimate, gsap } from '../lib/motion'
  * you collected while browsing is a candidate, and dropping it straight into
  * the deck would silently change the deck's legality and curve.
  *
- * `onRemove` is what distinguishes the Cards page from everywhere else. There
- * the pile itself is the subject, so removing from it is a first-class action;
- * on a results grid the same card is merely passing through, so the entry
- * becomes a collect toggle instead. One meaning per menu.
+ * The collect entry is a toggle rather than two different actions, and says
+ * which way it will go. The Cards page used to pass its own "Remove" callback,
+ * but it called `collection.toggle` — the same function the toggle calls — so
+ * it was a second spelling of one behaviour, and every card on that page is
+ * held anyway, which is the case the toggle already words correctly.
  */
 export function CardMenu({
-  card, at, onClose, onRemove,
+  card, at, onClose,
 }: {
   card: Card
   /** Viewport coordinates of the click that opened this. */
   at: { x: number; y: number }
   onClose: () => void
-  /** Only on the Cards page: drop this card from the collection. */
-  onRemove?: () => void
 }) {
   const held = useIsCollected(card.oracle_id)
   const navigate = useNavigate()
@@ -36,9 +36,21 @@ export function CardMenu({
   const [picking, setPicking] = useState(false)
   const [note, setNote] = useState<string | null>(null)
 
+  /* Only once the deck list is actually wanted.
+   *
+   * This menu used to open on the Cards page alone; it now hangs off every
+   * result tile and the card page, so fetching on mount meant a `⋯` click
+   * anywhere issued a listing query — which reads every saved deck's whole
+   * decklist server-side to count its lines. Most opens end in Info or a
+   * collect toggle and never look at a deck. */
   useEffect(() => {
-    api.savedDecks().then((r) => setDecks(r.decks)).catch(() => setDecks([]))
-  }, [])
+    if (!picking) return
+    let live = true
+    api.savedDecks()
+      .then((r) => live && setDecks(r.decks))
+      .catch(() => live && setDecks([]))
+    return () => { live = false }
+  }, [picking])
 
   // Keep the whole menu inside the viewport rather than letting it run off the
   // bottom-right, which is exactly where the last card in a grid tends to be.
@@ -58,11 +70,7 @@ export function CardMenu({
     }
   }, [at, picking, decks])
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  useEscape(onClose)
 
   const addTo = async (deck: SavedDeck) => {
     try {
@@ -107,18 +115,12 @@ export function CardMenu({
             <button className="menu-item" onClick={() => navigate(`/card/${card.oracle_id}`)}>
               Info
             </button>
-            {onRemove ? (
-              <button className="menu-item danger" onClick={() => { onRemove(); onClose() }}>
-                Remove
-              </button>
-            ) : (
-              <button
-                className="menu-item"
-                onClick={() => { collection.toggle(card); onClose() }}
-              >
-                {held ? 'Remove from Cards' : 'Add to Cards'}
-              </button>
-            )}
+            <button
+              className={held ? 'menu-item danger' : 'menu-item'}
+              onClick={() => { collection.toggle(card); onClose() }}
+            >
+              {held ? 'Remove from Cards' : 'Add to Cards'}
+            </button>
           </>
         )}
       </div>

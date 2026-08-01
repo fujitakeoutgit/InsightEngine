@@ -22,7 +22,7 @@ export interface HistoryEntry {
   locked?: boolean
 }
 
-let entries: HistoryEntry[] = load()
+let entries: HistoryEntry[] = normalise(load())
 const listeners = new Set<() => void>()
 
 function load(): HistoryEntry[] {
@@ -34,10 +34,29 @@ function load(): HistoryEntry[] {
   }
 }
 
+/**
+ * Pins first, everything else after, and only the unpinned count against the
+ * limit.
+ *
+ * Applied here rather than in each mutator, so there is one statement of the
+ * rule instead of one per verb — the version that recomputed it per mutator
+ * left `toggleLock` able to produce an over-long list (unpinning a sixth entry
+ * kept all six until the next search happened to trim it), and gave `load` no
+ * guarantee at all about what localStorage handed back. The partition is
+ * stable, so relative order within each block survives and callers can place
+ * an entry by putting it at the boundary.
+ */
+function normalise(list: HistoryEntry[]): HistoryEntry[] {
+  return [
+    ...list.filter((e) => e.locked),
+    ...list.filter((e) => !e.locked).slice(0, LIMIT),
+  ]
+}
+
 function commit(next: HistoryEntry[]) {
-  entries = next
+  entries = normalise(next)
   try {
-    localStorage.setItem(KEY, JSON.stringify(next))
+    localStorage.setItem(KEY, JSON.stringify(entries))
   } catch {
     /* quota: keep it in memory only */
   }
@@ -66,9 +85,13 @@ export const history = {
       commit(entries.map((e) => (e.query === trimmed ? fresh : e)))
       return
     }
-    const locked = entries.filter((e) => e.locked)
-    const rest = entries.filter((e) => !e.locked && e.query !== trimmed)
-    commit([...locked, fresh, ...rest].slice(0, locked.length + LIMIT))
+    // At the boundary, which normalise() reads as the head of the unpinned
+    // block — the top of the recent list, below whatever is pinned.
+    commit([
+      ...entries.filter((e) => e.locked),
+      fresh,
+      ...entries.filter((e) => !e.locked && e.query !== trimmed),
+    ])
   },
 
   /** Pin a search to the top, or release it.

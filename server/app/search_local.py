@@ -104,16 +104,20 @@ def deckable_clause() -> str:
     return f"layout NOT IN ({_NOT_DECKABLE_SQL})"
 
 
-def constrains_layout(compiled: Compiled) -> bool:
-    """Whether the query already says something about `layout`.
+def where_for(
+    compiled: Compiled, *, include_digital: bool = False, include_funny: bool = False,
+) -> str:
+    """A compiled query plus the result hygiene every local search applies.
 
-    When it does, the extras default is dropped: a query that names a layout
-    has answered the question the default exists to answer, and `layout:token`
-    should find tokens. This is safe precisely because the constraint does the
-    filtering itself -- `is:transform` compiles to `layout = 'transform'`, which
-    no art-series or token row can satisfy anyway.
+    The one place the two are combined, so a new query site cannot forget the
+    defaults or work out the extras rule differently. Whether to keep the
+    extras is `compiled.pins_layout` -- a fact the compiler recorded, not one
+    recovered from the SQL it produced.
     """
-    return "layout" in compiled.where
+    return (
+        f"({compiled.where}) AND "
+        f"{visibility_clause(include_digital, include_funny, compiled.pins_layout)}"
+    )
 
 
 def _order_clause(sort: str, order: str) -> str:
@@ -140,10 +144,7 @@ def search_ast(
 ) -> SearchResult:
     """Run a compiled AST against the mirror with pagination."""
     compiled: Compiled = compile_node(node) if not is_empty(node) else Compiled.always_true()
-    where = (
-        f"({compiled.where}) AND "
-        f"{visibility_clause(include_digital, include_funny, constrains_layout(compiled))}"
-    )
+    where = where_for(compiled, include_digital=include_digital, include_funny=include_funny)
     params = list(compiled.params)
 
     total = conn.execute(
@@ -176,10 +177,7 @@ def search_node_limited(
     a broken plan, and must never be treated as "select all".
     """
     compiled = compile_node(node) if not is_empty(node) else Compiled.always_false()
-    where = (
-        f"({compiled.where}) AND "
-        f"{visibility_clause(include_digital, include_funny, constrains_layout(compiled))}"
-    )
+    where = where_for(compiled, include_digital=include_digital, include_funny=include_funny)
     rows = conn.execute(
         f"SELECT {LIST_COLUMNS} FROM cards WHERE {where} "
         "ORDER BY (edhrec_rank IS NULL), edhrec_rank ASC, name COLLATE NOCASE ASC "

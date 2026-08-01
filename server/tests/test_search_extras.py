@@ -17,7 +17,7 @@ import pytest
 from app.db import connect
 from app.query.parser import parse
 from app.query.sql import compile_node
-from app.search_local import NOT_DECKABLE, constrains_layout, search_ast, visibility_clause
+from app.search_local import NOT_DECKABLE, search_ast, visibility_clause
 
 
 @pytest.fixture(scope="module")
@@ -70,19 +70,47 @@ def test_naming_a_layout_reaches_the_extras(conn):
     assert result.total > 0
 
 
-def test_layout_detection_is_driven_by_the_compiled_sql(conn):
-    """`is:` predicates that compile to a layout comparison count too.
+def pins(query: str) -> bool:
+    return compile_node(parse(query)).pins_layout
 
-    They are safe to let through: the comparison itself excludes every extra,
-    so dropping the default changes nothing for them.
+
+def test_only_a_real_layout_constraint_keeps_the_extras():
+    """`is:` predicates that are layout equality under another name count too.
+
+    They are safe to let through because the comparison itself excludes every
+    extra. Negation is not: excluding one layout says nothing about which
+    layouts the surviving rows have.
     """
-    assert constrains_layout(compile_node(parse("layout:token")))
-    assert constrains_layout(compile_node(parse("is:transform")))
-    assert not constrains_layout(compile_node(parse("c:red t:creature")))
+    assert pins("layout:token")
+    assert pins("is:transform")
+    assert pins("layout:token t:goblin")      # AND: one branch is enough
+    assert not pins("c:red t:creature")
+    assert not pins("-layout:token")          # negation pins nothing
+    assert not pins("t:goblin -is:modal")
+    assert not pins("c:red OR is:split")      # OR: one loose branch admits all
+    assert pins("layout:token OR is:transform")
 
+
+def test_a_pinned_layout_still_reaches_its_extras(conn):
     result = run(conn, "is:transform", per_page=50)
     assert result.total > 0
     assert all(c["layout"] == "transform" for c in result.cards)
+
+
+def test_a_negated_layout_does_not_readmit_the_extras(conn):
+    """The regression: `-is:modal` reopened the door it was not asking about.
+
+    An entirely ordinary query — goblins that are not modal double-faced cards
+    — and it came back with every Goblin token, because the old check only
+    looked for the word "layout" in the finished SQL.
+    """
+    plain = run(conn, "t:goblin", per_page=200)
+    negated = run(conn, "t:goblin -is:modal", per_page=200)
+    assert all(c["layout"] not in NOT_DECKABLE for c in negated.cards)
+    # Excluding a layout can only ever remove rows. Before the fix this query
+    # returned *more* than the unfiltered one -- 513 against 496 -- because
+    # dropping the extras default let a hundred Goblin tokens back in.
+    assert negated.total <= plain.total
 
 
 def test_clause_carries_no_placeholders():

@@ -31,6 +31,9 @@ const REACH = 150
 
 interface Sample { x: number; y: number; t: number }
 
+const clamp = (value: number) => Math.max(-REACH, Math.min(REACH, value))
+const anyFace = () => 1 + Math.floor(Math.random() * 6)
+
 /**
  * The die.
  *
@@ -59,10 +62,10 @@ export function PlayDie({ onRoll }: { onRoll?: (value: number, counting: boolean
 
   /** Recent pointer samples, newest last, for working out release speed. */
   const trail = useRef<Sample[]>([])
-  /** Where the drag began. Held separately from the trail, which is trimmed to
-   *  its tail and so cannot be asked where the gesture started. */
+  /** Where the drag began, and whether there is one: the trail is trimmed to
+   *  its tail, so it cannot be asked where the gesture started. Non-null for
+   *  exactly the duration of a drag, which is also the "am I dragging" flag. */
   const origin = useRef<Sample | null>(null)
-  const dragging = useRef(false)
   /** Set by a throw so the click that follows the release does not also fire. */
   const threw = useRef(false)
   const spin = useRef(0)
@@ -78,7 +81,7 @@ export function PlayDie({ onRoll }: { onRoll?: (value: number, counting: boolean
   /** Tumble out along the throw, then come back and settle on a face. */
   const roll = (vx: number, vy: number) => {
     const el = ref.current
-    const next = 1 + Math.floor(Math.random() * 6)
+    const next = anyFace()
     setCounting(false)
 
     if (!el || !canAnimate()) {
@@ -89,8 +92,8 @@ export function PlayDie({ onRoll }: { onRoll?: (value: number, counting: boolean
     }
 
     const speed = Math.hypot(vx, vy) || 0.4
-    const tx = Math.max(-REACH, Math.min(REACH, vx * CARRY))
-    const ty = Math.max(-REACH, Math.min(REACH, vy * CARRY))
+    const tx = clamp(vx * CARRY)
+    const ty = clamp(vy * CARRY)
     // Harder throws spin further, so the throw looks like it caused the roll
     // rather than merely preceding it.
     spin.current += 360 + Math.round(speed * 520)
@@ -104,20 +107,19 @@ export function PlayDie({ onRoll }: { onRoll?: (value: number, counting: boolean
       duration: 0.34, ease: 'power2.out',
       // The face flickers while it is in the air. Driven by the tween's own
       // clock rather than a timer, so it cannot outlive the animation.
-      onUpdate: () => setValue(1 + Math.floor(Math.random() * 6)),
+      onUpdate: () => setValue(anyFace()),
     })
     // ...and back down into its corner, landing on the face it keeps.
     timeline.to(el, {
       x: 0, y: 0, rotate: spin.current + 180, scale: 1,
       duration: 0.72, ease: 'bounce.out',
-      onUpdate: () => setValue(1 + Math.floor(Math.random() * 6)),
+      onUpdate: () => setValue(anyFace()),
     })
   }
 
   const onPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) return
     tween.current?.kill()
-    dragging.current = true
     threw.current = false
     setHeld(true)
     const now = { x: event.clientX, y: event.clientY, t: performance.now() }
@@ -130,7 +132,6 @@ export function PlayDie({ onRoll }: { onRoll?: (value: number, counting: boolean
   }
 
   const onPointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (!dragging.current) return
     const start = origin.current
     if (!start) return
     trail.current.push({ x: event.clientX, y: event.clientY, t: performance.now() })
@@ -138,14 +139,13 @@ export function PlayDie({ onRoll }: { onRoll?: (value: number, counting: boolean
     // average the throw away.
     if (trail.current.length > 6) trail.current.shift()
     gsap.set(ref.current, {
-      x: Math.max(-REACH, Math.min(REACH, event.clientX - start.x)),
-      y: Math.max(-REACH, Math.min(REACH, event.clientY - start.y)),
+      x: clamp(event.clientX - start.x),
+      y: clamp(event.clientY - start.y),
     })
   }
 
   const onPointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (!dragging.current) return
-    dragging.current = false
+    if (!origin.current) return
     setHeld(false)
     try { event.currentTarget.releasePointerCapture(event.pointerId) } catch { /* fine */ }
 
