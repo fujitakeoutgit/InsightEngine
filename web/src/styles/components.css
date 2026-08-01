@@ -1818,7 +1818,67 @@
   pointer-events: none;
 }
 
-.pt-piles { display: flex; gap: 10px; flex: none; flex-wrap: wrap; }
+/* Graveyard, exile and command, immediately left of the deck — the way they
+   lie beside it on a table, rather than in a band of their own above the
+   hand. */
+.pt-piles { display: flex; gap: 10px; flex: none; align-items: flex-end; }
+
+/* The corner: actions at the top, then the history they write, then the die,
+   then the deck. Everything you reach for repeatedly, under one hand.
+
+   Only the deck is in flow. The three above it float over the bottom-right of
+   the mat, because putting them in the column would add their height to the
+   tray and take it off the battlefield — which is the part of this screen
+   worth having. */
+.pt-corner {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pt-corner-top {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  /* The stack sits over the mat, so it must be transparent to the pointer
+     everywhere a control is not. */
+  pointer-events: none;
+}
+
+.pt-corner-top > * { pointer-events: auto; }
+.pt-corner-top .pt-history { pointer-events: none; }
+
+.pt-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  width: 100%;
+}
+
+.pt-actions .btn { padding: 4px 8px; font-size: 10.5px; }
+
+/* Fixed height so the die and the deck below it do not walk up and down the
+   screen as lines arrive. */
+.pt-history {
+  width: 100%;
+  height: 62px;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1.25;
+  color: var(--faint);
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  pointer-events: none;
+}
 
 .pt-pile {
   min-width: 116px;
@@ -1913,15 +1973,27 @@
 .pt-info:hover,
 .pt-flip:hover { color: var(--aether-hi); border-color: var(--aether); }
 
+/* Everything below the mat. One row, so the seam between the board and your
+   hand is a single line across the screen rather than one per panel — and it
+   is drawn in the same tint as the split-pane divider, which is the app's
+   other "this side is not that side" line. */
+.pt-tray {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex: none;
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in oklab, var(--aether) 55%, var(--line-soft));
+}
+
 /* The deck lives at the end of the hand, where it sits on a table. Clicking it
    draws; the old separate Library pile is gone. */
 .pt-hand {
   display: flex;
   align-items: flex-end;
-  gap: 14px;
-  flex: none;
-  padding-top: 10px;
-  border-top: 1px solid var(--line-soft);
+  flex: 1 1 auto;
+  min-width: 0;
   perspective: 900px;
 }
 
@@ -1936,22 +2008,15 @@
 
 .pt-hand .pt-card { flex: none; }
 
-.pt-log {
-  position: absolute;
-  right: 16px;
-  bottom: 200px;
-  font-size: 10.5px;
-  color: var(--faint);
-  text-align: right;
-  pointer-events: none;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
 @media (max-width: 720px) {
   .pt-card { width: 88px; }
-  .pt-log { display: none; }
+  /* The tray breaks onto two lines rather than squeezing: the piles are drop
+     targets, so hiding them to save width would take a zone out of the game.
+     The history is the one part that can go, being a record rather than a
+     capability. */
+  .pt-tray { flex-wrap: wrap; }
+  .pt-hand { flex-basis: 100%; order: 2; }
+  .pt-history { display: none; }
 }
 
 /* Analysis / Recommendations switch in the Deck Lab results column. */
@@ -2416,6 +2481,90 @@
 /* On the card page the art is the subject, so the control is always visible. */
 .detail-art .flip-btn { opacity: 1; transform: none; }
 
+
+/* The die.
+ *
+ * `touch-action: none` so a drag on a touchscreen throws it rather than
+ * scrolling the tray underneath, and z-index above its neighbours so a throw
+ * passes over the piles and the deck instead of behind them. */
+.pt-die {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  padding: 6px;
+  position: relative;
+  z-index: 3;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: linear-gradient(150deg, var(--bg-hi), var(--bg));
+  box-shadow: 0 6px 14px -6px rgba(0, 0, 0, 0.8),
+              inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  cursor: grab;
+  touch-action: none;
+  will-change: transform;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+
+.pt-die:hover { border-color: var(--aether); }
+.pt-die.held { cursor: grabbing; }
+
+/* Counting is a different job, so it looks like one rather than like a die
+   that happens to be sitting still. */
+.pt-die.counting {
+  border-color: var(--aether);
+  background: linear-gradient(150deg,
+    color-mix(in oklab, var(--aether) 22%, var(--bg-hi)), var(--bg));
+}
+
+.pt-die-face {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  width: 100%;
+  height: 100%;
+  gap: 2px;
+}
+
+.pt-die-face i {
+  border-radius: 50%;
+  background: transparent;
+  transition: background-color var(--dur-fast);
+}
+
+.pt-die-face i.on { background: var(--ink); }
+.pt-die.counting .pt-die-face i.on { background: var(--aether-hi); }
+
+/* Search-your-library. Tall rather than wide: it is a list of names. */
+.pt-tutor { width: min(420px, 100%); }
+.pt-tutor .fld { width: 100%; margin-bottom: 8px; }
+
+.pt-tutor-list {
+  max-height: min(46vh, 380px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pt-tutor-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 7px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  text-align: left;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background-color var(--dur-fast);
+}
+
+.pt-tutor-row:hover { background: var(--glass-hi); }
+.pt-tutor-row .nm { flex: none; }
+.pt-tutor-row .faint { margin-left: auto; font-size: 10.5px; text-align: right; }
 
 .pt-library {
   flex: none;

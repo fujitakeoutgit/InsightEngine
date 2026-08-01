@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useCardFace } from '../lib/faces'
 import { solidDragImage } from '../lib/useQuietDrag'
 import { Lightbox } from './Lightbox'
+import { ManaCost } from './ManaCost'
+import { PlayDie } from './PlayDie'
 import { canAnimate, gsap } from '../lib/motion'
 import { type DeckCard } from '../lib/deckModel'
 import {
@@ -113,6 +115,7 @@ export function Playtest({
   /** Cards drawn by the last action, so only they animate in. */
   const [entering, setEntering] = useState<string[]>([])
   const [zoomed, setZoomed] = useState<ZoomView | null>(null)
+  const [tutoring, setTutoring] = useState(false)
 
   const note = useCallback((line: string) => setLog((l) => [line, ...l].slice(0, 40)), [])
 
@@ -191,6 +194,21 @@ export function Playtest({
   const untapAll = () =>
     setCards((cs) => cs.map((c) => (c.zone === 'battlefield' ? { ...c, tapped: false } : c)))
 
+  /** Reorder the library in place.
+   *
+   * The library's order *is* its array order, so the shuffled sequence is
+   * poured back into the slots the library cards already occupy. Rebuilding the
+   * whole list would move the other zones around too, and the battlefield's
+   * order is the order things were played. */
+  const shuffleLibrary = ({ silent = false }: { silent?: boolean } = {}) => {
+    setCards((cs) => {
+      const shuffled = shuffle(cs.filter((c) => c.zone === 'library'))
+      let next = 0
+      return cs.map((c) => (c.zone === 'library' ? shuffled[next++] : c))
+    })
+    if (!silent) note('Shuffled the library')
+  }
+
   const nextTurn = () => {
     untapAll()
     setTurn((t) => t + 1)
@@ -265,11 +283,14 @@ export function Playtest({
           {inZone.library.length} in library · {untappedLands}/{lands.length} lands untapped
         </span>
 
+        {/* Next turn and Reset moved to the corner beside the deck, with
+            Shuffle and Tutor. What stays here is what has no home down there:
+            drawing, which is otherwise a click on the deck itself, and the two
+            that act on the whole board. */}
         <div className="push row gap-2 wrap">
           <button className="btn sm" onClick={() => draw(1)} disabled={!inZone.library.length}>
             Draw
           </button>
-          <button className="btn sm" onClick={nextTurn}>Next turn</button>
           <button className="btn btn-ghost sm" onClick={untapAll}>Untap all</button>
           <button
             className="btn btn-ghost sm"
@@ -278,7 +299,6 @@ export function Playtest({
           >
             Mulligan {mulligans > 0 && `(${7 - mulligans})`}
           </button>
-          <button className="btn btn-ghost sm" onClick={() => newGame(0)}>Reset</button>
         </div>
       </div>
 
@@ -299,64 +319,119 @@ export function Playtest({
         )}
       </div>
 
-      {/* Ordered so the piles you reach for least are furthest from the deck:
-          graveyard, exile, command, then the deck itself at the end of the
-          hand. */}
-      <div className="pt-piles">
-        <Pile name="graveyard" cards={inZone.graveyard} drag={drag} onMove={move} onZoom={setZoomed} />
-        <Pile name="exile" cards={inZone.exile} drag={drag} onMove={move} onZoom={setZoomed} />
-        <Pile name="command" cards={inZone.command} drag={drag} onMove={move} onPlay={play} onZoom={setZoomed} />
-      </div>
-
-      {/* The hand takes drops too: a card played by mistake, or one you want
-          to pick back up, has to have a way home. */}
-      <div
-        className="pt-hand"
-        ref={handRef}
-        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
-        onDrop={(e) => {
-          e.preventDefault()
-          const iid = e.dataTransfer.getData('text/plain') || drag.current?.iid
-          if (iid) move(iid, 'hand')
-          drag.current = null
-        }}
-      >
-        <div className="pt-cards">
-          {inZone.hand.map((c) => (
-            <PlayCard key={c.iid} inst={c} drag={drag} onPlay={play} onZoom={setZoomed} />
-          ))}
-          {!inZone.hand.length && <p className="faint" style={{ fontSize: 12 }}>Empty hand.</p>}
-        </div>
-
-        {/* The deck sits at the end of your hand, where it does on a table, and
-            drawing is clicking it rather than hunting for a button. */}
+      {/* Everything below the mat is one row, so the seam between the board and
+          your hand is a single line across the screen rather than one per
+          panel. The zones you touch are gathered at the right: the piles sit
+          immediately left of the deck, the way they lie beside it on a table,
+          and the corner above the deck stacks the die, the history and the
+          actions in reach of the same hand. */}
+      <div className="pt-tray">
+        {/* The hand takes drops too: a card played by mistake, or one you want
+            to pick back up, has to have a way home. */}
         <div
-          className="pt-library"
-          onDragOver={(e) => e.preventDefault()}
+          className="pt-hand"
+          ref={handRef}
+          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
           onDrop={(e) => {
             e.preventDefault()
             const iid = e.dataTransfer.getData('text/plain') || drag.current?.iid
-            if (iid) move(iid, 'library')
+            if (iid) move(iid, 'hand')
             drag.current = null
           }}
         >
-          <button
-            className="pt-deck"
-            onClick={() => draw(1)}
-            disabled={!inZone.library.length}
-            title={inZone.library.length ? 'Draw a card' : 'Library is empty'}
-            aria-label={`Draw a card — ${inZone.library.length} left`}
+          <div className="pt-cards">
+            {inZone.hand.map((c) => (
+              <PlayCard key={c.iid} inst={c} drag={drag} onPlay={play} onZoom={setZoomed} />
+            ))}
+            {!inZone.hand.length && <p className="faint" style={{ fontSize: 12 }}>Empty hand.</p>}
+          </div>
+        </div>
+
+        <div className="pt-piles">
+          <Pile name="graveyard" cards={inZone.graveyard} drag={drag} onMove={move} onZoom={setZoomed} />
+          <Pile name="exile" cards={inZone.exile} drag={drag} onMove={move} onZoom={setZoomed} />
+          <Pile name="command" cards={inZone.command} drag={drag} onMove={move} onPlay={play} onZoom={setZoomed} />
+        </div>
+
+        <div className="pt-corner">
+          {/* Floated above the deck rather than stacked on top of it in flow.
+              These three would otherwise add their own height to the tray and
+              take it off the battlefield, which is the part of this screen
+              worth having. Transparent to the pointer except where a control
+              actually is, so the mat underneath still takes drops. */}
+          <div className="pt-corner-top">
+          <div className="pt-actions">
+            <button className="btn btn-ghost sm" onClick={nextTurn}>Next turn</button>
+            <button
+              className="btn btn-ghost sm"
+              onClick={() => shuffleLibrary()}
+              disabled={inZone.library.length < 2}
+              title="Shuffle the library"
+            >
+              Shuffle
+            </button>
+            <button
+              className="btn btn-ghost sm"
+              onClick={() => setTutoring(true)}
+              disabled={!inZone.library.length}
+              title="Search your library for a card"
+            >
+              Tutor
+            </button>
+            <button className="btn btn-ghost sm" onClick={() => newGame(0)}>Reset</button>
+          </div>
+
+          {/* The history sits between the actions and the die because that is
+              where it is read from: it is the record of what those buttons and
+              that die just did. */}
+          <div className="pt-history mono">
+            {log.slice(0, 5).map((line, i) => <div key={`${log.length}-${i}`}>{line}</div>)}
+          </div>
+
+          <PlayDie onRoll={(value, counting) =>
+            note(counting ? `Counter at ${value}` : `Rolled a ${value}`)} />
+          </div>
+
+          {/* The deck sits at the end of your hand, where it does on a table,
+              and drawing is clicking it rather than hunting for a button. */}
+          <div
+            className="pt-library"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault()
+              const iid = e.dataTransfer.getData('text/plain') || drag.current?.iid
+              if (iid) move(iid, 'library')
+              drag.current = null
+            }}
           >
-            <span className="pt-deck-back" aria-hidden />
-          </button>
-          <span className="mono faint">{inZone.library.length}</span>
+            <button
+              className="pt-deck"
+              onClick={() => draw(1)}
+              disabled={!inZone.library.length}
+              title={inZone.library.length ? 'Draw a card' : 'Library is empty'}
+              aria-label={`Draw a card — ${inZone.library.length} left`}
+            >
+              <span className="pt-deck-back" aria-hidden />
+            </button>
+            <span className="mono faint">{inZone.library.length}</span>
+          </div>
         </div>
       </div>
 
-      {log.length > 0 && (
-        <div className="pt-log mono">
-          {log.slice(0, 4).map((line, i) => <div key={i}>{line}</div>)}
-        </div>
+      {tutoring && (
+        <Tutor
+          cards={inZone.library}
+          onClose={() => setTutoring(false)}
+          onPick={(iid) => {
+            move(iid, 'hand')
+            // Searching your library shuffles it. Skipping that would leave the
+            // order you just read still in place, which is not the same game.
+            shuffleLibrary({ silent: true })
+            const found = cards.find((c) => c.iid === iid)
+            note(`Tutored ${found?.card.name ?? 'a card'}, then shuffled`)
+            setTutoring(false)
+          }}
+        />
       )}
 
       {zoomed && (
@@ -367,6 +442,69 @@ export function Playtest({
           onClose={() => setZoomed(null)}
         />
       )}
+    </div>
+  )
+}
+
+/**
+ * Search the library.
+ *
+ * Sorted by name rather than left in library order, because this is the one
+ * moment you are allowed to look and the deck's real order is not information
+ * you should be reading off the screen. Picking a card shuffles afterwards, so
+ * what you saw here does not survive the search.
+ */
+function Tutor({
+  cards, onPick, onClose,
+}: {
+  cards: Instance[]
+  onPick: (iid: string) => void
+  onClose: () => void
+}) {
+  const [needle, setNeedle] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const term = needle.trim().toLowerCase()
+  const shown = cards
+    .filter((c) => !term || c.card.name.toLowerCase().includes(term))
+    .sort((a, b) => a.card.name.localeCompare(b.card.name))
+
+  return (
+    <div className="modal-backdrop" onClick={onClose} role="presentation">
+      <div className="modal pt-tutor" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal>
+        <h3>Search your library</h3>
+        <input
+          ref={inputRef}
+          className="fld"
+          placeholder={`Filter ${cards.length} cards…`}
+          value={needle}
+          onChange={(e) => setNeedle(e.target.value)}
+          aria-label="Filter library"
+        />
+        <div className="pt-tutor-list">
+          {shown.map((c) => (
+            <button key={c.iid} className="pt-tutor-row" onClick={() => onPick(c.iid)}>
+              <span className="nm">{c.card.name}</span>
+              <ManaCost cost={c.card.mana_cost} />
+              <span className="faint">{c.card.type_line}</span>
+            </button>
+          ))}
+          {!shown.length && <p className="faint" style={{ fontSize: 12 }}>Nothing matches.</p>}
+        </div>
+        <div className="row gap-2" style={{ marginTop: 'var(--gap-2)' }}>
+          <button className="btn btn-ghost sm" onClick={onClose}>Cancel</button>
+          <span className="faint" style={{ fontSize: 11 }}>
+            Taking a card shuffles the library.
+          </span>
+        </div>
+      </div>
     </div>
   )
 }
