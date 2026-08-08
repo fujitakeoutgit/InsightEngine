@@ -4,6 +4,8 @@ import type { Card } from '../lib/api'
 import { collection, useIsCollected } from '../lib/collection'
 import { attachTilt, dissolveIn } from '../lib/motion'
 import { useCardFace } from '../lib/faces'
+import { solidDragImage } from '../lib/useQuietDrag'
+import { CARD_DRAG_TYPE } from './DeckSearch'
 import { FlipButton } from './FlipButton'
 import { IdentityDots, ManaCost } from './ManaCost'
 
@@ -102,6 +104,16 @@ function CardTile({
       ref={ref}
       to={`/card/${card.oracle_id}`}
       className="card-tile"
+      /* Carries the card itself, so a result can be dragged into the Cards
+         tray or straight onto a deck section. An anchor is draggable anyway —
+         without this it would drag as a URL, which nothing here accepts. */
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.setData(CARD_DRAG_TYPE, JSON.stringify(card))
+        event.dataTransfer.setData('text/plain', `1 ${card.name}`)
+        event.dataTransfer.effectAllowed = 'copy'
+        solidDragImage(event, event.currentTarget as HTMLElement)
+      }}
       // With a picker attached the tile opens a menu instead of navigating;
       // Info is one of the menu's own entries, so nothing becomes unreachable.
       onClick={onPick && ((event) => {

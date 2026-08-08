@@ -2,12 +2,18 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useCollection } from '../lib/collection'
 import { canAnimate, dissolvePage, gsap } from '../lib/motion'
+import { CardTray } from './CardTray'
 import { ManaSprite } from './ManaSprite'
 
+/* Cards is deliberately absent: it is a tray now, not a destination.
+ *
+ * The pile you gather while browsing is only useful *next to* the thing you
+ * gathered it for, so opening it navigates nowhere — it slides out of the
+ * banner over whatever you were doing. The /cards route still exists for a
+ * direct link. */
 const NAV = [
   { to: '/', label: 'Search', end: true },
   { to: '/advanced', label: 'Advanced' },
-  { to: '/cards', label: 'Cards' },
   { to: '/deck', label: 'Deck Lab' },
   { to: '/playtest', label: 'Playtest' },
   { to: '/sets', label: 'Sets' },
@@ -19,6 +25,7 @@ export function Layout() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [scrolled, setScrolled] = useState(false)
+  const [trayOpen, setTrayOpen] = useState(false)
   const mainRef = useRef<HTMLElement>(null)
   const navRef = useRef<HTMLElement>(null)
   const inkRef = useRef<HTMLSpanElement>(null)
@@ -141,15 +148,26 @@ export function Layout() {
                 className={({ isActive }) => (isActive ? 'active' : '')}
               >
                 {item.label}
-                {item.to === '/cards' && collected.length > 0 && (
-                  <span className="count-badge">{collected.length}</span>
-                )}
               </NavLink>
             ))}
+            {/* A button, not a link: it opens over the page rather than
+                replacing it, so it never takes the ink either. */}
+            <button
+              className={trayOpen ? 'nav-tray on' : 'nav-tray'}
+              onClick={() => setTrayOpen((o) => !o)}
+              aria-expanded={trayOpen}
+            >
+              Cards
+              {collected.length > 0 && (
+                <span className="count-badge">{collected.length}</span>
+              )}
+            </button>
             <span className="nav-ink" ref={inkRef} aria-hidden />
           </nav>
         </div>
       </header>
+
+      <CardTray open={trayOpen} onClose={() => setTrayOpen(false)} />
 
       <main ref={mainRef}>
         <Outlet />

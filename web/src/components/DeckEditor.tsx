@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import type { Card } from '../lib/api'
+import { DECK_UID_TYPE, onCardTaken } from '../lib/cardTransfer'
 import { collection } from '../lib/collection'
 import {
   SECTIONS, canBeCommander, countCards, deckValue, filterCards, groupCards, sortDeckCards,
@@ -63,6 +64,16 @@ export function DeckEditor({
 
   useEffect(() => () => window.clearTimeout(springTimer.current), [])
 
+  /* A card dragged out to the Cards tray leaves the deck.
+   *
+   * The tray cannot call back down into this component -- it lives in the
+   * layout so it can open over any page -- so it announces what it took and
+   * this listens. Kept in a ref-free effect that re-subscribes when the deck
+   * changes, because the removal has to be computed against the current list. */
+  useEffect(() => onCardTaken((uid) => {
+    if (cards.some((c) => c.uid === uid)) onChange(cards.filter((c) => c.uid !== uid))
+  }), [cards, onChange])
+
   /** Drop onto a section, whether that is its tab or its body.
    *
    * A card dragged in from the Search tab is an addition; a uid dragged from
@@ -72,15 +83,22 @@ export function DeckEditor({
     event.preventDefault()
     window.clearTimeout(springTimer.current)
     setDropTarget(null)
+    /* An entry already in this deck is a move, whatever else it is carrying.
+     * Checked first, because those drags now also carry the card so the Cards
+     * tray can accept them — and reading that half here would turn every
+     * section move into a second copy. */
+    const uid = event.dataTransfer.getData(DECK_UID_TYPE) || dragging
+    if (uid) {
+      move(uid, section)
+      setDragging(null)
+      return
+    }
     const payload = event.dataTransfer.getData(CARD_DRAG_TYPE)
     if (payload) {
       try {
         onAddSearched?.(JSON.parse(payload) as Card, section)
       } catch { /* not ours after all */ }
-      return
     }
-    const uid = dragging ?? event.dataTransfer.getData('text/plain')
-    if (uid) move(uid, section)
     setDragging(null)
   }
 
@@ -363,7 +381,14 @@ function EditorRow({
   const dragProps = {
     draggable: true,
     onDragStart: (e: React.DragEvent) => {
-      e.dataTransfer.setData('text/plain', entry.uid)
+      // Three payloads, for three destinations. The uid is what this editor's
+      // own sections read to move a card between them; the card itself is what
+      // the Cards tray reads; text/plain is a usable decklist line for
+      // anywhere else. The uid type is also how a drop target tells "this came
+      // from the deck" from "this arrived from a search".
+      e.dataTransfer.setData(DECK_UID_TYPE, entry.uid)
+      e.dataTransfer.setData(CARD_DRAG_TYPE, JSON.stringify(card))
+      e.dataTransfer.setData('text/plain', `1 ${card.name}`)
       e.dataTransfer.effectAllowed = 'move'
       solidDragImage(e, e.currentTarget as HTMLElement)
       onDragStart()

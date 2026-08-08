@@ -1085,6 +1085,268 @@
 .deck-search .card-tile.draggable:active { cursor: grabbing; }
 
 /* Per-card action menu, opened by clicking a tile on the Cards page. */
+/* --------------------------------------------------------------------------
+   Cards tray — slides out of the banner over whatever you were doing
+   -------------------------------------------------------------------------- */
+
+/* A transition rather than a keyframe, because this opens *and* closes and a
+   keyframe would only ever play one way.
+
+   The transition itself is gated on :root.motion-ok, and that is load-bearing
+   rather than a courtesy: a paused document does not advance transitions, so
+   an ungated one leaves the tray at opacity 0 while `.open` has already made
+   it interactive — an invisible sheet over half the page. Ungated, the state
+   change is instant and always correct. */
+.card-tray {
+  position: fixed;
+  top: 62px;
+  right: 0;
+  z-index: 240;
+  width: min(960px, 64vw);
+  height: min(470px, 58vh);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-right: 0;
+  border-radius: 0 0 0 var(--r-lg);
+  background: color-mix(in oklab, var(--bg-hi) 93%, transparent);
+  backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.9);
+  opacity: 0;
+  transform: translateY(-14px);
+  pointer-events: none;
+}
+
+:root.motion-ok .card-tray {
+  transition: opacity var(--dur) var(--ease-out), transform var(--dur) var(--ease-out),
+              border-color var(--dur-fast);
+}
+
+.card-tray.open { opacity: 1; transform: translateY(0); pointer-events: auto; }
+
+/* Something droppable is over it. */
+.card-tray.taking { border-color: var(--aether); }
+
+/* Slim: the tray is for the cards, and a header with room to spare would be
+   taking that room from them. */
+.tray-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 30px;
+  padding: 0 10px 0 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.tray-head .label { line-height: 1; }
+.tray-head .mono { font-size: 10.5px; }
+
+/* A bar that fills, with no thumb.
+ *
+ * The knob is the only part of a range input that reads as a control, so
+ * removing it means the fill itself has to carry the affordance: it brightens
+ * on hover, and the track is tall enough to hit without aiming. The fill is
+ * painted with a gradient stop at --fill, which the component keeps in step
+ * with the value — `background-size` on a linear-gradient is the one way to
+ * show progress on a range input without a thumb to hang it off. */
+.tray-size { margin-left: auto; display: flex; align-items: center; }
+
+.tray-size input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 110px;
+  height: 12px;
+  margin: 0;
+  background: none;
+  cursor: ew-resize;
+}
+
+.tray-size input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 99px;
+  background:
+    linear-gradient(var(--aether), var(--aether)) 0 / var(--fill, 50%) 100% no-repeat,
+    var(--line);
+  transition: background-color var(--dur-fast);
+}
+
+.tray-size input[type='range']::-moz-range-track {
+  height: 4px;
+  border-radius: 99px;
+  background: var(--line);
+}
+
+.tray-size input[type='range']::-moz-range-progress {
+  height: 4px;
+  border-radius: 99px;
+  background: var(--aether);
+}
+
+/* The thumb still has to exist to be dragged; it is simply not drawn. */
+.tray-size input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 2px;
+  height: 12px;
+  border: 0;
+  border-radius: 1px;
+  background: transparent;
+}
+
+.tray-size input[type='range']::-moz-range-thumb {
+  width: 2px;
+  height: 12px;
+  border: 0;
+  background: transparent;
+}
+
+.tray-size input[type='range']:hover::-webkit-slider-runnable-track {
+  background:
+    linear-gradient(var(--aether-hi), var(--aether-hi)) 0 / var(--fill, 50%) 100% no-repeat,
+    var(--line);
+}
+
+.tray-close {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  transition: color var(--dur-fast), background-color var(--dur-fast);
+}
+
+.tray-close:hover { color: var(--ink); background: var(--glass); }
+
+.tray-tabs {
+  flex: none;
+  padding: 6px 14px 0;
+  margin-bottom: 0;
+  overflow-x: auto;
+}
+
+/* Every card gets its own cell and its own row height — nothing here overlaps
+   or fans. `align-items: start` with content-sized rows means a taller card
+   cannot bleed into the one beneath it, and the hover lift is given a layer of
+   its own so it rises above its neighbours rather than under them. */
+.tray-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--tray-w, 150px), 1fr));
+  grid-auto-rows: max-content;
+  gap: 12px;
+  padding: 12px 14px;
+  align-content: start;
+  align-items: start;
+}
+
+.tray-empty { grid-column: 1 / -1; font-size: 12.5px; }
+
+.tray-card {
+  position: relative;
+  border-radius: 4.75% / 3.5%;
+  overflow: hidden;
+  aspect-ratio: 488 / 680;
+  background: var(--bg);
+  cursor: grab;
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast);
+}
+
+.tray-card:active { cursor: grabbing; }
+
+.tray-card:hover {
+  z-index: 1;
+  transform: translateY(-3px);
+  box-shadow: 0 14px 26px -12px rgba(0, 0, 0, 0.85),
+              0 0 0 1px color-mix(in oklab, var(--aether) 45%, transparent);
+}
+
+.tray-card img { width: 100%; height: 100%; object-fit: cover; }
+
+.tray-fallback {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 8px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--line-soft);
+  border-radius: inherit;
+}
+
+.tray-info {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  border: 1px solid var(--line-soft);
+  background: rgba(7, 8, 12, 0.84);
+  backdrop-filter: blur(6px);
+  font-family: var(--font-m);
+  font-style: italic;
+  font-size: 10px;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.tray-card:hover .tray-info,
+.tray-info:focus-visible { opacity: 1; }
+.tray-info:hover { color: var(--aether-hi); border-color: var(--aether); }
+
+/* Only present while a card is in hand. */
+.tray-bin {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r);
+  border: 1px dashed color-mix(in oklab, var(--danger) 55%, transparent);
+  background: color-mix(in oklab, var(--danger) 10%, rgba(7, 8, 12, 0.9));
+  font-size: 21px;
+  pointer-events: auto;
+  transition: transform var(--dur-fast) var(--ease-snap), background-color var(--dur-fast),
+              border-color var(--dur-fast);
+}
+
+.tray-bin.over {
+  transform: scale(1.12);
+  border-style: solid;
+  border-color: var(--danger);
+  background: color-mix(in oklab, var(--danger) 26%, rgba(7, 8, 12, 0.9));
+}
+
+/* The Cards control in the banner: a button, since it opens rather than
+   navigates, but wearing exactly the nav's clothes. */
+.nav-tray {
+  position: relative;
+  padding: 6px 11px;
+  border-radius: var(--r);
+  font-family: var(--font-m);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--faint);
+  white-space: nowrap;
+  transition: color var(--dur-fast), background-color var(--dur-fast);
+}
+
+.nav-tray:hover { color: var(--ink); background: var(--glass); }
+.nav-tray.on { color: var(--aether-hi); background: var(--glass); }
+
 .menu-backdrop { position: fixed; inset: 0; z-index: 300; }
 
 /* Centred dialogs, for the two questions worth stopping the page to ask:

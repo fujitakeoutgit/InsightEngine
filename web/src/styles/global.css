@@ -40,6 +40,21 @@ svg {
   max-width: 100%;
 }
 
+/* Nothing in this app ever wants Chrome's own image drag.
+ *
+ * `draggable={false}` on the element is not enough on its own: it stops the
+ * image being a drag *source*, but Chrome will still pick the image up as the
+ * drag payload and ghost when the gesture starts on it inside a draggable
+ * parent — which is every card in the app. `-webkit-user-drag` is the
+ * property Chrome actually consults, and setting it here means a card cannot
+ * be dragged as a picture from anywhere, without each surface having to
+ * remember. Card drags carry the card itself; that is the only payload the
+ * drop targets understand. */
+img {
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
 button,
 input,
 textarea,
