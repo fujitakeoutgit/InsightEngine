@@ -14,8 +14,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
-from .config import settings
+from .config import PROJECT_ROOT, settings
 from .llm.ollama import client as ollama
 from .routers import cards, catalog, deck, search, semantic, sets, settings_api, spell
 from .seed import seed_decks
@@ -86,6 +88,40 @@ async def health():
         "model": settings.ollama_model,
         "attribution": "Card data from Scryfall (https://scryfall.com)",
     }
+
+
+def _mount_web() -> None:
+    """Serve the built interface, when there is one.
+
+    Development runs Vite on its own port and proxies `/api` here, so this
+    finds nothing and does nothing. An installed copy has no Node at all: the
+    interface is a folder of static files and this is what serves it, which is
+    what collapses the two ports into one and takes the dev server out of the
+    shipped product.
+
+    Registered last, after every router, because the catch-all below would
+    otherwise shadow them.
+    """
+    dist = PROJECT_ROOT / "web" / "dist"
+    index = dist / "index.html"
+    if not index.exists():
+        return
+
+    app.mount("/assets", StaticFiles(directory=dist / "assets"), name="assets")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    async def spa(path: str):
+        # A real file if there is one -- favicon, card back, manifest.
+        candidate = (dist / path).resolve()
+        if path and candidate.is_file() and candidate.is_relative_to(dist.resolve()):
+            return FileResponse(candidate)
+        # Otherwise the app itself. Client-side routes like /deck/36 are not
+        # files and must still return the shell rather than a 404; `/api/*`
+        # never reaches here because the routers claimed it first.
+        return FileResponse(index)
+
+
+_mount_web()
 
 
 def main() -> None:
