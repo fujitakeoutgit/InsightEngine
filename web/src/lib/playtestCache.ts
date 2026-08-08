@@ -35,46 +35,52 @@ export interface Instance {
  * That makes clamping a plain 0..1 and keeps the die fully visible at any
  * window size.
  */
+export type DieKind = 'd6' | 'd20'
+
 export interface DieState {
   id: string
+  kind: DieKind
   x: number
   y: number
   value: number
   /** Counting rather than rolling: clicks step the face instead of it being
    *  something you throw. */
   counting: boolean
-  /** The one still sitting in the tray. Moving it away spawns its
-   *  replacement, so there is always exactly one die to reach for. */
+  /** Still in its tray.
+   *
+   * A die at home ignores its stored coordinates entirely and is placed from
+   * the tray element's measured position. Flexbox decides where that tray
+   * lands, so converting it to a fraction of the mat and back put every
+   * spawned die a few pixels outside the outline it was supposed to be
+   * sitting in -- including the very first one, which was placed from a
+   * guessed constant before the measurement had even run. Measure once, place
+   * exactly, and only convert to a fraction on the way out. */
   home: boolean
 }
 
 /** Fractional position of something on the mat. */
 export interface Spot { x: number; y: number }
 
-/** Where the tray sits before it has been measured. The real position comes
- *  from the tray element itself, which flexbox lays out inside the tool
- *  column and so cannot be written down as a constant. */
-export const DIE_HOME: Spot = { x: 0.96, y: 0.62 }
-
 /** Enough to track a board state, few enough that the mat stays a board. */
-export const MAX_DICE = 8
+export const MAX_DICE = 10
 
 /** Rendered size of a die, matching `.pt-die`. Shared because the fractional
  *  coordinates are of the mat *less* this, and both ends must agree. */
 export const DIE_PX = 46
 
+/** How near its tray a die must be dropped to count as put away, in px. */
+export const TRAY_SNAP = 40
+
+export const DIE_SIDES: Record<DieKind, number> = { d6: 6, d20: 20 }
+
 let dieCounter = 0
 
-export function makeDie(home: boolean, at: Spot = DIE_HOME): DieState {
+export function makeDie(kind: DieKind): DieState {
   dieCounter += 1
-  return { id: `d${dieCounter}`, x: at.x, y: at.y, value: 6, counting: false, home }
-}
-
-/** Whether a die has been put back in the tray. Generous, and wider than it is
- *  tall because the fractions are of the mat's own dimensions, so an equal
- *  fraction is a much longer distance across than down. */
-export function inTray(die: DieState, home: Spot): boolean {
-  return Math.abs(die.x - home.x) < 0.035 && Math.abs(die.y - home.y) < 0.09
+  return {
+    id: `die${dieCounter}`, kind, x: 0, y: 0,
+    value: DIE_SIDES[kind], counting: false, home: true,
+  }
 }
 
 export interface SavedGame {
@@ -83,11 +89,12 @@ export interface SavedGame {
   life: number
   mulligans: number
   log: string[]
-  /** Every die on the mat, where it came to rest and what it showed. */
-  dice: DieState[]
-  /** The two fixed tools beside the tray. */
-  d20: number
-  coin: 'heads' | 'tails'
+  /* The dice and the coin are deliberately absent.
+   *
+   * They are what is on the table right now, not what the game is: a board
+   * mid-combat is worth coming back to, a scatter of dice from three turns
+   * ago is clutter you would have swept up anyway. Leaving the mat puts them
+   * back in their trays. */
   /** What the deck looked like when this game was dealt. */
   signature: string
 }

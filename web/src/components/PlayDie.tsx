@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { canAnimate, gsap } from '../lib/motion'
-import type { DieState } from '../lib/playtestCache'
+import { DIE_PX, TRAY_SNAP, type DieState } from '../lib/playtestCache'
 
 /**
  * Pip positions in a 3x3 grid, indexed
@@ -40,7 +40,7 @@ const ORIENT: Record<number, { rx: number; ry: number }> = {
 }
 
 /** Rendered size, matching `.pt-die` in the stylesheet. */
-const SIZE = 46
+const SIZE = DIE_PX
 /** Below this release speed a drag is a placement, not a throw. px/ms. */
 const THROW_SPEED = 0.22
 /** Velocity lost per millisecond in flight. */
@@ -100,12 +100,17 @@ interface Sample { x: number; y: number; t: number }
  * reports the resting place at the end.
  */
 export function PlayDie({
-  die, matRef, onChange, onRoll,
+  die, matRef, trayRef, onChange, onRoll,
 }: {
   die: DieState
   /** The playmat, which is both the coordinate space and the walls. */
   matRef: React.RefObject<HTMLDivElement | null>
-  onChange: (next: Partial<DieState>) => void
+  /** This die's tray. A die at home is placed from this element's measured
+   *  position rather than from its own coordinates — see `DieState.home`. */
+  trayRef: React.RefObject<HTMLDivElement | null>
+  /** `backInTray` says the die came to rest on its own slot, which is how a
+   *  loose one is put away and how a home one is known not to have left. */
+  onChange: (next: Partial<DieState>, backInTray?: boolean) => void
   onRoll?: (value: number, counting: boolean) => void
 }) {
   const ref = useRef<HTMLButtonElement>(null)
@@ -146,28 +151,77 @@ export function PlayDie({
     gsap.killTweensOf([ref.current, cubeRef.current])
   }, [])
 
-  /* Place the die from the stored fraction.
+  /** The tray's own resting spot, in pixels from the mat's corner. */
+  const trayAt = () => {
+    const mat = matRef.current
+    const tray = trayRef.current
+    if (!mat || !tray) return null
+    const m = mat.getBoundingClientRect()
+    const t = tray.getBoundingClientRect()
+    return { x: t.x - m.x + (t.width - SIZE) / 2, y: t.y - m.y + (t.height - SIZE) / 2 }
+  }
+
+  /** Whether a resting position counts as back in the slot. Measured in
+   *  pixels against the tray itself, so it means the same thing at every
+   *  window size — a fraction of the mat did not. */
+  const onTray = (px: number, py: number) => {
+    const at = trayAt()
+    return at ? Math.hypot(px - at.x, py - at.y) < TRAY_SNAP : false
+  }
+
+  /** Where this die belongs right now, in pixels from the mat's corner.
    *
-   * Runs on mount, on resume, and on resize — anything that changes where the
-   * fraction lands in pixels. Skipped mid-gesture, when the element's position
-   * is being driven directly and the state is deliberately stale. */
+   * A die at home is measured off its tray, so it sits in the outline exactly
+   * however flexbox laid that tray out. Everything else comes from its stored
+   * fraction of the mat's free space, which is what survives a resize. */
+  const restingAt = () => {
+    const mat = matRef.current
+    if (!mat) return null
+    if (die.home) {
+      const tray = trayRef.current
+      if (!tray) return null
+      const m = mat.getBoundingClientRect()
+      const t = tray.getBoundingClientRect()
+      return {
+        x: t.x - m.x + (t.width - SIZE) / 2,
+        y: t.y - m.y + (t.height - SIZE) / 2,
+      }
+    }
+    const { w, h } = span()
+    return { x: die.x * w, y: die.y * h }
+  }
+
+  /* Put the die where it belongs.
+   *
+   * Runs on mount and on resize — anything that moves the tray or rescales
+   * the mat. Skipped mid-gesture, when the element's position is being driven
+   * directly and the state is deliberately stale. */
   useEffect(() => {
     const place = () => {
       if (busy.current || !ref.current) return
-      const { w, h } = span()
-      gsap.set(ref.current, { x: die.x * w, y: die.y * h })
+      const at = restingAt()
+      if (at) gsap.set(ref.current, at)
     }
     place()
+    // A frame later as well: on first mount the tray may not have been laid
+    // out when this runs, and a die placed against a zero-size tray is the
+    // die that appears just outside its own slot.
+    const settle = requestAnimationFrame(place)
     window.addEventListener('resize', place)
-    return () => window.removeEventListener('resize', place)
-  }, [die.x, die.y])
+    return () => {
+      cancelAnimationFrame(settle)
+      window.removeEventListener('resize', place)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [die.x, die.y, die.home])
 
   /** Show a face flat-on. Used by count mode, where the die is being read
    *  rather than thrown and any tumble is noise. */
   const faceOn = (value: number, animate: boolean) => {
     const cube = cubeRef.current
     if (!cube) return
-    const { rx, ry } = ORIENT[value] ?? ORIENT[1]
+    // A d20 has no face geometry to turn to — upright is the whole of it.
+    const { rx, ry } = die.kind === 'd20' ? { rx: 0, ry: 0 } : ORIENT[value] ?? ORIENT[1]
     // Nearest equivalent turn, so it never rewinds through five faces.
     const target = {
       x: rx + 360 * Math.round((spin.current.x - rx) / 360),
@@ -226,7 +280,20 @@ export function PlayDie({
      *  report that face as the roll. */
     const land = () => {
       stopTicker()
-      const rest = nearestFace(spin.current.x, spin.current.y)
+      /* A cube's result is read off its geometry; a d20's cannot be.
+       *
+       * Twenty triangular faces is not a shape you can build out of six divs,
+       * so the d20 tumbles as a solid and carries a numeral. Choosing that
+       * numeral at the end rather than the start is what keeps it honest —
+       * the number is never legible mid-tumble, so there is nothing for it to
+       * contradict, which is the same trick the coin's spin plays. */
+      const rest = die.kind === 'd20'
+        ? {
+            value: 1 + Math.floor(Math.random() * 20),
+            x: 360 * Math.round(spin.current.x / 360),
+            y: 360 * Math.round(spin.current.y / 360),
+          }
+        : nearestFace(spin.current.x, spin.current.y)
       spin.current = { x: rest.x, y: rest.y }
       shown.current = rest.value
       settleTween.current?.kill()
@@ -242,7 +309,10 @@ export function PlayDie({
         gsap.set(cube, { rotateX: rest.x, rotateY: rest.y })
         busy.current = false
       }
-      onChange({ x: w ? clamp01(px / w) : 0, y: h ? clamp01(py / h) : 0, value: rest.value })
+      onChange(
+        { x: w ? clamp01(px / w) : 0, y: h ? clamp01(py / h) : 0, value: rest.value },
+        onTray(px, py),
+      )
       onRoll?.(rest.value, false)
     }
 
@@ -366,7 +436,7 @@ export function PlayDie({
     const { w, h } = span()
     const px = gsap.getProperty(el, 'x') as number
     const py = gsap.getProperty(el, 'y') as number
-    onChange({ x: w ? clamp01(px / w) : 0, y: h ? clamp01(py / h) : 0 })
+    onChange({ x: w ? clamp01(px / w) : 0, y: h ? clamp01(py / h) : 0 }, onTray(px, py))
   }
 
   const onClick = () => {
@@ -392,7 +462,7 @@ export function PlayDie({
   return (
     <button
       ref={ref}
-      className={`pt-die ${die.counting ? 'counting' : ''}`}
+      className={`pt-die pt-${die.kind} ${die.counting ? 'counting' : ''}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -401,18 +471,27 @@ export function PlayDie({
       onDoubleClick={onDoubleClick}
       title={die.counting
         ? `Counting: ${die.value}. Click to count up, throw it to roll again.`
-        : `Showing ${die.value}. Throw it anywhere on the mat; double-click to count.`}
-      aria-label={die.counting ? `Counter at ${die.value}` : `Die showing ${die.value}`}
+        : `${die.kind.toUpperCase()} showing ${die.value}. Throw it anywhere on the mat; double-click to count.`}
+      aria-label={die.counting
+        ? `Counter at ${die.value}`
+        : `${die.kind.toUpperCase()} showing ${die.value}`}
       aria-live="polite"
     >
       <div className="pt-die-cube" ref={cubeRef} aria-hidden>
-        {[1, 2, 3, 4, 5, 6].map((face) => (
-          <span className={`pt-die-side s${face}`} key={face}>
-            {Array.from({ length: 9 }, (_, cell) => (
-              <i key={cell} className={FACES[face].includes(cell) ? 'on' : ''} />
-            ))}
-          </span>
-        ))}
+        {die.kind === 'd20' ? (
+          // One solid body carrying a numeral, rather than twenty faces that
+          // cannot be built. It tumbles in 3D like the cube; only the way its
+          // result is decided differs — see `land`.
+          <span className="pt-die-body">{die.value}</span>
+        ) : (
+          [1, 2, 3, 4, 5, 6].map((face) => (
+            <span className={`pt-die-side s${face}`} key={face}>
+              {Array.from({ length: 9 }, (_, cell) => (
+                <i key={cell} className={FACES[face].includes(cell) ? 'on' : ''} />
+              ))}
+            </span>
+          ))
+        )}
       </div>
     </button>
   )

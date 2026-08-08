@@ -40,6 +40,21 @@ svg {
   max-width: 100%;
 }
 
+/* Nothing inside something the app made draggable may start a drag of its own.
+ *
+ * Images and anchors are both draggable by default, so a card tile that is a
+ * link, or a decklist row whose card name is one, hands the gesture to the
+ * browser: you get its own ghost of the image or the URL instead of the row
+ * you meant to move, and the drop never reaches our handler. It was fixed
+ * once per `<img>` with `draggable={false}`; scoping it to draggable
+ * containers fixes every case, including the anchors nobody thought of. */
+[draggable='true'] img,
+[draggable='true'] a,
+[draggable='true'] a img {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
 /* Nothing in this app ever wants Chrome's own image drag.
  *
  * `draggable={false}` on the element is not enough on its own: it stops the

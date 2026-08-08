@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useCardFace } from '../lib/faces'
 import { entersTapped } from '../lib/landTiming'
@@ -7,13 +7,13 @@ import { solidDragImage } from '../lib/useQuietDrag'
 import { Lightbox } from './Lightbox'
 import { ManaCost } from './ManaCost'
 import { PlayCoin, type CoinFace } from './PlayCoin'
-import { PlayD20 } from './PlayD20'
+
 import { PlayDie } from './PlayDie'
 import { canAnimate, gsap } from '../lib/motion'
 import { type DeckCard } from '../lib/deckModel'
 import {
-  deckSignature, DIE_HOME, DIE_PX, inTray, makeDie, MAX_DICE, recallGame, rememberGame,
-  type DieState, type Instance, type Spot, type Zone,
+  deckSignature, makeDie, MAX_DICE, recallGame, rememberGame,
+  type DieState, type Instance, type Zone,
 } from '../lib/playtestCache'
 
 /** A card being looked at, and the rect it grew from. */
@@ -110,14 +110,20 @@ export function Playtest({
   const [life, setLife] = useState(resumed?.life ?? 40)
   const [mulligans, setMulligans] = useState(resumed?.mulligans ?? 0)
   const [log, setLog] = useState<string[]>(resumed?.log ?? [])
-  const [dice, setDice] = useState<DieState[]>(resumed?.dice ?? [makeDie(true)])
-  const [d20, setD20] = useState(resumed?.d20 ?? 20)
-  const [coin, setCoin] = useState<CoinFace>(resumed?.coin ?? 'heads')
-  /** Where the tray actually is, measured — it is laid out by flexbox in the
-   *  tool column, so its fraction of the mat is not something we can state. */
-  const [home, setHome] = useState<Spot>(DIE_HOME)
+  /* Dice and the coin start fresh every time the mat is opened. They are what
+   * is on the table right now rather than what the game is, so they are not
+   * part of what a resumed game restores. */
+  const [dice, setDice] = useState<DieState[]>(() => [makeDie('d20'), makeDie('d6')])
+  const [coin, setCoin] = useState<CoinFace>('heads')
+  const [showHistory, setShowHistory] = useState(false)
   const matRef = useRef<HTMLDivElement>(null)
-  const trayRef = useRef<HTMLDivElement>(null)
+  /** One tray per kind. A die at home is placed from its own tray's measured
+   *  box, which is the only way to land exactly inside an outline that
+   *  flexbox positioned. */
+  const trays = {
+    d6: useRef<HTMLDivElement>(null),
+    d20: useRef<HTMLDivElement>(null),
+  }
   const handRef = useRef<HTMLDivElement>(null)
 
   /** The in-flight drag: which card, and where in it you grabbed. Kept in a
@@ -157,41 +163,8 @@ export function Playtest({
   // read state in an effect cleanup that has closed over an older render, and
   // this is cheap -- a Map assignment against state React has already built.
   useEffect(() => {
-    rememberGame(gameKey, { cards, turn, life, mulligans, log, dice, d20, coin, signature })
-  }, [gameKey, signature, cards, turn, life, mulligans, log, dice, d20, coin])
-
-  /* Measure the tray and keep the tray die sitting in it.
-   *
-   * The tool column is flexbox, so the tray's position depends on the sizes
-   * of the d20 and coin above and below it; there is no constant to write
-   * down. Re-measured on resize, and the home die is moved to match so it
-   * never drifts out of its own slot when the window changes. */
-  useLayoutEffect(() => {
-    const measure = () => {
-      const mat = matRef.current
-      const tray = trayRef.current
-      if (!mat || !tray) return
-      const m = mat.getBoundingClientRect()
-      const t = tray.getBoundingClientRect()
-      const w = mat.clientWidth - DIE_PX
-      const h = mat.clientHeight - DIE_PX
-      const spot = {
-        x: w ? (t.x - m.x + (t.width - DIE_PX) / 2) / w : 0,
-        y: h ? (t.y - m.y + (t.height - DIE_PX) / 2) / h : 0,
-      }
-      setHome((current) =>
-        Math.abs(current.x - spot.x) < 0.0005 && Math.abs(current.y - spot.y) < 0.0005
-          ? current
-          : spot)
-    }
-    measure()
-    window.addEventListener('resize', measure)
-    return () => window.removeEventListener('resize', measure)
-  }, [])
-
-  useEffect(() => {
-    setDice((ds) => ds.map((d) => (d.home ? { ...d, x: home.x, y: home.y } : d)))
-  }, [home])
+    rememberGame(gameKey, { cards, turn, life, mulligans, log, signature })
+  }, [gameKey, signature, cards, turn, life, mulligans, log])
 
   const inZone = useMemo(() => {
     const map: Record<Zone, Instance[]> = {
@@ -245,18 +218,19 @@ export function Playtest({
    * place -- you reach for a die and there is always a die to reach for.
    * Dropping a loose one back on the tray puts it away again, which is the
    * only tidying gesture needed because the replacement is already there. */
-  const updateDie = (id: string, next: Partial<DieState>) => {
+  const updateDie = (id: string, next: Partial<DieState>, backInTray = false) => {
     setDice((current) => {
       const after = current.map((d) => (d.id === id ? { ...d, ...next } : d))
       const moved = after.find((d) => d.id === id)
       if (!moved) return after
 
-      if (moved.home && !inTray(moved, home)) {
+      // Left its tray: hand out a replacement of the same kind.
+      if (moved.home && !backInTray) {
         const loose = after.map((d) => (d.id === id ? { ...d, home: false } : d))
-        return loose.length < MAX_DICE ? [...loose, makeDie(true, home)] : loose
+        return loose.length < MAX_DICE ? [...loose, makeDie(moved.kind)] : loose
       }
-      // Put away -- but never the last one, or the tray would be empty.
-      if (!moved.home && inTray(moved, home) && after.length > 1) {
+      // Put away -- but never the tray's own die, or the tray would be empty.
+      if (!moved.home && backInTray) {
         return after.filter((d) => d.id !== id)
       }
       return after
@@ -400,48 +374,14 @@ export function Playtest({
             key={c.iid} inst={c} drag={drag} onTap={tap} onZoom={setZoomed} placed
           />
         ))}
-        {/* One column at the top of the board, where the eye starts: the four
-            actions, and directly under them the record of what they did.
-            Transparent to the pointer except where a control actually is, so
-            the mat underneath still takes drops. */}
-        <div className="pt-rail">
-          <div className="pt-actions">
-            {/* Solid: the one action in this column you take every single
-                turn, and the only one that advances the game rather than
-                rearranging it. */}
-            <button className="btn btn-primary sm" onClick={nextTurn}>Next turn</button>
-            <button
-              className="btn btn-ghost sm"
-              onClick={() => shuffleLibrary()}
-              disabled={inZone.library.length < 2}
-              title="Shuffle the library"
-            >
-              Shuffle
-            </button>
-            <button
-              className="btn btn-ghost sm"
-              onClick={() => setTutoring(true)}
-              disabled={!inZone.library.length}
-              title="Search your library for a card"
-            >
-              Tutor
-            </button>
-            <button className="btn btn-ghost sm" onClick={() => newGame(0)}>Reset</button>
-          </div>
-
-          <div className="pt-history mono">
-            {log.slice(0, 8).map((line, i) => <div key={`${log.length}-${i}`}>{line}</div>)}
-          </div>
-        </div>
-
-        {/* The tools, stacked just above the deck at the bottom of the same
-            column as the actions: the d20 you roll for an answer, the tray the
-            d6s come out of, and the coin. Loose dice are separate — they are
-            things on the table, living in the mat's own coordinate space so
-            they can be thrown across the board and left where they land. */}
+        {/* The tools, stacked just above the deck: the d20, the tray the d6s
+            come out of, and the coin at the bottom. Both dice trays hand out
+            replacements — take one and another is waiting — so what sits here
+            is a supply, not a control. The coin is the exception: it is not a
+            thing you carry onto the board, it is a question you ask. */}
         <div className="pt-tools">
-          <PlayD20 value={d20} onRoll={(next) => { setD20(next); note(`d20: ${next}`) }} />
-          <div className="pt-die-tray" ref={trayRef} aria-hidden />
+          <div className="pt-die-tray d20" ref={trays.d20} aria-hidden />
+          <div className="pt-die-tray d6" ref={trays.d6} aria-hidden />
           <PlayCoin face={coin} onFlip={(next) => { setCoin(next); note(`Coin: ${next}`) }} />
         </div>
         {dice.map((d) => (
@@ -449,11 +389,35 @@ export function Playtest({
             key={d.id}
             die={d}
             matRef={matRef}
-            onChange={(next) => updateDie(d.id, next)}
+            trayRef={trays[d.kind]}
+            onChange={(next, backInTray) => updateDie(d.id, next, backInTray)}
             onRoll={(value, counting) =>
-              note(counting ? `Counter at ${value}` : `Rolled a ${value}`)}
+              note(counting ? `Counter at ${value}` : `Rolled ${d.kind === 'd20' ? 'a d20: ' : 'a '}${value}`)}
           />
         ))}
+
+        {/* The record, as a drawer off the right edge. Collapsed by default:
+            it answers "what just happened", which is a question you ask
+            occasionally and not one worth a permanent column of the board.
+            Wide when open, so a card name is one line rather than two. */}
+        <div className={`pt-history-drawer ${showHistory ? 'open' : ''}`}>
+          <button
+            className="pt-history-tab"
+            onClick={() => setShowHistory((v) => !v)}
+            aria-expanded={showHistory}
+            title={showHistory ? 'Hide the play history' : 'Show the play history'}
+          >
+            <span>History</span>
+            <span className="chev" aria-hidden>{showHistory ? '›' : '‹'}</span>
+          </button>
+          {showHistory && (
+            <div className="pt-history mono">
+              {log.length
+                ? log.map((line, i) => <div key={`${log.length}-${i}`}>{line}</div>)
+                : <div className="faint">Nothing yet.</div>}
+            </div>
+          )}
+        </div>
 
         {!inZone.battlefield.length && (
           <p className="pt-empty faint">Click a card in hand to play it, or drag it here.</p>
@@ -488,13 +452,46 @@ export function Playtest({
           </div>
         </div>
 
-        <div className="pt-piles">
-          <Pile name="graveyard" cards={inZone.graveyard} drag={drag} onMove={move} onZoom={setZoomed} />
-          <Pile name="exile" cards={inZone.exile} drag={drag} onMove={move} onZoom={setZoomed} />
-          <Pile name="command" cards={inZone.command} drag={drag} onMove={move} onPlay={play} onZoom={setZoomed} />
+        {/* Three actions over three zones, on the same three columns.
+            Shuffle is not among them — it belongs to the library, so it sits
+            on the library. The buttons stretch to fill whatever height the
+            deck leaves above the piles, which makes them the easiest targets
+            on the screen without taking a pixel from the board. */}
+        <div className="pt-zones">
+          <div className="pt-actions">
+            {/* Solid: the one action here you take every single turn, and the
+                only one that advances the game rather than rearranging it. */}
+            <button className="btn btn-primary sm" onClick={nextTurn}>Next turn</button>
+            <button
+              className="btn btn-ghost sm"
+              onClick={() => setTutoring(true)}
+              disabled={!inZone.library.length}
+              title="Search your library for a card"
+            >
+              Tutor
+            </button>
+            <button className="btn btn-ghost sm" onClick={() => newGame(0)}>Reset</button>
+          </div>
+
+          <div className="pt-piles">
+            <Pile name="graveyard" cards={inZone.graveyard} drag={drag} onMove={move} onZoom={setZoomed} />
+            <Pile name="exile" cards={inZone.exile} drag={drag} onMove={move} onZoom={setZoomed} />
+            <Pile name="command" cards={inZone.command} drag={drag} onMove={move} onPlay={play} onZoom={setZoomed} />
+          </div>
         </div>
 
         <div className="pt-corner">
+          {/* Shuffling is something you do *to the library*, so it is attached
+              to the library rather than filed with the turn actions. */}
+          <button
+            className="btn btn-ghost sm pt-shuffle"
+            onClick={() => shuffleLibrary()}
+            disabled={inZone.library.length < 2}
+            title="Shuffle the library"
+          >
+            Shuffle
+          </button>
+
           {/* The deck sits at the end of your hand, where it does on a table,
               and drawing is clicking it rather than hunting for a button. */}
           <div
@@ -697,7 +694,8 @@ function PlayCard({
       onDragStart={(e) => {
         e.dataTransfer.setData('text/plain', inst.iid)
         e.dataTransfer.effectAllowed = 'move'
-        solidDragImage(e, e.currentTarget as HTMLElement)
+        // A tapped card is sideways; it should be sideways while it moves too.
+        solidDragImage(e, e.currentTarget as HTMLElement, { keepTransform: inst.tapped })
         // Where in the card you grabbed, so it does not snap its corner to the
         // pointer when dropped.
         const rect = e.currentTarget.getBoundingClientRect()

@@ -67,7 +67,15 @@ export function useQuietDrag() {
  * setDragImage with the grab point preserved so the card stays under the
  * pointer where you picked it up.
  */
-export function solidDragImage(event: React.DragEvent, source: HTMLElement) {
+export function solidDragImage(
+  event: React.DragEvent,
+  source: HTMLElement,
+  /** Carry the element's own transform into the ghost. For a card that is
+   *  tapped, the rotation is what the card *is* right now, so dragging an
+   *  upright copy of it is wrong. Off by default because the commoner
+   *  transform is the pointer tilt, which the ghost should not inherit. */
+  options?: { keepTransform?: boolean },
+) {
   const rect = source.getBoundingClientRect()
   const ghost = source.cloneNode(true) as HTMLElement
   ghost.style.position = 'fixed'
@@ -78,14 +86,26 @@ export function solidDragImage(event: React.DragEvent, source: HTMLElement) {
   ghost.style.top = '0'
   ghost.style.left = '-10000px'
   ghost.style.margin = '0'
-  ghost.style.width = `${rect.width}px`
-  ghost.style.height = `${rect.height}px`
+  // The layout box, not the bounding rect. A card tapped 90 degrees reports a
+  // rect with its width and height swapped, and stamping that on the clone
+  // squashed the ghost into a card-shaped box lying the wrong way.
+  ghost.style.width = `${source.offsetWidth}px`
+  ghost.style.height = `${source.offsetHeight}px`
   ghost.style.opacity = '1'
-  // The source may be mid-tilt; the drag image should not inherit a rotation.
-  ghost.style.transform = 'none'
   ghost.style.pointerEvents = 'none'
+
+  const transform = getComputedStyle(source).transform
+  const keep = Boolean(options?.keepTransform) && transform !== 'none'
+  ghost.style.transform = keep ? transform : 'none'
+
   document.body.appendChild(ghost)
-  event.dataTransfer.setDragImage(ghost, event.clientX - rect.left, event.clientY - rect.top)
+  // A rotated ghost rasterises into a box whose axes no longer line up with
+  // the pointer offset measured against the source, so it is centred instead.
+  // Predictable beats subtly wrong, and a tapped card is small enough that
+  // centring reads as picking it up.
+  const ox = keep ? rect.width / 2 : event.clientX - rect.left
+  const oy = keep ? rect.height / 2 : event.clientY - rect.top
+  event.dataTransfer.setDragImage(ghost, ox, oy)
   // The browser rasterises it synchronously, so it can go straight back out.
   setTimeout(() => ghost.remove(), 0)
 }
