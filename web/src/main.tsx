@@ -10,6 +10,7 @@ import { DeckGalleryPage } from './routes/DeckGalleryPage'
 import { DeckPage } from './routes/DeckPage'
 import { GlossaryPage } from './routes/GlossaryPage'
 import { NotFoundPage } from './routes/NotFoundPage'
+import { PlaytestPage } from './routes/PlaytestPage'
 import { SearchPage } from './routes/SearchPage'
 import { SetsPage } from './routes/SetsPage'
 
@@ -31,6 +32,9 @@ const router = createBrowserRouter([
       { path: 'advanced', element: <AdvancedPage /> },
       { path: 'deck', element: <DeckGalleryPage /> },
       { path: 'deck/:deckId', element: <DeckPage /> },
+      // Two faces of one route: the picker, then the table.
+      { path: 'playtest', element: <PlaytestPage /> },
+      { path: 'playtest/:deckId', element: <PlaytestPage /> },
       { path: 'sets', element: <SetsPage /> },
       { path: 'glossary', element: <GlossaryPage /> },
       // Inside the layout, not beside it: a wrong turn should still leave you

@@ -48,25 +48,33 @@ export interface DieState {
   home: boolean
 }
 
-/** The tray: bottom centre-right of the mat, clear of the hand and the piles,
- *  where a cup of dice would sit beside the board. */
-export const DIE_HOME = { x: 0.5, y: 0.9 }
+/** Fractional position of something on the mat. */
+export interface Spot { x: number; y: number }
+
+/** Where the tray sits before it has been measured. The real position comes
+ *  from the tray element itself, which flexbox lays out inside the tool
+ *  column and so cannot be written down as a constant. */
+export const DIE_HOME: Spot = { x: 0.96, y: 0.62 }
 
 /** Enough to track a board state, few enough that the mat stays a board. */
 export const MAX_DICE = 8
 
+/** Rendered size of a die, matching `.pt-die`. Shared because the fractional
+ *  coordinates are of the mat *less* this, and both ends must agree. */
+export const DIE_PX = 46
+
 let dieCounter = 0
 
-export function makeDie(home: boolean): DieState {
+export function makeDie(home: boolean, at: Spot = DIE_HOME): DieState {
   dieCounter += 1
-  return { id: `d${dieCounter}`, ...DIE_HOME, value: 6, counting: false, home }
+  return { id: `d${dieCounter}`, x: at.x, y: at.y, value: 6, counting: false, home }
 }
 
 /** Whether a die has been put back in the tray. Generous, and wider than it is
  *  tall because the fractions are of the mat's own dimensions, so an equal
  *  fraction is a much longer distance across than down. */
-export function inTray(die: DieState): boolean {
-  return Math.abs(die.x - DIE_HOME.x) < 0.03 && Math.abs(die.y - DIE_HOME.y) < 0.08
+export function inTray(die: DieState, home: Spot): boolean {
+  return Math.abs(die.x - home.x) < 0.035 && Math.abs(die.y - home.y) < 0.09
 }
 
 export interface SavedGame {
@@ -77,6 +85,9 @@ export interface SavedGame {
   log: string[]
   /** Every die on the mat, where it came to rest and what it showed. */
   dice: DieState[]
+  /** The two fixed tools beside the tray. */
+  d20: number
+  coin: 'heads' | 'tails'
   /** What the deck looked like when this game was dealt. */
   signature: string
 }

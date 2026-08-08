@@ -15,7 +15,6 @@ export interface DeckView {
   aiMode: boolean
   aiStrategy: string | null
   activeThemes: string[]
-  scrollY: number
 }
 
 const views = new Map<string, DeckView>()
@@ -37,7 +36,3 @@ export function recallDeckView(deckId: string): DeckView | undefined {
   return views.get(deckId)
 }
 
-export function rememberDeckScroll(deckId: string, scrollY: number) {
-  const view = views.get(deckId)
-  if (view) view.scrollY = scrollY
-}

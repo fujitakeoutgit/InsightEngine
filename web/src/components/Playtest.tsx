@@ -1,16 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { useCardFace } from '../lib/faces'
+import { entersTapped } from '../lib/landTiming'
 import { useEscape } from '../lib/usePersisted'
 import { solidDragImage } from '../lib/useQuietDrag'
 import { Lightbox } from './Lightbox'
 import { ManaCost } from './ManaCost'
+import { PlayCoin, type CoinFace } from './PlayCoin'
+import { PlayD20 } from './PlayD20'
 import { PlayDie } from './PlayDie'
 import { canAnimate, gsap } from '../lib/motion'
 import { type DeckCard } from '../lib/deckModel'
 import {
-  deckSignature, inTray, makeDie, MAX_DICE, recallGame, rememberGame,
-  type DieState, type Instance, type Zone,
+  deckSignature, DIE_HOME, DIE_PX, inTray, makeDie, MAX_DICE, recallGame, rememberGame,
+  type DieState, type Instance, type Spot, type Zone,
 } from '../lib/playtestCache'
 
 /** A card being looked at, and the rect it grew from. */
@@ -108,7 +111,13 @@ export function Playtest({
   const [mulligans, setMulligans] = useState(resumed?.mulligans ?? 0)
   const [log, setLog] = useState<string[]>(resumed?.log ?? [])
   const [dice, setDice] = useState<DieState[]>(resumed?.dice ?? [makeDie(true)])
+  const [d20, setD20] = useState(resumed?.d20 ?? 20)
+  const [coin, setCoin] = useState<CoinFace>(resumed?.coin ?? 'heads')
+  /** Where the tray actually is, measured — it is laid out by flexbox in the
+   *  tool column, so its fraction of the mat is not something we can state. */
+  const [home, setHome] = useState<Spot>(DIE_HOME)
   const matRef = useRef<HTMLDivElement>(null)
+  const trayRef = useRef<HTMLDivElement>(null)
   const handRef = useRef<HTMLDivElement>(null)
 
   /** The in-flight drag: which card, and where in it you grabbed. Kept in a
@@ -148,8 +157,41 @@ export function Playtest({
   // read state in an effect cleanup that has closed over an older render, and
   // this is cheap -- a Map assignment against state React has already built.
   useEffect(() => {
-    rememberGame(gameKey, { cards, turn, life, mulligans, log, dice, signature })
-  }, [gameKey, signature, cards, turn, life, mulligans, log, dice])
+    rememberGame(gameKey, { cards, turn, life, mulligans, log, dice, d20, coin, signature })
+  }, [gameKey, signature, cards, turn, life, mulligans, log, dice, d20, coin])
+
+  /* Measure the tray and keep the tray die sitting in it.
+   *
+   * The tool column is flexbox, so the tray's position depends on the sizes
+   * of the d20 and coin above and below it; there is no constant to write
+   * down. Re-measured on resize, and the home die is moved to match so it
+   * never drifts out of its own slot when the window changes. */
+  useLayoutEffect(() => {
+    const measure = () => {
+      const mat = matRef.current
+      const tray = trayRef.current
+      if (!mat || !tray) return
+      const m = mat.getBoundingClientRect()
+      const t = tray.getBoundingClientRect()
+      const w = mat.clientWidth - DIE_PX
+      const h = mat.clientHeight - DIE_PX
+      const spot = {
+        x: w ? (t.x - m.x + (t.width - DIE_PX) / 2) / w : 0,
+        y: h ? (t.y - m.y + (t.height - DIE_PX) / 2) / h : 0,
+      }
+      setHome((current) =>
+        Math.abs(current.x - spot.x) < 0.0005 && Math.abs(current.y - spot.y) < 0.0005
+          ? current
+          : spot)
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
+
+  useEffect(() => {
+    setDice((ds) => ds.map((d) => (d.home ? { ...d, x: home.x, y: home.y } : d)))
+  }, [home])
 
   const inZone = useMemo(() => {
     const map: Record<Zone, Instance[]> = {
@@ -209,12 +251,12 @@ export function Playtest({
       const moved = after.find((d) => d.id === id)
       if (!moved) return after
 
-      if (moved.home && !inTray(moved)) {
+      if (moved.home && !inTray(moved, home)) {
         const loose = after.map((d) => (d.id === id ? { ...d, home: false } : d))
-        return loose.length < MAX_DICE ? [...loose, makeDie(true)] : loose
+        return loose.length < MAX_DICE ? [...loose, makeDie(true, home)] : loose
       }
       // Put away -- but never the last one, or the tray would be empty.
-      if (!moved.home && inTray(moved) && after.length > 1) {
+      if (!moved.home && inTray(moved, home) && after.length > 1) {
         return after.filter((d) => d.id !== id)
       }
       return after
@@ -268,11 +310,28 @@ export function Playtest({
     const n = inZone.battlefield.filter(
       (c) => regionFor(c.card.type_line ?? '') === name,
     ).length
-    move(iid, 'battlefield', {
+    const at = {
       x: region.x + (n % region.cols) * region.dx,
       y: region.y + Math.floor(n / region.cols) * region.dy,
-    })
-    note(`Played ${inst.card.name}`)
+    }
+
+    /* Lands may arrive tapped, and which ones depends on the board you have
+     * built by now. Working it out here saves the one piece of bookkeeping a
+     * goldfish otherwise gets wrong every time -- a check land coming down
+     * untapped on turn four is the whole reason it is in the deck. */
+    const verdict = entersTapped(
+      inst.card,
+      inZone.battlefield.map((c) => c.card),
+      inZone.hand.filter((c) => c.iid !== iid).map((c) => c.card),
+    )
+    setCards((cs) => cs.map((c) => (
+      c.iid === iid ? { ...c, zone: 'battlefield' as Zone, tapped: verdict.tapped, ...at } : c
+    )))
+
+    const because = verdict.why ? ` — ${verdict.why}` : ''
+    note(verdict.tapped
+      ? `Played ${inst.card.name} tapped${because}`
+      : `Played ${inst.card.name}${because}`)
   }
 
   /** Drop onto the mat: place the card where the pointer released it. */
@@ -347,7 +406,10 @@ export function Playtest({
             the mat underneath still takes drops. */}
         <div className="pt-rail">
           <div className="pt-actions">
-            <button className="btn btn-ghost sm" onClick={nextTurn}>Next turn</button>
+            {/* Solid: the one action in this column you take every single
+                turn, and the only one that advances the game rather than
+                rearranging it. */}
+            <button className="btn btn-primary sm" onClick={nextTurn}>Next turn</button>
             <button
               className="btn btn-ghost sm"
               onClick={() => shuffleLibrary()}
@@ -372,10 +434,16 @@ export function Playtest({
           </div>
         </div>
 
-        {/* Dice are things on the table, not controls beside it: they live in
-            the mat's coordinate space so they can be thrown across the board
-            and left wherever they land. */}
-        <div className="pt-die-tray" aria-hidden />
+        {/* The tools, stacked just above the deck at the bottom of the same
+            column as the actions: the d20 you roll for an answer, the tray the
+            d6s come out of, and the coin. Loose dice are separate — they are
+            things on the table, living in the mat's own coordinate space so
+            they can be thrown across the board and left where they land. */}
+        <div className="pt-tools">
+          <PlayD20 value={d20} onRoll={(next) => { setD20(next); note(`d20: ${next}`) }} />
+          <div className="pt-die-tray" ref={trayRef} aria-hidden />
+          <PlayCoin face={coin} onFlip={(next) => { setCoin(next); note(`Coin: ${next}`) }} />
+        </div>
         {dice.map((d) => (
           <PlayDie
             key={d.id}

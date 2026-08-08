@@ -245,8 +245,15 @@
   font-size: 12px;
   line-height: 1;
   opacity: 0;
-  transition: opacity var(--dur-fast), color var(--dur-fast);
+  transition: opacity var(--dur-fast), color var(--dur-fast),
+              transform var(--dur-fast) var(--ease-snap);
 }
+
+/* The pin is the one control here with a state to report rather than an
+   action to offer, so it is drawn at a size you can read at a glance
+   instead of matching the discard cross beside it. */
+.history-lock { font-size: 17px; padding: 0 4px; }
+.history-lock:active { transform: scale(0.86); }
 
 .history tbody tr:hover .history-lock,
 .history tbody tr:hover .history-drop,
@@ -1869,19 +1876,22 @@
    the mat underneath still takes drops. */
 .pt-rail {
   position: absolute;
-  top: 10px;
+  /* Clear of the bar above it: at 10px the first button sat right against the
+     banner and read as part of it. */
+  top: 26px;
   right: 12px;
   z-index: 4;
-  width: 128px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  align-items: flex-end;
+  gap: 12px;
   pointer-events: none;
 }
 
 .pt-rail > * { pointer-events: auto; }
 
 .pt-actions {
+  width: 128px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1889,12 +1899,14 @@
 
 .pt-actions .btn { padding: 5px 9px; font-size: 10.5px; justify-content: flex-start; }
 
-/* Reading matter, not a control. Left to grow downward from under the
-   actions: it is the only thing in the rail with nothing beneath it, so
-   there is nothing for it to push around. */
+/* Reading matter, not a control -- and wider than the buttons it sits under,
+   because a line like "Tutored Llanowar Elves, then shuffled" wrapped onto
+   two rows at the column's width and the log stopped scanning as one entry
+   per line. Right-aligned into the same edge, growing leftward. */
 .pt-history {
+  width: min(360px, 32vw);
   font-size: 10px;
-  line-height: 1.3;
+  line-height: 1.35;
   color: var(--faint);
   text-align: right;
   display: flex;
@@ -1902,6 +1914,30 @@
   gap: 1px;
   pointer-events: none;
 }
+
+/* One entry, one line, whatever the card is called. */
+.pt-history div {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The tools: d20, the d6 tray, and the coin -- same column as the actions but
+   anchored to the bottom, so they sit directly above the deck the way a set of
+   dice sits beside the library on a table. */
+.pt-tools {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.pt-tools > * { pointer-events: auto; }
 
 .pt-pile {
   min-width: 116px;
@@ -2016,17 +2052,21 @@
   font-size: 19px;
   line-height: 1;
   color: var(--muted);
-  opacity: 0.55;
+  /* Hidden until the card is under the pointer — the board is a picture of
+     your permanents, and a control stamped on every one of them turns it
+     into a form. */
+  opacity: 0;
   transition: opacity var(--dur-fast), color var(--dur-fast),
               border-color var(--dur-fast), transform var(--dur-fast) var(--ease-snap);
 }
 
-.pt-card:hover .pt-tap { opacity: 1; }
+.pt-card:hover .pt-tap,
+.pt-tap:focus-visible { opacity: 1; }
 .pt-tap:hover { color: var(--aether-hi); border-color: var(--aether); }
 .pt-tap:active { transform: scale(0.9); }
 
-/* Turned sideways already: the control says so, and says which way back. */
-.pt-card.tapped .pt-tap { opacity: 1; color: var(--aether); border-color: var(--aether); }
+/* Turned sideways already: while it is showing, it says which way back. */
+.pt-card.tapped .pt-tap { color: var(--aether); border-color: var(--aether); }
 
 .pt-card:hover .pt-info,
 .pt-card:hover .pt-flip { opacity: 1; }
@@ -2597,20 +2637,97 @@
 /* The tray the dice come out of. Drawn only as a hairline recess: it is a
    place, not a control, and the die sitting in it is the thing you aim at.
    Positioned to match DIE_HOME, and inert so it never intercepts a drop. */
+/* The tray the d6s come out of. Drawn only as a hairline recess: it is a
+   place, not a control, and the die sitting in it is the thing you aim at.
+   Its position is read back off this element at runtime, so it can be laid
+   out here by flexbox rather than pinned to a magic fraction. */
 .pt-die-tray {
-  position: absolute;
-  /* DIE_HOME is a fraction of the *free* space, so 0.5 of it lands at
-     0.5·(matW − 46) — half the mat, less half the die. The 4px then insets
-     the recess a little wider than the die that sits in it. */
-  left: calc(50% - 27px);
-  top: calc(90% - 45.4px);
+  flex: none;
   width: 54px;
   height: 54px;
   border: 1px dashed var(--line-soft);
   border-radius: 12px;
   pointer-events: none;
-  z-index: 3;
 }
+
+/* The d20. Numerals, because twenty pips is not a thing you read. */
+.pt-d20 {
+  position: relative;
+  flex: none;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  will-change: transform;
+  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.55));
+}
+
+.pt-d20 svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.pt-d20 .body {
+  fill: var(--bg-hi);
+  stroke: var(--line);
+  stroke-width: 3;
+  transition: stroke var(--dur-fast);
+}
+.pt-d20 .face {
+  fill: color-mix(in oklab, var(--aether) 12%, transparent);
+  stroke: var(--line-soft);
+  stroke-width: 2;
+}
+.pt-d20:hover .body { stroke: var(--aether); }
+
+.pt-d20-value {
+  position: relative;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  /* Sits in the upward face rather than the middle of the hexagon. */
+  transform: translateY(5px);
+  pointer-events: none;
+}
+
+/* The coin. A real two-sided disc so the face it shows is its rotation
+   rather than a swapped graphic — there is no instant where it reads one
+   thing and reports another. */
+.pt-coin {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  perspective: 480px;
+  cursor: pointer;
+  will-change: transform;
+  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.55));
+}
+
+.pt-coin-disc {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.pt-coin-side {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: radial-gradient(circle at 34% 28%,
+    color-mix(in oklab, var(--aether) 26%, var(--bg-hi)), var(--bg) 78%);
+  box-shadow: inset 0 0 0 3px rgba(148, 163, 205, 0.12);
+  font-size: 17px;
+  color: var(--aether-hi);
+  backface-visibility: hidden;
+}
+
+.pt-coin-side.tails { transform: rotateX(180deg); color: var(--muted); }
+.pt-coin:hover .pt-coin-side { border-color: var(--aether); }
 
 .pt-die-cube {
   position: relative;
