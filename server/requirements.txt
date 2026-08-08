@@ -7,6 +7,16 @@ rapidfuzz~=3.11
 orjson~=3.10
 python-dotenv~=1.0
 
+# Tray and branding. Pillow draws the mark -- the tray icon, the executable's
+# icon and the installer's all come out of app/icon.py -- and pystray puts it
+# in the notification area; psutil is how the tray finds whatever already owns
+# its ports. Present in every working checkout but missing from this file
+# until now, so a fresh install got a tray that could not start and a release
+# build that could not draw its own icon.
+pillow~=11.0
+pystray~=0.19
+psutil~=6.1
+
 # dev / test
 pytest~=8.3
 pytest-asyncio~=0.25

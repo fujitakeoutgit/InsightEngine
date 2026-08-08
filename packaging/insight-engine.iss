@@ -39,6 +39,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#AppExe}
+SetupIconFile=insight-engine.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

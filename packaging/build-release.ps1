@@ -65,6 +65,24 @@ Ok 'web/dist'
 
 # --- 2. freeze -------------------------------------------------------------
 
+Step 'Drawing the icon'
+# Regenerated every build rather than committed as a binary that drifts: it is
+# a hundred lines of Pillow, and the executable, the installer and the tray all
+# take their mark from this one file.
+# Run as a module from the server directory rather than passed as `-c`:
+# PowerShell strips the inner quotes out of an inline program, which turned
+# sys.path.insert(0, "server") into a NameError.
+$ico = Join-Path $root 'packaging\insight-engine.ico'
+Push-Location (Join-Path $root 'server')
+try {
+    Run $python @('-m', 'app.icon', $ico)
+    if ($LASTEXITCODE -ne 0) { Die 'Icon generation failed.' }
+} finally {
+    Pop-Location
+}
+if (-not (Test-Path $ico)) { Die 'Icon generation produced no .ico.' }
+Ok 'packaging\insight-engine.ico'
+
 Step 'Freezing the server'
 
 if (-not (Test-Path $pyinstaller)) {
