@@ -27,12 +27,35 @@ export interface Instance {
   y: number
 }
 
+/**
+ * The die, as it sits on the mat.
+ *
+ * Position is fractional like a card's, but of the *free* space rather than
+ * the mat: 1 means "right edge touching the far side", not "off the board".
+ * That makes clamping a plain 0..1 and keeps the die fully visible at any
+ * window size.
+ */
+export interface DieState {
+  x: number
+  y: number
+  value: number
+  /** Counting rather than rolling: clicks step the face instead of it being
+   *  something you throw. */
+  counting: boolean
+}
+
+/** Bottom right, clear of the hand and the corner stack, where a die would sit
+ *  if you set it down beside the deck. */
+export const INITIAL_DIE: DieState = { x: 0.93, y: 0.78, value: 6, counting: false }
+
 export interface SavedGame {
   cards: Instance[]
   turn: number
   life: number
   mulligans: number
   log: string[]
+  /** Where the die came to rest, and what it was showing. */
+  die: DieState
   /** What the deck looked like when this game was dealt. */
   signature: string
 }

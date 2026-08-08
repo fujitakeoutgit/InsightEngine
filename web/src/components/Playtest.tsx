@@ -9,7 +9,8 @@ import { PlayDie } from './PlayDie'
 import { canAnimate, gsap } from '../lib/motion'
 import { type DeckCard } from '../lib/deckModel'
 import {
-  deckSignature, recallGame, rememberGame, type Instance, type Zone,
+  deckSignature, INITIAL_DIE, recallGame, rememberGame,
+  type DieState, type Instance, type Zone,
 } from '../lib/playtestCache'
 
 /** A card being looked at, and the rect it grew from. */
@@ -106,6 +107,7 @@ export function Playtest({
   const [life, setLife] = useState(resumed?.life ?? 40)
   const [mulligans, setMulligans] = useState(resumed?.mulligans ?? 0)
   const [log, setLog] = useState<string[]>(resumed?.log ?? [])
+  const [die, setDie] = useState<DieState>(resumed?.die ?? INITIAL_DIE)
   const matRef = useRef<HTMLDivElement>(null)
   const handRef = useRef<HTMLDivElement>(null)
 
@@ -146,8 +148,8 @@ export function Playtest({
   // read state in an effect cleanup that has closed over an older render, and
   // this is cheap -- a Map assignment against state React has already built.
   useEffect(() => {
-    rememberGame(gameKey, { cards, turn, life, mulligans, log, signature })
-  }, [gameKey, signature, cards, turn, life, mulligans, log])
+    rememberGame(gameKey, { cards, turn, life, mulligans, log, die, signature })
+  }, [gameKey, signature, cards, turn, life, mulligans, log, die])
 
   const inZone = useMemo(() => {
     const map: Record<Zone, Instance[]> = {
@@ -315,6 +317,17 @@ export function Playtest({
             key={c.iid} inst={c} drag={drag} onTap={tap} onZoom={setZoomed} placed
           />
         ))}
+        {/* The die is a thing on the table, not a control beside it: it lives
+            in the mat's coordinate space so it can be thrown across the board
+            and left wherever it lands. */}
+        <PlayDie
+          die={die}
+          matRef={matRef}
+          onChange={(next) => setDie((d) => ({ ...d, ...next }))}
+          onRoll={(value, counting) =>
+            note(counting ? `Counter at ${value}` : `Rolled a ${value}`)}
+        />
+
         {!inZone.battlefield.length && (
           <p className="pt-empty faint">Click a card in hand to play it, or drag it here.</p>
         )}
@@ -389,8 +402,6 @@ export function Playtest({
             {log.slice(0, 5).map((line, i) => <div key={`${log.length}-${i}`}>{line}</div>)}
           </div>
 
-          <PlayDie onRoll={(value, counting) =>
-            note(counting ? `Counter at ${value}` : `Rolled a ${value}`)} />
           </div>
 
           {/* The deck sits at the end of your hand, where it does on a table,

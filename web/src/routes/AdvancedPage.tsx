@@ -245,6 +245,7 @@ export function AdvancedPage() {
           being built, so it belongs where the eye already is rather than at the
           bottom of a long form. It is the one page whose back control sits
           lower than everywhere else, which is the cost of that. */}
+      <div className="query-dock">
       <div className="query-preview">
         <span className="label preview-tag">Query</span>
         <code>{query || 'Nothing selected yet'}</code>
@@ -263,6 +264,7 @@ export function AdvancedPage() {
             Search with these options
           </button>
         </div>
+      </div>
       </div>
 
       <PageHead
