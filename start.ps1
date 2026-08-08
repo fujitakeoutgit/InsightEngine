@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Start Insight Enigma: checks prerequisites, then launches the API and web server.
+    Start Insight Engine: checks prerequisites, then launches the API and web server.
 
 .EXAMPLE
     .\start.ps1

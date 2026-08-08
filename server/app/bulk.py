@@ -345,7 +345,7 @@ def refresh(force: bool = False, reingest: bool = False) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build the Insight Enigma card mirror")
+    parser = argparse.ArgumentParser(description="Build the Insight Engine card mirror")
     parser.add_argument("--force", action="store_true", help="re-download even if current")
     parser.add_argument("--reingest", action="store_true",
                         help="re-parse cached bulk files without downloading")

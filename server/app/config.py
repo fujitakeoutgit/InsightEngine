@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # Scryfall asks for a descriptive User-Agent and ~10 requests/second.
     # https://scryfall.com/docs/api
     scryfall_base: str = "https://api.scryfall.com"
-    scryfall_user_agent: str = "InsightEnigma/1.0 (+https://github.com/fujitakeoutgit/manafold)"
+    scryfall_user_agent: str = "InsightEngine/1.0 (+https://github.com/fujitakeoutgit/manafold)"
     scryfall_min_interval: float = 0.1  # seconds between requests => 10 req/s
     scryfall_max_concurrency: int = 4
     scryfall_timeout: float = 30.0

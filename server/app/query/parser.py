@@ -1,7 +1,7 @@
-"""Tokenizer and parser for Insight Enigma's search syntax.
+"""Tokenizer and parser for Insight Engine's search syntax.
 
 The grammar follows Scryfall's shape (``c:red t:creature mv<=3``) plus two
-Insight Enigma-only extensions:
+Insight Engine-only extensions:
 
 * ``q:"free text"``   -- hand the phrase to the local LLM planner.
 * ``_`` inside a quoted value -- wildcard matching any run of characters,

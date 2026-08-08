@@ -1,10 +1,10 @@
-# Insight Enigma
+# Insight Engine
 
 A Magic: The Gathering search engine. Scryfall's capability, original interface,
 plus a local-LLM semantic search that is structurally incapable of inventing a card.
 
 > **Data source:** card data and images are provided by
-> [Scryfall](https://scryfall.com) under their API terms. Insight Enigma is unofficial
+> [Scryfall](https://scryfall.com) under their API terms. Insight Engine is unofficial
 > Fan Content permitted under the Wizards of the Coast Fan Content Policy, and is
 > not affiliated with or endorsed by Scryfall or Wizards of the Coast.
 
@@ -35,7 +35,7 @@ Browser ──► Vite/React (5173) ──proxy──► FastAPI (8787) ──�
 **Why a local mirror when the API exists.** The two stated goals conflict: an
 exhaustive sweep of the corpus cannot be done over a paginated, rate-limited
 API without hammering it. Scryfall publish daily bulk files for exactly this
-case. So Insight Enigma splits the difference:
+case. So Insight Engine splits the difference:
 
 - **Live API** for ordinary queries — full operator fidelity and current prices.
 - **Local mirror** for `q:`, `_` wildcards and `otag:` — syntax the API cannot

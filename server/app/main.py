@@ -1,9 +1,9 @@
-"""Insight Enigma API.
+"""Insight Engine API.
 
 A Magic: The Gathering search engine.
 
 Card data and images are provided by Scryfall (https://scryfall.com) under
-their API terms. Insight Enigma is unofficial Fan Content permitted under the Wizards
+their API terms. Insight Engine is unofficial Fan Content permitted under the Wizards
 of the Coast Fan Content Policy, and is not affiliated with or endorsed by
 Scryfall or Wizards of the Coast.
 """
@@ -36,7 +36,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="Insight Enigma",
+    title="Insight Engine",
     description="Magic: The Gathering card search. Data source: Scryfall.",
     version="1.0.0",
     lifespan=lifespan,

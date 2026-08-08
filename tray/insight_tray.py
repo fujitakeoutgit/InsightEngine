@@ -1,4 +1,4 @@
-"""Insight Enigma — system-tray controller for the local servers.
+"""Insight Engine — system-tray controller for the local servers.
 
 Runs on login and sits idle: the default state is *stopped*, so nothing is
 listening until you ask for it.
@@ -35,7 +35,7 @@ import psutil
 import pystray
 from PIL import Image, ImageDraw
 
-APP_NAME = "Insight Enigma"
+APP_NAME = "Insight Engine"
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -284,7 +284,7 @@ class TrayApp:
             pystray.MenuItem(self._status_line, None, enabled=False),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
-                "Open Insight Enigma", self.on_open,
+                "Open Insight Engine", self.on_open,
                 default=True, enabled=lambda _: self.state is State.RUNNING,
             ),
             pystray.MenuItem("Start server", self.on_start, enabled=idle),

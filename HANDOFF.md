@@ -1,10 +1,10 @@
-# Insight Enigma — session handoff
+# Insight Engine — session handoff
 
 Copy everything below into a new session.
 
 ---
 
-I'm continuing work on **Insight Enigma**, a Magic: The Gathering search and
+I'm continuing work on **Insight Engine**, a Magic: The Gathering search and
 deck-building app at `C:\Users\fujit\source\repos\manafold`. It's a personal
 tool, private repo, Windows.
 

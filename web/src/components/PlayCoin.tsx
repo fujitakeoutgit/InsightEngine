@@ -86,9 +86,12 @@ export function PlayCoin({
       aria-label={`Coin showing ${face}`}
       aria-live="polite"
     >
+      {/* Lettered rather than symbolled. A coin's two sides only mean
+          anything if you can tell which one you are looking at, and ✦ against
+          ◈ is a puzzle at 44px. */}
       <span className="pt-coin-disc" ref={discRef} aria-hidden>
-        <span className="pt-coin-side heads">✦</span>
-        <span className="pt-coin-side tails">◈</span>
+        <span className="pt-coin-side heads">H</span>
+        <span className="pt-coin-side tails">T</span>
       </span>
     </button>
   )

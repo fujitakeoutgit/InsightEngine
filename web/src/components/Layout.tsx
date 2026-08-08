@@ -137,7 +137,7 @@ export function Layout() {
         <div className="shell header-inner">
           <NavLink to="/" className="brand">
             <span className="mark" aria-hidden />
-            Insight Enigma
+            Insight Engine
           </NavLink>
           <nav className="nav" ref={navRef}>
             {NAV.map((item) => (
@@ -181,7 +181,7 @@ export function Layout() {
               <a href="https://scryfall.com" target="_blank" rel="noreferrer noopener">
                 Scryfall
               </a>
-              . Insight Enigma is unofficial Fan Content permitted under the Wizards of the Coast
+              . Insight Engine is unofficial Fan Content permitted under the Wizards of the Coast
               Fan Content Policy.
             </p>
             <p className="faint" style={{ marginTop: 6 }}>

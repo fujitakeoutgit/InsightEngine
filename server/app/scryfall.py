@@ -6,7 +6,7 @@ two-tier cache (process memory, then SQLite) in front of every GET, and backs
 off on 429. Nothing else in the app is permitted to call Scryfall directly.
 
 Data source: Scryfall (https://scryfall.com). Card data and images are provided
-by Scryfall under their API terms; Insight Enigma is not affiliated with or endorsed
+by Scryfall under their API terms; Insight Engine is not affiliated with or endorsed
 by Scryfall or Wizards of the Coast.
 """
 
@@ -215,7 +215,7 @@ class ScryfallClient:
 
 
 def normalize_card(obj: dict[str, Any]) -> dict[str, Any]:
-    """Map a raw Scryfall card object onto Insight Enigma's card shape.
+    """Map a raw Scryfall card object onto Insight Engine's card shape.
 
     Proxied results and locally-served results must be indistinguishable to the
     frontend, otherwise every component has to know which engine answered.

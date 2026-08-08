@@ -434,6 +434,7 @@ function EditorRow({
           title={`Open ${card.name}`}
           aria-label={`Open ${card.name}`}
           onClick={(e) => e.stopPropagation()}
+          draggable={false}
         >
           i
         </Link>
@@ -468,7 +469,14 @@ function EditorRow({
         <span className="mono">{entry.quantity}</span>
         <button onClick={() => onAdjust(entry.uid, 1)} aria-label="One more">+</button>
       </div>
-      <Link to={`/card/${card.oracle_id}`} className="nm">{card.name}</Link>
+      {/* draggable={false} as well as the stylesheet rule: an anchor is
+          draggable by default, and the card name is the obvious place to grab
+          a row by. Without it the browser takes the gesture and drags the
+          link — its own ghost, its own payload — and the drop never reaches
+          the section handler, which reads as the row refusing to move. The
+          attribute is what reliably stops it; -webkit-user-drag is a
+          non-standard backstop. */}
+      <Link to={`/card/${card.oracle_id}`} className="nm" draggable={false}>{card.name}</Link>
       <ManaCost cost={card.mana_cost} />
       <span className="push mono faint price">
         {card.usd !== null ? `$${(card.usd * entry.quantity).toFixed(2)}` : '—'}

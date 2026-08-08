@@ -1,4 +1,4 @@
-/** Typed client for the Insight Enigma API. Requests go through Vite's proxy. */
+/** Typed client for the Insight Engine API. Requests go through Vite's proxy. */
 
 import { addToSection, type Section } from './deckModel'
 
