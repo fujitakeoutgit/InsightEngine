@@ -9,7 +9,12 @@
 ; rather than raising a prompt that makes people close it.
 
 #define AppName        "Insight Engine"
-#define AppVersion      "1.0.0"
+; Overridable from the command line: build-release.ps1 passes /DAppVersion=…
+; so the version lives in one place. The default is only for compiling this
+; file directly.
+#ifndef AppVersion
+  #define AppVersion    "1.0.0"
+#endif
 #define AppPublisher    "Insight Engine"
 #define AppExe          "InsightEngine.exe"
 #define AppUrl          "https://github.com/fujitakeoutgit/manafold"
@@ -60,9 +65,11 @@ Name: "{userstartup}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: startup
 Filename: "{app}\{#AppExe}"; Description: "Start {#AppName} now"; Flags: nowait postinstall skipifsilent unchecked
 
 [UninstallDelete]
-; The build leaves __pycache__ behind; without this the folder survives
-; uninstall and looks like a failed removal.
-Type: filesandortotal; Name: "{app}"
+; PyInstaller's runtime leaves __pycache__ behind; without this the install
+; folder survives uninstall and looks like a failed removal. Only {app} --
+; the card mirror and saved decks live in LOCALAPPDATA and are deliberately
+; left alone, so reinstalling does not throw away someone's decks.
+Type: filesandordirs; Name: "{app}"
 
 [Messages]
 ; The card data is not in this package and the first run is long, so say so
