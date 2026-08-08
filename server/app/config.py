@@ -7,12 +7,39 @@ different data directory without a code change.
 
 from __future__ import annotations
 
+import os
+import sys
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-SERVER_ROOT = Path(__file__).resolve().parent.parent
-PROJECT_ROOT = SERVER_ROOT.parent
+#: True when running from a PyInstaller bundle rather than a source checkout.
+FROZEN = getattr(sys, "frozen", False)
+
+if FROZEN:
+    # Read-only payload: the bundled `web/dist`, the seed decklist. PyInstaller
+    # unpacks these beside the executable (onedir) or into a temp dir (onefile),
+    # and _MEIPASS is the only thing that knows which.
+    PROJECT_ROOT = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+    SERVER_ROOT = PROJECT_ROOT
+else:
+    SERVER_ROOT = Path(__file__).resolve().parent.parent
+    PROJECT_ROOT = SERVER_ROOT.parent
+
+
+def _default_data_dir() -> Path:
+    """Where the mirror and the saved decks live.
+
+    A source checkout keeps them in the repo, which is convenient and is what
+    every existing install expects. An installed copy cannot: Program Files is
+    read-only to a normal user, and a 200MB mirror does not belong in it
+    anyway. LOCALAPPDATA is the Windows answer for per-user application data
+    that is not worth roaming.
+    """
+    if not FROZEN:
+        return PROJECT_ROOT / "data"
+    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    return Path(base) / "InsightEngine"
 
 
 class Settings(BaseSettings):
@@ -23,8 +50,8 @@ class Settings(BaseSettings):
     )
 
     # --- storage -----------------------------------------------------------
-    data_dir: Path = PROJECT_ROOT / "data"
-    db_path: Path = PROJECT_ROOT / "data" / "manafold.sqlite3"
+    data_dir: Path = _default_data_dir()
+    db_path: Path = _default_data_dir() / "manafold.sqlite3"
 
     # --- Scryfall ----------------------------------------------------------
     # Scryfall asks for a descriptive User-Agent and ~10 requests/second.

@@ -13,6 +13,7 @@ guidance and still not guarantee completeness.
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import sqlite3
 import sys
@@ -62,6 +63,56 @@ def download(client: httpx.Client, uri: str, dest: Path) -> Path:
     tmp.replace(dest)
     _log(f"  {dest.name}: done ({seen / 1e6:.1f} MB)")
     return dest
+
+
+def _bulk_uri(entry: dict[str, Any]) -> str:
+    """Where to fetch one bulk file from.
+
+    Scryfall retired `download_uri` in favour of `jsonl_download_uri`. The old
+    key is still tried first so an older, cached manifest keeps working, and a
+    missing pair fails with something that names the problem rather than a bare
+    KeyError -- which is how this surfaced: a fresh install got as far as
+    "sets: 1047" and then died on `'download_uri'`.
+    """
+    uri = entry.get("download_uri") or entry.get("jsonl_download_uri")
+    if not uri:
+        raise KeyError(
+            f"Scryfall's manifest for '{entry.get('type')}' has no download URI "
+            f"(keys: {sorted(entry)}). Their bulk API has probably changed again."
+        )
+    return uri
+
+
+def _read_bulk(path: Path) -> list[dict[str, Any]]:
+    """Load one bulk file, whichever shape it is in.
+
+    Scryfall replaced `download_uri` -- a single JSON array -- with
+    `jsonl_download_uri`, which is gzipped newline-delimited JSON. Anything
+    downloaded from now on is the latter, but a machine that built its mirror
+    before the change still has the old files cached, and re-ingesting after a
+    schema bump must not force a quarter-gigabyte re-download just because the
+    container changed. So the format is detected from the file rather than
+    assumed: gzip announces itself in its first two bytes.
+
+    Line by line rather than `json.loads` over the whole text, because these
+    run to hundreds of megabytes and the array form already peaked near a
+    gigabyte of resident memory on the way in.
+    """
+    with path.open("rb") as probe:
+        gzipped = probe.read(2) == b"\x1f\x8b"
+
+    opener = gzip.open if gzipped else open
+    with opener(path, "rt", encoding="utf-8") as fh:
+        first = fh.read(1)
+        while first and first.isspace():
+            first = fh.read(1)
+        if first == "[":
+            # The old array form, cached before the API changed.
+            fh.seek(0)
+            return json.load(fh)
+        # JSONL. Rewind past the character used to sniff it.
+        fh.seek(0)
+        return [json.loads(line) for line in fh if line.strip()]
 
 
 def _face_texts(card: dict[str, Any]) -> tuple[str, str]:
@@ -191,7 +242,7 @@ def ingest_sets(conn: sqlite3.Connection, client: httpx.Client) -> set[str]:
 
 def ingest_cards(conn: sqlite3.Connection, path: Path, funny_sets: set[str]) -> int:
     _log("parsing oracle_cards ...")
-    cards = json.loads(path.read_text(encoding="utf-8"))
+    cards = _read_bulk(path)
     rows = [r for r in (_card_row(c, funny_sets) for c in cards) if r]
 
     conn.execute("DELETE FROM cards")
@@ -218,7 +269,7 @@ def ingest_tags(conn: sqlite3.Connection, path: Path) -> int:
     incapable of inventing a concept that has no cards behind it.
     """
     _log("parsing oracle_tags ...")
-    tags = json.loads(path.read_text(encoding="utf-8"))
+    tags = _read_bulk(path)
 
     conn.execute("DELETE FROM tags")
     conn.execute("DELETE FROM tag_cards")
@@ -263,7 +314,7 @@ def ingest_tags(conn: sqlite3.Connection, path: Path) -> int:
 
 def ingest_rulings(conn: sqlite3.Connection, path: Path) -> int:
     _log("parsing rulings ...")
-    rulings = json.loads(path.read_text(encoding="utf-8"))
+    rulings = _read_bulk(path)
     conn.execute("DELETE FROM rulings")
     conn.executemany(
         "INSERT INTO rulings(oracle_id, published_at, comment, source) VALUES(?,?,?,?)",
@@ -326,8 +377,8 @@ def refresh(force: bool = False, reingest: bool = False) -> None:
                 continue
 
             if force or not have_file:
-                _log(f"{kind}: downloading {entry['download_uri']}")
-                download(client, entry["download_uri"], dest)
+                _log(f"{kind}: downloading {_bulk_uri(entry)}")
+                download(client, _bulk_uri(entry), dest)
                 set_meta(conn, f"file:{kind}", stamp)
             else:
                 _log(f"{kind}: re-ingesting cached file")
