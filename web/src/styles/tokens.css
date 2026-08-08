@@ -62,16 +62,29 @@
   --font-b: 'Instrument Sans', 'Segoe UI', system-ui, sans-serif;
   --font-m: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
 
+  /* --- type scale ----------------------------------------------------
+     A small fluid scale rather than ad-hoc pixel sizes. --step--1 was
+     already referenced by .head-sub but never defined, so subtitles were
+     silently inheriting their parent's size. */
+  --step--1: clamp(12.5px, 0.35vw + 11.4px, 13.5px);
+  --step-0: 15px;
+  --step-1: clamp(16px, 0.5vw + 14.5px, 18px);
+
   /* --- geometry ------------------------------------------------------ */
   --r: 5px;
   --r-lg: 8px;
   --shell: min(1560px, calc(100vw - 48px));
 
-  /* --- motion -------------------------------------------------------- */
+  /* --- motion --------------------------------------------------------
+     --ease-out is the house curve: long deceleration, everything resolving
+     into place. --ease-snap overshoots slightly and exists for micro-
+     interactions only — presses, badges, the nav ink — where a 2% bounce
+     reads as tactility rather than as animation. */
   --dur-fast: 0.18s;
   --dur: 0.4s;
   --dur-slow: 0.9s;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-snap: cubic-bezier(0.34, 1.56, 0.42, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {

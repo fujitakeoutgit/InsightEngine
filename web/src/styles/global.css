@@ -19,6 +19,9 @@ html {
   scrollbar-gutter: stable;
   overflow-x: clip;
   -webkit-text-size-adjust: 100%;
+  /* Firefox scrollbar tint; the WebKit half lives with the other scrollbar
+     rules further down. */
+  scrollbar-color: rgba(148, 163, 205, 0.28) transparent;
 }
 
 body {
@@ -64,6 +67,39 @@ a {
   outline: 2px solid var(--aether);
   outline-offset: 2px;
   border-radius: 2px;
+}
+
+/* The scrollbar is chrome the app draws on every page, so it wears the same
+   glass as everything else instead of the platform default. These are the
+   WebKit half; Firefox's scrollbar-color sits on the html reset rule. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 205, 0.22);
+  border-radius: 99px;
+  border: 3px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover { background: color-mix(in oklab, var(--aether) 55%, transparent); }
+
+/* The text caret is part of the accent system, not browser default blue. */
+input,
+textarea { caret-color: var(--aether-hi); }
+
+/* Keycaps — the footer's "Press / to search" and anywhere else a key is
+   named. Drawn as a key rather than left as bare text. */
+kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  background: var(--bg-hi);
+  font-family: var(--font-m);
+  font-size: 11px;
+  color: var(--muted);
 }
 
 /* --------------------------------------------------------------------------
@@ -157,6 +193,12 @@ a {
   text-transform: uppercase;
   color: var(--muted);
 }
+
+/* Characters wrapped by splitChars for staggered reveals. Inline-block is
+   load-bearing: transforms do not apply to ordinary inline elements, so
+   without it every yPercent in a title reveal silently no-ops and only the
+   blur/opacity half of the effect ever ran. */
+.char { display: inline-block; }
 
 .mono { font-family: var(--font-m); }
 .num { font-family: var(--font-m); font-variant-numeric: tabular-nums; }
@@ -258,6 +300,15 @@ main { flex: 1; padding-bottom: 88px; }
   backdrop-filter: blur(18px) saturate(140%);
   background: color-mix(in oklab, var(--bg) 84%, transparent);
   border-bottom: 1px solid var(--line-soft);
+  transition: background-color var(--dur), border-color var(--dur);
+}
+
+/* Once content is actually passing underneath, the bar earns more glass:
+   denser fill, a firmer rule. At the top of the page it stays nearly part of
+   the canvas. */
+.header.scrolled {
+  background: color-mix(in oklab, var(--bg) 93%, transparent);
+  border-color: var(--line);
 }
 
 .header-inner {
@@ -292,10 +343,27 @@ main { flex: 1; padding-bottom: 88px; }
 }
 
 .nav {
+  position: relative;
   display: flex;
   gap: 2px;
   margin-left: auto;
   align-items: center;
+}
+
+/* One shared underline that travels between links, rather than each link
+   drawing its own. Positioned by Layout from the active link's measurements;
+   GSAP slides it on navigation, so switching pages reads as the ink moving
+   to the new destination rather than one lamp going out and another on. */
+.nav-ink {
+  position: absolute;
+  bottom: 1px;
+  left: 0;
+  height: 1px;
+  width: 0;
+  background: var(--aether);
+  border-radius: 1px;
+  box-shadow: 0 0 8px color-mix(in oklab, var(--aether) 60%, transparent);
+  pointer-events: none;
 }
 
 .nav a {
@@ -315,17 +383,8 @@ main { flex: 1; padding-bottom: 88px; }
 .nav a:hover { color: var(--ink); background: var(--glass); }
 .nav a.active { color: var(--aether-hi); }
 
-.nav a.active::after {
-  content: '';
-  position: absolute;
-  left: 11px;
-  right: 11px;
-  bottom: 1px;
-  height: 1px;
-  background: var(--aether);
-}
-
 .nav .count-badge {
+  display: inline-block;
   margin-left: 6px;
   padding: 1px 5px;
   border-radius: 99px;
@@ -335,11 +394,32 @@ main { flex: 1; padding-bottom: 88px; }
   font-weight: 700;
 }
 
+/* Pops on arrival: the badge only mounts when the first card is collected,
+   and that moment deserves a flourish the eye can catch from the corner.
+   CSS-driven so it replays on insertion and never on re-render.
+
+   All CSS entrances live under `:root.motion-ok` — set by Layout from the
+   same canAnimate() verdict that gates GSAP. A keyframe on a hidden document
+   freezes at its first frame, so an ungated entrance that starts at
+   opacity 0 or scale 0 can leave the element invisible indefinitely. The
+   gate also covers prefers-reduced-motion, so no per-animation media query
+   is needed. */
+:root.motion-ok .nav .count-badge {
+  animation: badge-pop 0.45s var(--ease-snap);
+}
+
+@keyframes badge-pop {
+  from { transform: scale(0); }
+  to { transform: scale(1); }
+}
+
 /* --------------------------------------------------------------------------
    Controls
    -------------------------------------------------------------------------- */
 
 .btn {
+  position: relative;
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -355,10 +435,15 @@ main { flex: 1; padding-bottom: 88px; }
   letter-spacing: 0.14em;
   text-transform: uppercase;
   transition: background-color var(--dur-fast), border-color var(--dur-fast),
-              color var(--dur-fast);
+              color var(--dur-fast), transform var(--dur-fast) var(--ease-snap);
 }
 
 .btn:hover { background: var(--glass-hi); border-color: var(--aether); color: var(--aether-hi); }
+
+/* Press feedback: the button gives under the pointer. The snap curve
+   overshoots a hair on release, which is what makes it feel sprung rather
+   than merely restyled. */
+.btn:active:not(:disabled) { transform: translateY(1px) scale(0.97); }
 
 .btn-primary {
   background: var(--aether);
@@ -368,6 +453,25 @@ main { flex: 1; padding-bottom: 88px; }
 }
 
 .btn-primary:hover { background: var(--aether-hi); border-color: var(--aether-hi); color: var(--aether-ink); }
+
+/* A sheen that sweeps the primary button on hover — the filled button is the
+   one that carries intent, so it is the one that glints. Driven by the hover
+   transition itself: the highlight parks offscreen left and crosses to
+   offscreen right, so it never rests visible. */
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -60%;
+  width: 40%;
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  transform: skewX(-18deg);
+  transition: left 0.55s var(--ease-out);
+  pointer-events: none;
+}
+
+.btn-primary:hover::after { left: 120%; }
 
 .btn-ghost { background: transparent; border-color: var(--line-soft); color: var(--muted); }
 .btn-ghost:hover { color: var(--ink); }
@@ -404,10 +508,12 @@ main { flex: 1; padding-bottom: 88px; }
    secondary: only signature themes qualify a card for recommendation. */
 button.chip {
   cursor: pointer;
-  transition: border-color var(--dur-fast), color var(--dur-fast);
+  transition: border-color var(--dur-fast), color var(--dur-fast),
+              transform var(--dur-fast) var(--ease-snap);
 }
 
-button.chip:hover { border-color: var(--aether); color: var(--ink); }
+button.chip:hover { border-color: var(--aether); color: var(--ink); transform: translateY(-1px); }
+button.chip:active { transform: translateY(0) scale(0.96); }
 button.chip.supporting { opacity: 0.6; border-style: dashed; }
 
 .fld {
@@ -419,10 +525,16 @@ button.chip.supporting { opacity: 0.6; border-style: dashed; }
   color: var(--ink);
   font-family: var(--font-b);
   font-size: 14.5px;
-  transition: border-color var(--dur-fast);
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
 }
 
-.fld:focus { outline: none; border-color: var(--aether); }
+/* The same halo the search bar earns on focus, so every field answers focus
+   the same way — border sharpens, then a soft ring blooms around it. */
+.fld:focus {
+  outline: none;
+  border-color: var(--aether);
+  box-shadow: 0 0 0 3px rgba(143, 169, 255, 0.12);
+}
 .fld::placeholder { color: var(--faint); }
 
 select.fld {

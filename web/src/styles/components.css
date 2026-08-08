@@ -845,6 +845,14 @@
   border-radius: var(--r);
   overflow: hidden;
   box-shadow: 0 22px 50px -22px rgba(0, 0, 0, 0.9);
+  transform-origin: top center;
+}
+
+:root.motion-ok .ta-options { animation: drop-in 0.22s var(--ease-out); }
+
+@keyframes drop-in {
+  from { opacity: 0; transform: translateY(-5px) scaleY(0.96); }
+  to { opacity: 1; transform: none; }
 }
 
 .ta-options button {
@@ -1084,6 +1092,23 @@
   border-radius: var(--r);
   background: color-mix(in oklab, var(--bg-hi) 94%, transparent);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.66);
+}
+
+/* The house dissolve for dialogs. Gated on :root.motion-ok — see the note in
+   global.css: an ungated keyframe on a hidden document freezes at frame one
+   and leaves the dialog invisible. The keyframe has no fill, so once it ends
+   nothing lingers to become a containing block. */
+:root.motion-ok .modal-backdrop { animation: veil-in 0.3s ease-out; }
+:root.motion-ok .modal { animation: dialog-in 0.34s var(--ease-out); }
+
+@keyframes veil-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); filter: blur(10px); }
+  to { opacity: 1; transform: none; filter: none; }
 }
 
 .modal h3 { margin-bottom: 8px; font-size: 16px; }
@@ -1362,6 +1387,8 @@
 
 /* Covers the tile it is about, so the deck you are deleting is the thing you
    are looking at while you decide. */
+:root.motion-ok .deck-tile-confirm { animation: veil-in 0.24s ease-out; }
+
 .deck-tile-confirm {
   position: absolute;
   inset: 0;
@@ -1758,6 +1785,17 @@
   overflow: hidden;
 }
 
+/* Entering the table is a mode change, so the whole surface resolves out of
+   blur once. The keyframe has no fill, so after 0.4s it stops applying and
+   cannot leave a filter behind to become a containing block for the
+   fixed-position Lightbox inside. */
+:root.motion-ok .playtest { animation: mode-in 0.4s var(--ease-out); }
+
+@keyframes mode-in {
+  from { opacity: 0; filter: blur(12px); }
+  to { opacity: 1; filter: blur(0px); }
+}
+
 /* The bar carries a back link, three readouts and six buttons, so it has to be
    allowed to wrap onto a second line rather than clipping its own contents. */
 .pt-bar {
@@ -2011,6 +2049,7 @@
 }
 
 .result-tabs button {
+  position: relative;
   padding: 9px 14px;
   font-family: var(--font-m);
   font-size: 11px;
@@ -2018,13 +2057,34 @@
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--faint);
+  /* Kept transparent for geometry only — the visible ink is the ::after,
+     which grows from the centre instead of switching on. */
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
-  transition: color var(--dur-fast), border-color var(--dur-fast);
+  transition: color var(--dur-fast);
 }
 
+.result-tabs button::after,
+.section-tabs button::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--aether);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform var(--dur) var(--ease-out);
+}
+
+.result-tabs button.on::after,
+.section-tabs button.on::after,
+.section-tabs button.drop::after { transform: scaleX(1); }
+
 .result-tabs button:hover:not(:disabled) { color: var(--ink); }
-.result-tabs button.on { color: var(--aether-hi); border-bottom-color: var(--aether); }
+.result-tabs button.on { color: var(--aether-hi); }
 .result-tabs button:disabled { opacity: 0.35; cursor: not-allowed; }
 
 .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 10px; margin-bottom: 16px; }
@@ -2609,6 +2669,7 @@
 }
 
 .section-tabs button {
+  position: relative;
   padding: 8px 14px;
   font-size: 13px;
   color: var(--muted);
@@ -2616,17 +2677,16 @@
   margin-bottom: -1px;
   white-space: nowrap;
   border-radius: var(--r) var(--r) 0 0;
-  transition: color var(--dur-fast), border-color var(--dur-fast),
+  transition: color var(--dur-fast),
               background-color var(--dur-fast), transform var(--dur-fast) var(--ease-out);
 }
 
 .section-tabs button:hover { color: var(--ink); }
-.section-tabs button.on { color: var(--ink); border-bottom-color: var(--aether); }
+.section-tabs button.on { color: var(--ink); }
 
 /* Held over during a drag: the tab lifts and lights up, then springs open. */
 .section-tabs button.drop {
   color: var(--aether-hi);
-  border-bottom-color: var(--aether);
   background: color-mix(in oklab, var(--aether) 16%, transparent);
   transform: translateY(-2px);
 }
@@ -2675,6 +2735,9 @@
   background: rgba(4, 5, 8, 0.93);
   backdrop-filter: blur(10px);
 }
+
+/* Same mode-change dissolve as the playtester; same no-fill safety. */
+:root.motion-ok .shuffle { animation: mode-in 0.4s var(--ease-out); }
 
 .shuffle-head {
   display: flex;

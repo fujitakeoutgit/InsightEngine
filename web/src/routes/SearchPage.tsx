@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
 import { api, streamSemantic, type Card } from '../lib/api'
 import { history, useHistory } from '../lib/history'
-import { countTo, riseIn } from '../lib/motion'
+import { attachMagnet, canAnimate, countTo, gsap, riseIn, splitChars } from '../lib/motion'
 import { hasSemantic, withCommanderDefault } from '../lib/query'
 import {
   cacheKey, forgetQuery, fromResponse, readCache, rememberScroll, writeCache,
@@ -80,6 +80,10 @@ export function SearchPage() {
 
   const countRef = useRef<HTMLSpanElement>(null)
   const heroCountRef = useRef<HTMLSpanElement>(null)
+  const heroRef = useRef<HTMLHeadingElement>(null)
+  const heroRuleRef = useRef<HTMLHRElement>(null)
+  const heroLedeRef = useRef<HTMLParagraphElement>(null)
+  const ctaRef = useRef<HTMLDivElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
   const stream = useRef<{ stop: () => void } | null>(null)
   const restoreTimer = useRef<number | undefined>(undefined)
@@ -105,6 +109,50 @@ export function SearchPage() {
   useEffect(() => {
     if (!query && paperCards) countTo(heroCountRef.current, paperCards)
   }, [paperCards, query])
+
+  /* The splash choreography: title characters resolve out of blur, the
+   * manaline draws itself underneath while they land, then the lede and the
+   * two calls to action rise in. One timeline, so the parts arrive as a
+   * sequence rather than four things that happen to start together.
+   *
+   * The count keeps its text nodes intact (data-nosplit): it is painted with
+   * background-clip gradient text, which stops painting if a descendant
+   * becomes inline-block — and countTo rewrites its textContent anyway. */
+  useLayoutEffect(() => {
+    if (query || !heroRef.current) return
+    const chars = splitChars(heroRef.current)
+    const rest = [heroRuleRef.current, heroLedeRef.current, ctaRef.current].filter(Boolean)
+    if (!canAnimate()) {
+      gsap.set(chars, { opacity: 1, yPercent: 0, scale: 1, filter: 'none' })
+      gsap.set(rest, { opacity: 1, y: 0, scaleX: 1 })
+      return
+    }
+    const tl = gsap.timeline()
+    tl.fromTo(chars,
+      { opacity: 0, yPercent: 55, filter: 'blur(14px)', scale: 1.15 },
+      { opacity: 1, yPercent: 0, filter: 'blur(0px)', scale: 1,
+        duration: 1.1, ease: 'expo.out', stagger: { each: 0.03, from: 'start' } },
+    )
+    if (heroRuleRef.current) {
+      tl.fromTo(heroRuleRef.current,
+        { scaleX: 0, transformOrigin: 'left center' },
+        { scaleX: 1, duration: 0.9, ease: 'power3.inOut' }, 0.4)
+    }
+    tl.fromTo([heroLedeRef.current, ctaRef.current].filter(Boolean),
+      { opacity: 0, y: 16 },
+      { opacity: 1, y: 0, duration: 0.7, ease: 'power2.out', stagger: 0.12 }, 0.62)
+    return () => { tl.kill() }
+  }, [query])
+
+  // The two splash CTAs lean toward the pointer. Only these two: magnetism is
+  // an accent for the page's primary intents, not a general button behaviour.
+  useEffect(() => {
+    if (query || !ctaRef.current) return
+    const cleanups = Array.from(
+      ctaRef.current.querySelectorAll<HTMLElement>('a'),
+    ).map((el) => attachMagnet(el, 0.22))
+    return () => cleanups.forEach((fn) => fn())
+  }, [query])
 
   // Remember where the user was so returning from a card lands in place.
   //
@@ -299,14 +347,17 @@ export function SearchPage() {
       <section className="shell hero">
         {!query && (
           <>
-            <h1 className="hero-title">
-              Scry{' '}
-              <span className="hero-count">
+            {/* "Scry" is wrapped so the split characters stay inside one flex
+                item — as direct children of the flex title, each letter would
+                pick up the title's word gap. */}
+            <h1 className="hero-title" ref={heroRef}>
+              <span>Scry</span>
+              <span className="hero-count" data-nosplit>
                 <span ref={heroCountRef}>{paperCards || '—'}</span>
               </span>
             </h1>
-            <hr className="manaline" style={{ maxWidth: 420, marginTop: 10 }} />
-            <p className="lede hero-sub">
+            <hr className="manaline" ref={heroRuleRef} style={{ maxWidth: 420, marginTop: 10 }} />
+            <p className="lede hero-sub" ref={heroLedeRef}>
               Every paper card in print, queryable. Full operator syntax, a wildcard the API
               doesn’t have, and a local 70B model that reads your intent without ever inventing
               a card.
@@ -323,7 +374,7 @@ export function SearchPage() {
 
         {!query && (
           <>
-            <div className="row wrap gap-2" style={{ marginTop: 34 }}>
+            <div className="row wrap gap-2" style={{ marginTop: 34 }} ref={ctaRef}>
               <Link to="/advanced" className="btn">Build a query</Link>
               <Link to="/deck" className="btn btn-ghost">Analyse a decklist</Link>
             </div>

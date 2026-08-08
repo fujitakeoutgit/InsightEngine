@@ -228,6 +228,70 @@ export function attachTilt(el: HTMLElement, strength = 7) {
   }
 }
 
+/**
+ * Route-change dissolve for the main content column.
+ *
+ * Opacity and blur only — never position — so it can run over the scroll
+ * restoration that several pages perform on entry without fighting it. The
+ * inline styles are cleared on completion because a lingering
+ * `filter: blur(0px)` is still a filter, and a filtered ancestor becomes the
+ * containing block for every `position: fixed` descendant — which is exactly
+ * what the playtester, the shuffle overlay and the lightbox are.
+ */
+export function dissolvePage(el: HTMLElement | null) {
+  if (!el) return
+  if (!canAnimate()) {
+    gsap.set(el, { clearProps: 'opacity,filter' })
+    return
+  }
+  gsap.fromTo(
+    el,
+    { opacity: 0, filter: 'blur(9px)' },
+    {
+      opacity: 1,
+      filter: 'blur(0px)',
+      duration: 0.5,
+      ease: 'power2.out',
+      onComplete: () => gsap.set(el, { clearProps: 'opacity,filter' }),
+    },
+  )
+}
+
+/**
+ * Magnetic hover: the element leans toward the pointer and springs home when
+ * it leaves. Reserved for the few controls that carry real intent — a page's
+ * primary call to action — because a surface where everything is magnetic is
+ * a surface where nothing is.
+ */
+export function attachMagnet(el: HTMLElement, strength = 0.28) {
+  if (reduced()) return () => {}
+
+  const toX = gsap.quickTo(el, 'x', { duration: 0.5, ease: 'power3.out' })
+  const toY = gsap.quickTo(el, 'y', { duration: 0.5, ease: 'power3.out' })
+
+  const onMove = (event: PointerEvent) => {
+    const rect = el.getBoundingClientRect()
+    toX((event.clientX - rect.left - rect.width / 2) * strength)
+    toY((event.clientY - rect.top - rect.height / 2) * strength)
+  }
+
+  const onLeave = () => {
+    // A softer, springier return than the approach: letting go should feel
+    // like release, not like a second cursor movement.
+    gsap.to(el, { x: 0, y: 0, duration: 0.7, ease: 'elastic.out(1, 0.45)' })
+  }
+
+  el.addEventListener('pointermove', onMove)
+  el.addEventListener('pointerleave', onLeave)
+
+  return () => {
+    el.removeEventListener('pointermove', onMove)
+    el.removeEventListener('pointerleave', onLeave)
+    gsap.killTweensOf(el)
+    gsap.set(el, { x: 0, y: 0 })
+  }
+}
+
 /** Count a number up. Used for result totals and deck prices. */
 export function countTo(
   el: HTMLElement | null,
