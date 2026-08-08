@@ -896,10 +896,16 @@
   position: sticky;
   top: 62px;
   z-index: 20;
-  padding-top: 20px;
-  padding-bottom: 4px;
-  background: color-mix(in oklab, var(--bg) 88%, transparent);
-  backdrop-filter: blur(14px) saturate(140%);
+  margin-bottom: 16px;
+  /* No padding and no fill.
+   *
+   * Holding the gap open as padding is what stopped the bar hopping when it
+   * pinned, but the padding had to be filled or the page scrolled through it
+   * — and that fill was a visible band across the top of the page. There is
+   * no arrangement with both a gap and no band, so the gap goes: the bar
+   * docks flush under the nav, which needs no mask because the bar's own
+   * background is opaque. It still never moves, because resting and pinned
+   * are still the same position. */
 }
 
 .query-preview {
