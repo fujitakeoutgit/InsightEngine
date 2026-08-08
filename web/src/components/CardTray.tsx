@@ -197,9 +197,32 @@ export function CardTray({ open, onClose }: { open: boolean; onClose: () => void
       >
         {/* Slim by design: the tray is for the cards, and a header with room
             to spare would be taking space from them. */}
+        {/* One bar. The type tabs and the size slider share it, because the
+            tray is for the cards and a second row of chrome would be taking
+            room from them. No title: the banner button you pressed to open
+            this already said Cards, and the All tab already carries the
+            count. */}
         <div className="tray-head">
-          <span className="label">Cards</span>
-          <span className="mono faint">{cards.length}</span>
+          {cards.length > 0 && (
+            <div className="tray-tabs">
+              <button
+                className={filter === 'all' ? 'on' : ''}
+                onClick={() => setFilter('all')}
+              >
+                All<span className="mono faint"> {cards.length}</span>
+              </button>
+              {present.map(([type, n]) => (
+                <button
+                  key={type}
+                  className={filter === type ? 'on' : ''}
+                  onClick={() => setFilter(type)}
+                >
+                  {type}<span className="mono faint"> {n}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* --fill drives the track's gradient, which is how a thumbless
               range shows how far along it is. */}
           <label className="tray-size" title="Card size">
@@ -212,29 +235,6 @@ export function CardTray({ open, onClose }: { open: boolean; onClose: () => void
           </label>
           <button className="tray-close" onClick={onClose} aria-label="Close the tray">✕</button>
         </div>
-
-        {/* Type tabs, the same shape the deck editor uses for its groups.
-            Only the types actually present get a tab: a tray of six lands does
-            not need to tell you it has no planeswalkers. */}
-        {cards.length > 0 && (
-          <div className="group-tabs tray-tabs">
-            <button
-              className={filter === 'all' ? 'on' : ''}
-              onClick={() => setFilter('all')}
-            >
-              All<span className="mono faint"> {cards.length}</span>
-            </button>
-            {present.map(([type, n]) => (
-              <button
-                key={type}
-                className={filter === type ? 'on' : ''}
-                onClick={() => setFilter(type)}
-              >
-                {type}<span className="mono faint"> {n}</span>
-              </button>
-            ))}
-          </div>
-        )}
 
         <div className="tray-body" style={{ ['--tray-w' as string]: `${size}px` }}>
           {cards.length === 0 ? (

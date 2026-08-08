@@ -1139,8 +1139,35 @@
   border-bottom: 1px solid var(--line-soft);
 }
 
-.tray-head .label { line-height: 1; }
-.tray-head .mono { font-size: 10.5px; }
+/* The tabs live in the bar, so they are sized to it rather than to the deck
+   editor's roomier group tabs: smaller type, tighter padding, and scrolling
+   sideways rather than growing the bar when a tray holds every card type. */
+.tray-tabs {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tray-tabs::-webkit-scrollbar { display: none; }
+
+.tray-tabs button {
+  flex: none;
+  padding: 3px 7px;
+  border-radius: 3px;
+  font-family: var(--font-m);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  white-space: nowrap;
+  transition: color var(--dur-fast), background-color var(--dur-fast);
+}
+
+.tray-tabs button:hover { color: var(--ink); background: var(--glass); }
+.tray-tabs button.on { color: var(--aether-hi); background: var(--glass-hi); }
+.tray-tabs button .mono { font-size: 9.5px; }
 
 /* A bar that fills, with no thumb.
  *
@@ -1219,13 +1246,6 @@
 }
 
 .tray-close:hover { color: var(--ink); background: var(--glass); }
-
-.tray-tabs {
-  flex: none;
-  padding: 6px 14px 0;
-  margin-bottom: 0;
-  overflow-x: auto;
-}
 
 /* Every card gets its own cell and its own row height — nothing here overlaps
    or fans. `align-items: start` with content-sized rows means a taller card
