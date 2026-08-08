@@ -13,6 +13,13 @@ import { Lightbox } from './Lightbox'
 /** A card being looked at, and the rect it grew from. */
 interface ZoomView { src: string; alt: string; from: DOMRect }
 
+/** Remembered tray height. Keyed like every other persisted preference. */
+const TRAY_HEIGHT_KEY = 'insight-enigma:tray-height'
+/** What the stylesheet used to hard-code, so nothing moves by default. */
+const DEFAULT_TRAY_HEIGHT = 470
+/** Below this the tabs and one row of cards no longer both fit. */
+const MIN_TRAY_HEIGHT = 200
+
 /** Tab order, matching the deck editor's grouping. */
 const TYPE_ORDER = [
   'Creature', 'Planeswalker', 'Instant', 'Sorcery', 'Artifact',
@@ -121,6 +128,50 @@ export function CardTray({ open, onClose }: { open: boolean; onClose: () => void
   const [overTray, setOverTray] = useState(false)
   const [filter, setFilter] = useState<string>('all')
 
+  /* How tall the tray is, dragged from its bottom edge and remembered.
+   *
+   * The default is what the CSS used to hard-code, so nothing moves for
+   * anyone who never touches the grip. Stored in pixels rather than as a
+   * fraction of the viewport: it is a working area sized against the cards in
+   * it, not against the window, and a value that changed every time the
+   * window did would not be the size that was chosen. Clamped on use instead,
+   * so a tray sized on a big monitor still fits on a small one. */
+  const [height, setHeight] = usePersisted(TRAY_HEIGHT_KEY, DEFAULT_TRAY_HEIGHT)
+  const resizing = useRef<{ y: number; from: number } | null>(null)
+
+  const clampHeight = (px: number) =>
+    Math.max(MIN_TRAY_HEIGHT, Math.min(px, window.innerHeight - 120))
+
+  // Re-clamped when the window shrinks below the stored height, so a tray
+  // sized on a large screen cannot end up taller than a small one.
+  useEffect(() => {
+    const fit = () => {
+      const next = clampHeight(height)
+      if (next !== height) setHeight(next)
+    }
+    fit()
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [height])
+
+  const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    resizing.current = { y: event.clientY, from: height }
+    try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* fine */ }
+  }
+
+  const onResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    const grip = resizing.current
+    if (!grip) return
+    // The tray hangs from the header, so dragging down makes it taller.
+    setHeight(clampHeight(grip.from + (event.clientY - grip.y)))
+  }
+
+  const endResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    resizing.current = null
+    try { event.currentTarget.releasePointerCapture(event.pointerId) } catch { /* fine */ }
+  }
+
   /* Which types are in the tray, in the order players expect to see them, and
    * how many of each. Derived rather than fixed, so the tabs describe what is
    * actually there. */
@@ -179,6 +230,7 @@ export function CardTray({ open, onClose }: { open: boolean; onClose: () => void
     <>
       <div
         className={`card-tray ${open ? 'open' : ''} ${overTray ? 'taking' : ''}`}
+        style={{ height: `${height}px` }}
         role="dialog"
         aria-label="Collected cards"
         aria-hidden={!open}
@@ -288,6 +340,22 @@ export function CardTray({ open, onClose }: { open: boolean; onClose: () => void
             🗑
           </div>
         )}
+
+        {/* The bottom edge is the grip. A tray is a working surface and how
+            much of the page it is worth covering depends on how many cards
+            are in it, so the size is the user's call and is remembered. */}
+        <div
+          className="tray-grip"
+          onPointerDown={startResize}
+          onPointerMove={onResize}
+          onPointerUp={endResize}
+          onPointerCancel={endResize}
+          onDoubleClick={() => setHeight(DEFAULT_TRAY_HEIGHT)}
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize the tray — double-click to reset"
+          title="Drag to resize · double-click to reset"
+        />
       </div>
 
       {zoomed && (

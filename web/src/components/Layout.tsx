@@ -18,6 +18,7 @@ const NAV = [
   { to: '/playtest', label: 'Playtest' },
   { to: '/sets', label: 'Sets' },
   { to: '/glossary', label: 'Glossary' },
+  { to: '/settings', label: 'Settings' },
 ]
 
 export function Layout() {
@@ -27,6 +28,7 @@ export function Layout() {
   const [scrolled, setScrolled] = useState(false)
   const [trayOpen, setTrayOpen] = useState(false)
   const mainRef = useRef<HTMLElement>(null)
+  const headerRef = useRef<HTMLElement>(null)
   const navRef = useRef<HTMLElement>(null)
   const inkRef = useRef<HTMLSpanElement>(null)
 
@@ -91,6 +93,29 @@ export function Layout() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
+  /* Publish the header's real height as --header-h.
+   *
+   * Anything sticky below the nav has to pin at exactly the nav's bottom edge,
+   * and that edge is not a round number: padding plus a 11px uppercase line
+   * comes to 62.047px here, and will be something else again at another zoom
+   * level or before the webfont lands. The Advanced query bar was pinned at a
+   * hardcoded 62px and so hopped that 0.047px the moment it stuck — invisible
+   * as a number, visible as a twitch. Measured rather than written down, and
+   * observed rather than measured once, because the height changes when the
+   * font loads. */
+  useLayoutEffect(() => {
+    const header = headerRef.current
+    if (!header) return
+    const publish = () =>
+      document.documentElement.style.setProperty(
+        '--header-h', `${header.getBoundingClientRect().height}px`,
+      )
+    publish()
+    const observer = new ResizeObserver(publish)
+    observer.observe(header)
+    return () => observer.disconnect()
+  }, [])
+
   /* The nav ink: one underline that travels to the active link.
    *
    * Measured from the DOM rather than derived from NAV, because the links
@@ -133,7 +158,7 @@ export function Layout() {
         <div className="blob b" />
       </div>
 
-      <header className={scrolled ? 'header scrolled' : 'header'}>
+      <header className={scrolled ? 'header scrolled' : 'header'} ref={headerRef}>
         <div className="shell header-inner">
           <NavLink to="/" className="brand">
             <span className="mark" aria-hidden />

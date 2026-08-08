@@ -186,6 +186,14 @@ export interface SemanticStage {
   }
 }
 
+/** One rung of the model ladder, ordered by what the GPU has to hold. */
+export interface ModelTier {
+  id: string
+  label: string
+  vram_gb: number
+  note: string
+}
+
 class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message)
@@ -319,6 +327,27 @@ export const api = {
     const resp = await fetch(`/api/deck/saved/${id}`, { method: 'DELETE' })
     if (!resp.ok) throw new ApiError(resp.status, 'Could not delete deck')
     return resp.json() as Promise<{ deleted: number }>
+  },
+
+  settings: () =>
+    get<{
+      model: string
+      default_model: string
+      is_custom: boolean
+      tiers: ModelTier[]
+    }>('/api/settings'),
+
+  saveSettings: async (model: string) => {
+    const resp = await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model }),
+    })
+    if (!resp.ok) {
+      const detail = await resp.json().catch(() => ({ detail: resp.statusText }))
+      throw new ApiError(resp.status, detail.detail ?? resp.statusText)
+    }
+    return resp.json() as Promise<{ model: string }>
   },
 
   health: () =>

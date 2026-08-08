@@ -894,7 +894,7 @@
  * that the margin used to leave transparent. */
 .query-dock {
   position: sticky;
-  top: 62px;
+  top: var(--header-h, 62px);
   z-index: 20;
   margin-bottom: 16px;
   /* No padding and no fill.
@@ -1105,11 +1105,12 @@
    change is instant and always correct. */
 .card-tray {
   position: fixed;
-  top: 62px;
+  top: var(--header-h, 62px);
   right: 0;
   z-index: 240;
   width: min(960px, 64vw);
-  height: min(470px, 58vh);
+  /* Height is set inline from the remembered value and dragged on the grip;
+     470 was the figure hard-coded here, and remains the default. */
   display: flex;
   flex-direction: column;
   border: 1px solid var(--line);
@@ -1122,6 +1123,36 @@
   transform: translateY(-14px);
   pointer-events: none;
 }
+
+/* The grip: the tray's own bottom edge, thickened into something you can
+   catch. Drawn only on hover so the tray reads as a panel rather than as a
+   panel with a handle bolted on. */
+.tray-grip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 10px;
+  cursor: ns-resize;
+  touch-action: none;
+  z-index: 2;
+}
+
+.tray-grip::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 46px;
+  height: 2px;
+  border-radius: 2px;
+  transform: translateX(-50%);
+  background: var(--line);
+  opacity: 0;
+  transition: opacity var(--dur-fast), background-color var(--dur-fast);
+}
+
+.tray-grip:hover::after { opacity: 1; background: var(--aether); }
 
 :root.motion-ok .card-tray {
   transition: opacity var(--dur) var(--ease-out), transform var(--dur) var(--ease-out),

@@ -15,6 +15,7 @@ from typing import Any
 import httpx
 
 from ..config import settings
+from ..model_choice import current_model
 
 
 class OllamaError(RuntimeError):
@@ -79,7 +80,7 @@ class OllamaClient:
     ) -> dict[str, Any]:
         """One constrained turn. Returns the parsed object."""
         payload = {
-            "model": settings.ollama_model,
+            "model": current_model(),
             "stream": False,
             "format": schema,
             "options": {

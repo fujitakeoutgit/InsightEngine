@@ -23,6 +23,7 @@ from fastapi.responses import StreamingResponse
 
 from ..config import settings
 from ..llm.ollama import OllamaError, client as ollama
+from ..model_choice import current_model
 from ..llm.pipeline import SemanticPipeline
 from ..query.parser import extract_semantic, parse
 from ..state import state
@@ -46,10 +47,11 @@ def _sse(event: str, data: dict) -> str:
 async def status():
     available = await ollama.available()
     models = await ollama.installed_models() if available else []
+    chosen = current_model()
     return {
         "available": available,
-        "model": settings.ollama_model,
-        "model_installed": settings.ollama_model in models,
+        "model": chosen,
+        "model_installed": chosen in models,
         "models": models,
         "endpoint": settings.ollama_base,
         "active_runs": len(_RUNS),
@@ -133,7 +135,7 @@ async def stream(
         yield f"retry: {RECONNECT_HINT_MS}\n\n"
         yield _sse("stage", {
             "stage": "start",
-            "message": f"Starting {settings.ollama_model}",
+            "message": f"Starting {current_model()}",
             "detail": {"prompt": prompt, "run_id": run},
         })
         try:

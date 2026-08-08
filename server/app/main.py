@@ -17,7 +17,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .llm.ollama import client as ollama
-from .routers import cards, catalog, deck, search, semantic, sets, spell
+from .routers import cards, catalog, deck, search, semantic, sets, settings_api, spell
+from .seed import seed_decks
 from .scryfall import client as scryfall
 from .state import state
 
@@ -25,6 +26,11 @@ from .state import state
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     state.start()
+    # A fresh database gets one real deck, so the Deck Lab, the charts and the
+    # playtester have something to be about the first time they are opened.
+    # A no-op on every start after the first.
+    if state.conn is not None:
+        seed_decks(state.conn)
     await scryfall.start()
     await ollama.start()
     try:
@@ -67,6 +73,7 @@ app.include_router(sets.router)
 app.include_router(deck.router)
 app.include_router(spell.router)
 app.include_router(catalog.router)
+app.include_router(settings_api.router)
 
 
 @app.get("/api/health")

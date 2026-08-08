@@ -13,6 +13,7 @@ import { NotFoundPage } from './routes/NotFoundPage'
 import { PlaytestPage } from './routes/PlaytestPage'
 import { SearchPage } from './routes/SearchPage'
 import { SetsPage } from './routes/SetsPage'
+import { SettingsPage } from './routes/SettingsPage'
 
 import './styles/global.css'
 import './styles/components.css'
@@ -29,6 +30,7 @@ const router = createBrowserRouter([
       { index: true, element: <SearchPage /> },
       { path: 'card/:oracleId', element: <CardPage /> },
       { path: 'cards', element: <CardsPage /> },
+      { path: 'settings', element: <SettingsPage /> },
       { path: 'advanced', element: <AdvancedPage /> },
       { path: 'deck', element: <DeckGalleryPage /> },
       { path: 'deck/:deckId', element: <DeckPage /> },
