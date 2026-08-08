@@ -9,7 +9,7 @@ import { PlayDie } from './PlayDie'
 import { canAnimate, gsap } from '../lib/motion'
 import { type DeckCard } from '../lib/deckModel'
 import {
-  deckSignature, INITIAL_DIE, recallGame, rememberGame,
+  deckSignature, inTray, makeDie, MAX_DICE, recallGame, rememberGame,
   type DieState, type Instance, type Zone,
 } from '../lib/playtestCache'
 
@@ -107,7 +107,7 @@ export function Playtest({
   const [life, setLife] = useState(resumed?.life ?? 40)
   const [mulligans, setMulligans] = useState(resumed?.mulligans ?? 0)
   const [log, setLog] = useState<string[]>(resumed?.log ?? [])
-  const [die, setDie] = useState<DieState>(resumed?.die ?? INITIAL_DIE)
+  const [dice, setDice] = useState<DieState[]>(resumed?.dice ?? [makeDie(true)])
   const matRef = useRef<HTMLDivElement>(null)
   const handRef = useRef<HTMLDivElement>(null)
 
@@ -148,8 +148,8 @@ export function Playtest({
   // read state in an effect cleanup that has closed over an older render, and
   // this is cheap -- a Map assignment against state React has already built.
   useEffect(() => {
-    rememberGame(gameKey, { cards, turn, life, mulligans, log, die, signature })
-  }, [gameKey, signature, cards, turn, life, mulligans, log, die])
+    rememberGame(gameKey, { cards, turn, life, mulligans, log, dice, signature })
+  }, [gameKey, signature, cards, turn, life, mulligans, log, dice])
 
   const inZone = useMemo(() => {
     const map: Record<Zone, Instance[]> = {
@@ -196,6 +196,30 @@ export function Playtest({
 
   const untapAll = () =>
     setCards((cs) => cs.map((c) => (c.zone === 'battlefield' ? { ...c, tapped: false } : c)))
+
+  /* Dice come out of a tray rather than there being exactly one of them.
+   *
+   * Moving the tray die away leaves the tray empty, so a fresh one takes its
+   * place -- you reach for a die and there is always a die to reach for.
+   * Dropping a loose one back on the tray puts it away again, which is the
+   * only tidying gesture needed because the replacement is already there. */
+  const updateDie = (id: string, next: Partial<DieState>) => {
+    setDice((current) => {
+      const after = current.map((d) => (d.id === id ? { ...d, ...next } : d))
+      const moved = after.find((d) => d.id === id)
+      if (!moved) return after
+
+      if (moved.home && !inTray(moved)) {
+        const loose = after.map((d) => (d.id === id ? { ...d, home: false } : d))
+        return loose.length < MAX_DICE ? [...loose, makeDie(true)] : loose
+      }
+      // Put away -- but never the last one, or the tray would be empty.
+      if (!moved.home && inTray(moved) && after.length > 1) {
+        return after.filter((d) => d.id !== id)
+      }
+      return after
+    })
+  }
 
   /** Reorder the library in place.
    *
@@ -317,16 +341,51 @@ export function Playtest({
             key={c.iid} inst={c} drag={drag} onTap={tap} onZoom={setZoomed} placed
           />
         ))}
-        {/* The die is a thing on the table, not a control beside it: it lives
-            in the mat's coordinate space so it can be thrown across the board
-            and left wherever it lands. */}
-        <PlayDie
-          die={die}
-          matRef={matRef}
-          onChange={(next) => setDie((d) => ({ ...d, ...next }))}
-          onRoll={(value, counting) =>
-            note(counting ? `Counter at ${value}` : `Rolled a ${value}`)}
-        />
+        {/* One column at the top of the board, where the eye starts: the four
+            actions, and directly under them the record of what they did.
+            Transparent to the pointer except where a control actually is, so
+            the mat underneath still takes drops. */}
+        <div className="pt-rail">
+          <div className="pt-actions">
+            <button className="btn btn-ghost sm" onClick={nextTurn}>Next turn</button>
+            <button
+              className="btn btn-ghost sm"
+              onClick={() => shuffleLibrary()}
+              disabled={inZone.library.length < 2}
+              title="Shuffle the library"
+            >
+              Shuffle
+            </button>
+            <button
+              className="btn btn-ghost sm"
+              onClick={() => setTutoring(true)}
+              disabled={!inZone.library.length}
+              title="Search your library for a card"
+            >
+              Tutor
+            </button>
+            <button className="btn btn-ghost sm" onClick={() => newGame(0)}>Reset</button>
+          </div>
+
+          <div className="pt-history mono">
+            {log.slice(0, 8).map((line, i) => <div key={`${log.length}-${i}`}>{line}</div>)}
+          </div>
+        </div>
+
+        {/* Dice are things on the table, not controls beside it: they live in
+            the mat's coordinate space so they can be thrown across the board
+            and left wherever they land. */}
+        <div className="pt-die-tray" aria-hidden />
+        {dice.map((d) => (
+          <PlayDie
+            key={d.id}
+            die={d}
+            matRef={matRef}
+            onChange={(next) => updateDie(d.id, next)}
+            onRoll={(value, counting) =>
+              note(counting ? `Counter at ${value}` : `Rolled a ${value}`)}
+          />
+        ))}
 
         {!inZone.battlefield.length && (
           <p className="pt-empty faint">Click a card in hand to play it, or drag it here.</p>
@@ -368,42 +427,6 @@ export function Playtest({
         </div>
 
         <div className="pt-corner">
-          {/* Floated above the deck rather than stacked on top of it in flow.
-              These three would otherwise add their own height to the tray and
-              take it off the battlefield, which is the part of this screen
-              worth having. Transparent to the pointer except where a control
-              actually is, so the mat underneath still takes drops. */}
-          <div className="pt-corner-top">
-          <div className="pt-actions">
-            <button className="btn btn-ghost sm" onClick={nextTurn}>Next turn</button>
-            <button
-              className="btn btn-ghost sm"
-              onClick={() => shuffleLibrary()}
-              disabled={inZone.library.length < 2}
-              title="Shuffle the library"
-            >
-              Shuffle
-            </button>
-            <button
-              className="btn btn-ghost sm"
-              onClick={() => setTutoring(true)}
-              disabled={!inZone.library.length}
-              title="Search your library for a card"
-            >
-              Tutor
-            </button>
-            <button className="btn btn-ghost sm" onClick={() => newGame(0)}>Reset</button>
-          </div>
-
-          {/* The history sits between the actions and the die because that is
-              where it is read from: it is the record of what those buttons and
-              that die just did. */}
-          <div className="pt-history mono">
-            {log.slice(0, 5).map((line, i) => <div key={`${log.length}-${i}`}>{line}</div>)}
-          </div>
-
-          </div>
-
           {/* The deck sits at the end of your hand, where it does on a table,
               and drawing is clicking it rather than hunting for a button. */}
           <div
@@ -572,10 +595,31 @@ function PlayCard({
   style?: React.CSSProperties
 }) {
   const face = useCardFace(inst.card)
+
+  /* Lands are tapped; everything else is read.
+   *
+   * On the battlefield a land's whole job is to be turned sideways, over and
+   * over, so its click stays the tap. A nonland is mostly there to be looked
+   * at — what does this trigger, what does it cost — and hunting for a 19px
+   * `i` to do the commonest thing on the board was the wrong way round. So a
+   * nonland's click zooms, and tapping moves to a control of its own, big
+   * enough to hit without aiming. */
+  const isLand = /\bLand\b/.test(inst.card.type_line ?? '')
+  const readOnClick = Boolean(placed) && !isLand
+
+  const zoomFrom = (event: React.MouseEvent) => {
+    if (!face.src) return
+    const tile = (event.currentTarget as HTMLElement).closest('.pt-card')
+    if (!tile) return
+    onZoom({ src: face.src, alt: face.faceName, from: tile.getBoundingClientRect() })
+  }
+
   // A card is either somewhere it can be played from or somewhere it can be
   // tapped, never both, so one click means one thing wherever you are.
-  const action = onPlay ?? onTap
-  const hint = onPlay ? ' — click to play' : onTap ? ' — click to tap' : ''
+  const action = readOnClick ? undefined : onPlay ?? onTap
+  const hint = readOnClick
+    ? ' — click to look, ⟳ to tap'
+    : onPlay ? ' — click to play' : onTap ? ' — click to tap' : ''
 
   return (
     <div
@@ -595,7 +639,7 @@ function PlayCard({
           dy: e.clientY - rect.top,
         }
       }}
-      onClick={() => action?.(inst.iid)}
+      onClick={(event) => (readOnClick ? zoomFrom(event) : action?.(inst.iid))}
       title={`${inst.card.name}${hint}`}
       style={placed
         ? { ...style, left: `${inst.x * 100}%`, top: `${inst.y * 100}%` }
@@ -607,21 +651,31 @@ function PlayCard({
 
       {/* Zooms in place rather than opening the card page. Reading a card is
           something you do mid-game; leaving the table to do it would end the
-          game you are in the middle of. */}
-      <button
-        className="pt-info"
-        title={`Look at ${inst.card.name}`}
-        aria-label={`Look at ${inst.card.name}`}
-        onClick={(event) => {
-          event.stopPropagation()
-          if (face.src) {
-            onZoom({ src: face.src, alt: face.faceName, from: event.currentTarget
-              .closest('.pt-card')!.getBoundingClientRect() })
-          }
-        }}
-      >
-        i
-      </button>
+          game you are in the middle of. Absent where the card itself already
+          zooms on click — a second way in would be one too many. */}
+      {!readOnClick && (
+        <button
+          className="pt-info"
+          title={`Look at ${inst.card.name}`}
+          aria-label={`Look at ${inst.card.name}`}
+          onClick={(event) => { event.stopPropagation(); zoomFrom(event) }}
+        >
+          i
+        </button>
+      )}
+
+      {/* Tapping, for the cards whose click now reads them instead. */}
+      {readOnClick && onTap && (
+        <button
+          className="pt-tap"
+          title={inst.tapped ? `Untap ${inst.card.name}` : `Tap ${inst.card.name}`}
+          aria-label={inst.tapped ? `Untap ${inst.card.name}` : `Tap ${inst.card.name}`}
+          aria-pressed={inst.tapped}
+          onClick={(event) => { event.stopPropagation(); onTap(inst.iid) }}
+        >
+          ⟳
+        </button>
+      )}
 
       {face.flippable && (
         <button

@@ -36,17 +36,38 @@ export interface Instance {
  * window size.
  */
 export interface DieState {
+  id: string
   x: number
   y: number
   value: number
   /** Counting rather than rolling: clicks step the face instead of it being
    *  something you throw. */
   counting: boolean
+  /** The one still sitting in the tray. Moving it away spawns its
+   *  replacement, so there is always exactly one die to reach for. */
+  home: boolean
 }
 
-/** Bottom right, clear of the hand and the corner stack, where a die would sit
- *  if you set it down beside the deck. */
-export const INITIAL_DIE: DieState = { x: 0.93, y: 0.78, value: 6, counting: false }
+/** The tray: bottom centre-right of the mat, clear of the hand and the piles,
+ *  where a cup of dice would sit beside the board. */
+export const DIE_HOME = { x: 0.5, y: 0.9 }
+
+/** Enough to track a board state, few enough that the mat stays a board. */
+export const MAX_DICE = 8
+
+let dieCounter = 0
+
+export function makeDie(home: boolean): DieState {
+  dieCounter += 1
+  return { id: `d${dieCounter}`, ...DIE_HOME, value: 6, counting: false, home }
+}
+
+/** Whether a die has been put back in the tray. Generous, and wider than it is
+ *  tall because the fractions are of the mat's own dimensions, so an equal
+ *  fraction is a much longer distance across than down. */
+export function inTray(die: DieState): boolean {
+  return Math.abs(die.x - DIE_HOME.x) < 0.03 && Math.abs(die.y - DIE_HOME.y) < 0.08
+}
 
 export interface SavedGame {
   cards: Instance[]
@@ -54,8 +75,8 @@ export interface SavedGame {
   life: number
   mulligans: number
   log: string[]
-  /** Where the die came to rest, and what it was showing. */
-  die: DieState
+  /** Every die on the mat, where it came to rest and what it showed. */
+  dice: DieState[]
   /** What the deck looked like when this game was dealt. */
   signature: string
 }

@@ -1853,13 +1853,7 @@
    hand. */
 .pt-piles { display: flex; gap: 10px; flex: none; align-items: flex-end; }
 
-/* The corner: actions at the top, then the history they write, then the die,
-   then the deck. Everything you reach for repeatedly, under one hand.
-
-   Only the deck is in flow. The three above it float over the bottom-right of
-   the mat, because putting them in the column would add their height to the
-   tray and take it off the battlefield — which is the part of this screen
-   worth having. */
+/* The corner holds the deck alone now. */
 .pt-corner {
   position: relative;
   flex: none;
@@ -1868,40 +1862,39 @@
   align-items: center;
 }
 
-.pt-corner-top {
+/* The rail: one column at the top right of the board, where the eye starts.
+   Four actions stacked, and directly beneath them the record of what they
+   did. Overlaid on the mat rather than in flow, so it costs the battlefield
+   no height, and transparent to the pointer everywhere a control is not so
+   the mat underneath still takes drops. */
+.pt-rail {
   position: absolute;
-  right: 0;
-  bottom: calc(100% + 8px);
-  width: 180px;
+  top: 10px;
+  right: 12px;
+  z-index: 4;
+  width: 128px;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  /* The stack sits over the mat, so it must be transparent to the pointer
-     everywhere a control is not. */
+  gap: 10px;
   pointer-events: none;
 }
 
-.pt-corner-top > * { pointer-events: auto; }
-.pt-corner-top .pt-history { pointer-events: none; }
+.pt-rail > * { pointer-events: auto; }
 
 .pt-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 4px;
-  width: 100%;
 }
 
-.pt-actions .btn { padding: 4px 8px; font-size: 10.5px; }
+.pt-actions .btn { padding: 5px 9px; font-size: 10.5px; justify-content: flex-start; }
 
-/* Fixed height so the die and the deck below it do not walk up and down the
-   screen as lines arrive. */
+/* Reading matter, not a control. Left to grow downward from under the
+   actions: it is the only thing in the rail with nothing beneath it, so
+   there is nothing for it to push around. */
 .pt-history {
-  width: 100%;
-  height: 62px;
-  overflow: hidden;
   font-size: 10px;
-  line-height: 1.25;
+  line-height: 1.3;
   color: var(--faint);
   text-align: right;
   display: flex;
@@ -1920,7 +1913,11 @@
 
 .pt-pile:hover { background: var(--glass-hi); }
 .pt-pile-head { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; }
-.pt-pile-body { display: flex; min-height: 52px; }
+
+/* Tall enough for the card it holds. At 52px the body was shorter than the
+   72px a 52px-wide card actually stands, so the commander sat clipped at the
+   bottom of its own zone. */
+.pt-pile-body { display: flex; min-height: 92px; align-items: flex-end; }
 
 .pt-back {
   width: 38px;
@@ -1931,7 +1928,7 @@
   border: 1px solid var(--line-soft);
 }
 
-.pt-pile .pt-card { width: 52px; }
+.pt-pile .pt-card { width: 64px; }
 
 /* Cards are 50% larger than they were: this is the view where you are reading
    the board, not scanning a list. */
@@ -1997,6 +1994,39 @@
 
 .pt-info { top: 4px; font-style: italic; }
 .pt-flip { top: 27px; }
+
+/* Tapping a nonland, which is no longer what clicking it does. Twice the
+   `i` it replaces and in the opposite corner: it is the commonest thing you
+   do to a permanent, so it should be hittable without aiming. Always
+   visible, because a control you have to hover to discover is worse than the
+   click it replaced. */
+.pt-tap {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  z-index: 2;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid var(--line-soft);
+  background: rgba(7, 8, 12, 0.84);
+  backdrop-filter: blur(6px);
+  font-size: 19px;
+  line-height: 1;
+  color: var(--muted);
+  opacity: 0.55;
+  transition: opacity var(--dur-fast), color var(--dur-fast),
+              border-color var(--dur-fast), transform var(--dur-fast) var(--ease-snap);
+}
+
+.pt-card:hover .pt-tap { opacity: 1; }
+.pt-tap:hover { color: var(--aether-hi); border-color: var(--aether); }
+.pt-tap:active { transform: scale(0.9); }
+
+/* Turned sideways already: the control says so, and says which way back. */
+.pt-card.tapped .pt-tap { opacity: 1; color: var(--aether); border-color: var(--aether); }
 
 .pt-card:hover .pt-info,
 .pt-card:hover .pt-flip { opacity: 1; }
@@ -2563,6 +2593,24 @@
 }
 
 .pt-die:active { cursor: grabbing; }
+
+/* The tray the dice come out of. Drawn only as a hairline recess: it is a
+   place, not a control, and the die sitting in it is the thing you aim at.
+   Positioned to match DIE_HOME, and inert so it never intercepts a drop. */
+.pt-die-tray {
+  position: absolute;
+  /* DIE_HOME is a fraction of the *free* space, so 0.5 of it lands at
+     0.5·(matW − 46) — half the mat, less half the die. The 4px then insets
+     the recess a little wider than the die that sits in it. */
+  left: calc(50% - 27px);
+  top: calc(90% - 45.4px);
+  width: 54px;
+  height: 54px;
+  border: 1px dashed var(--line-soft);
+  border-radius: 12px;
+  pointer-events: none;
+  z-index: 3;
+}
 
 .pt-die-cube {
   position: relative;

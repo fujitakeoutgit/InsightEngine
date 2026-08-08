@@ -55,6 +55,31 @@ const ROLL = 1.35
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
 
+/** Signed shortest way round to an angle, in degrees. */
+const wrap180 = (a: number) => (((a + 180) % 360) + 360) % 360 - 180
+
+/**
+ * The face the die is closest to already, and the turn that lays it flat.
+ *
+ * This is what decides the roll. Picking a value up front and then rotating
+ * to match meant the tumble was theatre: the cube would be showing a six as
+ * it came to rest and then jump to the five that had been chosen before it
+ * was ever thrown. Reading the face out of the physics instead means the
+ * number is whatever the die actually did, and the settle is a few degrees of
+ * turn rather than a snap.
+ */
+function nearestFace(spinX: number, spinY: number) {
+  let best = { value: 1, x: spinX, y: spinY, cost: Infinity }
+  for (const face of [1, 2, 3, 4, 5, 6]) {
+    const { rx, ry } = ORIENT[face]
+    const dx = wrap180(rx - spinX)
+    const dy = wrap180(ry - spinY)
+    const cost = Math.abs(dx) + Math.abs(dy)
+    if (cost < best.cost) best = { value: face, x: spinX + dx, y: spinY + dy, cost }
+  }
+  return best
+}
+
 interface Sample { x: number; y: number; t: number }
 
 /**
@@ -159,10 +184,20 @@ export function PlayDie({
     }
   }
 
-  // The cube's resting orientation follows the value whenever it changes from
-  // outside a throw — counting, or a resumed game.
+  /* What the cube is currently turned to show.
+   *
+   * The settle reports its value up, which comes straight back down as a prop
+   * — and without this the effect below would treat its own result as an
+   * external change, recompute the orientation and `gsap.set` it, killing the
+   * settle tween mid-flight. That was the snap: the die stopped turning and
+   * jumped square in the same instant it landed. */
+  const shown = useRef(die.value)
+
+  // The cube follows the value when it changes from outside a throw: counting,
+  // or a resumed game.
   useEffect(() => {
-    if (busy.current) return
+    if (busy.current || shown.current === die.value) return
+    shown.current = die.value
     faceOn(die.value, false)
     // Only when the value itself moves; a throw sets its own final rotation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -181,26 +216,44 @@ export function PlayDie({
   const throwIt = (vx: number, vy: number) => {
     const el = ref.current
     const cube = cubeRef.current
-    const next = 1 + Math.floor(Math.random() * 6)
     if (!el || !cube) return
 
     const { w, h } = span()
     let px = gsap.getProperty(el, 'x') as number
     let py = gsap.getProperty(el, 'y') as number
 
+    /** Come to rest: lay the cube flat on whichever face it is nearest, and
+     *  report that face as the roll. */
     const land = () => {
-      busy.current = false
       stopTicker()
-      onChange({ x: w ? clamp01(px / w) : 0, y: h ? clamp01(py / h) : 0, value: next })
-      faceOn(next, true)
-      onRoll?.(next, false)
+      const rest = nearestFace(spin.current.x, spin.current.y)
+      spin.current = { x: rest.x, y: rest.y }
+      shown.current = rest.value
+      settleTween.current?.kill()
+      if (canAnimate()) {
+        settleTween.current = gsap.to(cube, {
+          rotateX: rest.x, rotateY: rest.y,
+          // Short and soft: this is the die rocking onto a face, not a
+          // separate animation happening to it.
+          duration: 0.28, ease: 'power2.out',
+          onComplete: () => { busy.current = false },
+        })
+      } else {
+        gsap.set(cube, { rotateX: rest.x, rotateY: rest.y })
+        busy.current = false
+      }
+      onChange({ x: w ? clamp01(px / w) : 0, y: h ? clamp01(py / h) : 0, value: rest.value })
+      onRoll?.(rest.value, false)
     }
 
     if (!canAnimate()) {
       // No frames to animate with: carry the throw to where it would have
-      // ended up rather than dropping the die where it was released.
+      // ended up rather than dropping the die where it was released, and give
+      // the cube a tumble to be read off.
       px = Math.max(0, Math.min(w, px + vx * 260))
       py = Math.max(0, Math.min(h, py + vy * 260))
+      spin.current.y += vx * 260 * ROLL
+      spin.current.x -= vy * 260 * ROLL
       gsap.set(el, { x: px, y: py })
       land()
       return
@@ -331,6 +384,7 @@ export function PlayDie({
 
   const onDoubleClick = () => {
     stopTicker()
+    busy.current = false
     onChange({ counting: true, value: 1 })
     onRoll?.(1, true)
   }
