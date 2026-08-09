@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { canAnimate, gsap } from '../lib/motion'
-import { DIE_PX, TRAY_SNAP, type DieState } from '../lib/playtestCache'
+import { DIE_PX, DIE_SIDES, TRAY_SNAP, type DieState } from '../lib/playtestCache'
 
 /**
  * Pip positions in a 3x3 grid, indexed
@@ -53,6 +53,12 @@ const RESTING = 0.015
  *  reads as a dragged icon, so this is deliberately generous. */
 const ROLL = 1.35
 
+/** How far the d20's silhouette is allowed to tilt out of plane, in degrees.
+ *  Shallow on purpose: enough to read as a solid turning over, nowhere near
+ *  enough to catch it edge-on. */
+const TILT = 24
+const DEG = Math.PI / 180
+
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
 
 /** Signed shortest way round to an angle, in degrees. */
@@ -100,7 +106,7 @@ interface Sample { x: number; y: number; t: number }
  * reports the resting place at the end.
  */
 export function PlayDie({
-  die, matRef, trayRef, onChange, onRoll,
+  die, matRef, trayRef, binRef, onChange, onRoll, onDragState, onDiscard,
 }: {
   die: DieState
   /** The playmat, which is both the coordinate space and the walls. */
@@ -108,10 +114,17 @@ export function PlayDie({
   /** This die's tray. A die at home is placed from this element's measured
    *  position rather than from its own coordinates — see `DieState.home`. */
   trayRef: React.RefObject<HTMLDivElement | null>
+  /** The bin, which only exists while a die is in hand. */
+  binRef?: React.RefObject<HTMLDivElement | null>
   /** `backInTray` says the die came to rest on its own slot, which is how a
    *  loose one is put away and how a home one is known not to have left. */
   onChange: (next: Partial<DieState>, backInTray?: boolean) => void
   onRoll?: (value: number, counting: boolean) => void
+  /** Carrying a die, and whether it is currently over the bin. Drives both
+   *  the bin appearing and its armed state. */
+  onDragState?: (carrying: boolean, overBin: boolean) => void
+  /** Released over the bin: this die goes away. */
+  onDiscard?: () => void
 }) {
   const ref = useRef<HTMLButtonElement>(null)
   const cubeRef = useRef<HTMLDivElement>(null)
@@ -161,6 +174,16 @@ export function PlayDie({
     return { x: t.x - m.x + (t.width - SIZE) / 2, y: t.y - m.y + (t.height - SIZE) / 2 }
   }
 
+  /** Is the pointer over the bin? Tested against the pointer rather than the
+   *  die, because the die is a 46px block under your finger and what you aim
+   *  with is the finger. */
+  const overBin = (clientX: number, clientY: number) => {
+    const bin = binRef?.current
+    if (!bin) return false
+    const b = bin.getBoundingClientRect()
+    return clientX >= b.left && clientX <= b.right && clientY >= b.top && clientY <= b.bottom
+  }
+
   /** Whether a resting position counts as back in the slot. Measured in
    *  pixels against the tray itself, so it means the same thing at every
    *  window size — a fraction of the mat did not. */
@@ -193,9 +216,19 @@ export function PlayDie({
 
   /* Put the die where it belongs.
    *
-   * Runs on mount and on resize — anything that moves the tray or rescales
-   * the mat. Skipped mid-gesture, when the element's position is being driven
-   * directly and the state is deliberately stale. */
+   * Watches the mat itself rather than the window, because the thing that
+   * actually moves the tray is the mat changing size, and only some of the
+   * ways that happens are window resizes. The one that mattered: the hand's
+   * card images arrive after this has mounted, the hand grows to fit them,
+   * the mat is squeezed by exactly that much, and the tools ride up with its
+   * bottom edge -- while the die, positioned once against the old box, stays
+   * where it was. No resize event is fired for any of it, so a window
+   * listener sleeps through it and the die starts life below its own square.
+   * That is also why a die spawned later looked fine: it mounts into a
+   * layout that has already settled.
+   *
+   * Skipped mid-gesture, when the element's position is being driven directly
+   * and the state is deliberately stale. */
   useEffect(() => {
     const place = () => {
       if (busy.current || !ref.current) return
@@ -207,13 +240,37 @@ export function PlayDie({
     // out when this runs, and a die placed against a zero-size tray is the
     // die that appears just outside its own slot.
     const settle = requestAnimationFrame(place)
-    window.addEventListener('resize', place)
+    const mat = matRef.current
+    const watch = new ResizeObserver(place)
+    if (mat) watch.observe(mat)
     return () => {
       cancelAnimationFrame(settle)
-      window.removeEventListener('resize', place)
+      watch.disconnect()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [die.x, die.y, die.home])
+
+  /** How the accumulated spin becomes actual rotation.
+   *
+   * A cube is a real solid and turns on X and Y. The d20 is not: it is one
+   * flat silhouette, and a plane turned edge-on in 3D collapses to a line —
+   * a d20 that vanishes to a hairline halfway through a throw reads as a
+   * sheet of paper rather than as a solid. So its tumble is an in-plane spin
+   * on Z, which can never flatten, plus a shallow bounded tilt that keeps it
+   * turning *in* space rather than sliding across it.
+   *
+   * Both tilt terms are sines of the spin, so they vanish exactly when the
+   * spin lands on a multiple of 360 — which is what `land` snaps to. The die
+   * therefore comes to rest genuinely flat-on, never a few degrees off. */
+  const turn = (rx: number, ry: number) => (
+    die.kind === 'd20'
+      ? {
+          rotateZ: ry,
+          rotateX: TILT * Math.sin(rx * DEG),
+          rotateY: TILT * Math.sin(ry * DEG),
+        }
+      : { rotateX: rx, rotateY: ry, rotateZ: 0 }
+  )
 
   /** Show a face flat-on. Used by count mode, where the die is being read
    *  rather than thrown and any tumble is noise. */
@@ -231,10 +288,10 @@ export function PlayDie({
     settleTween.current?.kill()
     if (animate && canAnimate()) {
       settleTween.current = gsap.to(cube, {
-        rotateX: target.x, rotateY: target.y, duration: 0.4, ease: 'power3.out',
+        ...turn(target.x, target.y), duration: 0.4, ease: 'power3.out',
       })
     } else {
-      gsap.set(cube, { rotateX: target.x, rotateY: target.y })
+      gsap.set(cube, turn(target.x, target.y))
     }
   }
 
@@ -299,14 +356,14 @@ export function PlayDie({
       settleTween.current?.kill()
       if (canAnimate()) {
         settleTween.current = gsap.to(cube, {
-          rotateX: rest.x, rotateY: rest.y,
+          ...turn(rest.x, rest.y),
           // Short and soft: this is the die rocking onto a face, not a
           // separate animation happening to it.
           duration: 0.28, ease: 'power2.out',
           onComplete: () => { busy.current = false },
         })
       } else {
-        gsap.set(cube, { rotateX: rest.x, rotateY: rest.y })
+        gsap.set(cube, turn(rest.x, rest.y))
         busy.current = false
       }
       onChange(
@@ -353,7 +410,7 @@ export function PlayDie({
       spin.current.x -= vy * dt * ROLL
 
       gsap.set(el, { x: px, y: py })
-      gsap.set(cube, { rotateX: spin.current.x, rotateY: spin.current.y })
+      gsap.set(cube, turn(spin.current.x, spin.current.y))
 
       if (Math.hypot(vx, vy) < RESTING) land()
     }
@@ -375,6 +432,7 @@ export function PlayDie({
       py: el ? (gsap.getProperty(el, 'y') as number) : 0,
     }
     trail.current = [{ x: event.clientX, y: event.clientY, t: performance.now() }]
+    onDragState?.(true, false)
     // Capture keeps the gesture alive once the pointer outruns the die, which
     // on a flick it does immediately. It throws if the pointer is already
     // gone, and a die that cannot be captured is still a die that can be
@@ -390,14 +448,14 @@ export function PlayDie({
     const py = Math.max(0, Math.min(h, start.py + (event.clientY - start.pointer.y)))
     gsap.set(ref.current, { x: px, y: py })
 
-    // Tumble while being carried, so it reads as an object in the hand rather
-    // than an icon being dragged.
-    const last = trail.current[trail.current.length - 1]
-    if (last && cubeRef.current) {
-      spin.current.y += (event.clientX - last.x) * 0.45
-      spin.current.x -= (event.clientY - last.y) * 0.45
-      gsap.set(cubeRef.current, { rotateX: spin.current.x, rotateY: spin.current.y })
-    }
+    /* Deliberately no tumble while it is being carried.
+     *
+     * A die in your hand does not roll -- you are holding it. Spinning it
+     * during the drag also made the face unreadable exactly when someone is
+     * placing it deliberately rather than throwing it, and blurred the line
+     * between the two gestures. It turns only in flight. */
+
+    onDragState?.(true, overBin(event.clientX, event.clientY))
 
     trail.current.push({ x: event.clientX, y: event.clientY, t: performance.now() })
     // Only the tail is needed, and an unbounded trail on a long drag would
@@ -409,6 +467,18 @@ export function PlayDie({
     if (!origin.current) return
     origin.current = null
     try { event.currentTarget.releasePointerCapture(event.pointerId) } catch { /* fine */ }
+    onDragState?.(false, false)
+
+    /* Dropped in the bin. Checked before the throw test, so a die flicked
+     * into it is binned rather than thrown out of it — the bin is where you
+     * let go, and letting go fast is still letting go there. */
+    if (overBin(event.clientX, event.clientY)) {
+      trail.current = []
+      busy.current = false
+      threw.current = true
+      onDiscard?.()
+      return
+    }
 
     // Speed over the last stretch of the drag, not over the whole of it: a
     // slow reposition ending in a flick is a throw, and averaging from the
@@ -445,14 +515,21 @@ export function PlayDie({
     // leaves the double-click free to mean something.
     if (threw.current) { threw.current = false; return }
     if (!die.counting) return
-    // A d6 has six faces, so counting cycles rather than running off the end
-    // of what the pips can say.
-    const next = die.value >= 6 ? 1 : die.value + 1
+    // Cycles at the die's own size rather than at six: a d20 counting to 6 and
+    // starting over is a counter that cannot count to the number it is for.
+    const next = die.value >= DIE_SIDES[die.kind] ? 1 : die.value + 1
     onChange({ value: next })
     onRoll?.(next, true)
   }
 
   const onDoubleClick = () => {
+    /* Only ever *enters* count mode.
+     *
+     * A second click inside the double-click window fires `onClick` as well as
+     * this, so counting up quickly ran 3 -> 4 and then had this reset it to 1.
+     * A die already counting is a die whose double-click has done its job, and
+     * the fastest way to count is exactly the way that used to break it. */
+    if (die.counting) return
     stopTicker()
     busy.current = false
     onChange({ counting: true, value: 1 })
@@ -479,10 +556,23 @@ export function PlayDie({
     >
       <div className="pt-die-cube" ref={cubeRef} aria-hidden>
         {die.kind === 'd20' ? (
-          // One solid body carrying a numeral, rather than twenty faces that
-          // cannot be built. It tumbles in 3D like the cube; only the way its
-          // result is decided differs — see `land`.
-          <span className="pt-die-body">{die.value}</span>
+          /* The icosahedron as a drawn silhouette rather than twenty real
+             faces. Face-on, a d20 is a hexagon with the face you read in the
+             middle of it, so that outline plus three edges running out to the
+             corners is the whole of what makes it recognisable — and it is
+             recognisable *before* you read the number, which is the entire
+             job. Twenty real faces would need twenty clip-paths and the
+             dihedral angles to go with them, for a shape that is edge-on and
+             unreadable most of the time anyway. See `turn` for why it spins
+             in-plane. */
+          <span className="pt-die-body">
+            <svg className="pt-d20-shape" viewBox="0 0 100 100">
+              <polygon className="hull" points="50,4 89.8,27 89.8,73 50,96 10.2,73 10.2,27" />
+              <polygon className="face" points="50,26 73,66 27,66" />
+              <path className="edge" d="M50,4 L50,26 M89.8,73 L73,66 M10.2,73 L27,66" />
+            </svg>
+            <span className="pt-d20-num">{die.value}</span>
+          </span>
         ) : (
           [1, 2, 3, 4, 5, 6].map((face) => (
             <span className={`pt-die-side s${face}`} key={face}>

@@ -106,6 +106,22 @@ export function solidDragImage(
   const ox = keep ? rect.width / 2 : event.clientX - rect.left
   const oy = keep ? rect.height / 2 : event.clientY - rect.top
   event.dataTransfer.setDragImage(ghost, ox, oy)
-  // The browser rasterises it synchronously, so it can go straight back out.
-  setTimeout(() => ghost.remove(), 0)
+
+  /* Kept alive until the drag ends, not torn down on the next tick.
+   *
+   * `setTimeout(..., 0)` assumed Chrome rasterises the drag image
+   * synchronously inside the dragstart handler. It usually does -- which is
+   * why the search grid always looked right -- but not reliably, and when the
+   * removal wins the race Chrome silently falls back to its own translucent
+   * snapshot of whatever the gesture started on. That is the washed-out
+   * "dragging an image" ghost: not our clone rendering badly, our clone never
+   * being used.
+   *
+   * `dragend` fires on the source for every outcome including a cancelled
+   * drag, so the ghost cannot leak. */
+  const cleanUp = () => {
+    ghost.remove()
+    source.removeEventListener('dragend', cleanUp)
+  }
+  source.addEventListener('dragend', cleanUp)
 }

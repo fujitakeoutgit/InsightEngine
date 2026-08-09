@@ -148,11 +148,11 @@ export function PlaytestPage() {
     <section className="shell">
       <div className="page-back"><BackLink /></div>
       <div className="gallery-head">
-        <span className="eyebrow">Goldfish</span>
+        <span className="eyebrow">Commander</span>
         <h1 className="display" ref={titleRef}>Playtest</h1>
         <hr className="manaline" style={{ maxWidth: 300, marginTop: 14 }} />
         <p className="lede" style={{ marginTop: 14 }}>
-          Pick a deck and it deals you seven. No editor, no analysis — just the table.
+          Pick your deck - cast your spells and practice your interaction.
         </p>
       </div>
 
@@ -197,7 +197,11 @@ export function PlaytestPage() {
                 </div>
                 <h2>{deck.name}</h2>
                 <p className="mono">{deck.commander ?? 'No commander'}</p>
-                <p className="mono faint meta">{deck.lines ?? 0} lines · deal seven</p>
+                {/* The same subtitle Deck Lab gives a deck, so the one deck reads
+                    identically wherever it is listed. */}
+                <p className="mono faint meta">
+                  {deck.lines ?? 0} lines · {deck.updated_at.slice(0, 10)}
+                </p>
               </div>
             </article>
           ))}

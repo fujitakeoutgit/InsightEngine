@@ -65,6 +65,8 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
     rocks = 0
     dorks = 0
     other_sources = 0
+    # Cards that produce at least one coloured symbol, counted once each.
+    source_cards = 0
 
     for res in cards:
         card = res.card
@@ -97,6 +99,8 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
 
         if is_land:
             lands += qty
+            if makes:
+                source_cards += qty
             for symbol in makes:
                 produced[symbol] += qty
             text = (card.get("oracle_text") or "").lower()
@@ -109,6 +113,8 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
             # artifacts. Permanents only: a ritual produces mana once, which is
             # not the repeatable source this balance is measuring.
             if all_makes and _PERMANENT.search(line) and not _ONE_SHOT.search(line):
+                if makes:
+                    source_cards += qty
                 for symbol in makes:
                     produced[symbol] += qty
                 if "Creature" in line:
@@ -134,7 +140,18 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
 
     # Sources vs requirements: the question a mana base has to answer.
     total_pips = sum(pips.values()) or 1
-    total_sources = sum(produced.values()) or 1
+    # The number of source *cards*, not the sum of the colours they make.
+    #
+    # Summing `produced` counted a five-colour land five times, so every extra
+    # colour a source could make inflated the denominator that every colour is
+    # then judged against. A mono-red deck whose fixing all taps for red as
+    # well reported Red at -46% and could never reach 100%: red was measured
+    # against a total that its own colour-agnostic lands had quintupled.
+    # Counting each source once makes the share mean "what fraction of my
+    # sources can produce this colour", which is the question being asked --
+    # and a land that makes any colour now satisfies every colour it makes,
+    # rather than diluting all of them.
+    total_sources = source_cards or 1
     balance = []
     for colour in COLOURS:
         if not pips[colour] and not produced[colour]:

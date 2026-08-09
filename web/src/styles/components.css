@@ -2201,7 +2201,57 @@
   flex-direction: column;
   gap: 8px;
   align-self: stretch;
+  /* One width for this whole corner: the three buttons and the three piles
+     below them are the same three columns, so they get it from here rather
+     than each carrying their own copy. They had drifted apart by 3px once
+     already, which is exactly the amount that reads as "not quite aligned"
+     without being obviously broken. */
+  --zone-w: 88px;
 }
+
+/* Life. A bar across the whole corner rather than three columns, because it
+   is one number and not one per zone -- and the arrows are pushed out to the
+   two ends, where they are the largest targets in this column and cannot be
+   hit by accident when you are aiming for the number between them. */
+.pt-life {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: var(--r);
+  background: var(--glass);
+}
+
+.pt-life-value {
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink);
+  /* Fixed width so the bar does not twitch between 9 and 10, or 39 and 40. */
+  min-width: 3ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-life-step {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color var(--dur-fast), background-color var(--dur-fast);
+}
+
+.pt-life-step svg { width: 16px; height: 16px; }
+.pt-life-step:hover { color: var(--ink); background: var(--glass-hi); }
 
 .pt-actions {
   flex: 1 1 auto;
@@ -2209,11 +2259,21 @@
   display: grid;
   /* The same three columns as the piles below, so each button is exactly as
      wide as the zone it stands over. */
-  grid-template-columns: repeat(3, minmax(116px, 1fr));
+  /* Fixed, not `minmax(--zone-w, 1fr)`. The 1fr let each column grow to its
+     own label, so "Next turn" pushed all three to 90 against the piles' 88 --
+     a two-pixel overhang that reads as sloppy rather than as a difference. */
+  grid-template-columns: repeat(3, var(--zone-w));
   gap: 10px;
 }
 
-.pt-actions .btn { height: 100%; padding: 5px 9px; font-size: 10.5px; }
+.pt-actions .btn {
+  height: 100%;
+  /* Narrower side padding than a normal small button: the column width is
+     fixed now, so the label has to fit it rather than set it. */
+  padding: 5px 6px;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
 
 /* The history drawer: shut by default, hinged off the right edge of the mat.
    It answers "what just happened", which is an occasional question and not
@@ -2276,8 +2336,15 @@
   gap: 2px;
 }
 
-/* One entry, one line, whatever the card is called. */
+/* One entry, one line, whatever the card is called.
+
+   `flex: none` is what makes the drawer scroll. These are flex items in a
+   column, so by default they shrink to fit the container instead of
+   overflowing it -- the log quietly squashed itself down to nothing and
+   `overflow-y: auto` above never had anything to scroll. Refusing to shrink
+   is what pushes the content past the max-height and brings the bar back. */
 .pt-history div {
+  flex: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2286,11 +2353,15 @@
 /* The tools: the d20 tray, the d6 tray, and the coin -- anchored to the bottom
    right so they sit directly above the deck, the way a set of dice sits beside
    the library on a table. */
+/* Deliberately no z-index. A z-index here makes this box a stacking context,
+   and the coin's z-index is then only worth something against its two sibling
+   trays -- against a die outside the box it cannot win at any value. The tools
+   still paint over the battlefield because they come after it in the DOM, so
+   the stacking context was buying nothing and costing the coin its layer. */
 .pt-tools {
   position: absolute;
   right: 12px;
   bottom: 12px;
-  z-index: 4;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2300,21 +2371,48 @@
 
 .pt-tools > * { pointer-events: auto; }
 
+/* Width comes from `--zone-w`, shared with the buttons above.
+   The heading, not the card, is what stops this going narrower still: at the
+   old type size "Graveyard" plus its count measured 97px against a 64px card,
+   and the pile could not be shrunk without wrapping the word. So the heading
+   was made to fit the pile rather than the pile the heading -- see
+   `.pt-pile-head` -- which is what turned 25px of dead gutter into 6. */
 .pt-pile {
-  min-width: 116px;
-  padding: 6px 8px 8px;
+  min-width: var(--zone-w);
+  padding: 6px 6px 8px;
   border-radius: var(--r);
   background: var(--glass);
   transition: background-color var(--dur-fast);
 }
 
 .pt-pile:hover { background: var(--glass-hi); }
-.pt-pile-head { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; }
+/* Sized to fit the narrowest pile on one line. "Graveyard" is the longest of
+   the three labels and the count sits beside it, so those two together are
+   the real width floor for this whole corner. The tracking is the expensive
+   part of it -- 0.24em over nine characters is 23px of pure letter-spacing --
+   so most of the saving is there rather than in the type size. */
+.pt-pile-head {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  margin-bottom: 4px;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+}
+
+.pt-pile-head .label,
+.pt-pile-head .mono { font-size: inherit; letter-spacing: inherit; }
 
 /* Tall enough for the card it holds. At 52px the body was shorter than the
    72px a 52px-wide card actually stands, so the commander sat clipped at the
    bottom of its own zone. */
-.pt-pile-body { display: flex; min-height: 92px; align-items: flex-end; }
+.pt-pile-body {
+  display: flex;
+  min-height: 92px;
+  align-items: flex-end;
+  /* Centred, so the card sits with the same gutter either side of it. */
+  justify-content: center;
+}
 
 .pt-back {
   width: 38px;
@@ -2564,6 +2662,25 @@
   border-color: var(--aether);
   border-style: solid;
   background: color-mix(in oklab, var(--aether) 12%, transparent);
+}
+
+/* Approve is the affirmative one, and the only control on the row that acts
+   on the match already made rather than replacing it — solid rather than
+   dashed, and pushed to the end so it sits beside the tag it is agreeing
+   with. `ok` rather than the accent blue, which on this row means "pick this
+   other one instead". */
+.alt-pick.approve {
+  margin-left: auto;
+  flex: none;
+  border-style: solid;
+  border-color: color-mix(in oklab, var(--ok) 45%, transparent);
+  color: var(--ok);
+}
+
+.alt-pick.approve:hover:not(:disabled) {
+  color: var(--ok);
+  border-color: var(--ok);
+  background: color-mix(in oklab, var(--ok) 14%, transparent);
 }
 
 .alt-pick:disabled { opacity: 0.5; cursor: default; }
@@ -3014,18 +3131,136 @@
   pointer-events: none;
 }
 
-/* The d20's body, which carries a numeral rather than twenty faces. */
+/* Loyalty, bottom-right of a planeswalker -- the corner the tap symbol used
+   to sit in, and the corner it is printed in on the card itself. */
+.pt-loyalty {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  /* Inert, so the card underneath still starts a drag from this corner. The
+     badge is a readout, not a control; only the arrows take the pointer. */
+  pointer-events: none;
+}
+
+.pt-loyalty-step { pointer-events: auto; }
+
+/* 1.64:1, the artwork's own aspect — see `LoyaltyShield`. */
+.pt-loyalty-badge {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 21px;
+  flex: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+}
+
+.pt-loyalty-shield { position: absolute; inset: 0; width: 100%; height: 100%; }
+.pt-loyalty-shield .body { fill: #0a0a0c; }
+.pt-loyalty-shield .rim { fill: #d2d3d5; }
+.pt-loyalty-shield .field { fill: #101114; }
+
+.pt-loyalty-badge .n {
+  position: relative;
+  font-family: var(--font-m);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  /* The shield's point is at the bottom, so its optical centre is above its
+     geometric one. */
+  transform: translateY(-1px);
+}
+
+/* The arrows. Hidden until the card is hovered: loyalty moves a few times a
+   game, and two live buttons parked on every walker are two more things to
+   catch while dragging one around the mat. */
+.pt-loyalty-step {
+  display: grid;
+  place-items: center;
+  width: 0;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: rgba(8, 9, 12, 0.85);
+  color: #fff;
+  opacity: 0;
+  overflow: hidden;
+  cursor: pointer;
+  transition: width var(--dur-fast), opacity var(--dur-fast),
+              background-color var(--dur-fast);
+}
+
+.pt-loyalty-step svg { width: 13px; height: 13px; }
+
+.pt-card:hover .pt-loyalty-step,
+.pt-loyalty:hover .pt-loyalty-step,
+.pt-loyalty-step:focus-visible {
+  width: 18px;
+  opacity: 1;
+}
+
+.pt-loyalty-step:hover { background: var(--aether); }
+
+/* The bin. Present in the layout at all times so the trays never shift when
+   it appears -- a slot that moves the moment you pick a die up is a slot you
+   cannot aim at -- but invisible and untargetable until a die is in hand. */
+.pt-die-bin {
+  flex: none;
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--line-soft);
+  border-radius: 12px;
+  color: var(--muted);
+  opacity: 0;
+  transform: scale(0.9);
+  pointer-events: none;
+  transition: opacity var(--dur-fast), transform var(--dur-fast),
+              color var(--dur-fast), border-color var(--dur-fast),
+              background-color var(--dur-fast);
+}
+
+.pt-die-bin svg { width: 22px; height: 22px; }
+.pt-die-bin.shown { opacity: 1; transform: none; }
+
+/* Armed: the die is over it and letting go now throws that die away. Red
+   rather than the accent blue, which everywhere else in here means "this is
+   live", not "this destroys something". */
+.pt-die-bin.hot {
+  color: var(--danger);
+  border-color: var(--danger);
+  border-style: solid;
+  background: color-mix(in oklab, var(--danger) 16%, transparent);
+  transform: scale(1.08);
+}
+
+/* The d20's body: a drawn icosahedron, not a rounded square.
+   Every rule here is scoped under `.pt-die` deliberately. A bare `.pt-d20`
+   block once existed for a component that no longer does, and because it sat
+   later in this file than `.pt-die` at equal specificity it silently won the
+   `position` declaration and put every d20 into normal flow -- which is what
+   made them stack a die-height apart. Scoped, that cannot happen again. */
 .pt-die.pt-d20 .pt-die-cube {
   display: grid;
   place-items: center;
-  border-radius: 11px;
-  border: 1px solid var(--line);
-  background: linear-gradient(150deg, var(--bg-hi), var(--bg));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07),
-              inset 0 0 18px rgba(0, 0, 0, 0.45);
+  background: none;
+  border: 0;
+  box-shadow: none;
 }
 
-.pt-die-body {
+.pt-die .pt-die-body {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
   font-family: var(--font-m);
   font-size: 17px;
   font-weight: 600;
@@ -3033,51 +3268,53 @@
   color: var(--ink);
 }
 
-.pt-die.pt-d20.counting .pt-die-cube {
-  border-color: var(--aether);
-  background: linear-gradient(150deg,
-    color-mix(in oklab, var(--aether) 22%, var(--bg-hi)), var(--bg));
+.pt-die .pt-d20-shape {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
-.pt-die.pt-d20.counting .pt-die-body { color: var(--aether-hi); }
-
-/* The d20. Numerals, because twenty pips is not a thing you read. */
-.pt-d20 {
-  position: relative;
-  flex: none;
-  width: 46px;
-  height: 46px;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  will-change: transform;
-  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.55));
-}
-
-.pt-d20 svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-.pt-d20 .body {
+.pt-die .pt-d20-shape .hull {
   fill: var(--bg-hi);
   stroke: var(--line);
   stroke-width: 3;
-  transition: stroke var(--dur-fast);
+  stroke-linejoin: round;
 }
-.pt-d20 .face {
-  fill: color-mix(in oklab, var(--aether) 12%, transparent);
+
+/* The face you read the number off, lifted a shade from the body so the
+   silhouette still has a front even when it is turning. */
+.pt-die .pt-d20-shape .face {
+  fill: color-mix(in oklab, var(--aether) 10%, var(--bg-hi));
   stroke: var(--line-soft);
   stroke-width: 2;
+  stroke-linejoin: round;
 }
-.pt-d20:hover .body { stroke: var(--aether); }
 
-.pt-d20-value {
-  position: relative;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink);
-  /* Sits in the upward face rather than the middle of the hexagon. */
-  transform: translateY(5px);
-  pointer-events: none;
+.pt-die .pt-d20-shape .edge {
+  fill: none;
+  stroke: var(--line-soft);
+  stroke-width: 2;
+  stroke-linecap: round;
 }
+
+.pt-die .pt-d20-num {
+  position: relative;
+  font-size: 15px;
+  /* Sits in the middle of the upward face rather than the middle of the
+     hexagon, which is lower. */
+  transform: translateY(3px);
+}
+
+/* Counting rather than rolling: the shape itself takes the accent, since
+   there is no longer a box around it to tint. */
+.pt-die.pt-d20.counting .pt-d20-shape .hull { stroke: var(--aether); }
+.pt-die.pt-d20.counting .pt-d20-shape .face {
+  fill: color-mix(in oklab, var(--aether) 26%, var(--bg-hi));
+  stroke: var(--aether);
+}
+.pt-die.pt-d20.counting .pt-d20-num { color: var(--aether-hi); }
 
 /* The coin. A real two-sided disc so the face it shows is its rotation
    rather than a swapped graphic — there is no instant where it reads one
@@ -3090,7 +3327,13 @@
   perspective: 480px;
   cursor: pointer;
   will-change: transform;
-  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.55));
+  /* Above everything. The flip throws it a hundred pixels into the air, and
+     at the bottom right of the mat that arc crosses the deck, the piles and
+     any die parked nearby -- a coin that passes behind them reads as a bug
+     rather than as a toss. */
+  position: relative;
+  z-index: 40;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.6));
 }
 
 .pt-coin-disc {
@@ -3108,23 +3351,35 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  border: 1px solid var(--line);
-  background: radial-gradient(circle at 34% 28%,
-    color-mix(in oklab, var(--aether) 26%, var(--bg-hi)), var(--bg) 78%);
-  box-shadow: inset 0 0 0 3px rgba(148, 163, 205, 0.12);
+  /* Gold. The one object on the table that is not part of the app's palette,
+     because it is not a piece of interface -- it is a coin, and a coin that
+     matched the accent blue read as another button. Lit from the upper left
+     with a warm rim, so the disc looks struck rather than filled. */
+  border: 1px solid #7a5a1e;
+  background:
+    radial-gradient(circle at 34% 26%, #ffe9a8 0%, #f0c34f 34%, #c8901f 68%, #8a5f14 100%);
+  box-shadow: inset 0 0 0 3px rgba(255, 232, 168, 0.28),
+              inset 0 -3px 6px rgba(90, 60, 10, 0.55);
   /* Struck into the face: monospaced, spaced out, and shadowed as though
      stamped rather than printed on. */
   font-family: var(--font-m);
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.06em;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.55);
-  color: var(--aether-hi);
+  text-shadow: 0 1px 0 rgba(255, 240, 200, 0.45), 0 -1px 1px rgba(70, 46, 8, 0.8);
+  color: #4a3208;
   backface-visibility: hidden;
 }
 
-.pt-coin-side.tails { transform: rotateX(180deg); color: var(--muted); }
-.pt-coin:hover .pt-coin-side { border-color: var(--aether); }
+/* The reverse is struck a shade deeper, so a glimpse of the coin mid-flight
+   still says which way up it is. */
+.pt-coin-side.tails {
+  transform: rotateX(180deg);
+  background:
+    radial-gradient(circle at 34% 26%, #f4d894 0%, #dfae3c 34%, #b07d17 68%, #744f0f 100%);
+}
+
+.pt-coin:hover .pt-coin-side { border-color: #d9ab4a; }
 
 .pt-die-cube {
   position: relative;

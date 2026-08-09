@@ -94,6 +94,23 @@ function ResolutionRow({
           </span>
         )}
       </span>
+      {/* Approve: the match is right, write it down.
+          A fuzzy line is flagged every time the deck is analysed, because the
+          raw text still says "Phial of Galadrl" — agreeing with the guess in
+          your head does not change the file. This rewrites the line to the
+          name it resolved to, which is the same edit an alternative makes and
+          the only thing that actually settles the question. Absent when there
+          is nothing to approve, or when the raw text already says it. */}
+      {entry.card && entry.match !== 'exact' && entry.raw_name !== entry.card.name && (
+        <button
+          className="alt-pick approve"
+          disabled={busy || !onReplace}
+          title={`Accept “${entry.card.name}” and write it into the list`}
+          onClick={() => onReplace?.(entry, entry.card!.name)}
+        >
+          Approve
+        </button>
+      )}
       <span className={`match-tag ${entry.match}`}>
         {entry.match}{entry.match !== 'exact' && entry.score > 0 && ` ${Math.round(entry.score)}`}
       </span>
@@ -101,10 +118,13 @@ function ResolutionRow({
   )
 }
 
-export function DeckPage() {
+export function DeckPage({ binder }: { binder?: boolean } = {}) {
   const { deckId } = useParams()
   const navigate = useNavigate()
-  const isNew = !deckId || deckId === 'new'
+  /* The binder is one particular saved deck rather than a route parameter, so
+   * it is never "new" in the sense a deck is: it is found by name on mount,
+   * and created on first save if it has never been written. */
+  const isNew = !binder && (!deckId || deckId === 'new')
 
   const [text, setText] = useState('')
   /** The decklist as it last existed on the server, so "has this changed?" is
@@ -709,6 +729,26 @@ export function DeckPage() {
         </label>
       )}
 
+      {/* Name resolution sits with the text it is talking about: it reports on
+          lines you typed, and the fix is to edit one. In the analysis tab it
+          was a verdict delivered a pane away from the thing it was judging. */}
+      {mode === 'text' && report && uncertain.length > 0 && (
+        <div className="panel">
+          <div className="row" style={{ justifyContent: 'space-between', marginBottom: 10 }}>
+            <h3 style={{ margin: 0 }}>
+              Name resolution
+              <span style={{ color: 'var(--warn)' }}> · {uncertain.length} to check</span>
+            </h3>
+            <button className="btn btn-ghost sm" onClick={() => setShowAll(!showAll)}>
+              {showAll ? 'Only uncertain' : `All ${report.entries.length}`}
+            </button>
+          </div>
+          {shown.map((entry, i) => (
+            <ResolutionRow key={i} entry={entry} onReplace={replaceName} busy={busy !== null} />
+          ))}
+        </div>
+      )}
+
       {mode === 'text' ? (
         <textarea
           className="decklist-input"
@@ -810,30 +850,6 @@ export function DeckPage() {
           {/* Charts first: the shape of the deck is what you opened this tab
               for. DeckInfo is reference material and goes last. */}
           {report.stats && !report.stats.empty && <DeckCharts stats={report.stats} />}
-
-          {/* Only worth a panel when there is something to resolve. A panel
-              whose entire content is "nothing went wrong" is noise. */}
-          {uncertain.length > 0 && (
-            <div className="panel">
-              <div className="row" style={{ justifyContent: 'space-between', marginBottom: 10 }}>
-                <h3 style={{ margin: 0 }}>
-                  Name resolution
-                  <span style={{ color: 'var(--warn)' }}> · {uncertain.length} to check</span>
-                </h3>
-                <button className="btn btn-ghost sm" onClick={() => setShowAll(!showAll)}>
-                  {showAll ? 'Only uncertain' : `All ${report.entries.length}`}
-                </button>
-              </div>
-              {shown.map((entry, i) => (
-                <ResolutionRow
-                  key={i}
-                  entry={entry}
-                  onReplace={replaceName}
-                  busy={busy !== null}
-                />
-              ))}
-            </div>
-          )}
 
           {report.stats && !report.stats.empty && (
             <DeckInfo

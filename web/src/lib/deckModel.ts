@@ -92,6 +92,26 @@ export function fromResolutions(resolutions: Resolution[]): DeckCard[] {
 }
 
 /** Render back to decklist text, preserving section headers. */
+/**
+ * The `(SET) 123` tail of a canonical line, or nothing.
+ *
+ * One printing is not another: a line naming only the card leaves the edition
+ * to whatever the resolver happens to pick, so a list exported today and read
+ * back tomorrow can quietly change which art, which set and which price the
+ * deck is made of. Writing the printing down is what makes a decklist a record
+ * rather than a suggestion — and it is what turns an imported `2x Mountain
+ * (MSH)` or a bare `1x Myth Realized` into the same shape as everything else.
+ *
+ * Both halves or neither: `(FDN)` with no number is not the canonical form and
+ * is no more precise than the name on its own. The set code is upper-cased
+ * because Scryfall stores it lower and every printed list writes it upper.
+ */
+function printing(card: { set_code?: string | null; collector_number?: string | null }) {
+  const set = card.set_code?.trim()
+  const number = card.collector_number?.trim()
+  return set && number ? ` (${set.toUpperCase()}) ${number}` : ''
+}
+
 export function serialize(cards: DeckCard[]): string {
   const out: string[] = []
   for (const { key, label } of SECTIONS) {
@@ -100,7 +120,7 @@ export function serialize(cards: DeckCard[]): string {
     if (out.length) out.push('')
     out.push(label)
     for (const entry of inSection) {
-      out.push(`${entry.quantity} ${entry.card.name}`)
+      out.push(`${entry.quantity} ${entry.card.name}${printing(entry.card)}`)
     }
   }
   return out.join('\n') + (out.length ? '\n' : '')

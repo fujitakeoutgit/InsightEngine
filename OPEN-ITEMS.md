@@ -65,35 +65,424 @@ most of the value would have been anyway.
 
 ## Data
 
-- **D1 — Automatic card sync.** Decide the trigger (on launch, daily, manual
-  button in Settings) and wire it to the refresh that already works. A "last
-  synced" line in Settings with a Refresh button is the minimum.
+- **D1 — Automatic card sync.** On startup, in a background task, compare
+  Scryfall's per-file `updated_at` against what was ingested and refresh if it
+  has moved. Drive it off `updated_at`, *not* the card count: a banlist
+  update, errata, or a new printing of an existing card all leave the count
+  identical, because `oracle_cards` is keyed by oracle_id. A "last synced"
+  line in Settings with a Refresh button is the minimum surface.
+
+- **D2 — Make the refresh safe to fail.** Ingest currently truncates `cards`
+  and refills it in place, so a download that dies halfway leaves the app with
+  no cards. Three ways out, in ascending order of both cost and payoff:
+
+  1. *Temp table, then rename.* Cheapest, and does not actually solve it:
+     `cards_fts` is external-content (`content='cards', content_rowid='rowid'`),
+     so it stores an index resolved against the content table by rowid rather
+     than storing the text. Swap the table underneath and every mapping is
+     stale until the FTS is rebuilt — which is the slow part of ingest. The
+     swap is atomic and is immediately followed by a broken window.
+  2. *Temp file, then merge.* Build the derived side complete — schema,
+     ingest, FTS rebuild — into `mirror.new.sqlite3` while the live database
+     keeps serving, then ATTACH and copy the tables across in one transaction.
+     Failure at any point means deleting a file.
+  3. **Split the database** (preferred). Derived data in one file, user data
+     (`decks`, `meta`) in another. Refreshing the mirror becomes a file
+     rename: no table surgery, no FTS wrinkle, no merge. It also makes the
+     distinction `DERIVED_TABLES` already asserts a physical one rather than a
+     comment, and it makes **S1** trivial — back up a few KB of user file
+     instead of filtering 220MB of rebuildable data out of a dump.
+
+     One cost: `storage.listing` joins `decks` against `cards` for the
+     commander art, so the connection has to `ATTACH` both files. SQLite does
+     cross-database joins fine; it is a line at connect time.
 
 ## Playtest
 
-- **P1 — Dice start and spawn in the wrong place.** Still wrong despite the
-  tray-measurement fix; the screenshots show them stacked oddly against the
-  slots. Needs re-diagnosing against the real layout, not the pane.
-- **P2 — d20 drifts down on every throw.** Each throw spawns its replacement
-  lower than the last.
-- **P3 — Dice must not rotate while held.** Only a throw should tumble them;
-  dragging should carry them flat.
-- **P4 — Reset needs a confirmation** — it discards a whole board.
-- **P5 — Reset must also reset the dice** back to their trays.
-- **P6 — Proper d20.** See the answer above; SVG silhouette first.
-- **P7 — Bin for dice.** While dragging a die, show a small trash target above
-  the d20 slot; releasing over it removes that die.
-- **P8 — Coin gold, and on the top layer** above everything else.
-- **P9 — Life counter.** A bar in the deck's row, above Next turn / Tutor /
-  Reset, with up and down arrows.
-- **P10 — Fetch lands.** Tapping one opens the tutor filtered to just the land
-  types that fetch can find.
-- **P11 — Dragging a card in playtest still behaves like an image.**
-- **P12 — Dragging a card from hand behaves like an image.** P11 and P12 are
-  probably one bug; the `draggable={false}` fix was applied to the deck editor
-  and not to the playtest surfaces.
+- ~~**P1 / P2** — Dice spawned in the wrong place; the d20 drifted lower on
+  every throw.~~ DONE, and they were one bug, not two. `PlayD20.tsx` — a dead
+  component nothing has imported for some time — left behind a
+  `.pt-d20 { position: relative }` rule. The live die is `pt-die pt-d20`, and
+  that rule sits *later* in the stylesheet than `.pt-die { position: absolute }`
+  at equal specificity, so it won: every d20 was in normal flow. One d20 was
+  right by luck (static top 0); each additional one stacked exactly 46px — one
+  die height — below the last, which is the "drifts down on every throw", and
+  the "stacked oddly against the slots" in the screenshots. The tray
+  measurement was never wrong; the transform was correct all along and the
+  element's static origin was not. Dead component and its orphaned CSS deleted.
 
-## Deck builder
+  Verified: three consecutive throws, each replacement measured at the tray's
+  own box (1171, 224) with zero drift; d20 computes `position: absolute`.
+
+  A second, independent cause sat behind "they still start off their squares
+  while spawning looks fine". A die re-placed itself only on `window.resize`,
+  and the thing that actually moves the tray is the *mat* changing size — which
+  it does, silently, on first load: the hand's card images arrive after the die
+  has mounted, the hand grows to fit them, the mat is squeezed by exactly that
+  much, and the tools ride up with its bottom edge while the die stays where it
+  was put. No resize event is fired for any of that. It explains the asymmetry
+  exactly — a die spawned later mounts into a layout that has already settled,
+  which is why spawning looked right. Now a `ResizeObserver` on the mat.
+
+  Reproduced by growing the hand 90px with no window resize: tray up 90, die
+  unmoved, off by 90. Confirmed fixed in the real window by you, not here —
+  see the trap below.
+
+  **Trap for the handoff:** the browser pane does not composite, and a page
+  that never paints is never delivered its `ResizeObserver` callbacks. A plain
+  observer on `.pt-mat` recorded *zero* hits across a 766→676 resize that had
+  demonstrably happened. So ResizeObserver-driven behaviour reads as
+  completely broken here and is fine in a real window. Same class as the drag
+  trap: the environment is lying, so ask what you actually see.
+- ~~**P3** — Dice no longer rotate while held; only a throw tumbles them.~~ DONE
+- ~~**P4** — Reset asks first.~~ DONE
+- ~~**P5** — Reset sweeps the dice back into their trays (Mulligan deliberately
+  does not: it is still the same game).~~ DONE
+- ~~**P13** — Piles too wide, and Next turn / Tutor / Reset not the same width
+  as them.~~ DONE, in two passes. First pass shrank the piles 116→113 and
+  centred the card, which fixed the gutters but *created* the second
+  complaint: the buttons stayed 116 and the two rows no longer lined up.
+
+  What actually set the pile width was the heading, not the card — and most of
+  that was tracking: 0.24em across "Graveyard" is 23px of pure letter-spacing
+  against a 64px card. Dropping the heading to 9.5px/0.06em let the pile go to
+  88px with the label still on one line, which turned 25px of dead gutter into
+  6. Both rows now take their width from a single `--zone-w` on `.pt-zones`
+  instead of each carrying its own copy, so they cannot drift again — and
+  `.pt-actions` had to become `repeat(3, var(--zone-w))`, because the old
+  `minmax(…, 1fr)` let each column grow to its own label and "Next turn"
+  pushed all three back out to 90.
+
+  Verified: all six boxes 88px at identical x positions, both rows 284px, no
+  label wrapping, no button text overflow, card gutters 12 and 12.
+- ~~**P6 — Proper d20.**~~ DONE, the SVG route rather than twenty real faces.
+  Face-on a d20 is a hexagon with the face you read in the middle of it, so
+  the outline plus three edges running out to the corners is the whole of what
+  makes it recognisable — and it is recognisable *before* you read the number,
+  which was the entire job.
+
+  The part that needed thought was the tumble. The silhouette is one flat
+  plane, and a plane turned edge-on in 3D collapses to a hairline; a d20 that
+  vanishes to a line halfway through a throw reads as a sheet of paper. So the
+  d20 spins **in-plane on Z**, which can never flatten, with a shallow bounded
+  tilt (`TILT`, 24°) on X and Y so it still turns *in* space. Both tilt terms
+  are sines of the accumulated spin, so they vanish exactly where `land` snaps
+  the spin to a multiple of 360 — it comes to rest genuinely flat-on rather
+  than a few degrees off. All five rotation sites now go through one `turn()`
+  mapping, so the cube and the d20 cannot drift apart.
+
+  Verified on the rendered element across a 1080° sweep: max tilt 24°, the
+  projected area never drops below 93% of face-on, and the rest state is
+  exactly rotateX/Y 0 with rotateZ a multiple of 360. The *motion* itself is
+  not verified here — see the trap below.
+
+  **Trap for the handoff:** a throw cannot be driven synthetically in this
+  pane. `setTimeout` is throttled in a page that is not compositing, so the
+  pointer samples arrive slowly enough that the release velocity falls under
+  `THROW_SPEED` and every attempted throw is scored as a slow placement — the
+  die moves to the drop point and never rolls. It looks like broken throwing
+  and is not. Verify throw geometry by driving the transforms directly, as
+  above, and leave the feel of it to a real window.
+- ~~**P7 — Bin for dice.**~~ DONE. A trash target above the d20 slot, shown
+  only while a die is in hand, armed in red while the die is over it, and
+  releasing there removes that die. Three decisions worth keeping:
+  it holds its space in the layout at all times and only fades in, because a
+  slot that appears *and* shifts the trays is a slot you cannot aim at; the
+  bin is tested against the pointer, not the die, since the die is a 46px
+  block under your finger; and binning the die that sits *in* a tray leaves a
+  fresh one behind, because the tray is a supply and an empty one is a dead
+  end. Verified: 2 dice → carried one out (3, replacement appeared) → binned
+  the loose one (2), with the bin's armed state tracking correctly.
+- ~~**P8** — Coin is gold and on the top layer.~~ DONE. The gold landed first
+  time; the layer did not, and was reported done when it was not. `.pt-tools`
+  carried `z-index: 4`, which makes it a **stacking context** — so the coin's
+  `z-index: 40` only ever ranked it against its two sibling trays. Against a
+  die at `z-index: 6` *outside* that box it could not have won at any value.
+  Removed the `z-index` from `.pt-tools`: it was buying nothing, because the
+  tools already paint over the battlefield by DOM order.
+
+  **Trap for the handoff:** reading the computed `z-index` back off the coin
+  returns `40` whether or not it means anything, which is exactly how this was
+  called done the first time. Verify a layer by hit-testing the overlap —
+  `elementFromPoint` where the die and coin actually cover each other — and
+  confirm the cause by toggling the suspect property live: with `z-index: 4`
+  the die is topmost, without it the coin is.
+- ~~**P9 — Life counter.**~~ DONE. A bar across the full width of the deck's
+  column, directly above Next turn / Tutor / Reset, with a chevron at each
+  end. The arrows are pushed out to the two ends so they are the largest
+  targets in that column and cannot be caught when you are aiming at the
+  number between them, and the number is tabular with a 3ch floor so the bar
+  does not twitch crossing 9→10 or 39→40. The old `Life − 40 +` in the top bar
+  is gone rather than duplicated: it is the number you change by hand most
+  often, so it belongs with the things you press, not the things you read.
+  Verified: 40 → 43 → 41 through the arrows, bar 284px and left-aligned with
+  the buttons below it, top bar no longer carries a life control.
+- ~~**P10 — Fetch lands.**~~ DONE. Tapping a fetch cracks it rather than
+  toggling a tapped state it does not really have. What it can find is read
+  off the oracle text rather than kept as a list of card names — the list is
+  long, grows every set, and the text already names its own types. Subtypes
+  are matched against the *type line*, which is where a Tundra keeps its
+  Plains and its Island, so a fetch finds duals as it should.
+
+  Three corrections after your first look, all of which were real:
+  the fetch is now sacrificed (it was sitting on the battlefield having paid
+  nothing); the land arrives tapped when the fetch says "onto the battlefield
+  tapped", overriding what that land would have done arriving under its own
+  steam; and a fetch that names exactly one type resolves immediately instead
+  of opening a picker for a choice you do not have, preferring a basic over a
+  dual carrying the same subtype. Both facts are read from the text, not
+  assumed — Flooded Strand sacrifices but does *not* tap what it finds.
+
+  Verified against real oracle text: Terramorphic Expanse and Evolving Wilds
+  (basic-only, tapped, sacrificed → picker); Flooded Strand (Plains/Island,
+  untapped, sacrificed → picker); Bant Panorama (three types → picker);
+  Krosan Verge (Forest *and* Plains — the first regex stopped at the first
+  "card" and offered half of what the land finds); Sandsteppe Citadel and
+  Rampant Growth correctly not fetches.
+
+- ~~**P14 — Planeswalker loyalty.**~~ DONE. Walkers arrive carrying their
+  printed loyalty, on the supplied shield artwork, in the bottom-right corner
+  — which is both where the tap symbol used to be and where the number is
+  printed on the card itself. The tap symbol is gone from walkers, since they
+  do not tap. Two arrows appear either side of the badge on hover only:
+  loyalty moves a few times a game, and two live buttons parked on every
+  walker are two more things to catch while dragging one around the mat.
+  Leaving the battlefield resets loyalty to the printed number — counters do
+  not travel between zones, and a walker returning from the graveyard on the
+  three it died with would be quietly wrong every time.
+
+  The artwork's viewBox was measured rather than guessed: with the group's own
+  translate applied the art lands at exactly 0,0 spanning 444.33 x 270.2, and
+  it is landscape at 1.64:1, so the badge box is shaped to match instead of
+  letterboxing it into a square. Verified on Ajani, Adversary of Tyrants:
+  arrives on 4, steps up and down, floors at 0, no tap symbol, badge seated
+  3px from the right edge and 2px from the bottom.
+- **P11 / P12 — Dragging behaved like an image.** Two separate causes, one
+  symptom, and the first fix was reported as done before the second showed up.
+
+  1. `solidDragImage` tore its clone down on a `setTimeout(…, 0)` and sometimes
+     beat Chrome to rasterising it. The clone now lives until `dragend`.
+  2. The deck editor *also* called `setDragging(uid)` inside the dragstart
+     handler. A discrete-event state update flushes synchronously, so every row
+     reconciled before the drag had finished starting, invalidating layout
+     while the off-screen ghost was waiting to be painted. Now deferred a tick.
+
+  The playtest surfaces only ever had cause 1 because their dragstart writes to
+  a ref, not state — which is what made the command zone the useful control
+  case. **Any dragstart handler that sets React state will reintroduce this.**
+
+  **Regression, 2026-08-09 — NEEDS YOUR EYES.** Came back as the washed-out
+  card in every context at once (hand, mat, tray, deck). Not a lost call site
+  and not the `dragend` fix, both of which were checked and intact: the ghost
+  was parked at `left: -10000px`, which is outside Chrome's paint area for the
+  same reason `top: -10000px` was — and that was already known and fixed for
+  the vertical axis only. Relying on horizontal being treated more leniently
+  was relying on a quirk, and when it stops holding Chrome falls back to its
+  own translucent snapshot everywhere simultaneously. The clone now sits
+  precisely over the element it copied: unconditionally inside the paint area,
+  and invisible because it is a pixel-identical copy of what is already there.
+
+  Unverified here, necessarily. One cosmetic risk to watch: if the source gets
+  a dimmed "being dragged" style, the undimmed clone sits over it until
+  `dragend`, which would read as a card that refuses to fade.
+
+  **Trap for the handoff:** real HTML5 drag needs OS-level mouse input.
+  Synthetic events bypass drag initiation entirely and prove nothing, and the
+  browser pane cannot screenshot (not compositing) so `left_click_drag` has no
+  coordinates. Drag behaviour cannot be verified in this environment — three
+  wrong fixes were shipped before asking the user what they actually saw.
+  Ask for the observation first: does it not move, move with a wrong ghost, or
+  move but not drop?
+
+- ~~**P15 — Fetch placement.**~~ DONE, confirmed working in your window. Two
+  things, both in `play()` in `Playtest.tsx`:
+
+  1. The slot was counted from `inZone.battlefield` — React state as captured
+     at *render*. Cracking a fetch plays a land and sacrifices the fetch in the
+     same tick, so both reads returned the same answer and a two-card fetch
+     would deal its second land exactly on top of its first. The count now
+     happens inside the `setCards` updater, against `cs`, so each play sees the
+     one before it. A card going to hand frees its square for nothing extra:
+     the count filters on `zone === 'battlefield'`, so leaving the board is the
+     reservation being released.
+  2. `play()` takes an optional `seat`, and `crack` hands over the square the
+     fetch is vacating — so the land arrives where the fetch stood rather than
+     at the end of the row. Only when the fetch actually sacrifices itself: one
+     that taps instead is still standing there and its seat is not going spare.
+
+  **This is the one thing in this file that has not been checked in a browser.**
+  It typechecks and the reasoning is above; nobody has watched a fetch crack
+  since it was written. Verify before trusting: crack an Evolving Wilds and
+  confirm the land lands on the square the Wilds vacated and the board count is
+  unchanged.
+
+- ~~**P16 — Count mode skips back to 1.**~~ DONE. Clicking a die in count mode sometimes
+  goes 3 → 1 rather than 3 → 4. Suspect the click that follows a settle: the
+  `threw` guard in `PlayDie.onClick` swallows one click, and something is
+  resetting `value` to 1 — `onDoubleClick` sets `{ counting: true, value: 1 }`,
+  so a stray double-click detection would do exactly this. Check whether a
+  slow second click is being read as a double.
+- ~~**P17 — d20 counts to 20.**~~ DONE. Count mode wraps at 6 for both dice, because the
+  cycle is hard-coded to a d6. It should wrap at `DIE_SIDES[kind]`.
+- ~~**P18 — Playtest picker copy.**~~ DONE. "Pick a deck and it deals you seven. No
+  editor, no analysis — just the table." becomes "Pick your deck - cast your
+  spells and practice your interaction."
+- ~~**P19 — "Goldfish" above Playtest**~~ DONE: becomes "Commander".
+- **P20 — Drag a planeswalker back to hand. LIKELY FIXED, NEEDS YOUR EYES.**
+  The cause was almost certainly the loyalty badge added in P14: its container
+  called `stopPropagation` on pointerdown and covered the card's bottom-right
+  corner, so a drag begun anywhere near the badge never started. The container
+  is now `pointer-events: none` with only the two arrows taking the pointer,
+  and the handler is gone. Drag cannot be verified in this environment (see the
+  P11/P12 trap), so this is a reasoned fix rather than an observed one — try
+  it, and if a walker still will not move, say *what* it does: nothing, moves
+  with a wrong ghost, or moves but will not drop.
+- **P21 — Turn counter on the deck.** The remaining-cards counter becomes
+  `TURN #`. The card count moves to the deck's hover, replacing "Draw".
+- ~~**P22 — History needs a scrollbar.**~~ DONE. The drawer runs off the bottom.
+- ~~**P23 — Playtest deck tiles**~~ DONE: should carry Deck Lab's own subtitle — number
+  of lines and the date — rather than "N lines · deal seven".
+
+## Deck Lab
+
+Real deck-builder work, as opposed to the Binder clone below.
+
+- ~~**L1 — Move `# cards · $cost` a few pixels left.**~~ DONE. It sits too close to the
+  right-hand rule in the editor bar.
+- ~~**L2 — Mana base ignores colour-agnostic sources.**~~ DONE. The denominator
+  was `sum(produced.values())` — the sum of *colours made*, not the count of
+  sources. A five-colour land counted five times, so every extra colour a
+  source could make inflated the total that every colour was then judged
+  against. A mono-red deck whose fixing also taps for red measured red against
+  a total its own lands had quintupled. Now counted once per source card, so a
+  share means "what fraction of my sources can make this colour" — and a land
+  making any colour satisfies every colour it makes instead of diluting all of
+  them. In `server/app/deck/stats.py`.
+
+  Verified against a mono-red shape (30 Mountains + 6 any-colour lands, all
+  red pips): the old maths reproduces your screenshot exactly — others +10%,
+  Red −40% — and the new one puts **Red at 0.0%**. A two-colour deck stays
+  sane. The server needs a restart to pick it up.
+- **L3 — Mono-red cannot reach 100%** in the Card costs / Land mana donut.
+  Related to L2 but *not* fixed by it, and it needs a decision rather than a
+  patch. The inner ring plots `produced` per colour as slices of one circle,
+  and those sets overlap: an any-colour land is in all five at once. Overlapping
+  sets do not sum to a whole, so no denominator makes a mono-red deck's red
+  slice reach 100% while the other colours still show the fixing they really
+  have. Either the inner ring stops being a donut — five small bars, each "% of
+  sources that can make this colour", which is what L2's `source_share` now
+  says — or it keeps the donut and plots something that genuinely partitions,
+  such as each source's *primary* colour. The first is honest; the second keeps
+  the shape. Ask before building.
+- ~~**L4 — Approve button on name resolution.**~~ DONE. Approve *writes the
+  match down*: a fuzzy line is re-flagged on every analysis because the raw
+  text still says "Phial of Galadrl", and agreeing with the guess in your head
+  does not change the file. It rewrites the line to the resolved name — the
+  same edit picking an alternative makes — which is the only thing that
+  actually settles the question. Hidden when there is nothing to approve or
+  the text already says it. Styled with `--ok` rather than the accent, which
+  on that row already means "use this other one instead".
+
+  Verified: "Braid of Fre" → approve → the decklist now reads "Braid of Fire",
+  the raw spelling is gone, and the row stops being flagged.
+- ~~**L5 — Move the name-resolution panel.**~~ DONE: below "How this deck
+  works" and above the decklist, in the text view. It reports on lines you
+  typed and the fix is to edit one, so in the analysis tab it was a verdict
+  delivered a pane away from the thing it was judging. Verified by measured
+  order: description 401, panel 541, decklist 703.
+- ~~**L6 — Normalise imported lists.**~~ DONE. `serialize` wrote
+  `${quantity} ${name}` and dropped the printing entirely, so every trip
+  through the editor flattened a precise list into a vague one. It now writes
+  `1 Card Name (SET) 123`, both halves or neither — `(FDN)` with no number is
+  not the canonical form and is no more precise than the bare name. Set codes
+  are upper-cased; Scryfall stores them lower and every printed list writes
+  them upper.
+
+  Verified on a 62-card deck: **62 of 62** lines canonical after a real
+  serialize, foreign markers like `*CMDR*` gone (the commander is the section
+  header in this format), and double-faced cards normalised to `//`.
+
+- **L7 — Imports do not honour the printing they arrive with.** Found while
+  verifying L6, and it is the other half of the same job. Round-tripping the
+  deck rewrote `Arcane Bombardment (SNC) 101` as `(OTC) 154`: the resolver
+  matches on *name* and picks its own printing, so the set and collector
+  number in an imported line are parsed and then thrown away. L6 means the
+  list now always states a printing — this is what makes the stated printing
+  the one you actually chose. Resolve by `(set, collector_number)` first and
+  fall back to the name only when that pair finds nothing.
+
+## Deck sleeves
+
+- **S2 — Per-deck sleeve art.** An upload button immediately right of the
+  `Commander` label. Once uploaded the label reads `COMMANDER · SLEEVED` with a
+  reset symbol beside it that clears the image. The art shows offset *behind*
+  the commander card; the commander keeps its tilt animation while the sleeve
+  image stays flat. In Playtest, a deck with sleeves uses that art for the deck
+  pile. See the two reference screenshots in the conversation of 2026-08-09.
+
+## Glossary
+
+- **G1 — Learning modules, at the top of the Glossary**, with
+  `web/src/assets/glossary-lessons.png` to their right, animated slightly.
+  Each module shows a tick when complete and nothing when not.
+
+  Modules cover **how to use this app**, not how to play Magic. Advanced search
+  syntax; saving and recalling previous searches; Deck Lab and what its
+  controls, searches and AI actually do; Playtest mechanics — the dice, the
+  coin, the mat.
+
+  Explicitly **not**: anything self-evident (Sets, Settings, what a search box
+  is), and no game rules. Not "fetch lands fetch", not "planeswalkers have
+  loyalty", not "this is your graveyard", not "here is your commander", not
+  "this is what the analysis chart means". If a player would already know it,
+  or the screen already says it, it is not a module.
+
+## Binder
+
+The Binder is a *clone* of the deck builder, and everything in this section
+applies to that clone only. The deck builder itself is not being changed —
+B1 through B10 were written up under a "Deck builder" heading by mistake, and
+touching the real editor to satisfy any of them would be wrong.
+
+**B11 is the one to build first**, because the rest are changes *to* it.
+
+**B11 is part-built.** What exists, and is sound:
+
+- `web/src/lib/binder.ts` — the binder's identity. It is stored as an ordinary
+  saved deck under the reserved name `__binder__`, which is the whole design:
+  a second storage path would need its own save, load, serialise and migrate
+  to hold a shape the deck store already holds. `BINDER_SECTIONS` relabels the
+  deck model's *existing* keys — `main`→Bulk, `sideboard`→Trades,
+  `maybeboard`→Fav, no commander — so what is written to disk stays a
+  perfectly ordinary decklist and every mechanism that reads one keeps
+  working. That is what "a deck in every mechanical sense" buys.
+- `DeckEditor` takes a `binder` prop and swaps its section tabs accordingly.
+- `DeckPage` takes a `binder` prop and no longer treats a missing `:deckId`
+  as "new" when in binder mode.
+
+Still to do, in order:
+
+1. The `/binder` route in `main.tsx` and the nav link in `Layout.tsx`, right
+   of Glossary (`NAV` array, line ~20).
+2. Load-by-name on mount and create-on-first-save, since the binder has no
+   route parameter to find itself by.
+3. Filter `__binder__` out of the deck gallery — `isBinder` is written and
+   currently unused. **Do this in the same pass as 1 and 2**, or the binder
+   shows up as a deck called `__binder__` the moment it is first saved.
+4. Hide Commander, Recommendations, Pipeline and AI recommend. The tab buttons
+   are around `DeckPage.tsx:739-753`; `tab` is a four-way union that will need
+   narrowing or guarding in binder mode.
+5. Ramp / Removal / Counters / Draw become filters over the list rather than
+   requests for recommendations. This is the only part with real design left
+   in it: the categories currently come back *from the server* per deck, and a
+   filter needs them computed over the cards already in the binder.
+
+- **B11 — New Binder tab, right of Glossary.** A deck in every mechanical
+  sense, but singular, never listed among decks, and titled Binder. Hide
+  Commander, Recommendations, Pipeline and AI recommend. Ramp / Removal /
+  Counters / Draw stay where they are but act as filters over the list below.
+  Sections are **Bulk, Trades, Fav** rather than commander/deck/sideboard/
+  maybeboard.
 
 - **B1 — Commander colour pips.** In the same row as `# cards · $cost`, a
   `Commander:` label then the pips. Clicking one toggles it, shown by
@@ -115,20 +504,18 @@ most of the value would have been anyway.
   is right.
 - **B10 — Basic lands must not appear in shuffle triage.**
 
-## Binder
-
-- **B11 — New Binder tab, right of Glossary.** A deck in every mechanical
-  sense, but singular, never listed among decks, and titled Binder. Hide
-  Commander, Recommendations, Pipeline and AI recommend. Ramp / Removal /
-  Counters / Draw stay where they are but act as filters over the list below.
-  Sections are **Bulk, Trades, Fav** rather than commander/deck/sideboard/
-  maybeboard.
-
 ## Settings
 
 - **S1 — Backup and restore.** Export decks (and the Binder, and collected
   cards) to a local file and read it back. JSON unless there is a reason not
   to.
+
+- **S3 — Dice and coin skins.** A picker in Settings: a set of colours and
+  patterns for the dice, and a set of metal finishes for the coin. Generated
+  rather than uploaded — no asset pipeline needed. The d6 pips and the d20's
+  drawn shell both take the colour, so a skin is a couple of custom properties
+  on `.pt-die` rather than a second copy of either. The coin already carries a
+  struck-metal gradient (see P8); a finish swaps its two stops.
 
 ## Documentation
 

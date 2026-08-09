@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import type { Card } from '../lib/api'
 import { DECK_UID_TYPE, onCardTaken } from '../lib/cardTransfer'
 import { collection } from '../lib/collection'
+import { BINDER_SECTIONS } from '../lib/binder'
 import {
   SECTIONS, canBeCommander, countCards, deckValue, filterCards, groupCards, sortDeckCards,
   type DeckCard, type GroupBy, type Section, type SortBy,
@@ -22,7 +23,8 @@ const GROUPINGS: [GroupBy, string][] = [
   ['rarity', 'Rarity'], ['none', 'None'],
 ]
 
-/** Every section, as tabs — Commander included. */
+/** Every section, as tabs — Commander included. The binder has its own three,
+ *  with the same keys under different names: see `BINDER_SECTIONS`. */
 const SECTION_TABS = SECTIONS
 
 const SORTS: [SortBy, string][] = [
@@ -41,11 +43,15 @@ export function DeckEditor({
   cards,
   onChange,
   onAddSearched,
+  binder,
 }: {
   cards: DeckCard[]
   onChange: (next: DeckCard[]) => void
   /** A card dragged in from the Search tab, dropped on a section. */
   onAddSearched?: (card: Card, section: Section) => void
+  /** Binder mode: Bulk / Trades / Fav in place of the deck's four, and no
+   *  commander, which a binder does not have. */
+  binder?: boolean
 }) {
   const [groupBy, setGroupBy] = useState<GroupBy>('type')
   const [sortBy, setSortBy] = useState<SortBy>('name')
@@ -57,6 +63,7 @@ export function DeckEditor({
   const [dragging, setDragging] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<Section | null>(null)
   const [activeSection, setActiveSection] = useState<Section>("main")
+  const sectionTabs = binder ? BINDER_SECTIONS : SECTION_TABS
   const [shuffling, setShuffling] = useState(false)
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
   /** Springs a hovered tab open mid-drag. */
@@ -205,7 +212,10 @@ export function DeckEditor({
         >
           Shuffle
         </button>
-        <span className="push mono faint" style={{ fontSize: 11 }}>
+        {/* `paddingRight` rather than a margin: it is `push` that pins this to
+            the right edge, and the gap it needs is from the rule the bar is
+            drawn with, not from the control before it. */}
+        <span className="push mono faint" style={{ fontSize: 11, paddingRight: 6 }}>
           {totals.deck} cards · ${totals.value.toFixed(2)}
         </span>
       </div>
@@ -221,7 +231,7 @@ export function DeckEditor({
           section header, for the one card that decides the deck's colour
           identity, its legality and its gallery art. */}
       <div className="section-tabs">
-        {SECTION_TABS.map(({ key, label }) => {
+        {sectionTabs.map(({ key, label }) => {
           const count = cards
             .filter((c) => c.section === key)
             .reduce((n, c) => n + c.quantity, 0)
@@ -272,7 +282,7 @@ export function DeckEditor({
       </div>
 
       <div className="sections">
-        {SECTION_TABS.filter((s) => s.key === activeSection).map(({ key }) => {
+        {sectionTabs.filter((s) => s.key === activeSection).map(({ key }) => {
           const inSection = visible.filter((c) => c.section === key)
           const groups = groupCards(sortDeckCards(inSection, sortBy, sortDir), groupBy)
 
@@ -391,7 +401,22 @@ function EditorRow({
       e.dataTransfer.setData('text/plain', `1 ${card.name}`)
       e.dataTransfer.effectAllowed = 'move'
       solidDragImage(e, e.currentTarget as HTMLElement)
-      onDragStart()
+      /* Deferred out of the dragstart dispatch, deliberately.
+       *
+       * `onDragStart` sets React state, and a state update from a discrete
+       * event flushes synchronously -- so calling it here re-renders every row
+       * in the section *before* the browser has finished starting the drag.
+       * Chrome rasterises the drag image at the end of this dispatch, and the
+       * ghost is parked off-screen where it is only painted if nothing
+       * invalidates layout first. A hundred rows reconciling is exactly that
+       * invalidation, and Chrome quietly falls back to its own translucent
+       * snapshot: the "dragging an image" ghost, one layer further down than
+       * the teardown race that was fixed before it.
+       *
+       * The playtest surfaces never had this because their dragstart writes to
+       * a ref instead of state. Nothing reads `dragging` until a drop, which is
+       * many frames away, so a tick's delay costs nothing. */
+      setTimeout(onDragStart, 0)
     },
     onDragEnd,
   }

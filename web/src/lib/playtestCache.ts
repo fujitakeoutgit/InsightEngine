@@ -25,6 +25,10 @@ export interface Instance {
    *  the battlefield; kept as fractions so the board survives a resize. */
   x: number
   y: number
+  /** Loyalty, for planeswalkers only. Seeded from the printed number when the
+   *  game is built, so a walker arrives on the battlefield already carrying
+   *  the counters it starts with rather than at zero. */
+  loyalty?: number
 }
 
 /**
