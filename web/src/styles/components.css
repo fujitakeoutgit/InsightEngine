@@ -3897,11 +3897,14 @@
   height: 100%;
   object-fit: cover;
   border-radius: 4.5% / 3.2%;
-  transform: translate(7px, 7px);
-  /* Behind the card, and dimmed: it is backing, not a second subject. */
+  /* Up and to the right: the sleeve shows past the top and right edges, the
+     way a card sits down inside one. Down-and-right read as a drop shadow of
+     the card rather than as something the card is inside. */
+  transform: translate(9px, -9px);
   z-index: 0;
-  filter: brightness(0.82);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.55);
+  /* Deliberately no filter and no shadow. Dimming it and casting a shadow
+     made the sleeve look like a second, badly-composited card behind the
+     first; it is just the sleeve, shown as uploaded. */
   pointer-events: none;
 }
 
@@ -3927,6 +3930,21 @@
 .sleeve-add:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .sleeve-clear { border: 0; font-size: 12px; padding: 2px 4px; line-height: 1; }
+
+/* One line: label, state, reset. The sleeve controls are part of the heading,
+   not a second row under it -- wrapping pushed the reset onto its own line and
+   left it floating over the card. */
+.commander-card .chart-head {
+  display: flex;
+  /* `.chart-head` is a column elsewhere -- charts stack a label over a value.
+     This one is a heading with controls on it, so it has to be said again. */
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
 .chart-head .label.sleeved { color: var(--aether-hi); }
 .sleeve-error { margin: 4px 0 0; font-size: 11.5px; color: var(--danger); }
 

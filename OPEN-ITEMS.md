@@ -438,6 +438,17 @@ Real deck-builder work, as opposed to the Binder clone below.
   z-index 0, stored under the deck id; playtest pile picks it up as a cover
   background; reset clears art, label and storage together.
 
+  Three corrections after your screenshots, all mine and all worth keeping:
+  the sleeve offsets **up** and to the right, not down — down-and-right read as
+  a drop shadow of the card rather than as something the card sits inside; the
+  dimming filter and shadow are gone, which had made it look like a second,
+  badly-composited card; and the heading is one row again. That last one had a
+  cause worth noting: `.chart-head` is `flex-direction: column` elsewhere,
+  because charts stack a label over a value, so a heading that carries controls
+  has to say `row` explicitly or its buttons pile up under it and float over
+  the card. Verified: heading 16px tall with all three children on one row,
+  sleeve at +9/-9, `filter: none`, `box-shadow: none`.
+
   (original ask) **Per-deck sleeve art.** An upload button immediately right of the
   `Commander` label. Once uploaded the label reads `COMMANDER · SLEEVED` with a
   reset symbol beside it that clears the image. The art shows offset *behind*
