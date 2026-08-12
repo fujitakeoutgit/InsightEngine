@@ -438,6 +438,17 @@ Real deck-builder work, as opposed to the Binder clone below.
   z-index 0, stored under the deck id; playtest pile picks it up as a cover
   background; reset clears art, label and storage together.
 
+  A further round: offset raised to +11/-15, the sleeve stretched to the card's
+  exact box (`object-fit: fill` — a backing is better seen whole than
+  well-cropped), and the tilt sheen stopped spilling. That last was a knock-on
+  I caused: `.commander-card > a` sized the link, and wrapping the commander in
+  `.commander-stack` pushed the link a level down so the rule stopped matching.
+  The link then stretched to the panel's full width, and because the sheen is
+  an `inset: 0` pseudo-element on the link, it lit a box wider than the card.
+  The stack is now `width: max-content`, so link, sheen and sleeve are all
+  measured against the card itself. Verified: stack, link and card all 290px,
+  and a 400x120 test image stretched to the card's box.
+
   Three corrections after your screenshots, all mine and all worth keeping:
   the sleeve offsets **up** and to the right, not down — down-and-right read as
   a drop shadow of the card rather than as something the card sits inside; the

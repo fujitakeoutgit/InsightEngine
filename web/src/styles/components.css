@@ -1524,7 +1524,12 @@
    them beside it was captioning a photograph with its own contents. */
 /* Wears `.chart` so its heading matches Mana curve and the rest of the row. */
 .commander-card { display: flex; flex-direction: column; }
-.commander-card > a { align-self: center; margin-top: 4px; }
+/* The stack, not the link: wrapping the commander so a sleeve could sit
+   behind it moved the link a level down, and this rule stopped matching. The
+   link then stretched to the panel's full width -- and since the tilt sheen is
+   an `inset: 0` pseudo-element on the link, the shine spilled out to the right
+   of the card it was supposed to be lighting. */
+.commander-card > .commander-stack { align-self: center; margin-top: 4px; }
 
 /* Positioned, and carrying the pointer variables the tilt sheen reads. */
 .commander-card a {
@@ -3888,19 +3893,29 @@
    edges of the card in front of it. It is a sibling of the tilted link rather
    than a child, so the commander keeps its pointer tilt and the sleeve stays
    flat -- a stack on a table does not swing as one piece. */
-.commander-stack { position: relative; }
+/* Shrink-wrapped to the card. Everything inside is measured against this box:
+   the link's sheen, and the sleeve's `inset: 0`. If it is wider than the card,
+   both are too. */
+.commander-stack {
+  position: relative;
+  width: max-content;
+  max-width: 100%;
+}
 
 .commander-stack .sleeve-art {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* Stretched to the card's exact box rather than cropped. A sleeve is a
+     backing, so seeing all of it at the card's proportions beats seeing a
+     well-composed middle of it. */
+  object-fit: fill;
   border-radius: 4.5% / 3.2%;
   /* Up and to the right: the sleeve shows past the top and right edges, the
      way a card sits down inside one. Down-and-right read as a drop shadow of
      the card rather than as something the card is inside. */
-  transform: translate(9px, -9px);
+  transform: translate(11px, -15px);
   z-index: 0;
   /* Deliberately no filter and no shadow. Dimming it and casting a shadow
      made the sleeve look like a second, badly-composited card behind the
