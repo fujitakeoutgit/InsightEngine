@@ -3880,3 +3880,61 @@
   .lessons { grid-template-columns: minmax(0, 1fr); }
   .lessons-art { display: none; }
 }
+
+/* Deck sleeves.
+
+   The sleeve sits behind the commander and offset down-right, which is how a
+   sleeved card actually presents: you see the back of the sleeve past two
+   edges of the card in front of it. It is a sibling of the tilted link rather
+   than a child, so the commander keeps its pointer tilt and the sleeve stays
+   flat -- a stack on a table does not swing as one piece. */
+.commander-stack { position: relative; }
+
+.commander-stack .sleeve-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 4.5% / 3.2%;
+  transform: translate(7px, 7px);
+  /* Behind the card, and dimmed: it is backing, not a second subject. */
+  z-index: 0;
+  filter: brightness(0.82);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+.commander-stack > a { position: relative; z-index: 1; display: block; }
+
+.sleeve-add,
+.sleeve-clear {
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: var(--font-m);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.sleeve-add:hover:not(:disabled),
+.sleeve-clear:hover { color: var(--aether-hi); border-color: var(--aether); }
+.sleeve-add:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.sleeve-clear { border: 0; font-size: 12px; padding: 2px 4px; line-height: 1; }
+.chart-head .label.sleeved { color: var(--aether-hi); }
+.sleeve-error { margin: 4px 0 0; font-size: 11.5px; color: var(--danger); }
+
+/* The playtest deck pile, wearing the deck's sleeves. The image is set
+   inline from the stored data URL; this only says how it should sit. */
+.pt-deck-back.sleeved {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-color: var(--line);
+}

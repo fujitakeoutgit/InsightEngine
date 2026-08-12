@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useCardFace } from '../lib/faces'
 import { entersTapped } from '../lib/landTiming'
 import { useEscape } from '../lib/usePersisted'
+import { sleeveFor } from '../lib/sleeves'
 import { solidDragImage } from '../lib/useQuietDrag'
 import { Lightbox } from './Lightbox'
 import { ManaCost } from './ManaCost'
@@ -199,6 +200,9 @@ export function Playtest({
   onClose: () => void
 }) {
   const signature = useMemo(() => deckSignature(deck), [deck])
+  /** The deck's sleeves, if it has been given any. Read once: sleeves are
+   *  changed in the Deck Lab, not mid-game. */
+  const [sleeve] = useState(() => sleeveFor(gameKey))
   // Read once, at mount. An effect would re-read under StrictMode's double
   // invocation and could observe what this component had itself just written.
   const [resumed] = useState(() => recallGame(gameKey, signature))
@@ -764,7 +768,14 @@ export function Playtest({
               title={inZone.library.length ? 'Draw a card' : 'Library is empty'}
               aria-label={`Draw a card — ${inZone.library.length} left`}
             >
-              <span className="pt-deck-back" aria-hidden />
+              {/* Wearing this deck's sleeves, if it has any. The pile is the
+                  one place in the mat you only ever see the back of a card,
+                  so it is the one place sleeves can actually show. */}
+              <span
+                className={`pt-deck-back${sleeve ? ' sleeved' : ''}`}
+                style={sleeve ? { backgroundImage: `url(${sleeve})` } : undefined}
+                aria-hidden
+              />
             </button>
             <span className="mono faint">{inZone.library.length}</span>
           </div>

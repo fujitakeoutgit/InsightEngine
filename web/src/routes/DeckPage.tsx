@@ -9,6 +9,7 @@ import {
   addedCard, fromResolutions, serialize, type DeckCard, type Section,
 } from '../lib/deckModel'
 import { recallDeckView, rememberDeckView } from '../lib/deckViewCache'
+import { clearSleeve, readSleeveFile, setSleeve, sleeveFor } from '../lib/sleeves'
 import { attachTilt, dissolveIn, riseIn } from '../lib/motion'
 import { CardGrid } from '../components/CardGrid'
 import { DeckEditor } from '../components/DeckEditor'
@@ -162,6 +163,12 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
 
   const resultRef = useRef<HTMLDivElement>(null)
   const commanderTilt = useRef<HTMLAnchorElement>(null)
+  /** This deck's sleeve art, if it has been given one. Local to this machine
+   *  -- see `lib/sleeves`. */
+  const [sleeve, setSleeveArt] = useState<string | null>(() => sleeveFor(deckId))
+  const [sleeveError, setSleeveError] = useState<string | null>(null)
+  const sleeveInput = useRef<HTMLInputElement>(null)
+  useEffect(() => { setSleeveArt(sleeveFor(deckId)); setSleeveError(null) }, [deckId])
   const recRef = useRef<HTMLDivElement>(null)
   const aiStream = useRef<{ stop: () => void } | null>(null)
 
@@ -820,17 +827,79 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
               space goes to the card the deck is actually built around. */}
           {commanderCard?.image_normal && (
             <div className="chart commander-card">
-              <div className="chart-head"><span className="label">Commander</span></div>
+              <div className="chart-head">
+                <span className="label">Commander</span>
+                {/* Sleeves live beside the label because that is the thing
+                    they dress. When one is on, the label says so rather than
+                    the button changing meaning underneath you. */}
+                {sleeve
+                  ? (
+                    <>
+                      <span className="label sleeved">· Sleeved</span>
+                      <button
+                        className="sleeve-clear"
+                        title="Remove these sleeves"
+                        aria-label="Remove these sleeves"
+                        onClick={() => {
+                          if (deckId) clearSleeve(deckId)
+                          setSleeveArt(null)
+                        }}
+                      >
+                        ⟳
+                      </button>
+                    </>
+                  )
+                  : (
+                    <button
+                      className="sleeve-add"
+                      title="Use an image as this deck's sleeves"
+                      disabled={!deckId || deckId === 'new'}
+                      onClick={() => sleeveInput.current?.click()}
+                    >
+                      Sleeves
+                    </button>
+                  )}
+                <input
+                  ref={sleeveInput}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    e.target.value = ''
+                    if (!file || !deckId) return
+                    try {
+                      const url = await readSleeveFile(file)
+                      setSleeve(deckId, url)
+                      setSleeveArt(url)
+                      setSleeveError(null)
+                    } catch (err) {
+                      setSleeveError(err instanceof Error ? err.message : 'Could not use that image.')
+                    }
+                  }}
+                />
+              </div>
+              {sleeveError && (
+                <p className="sleeve-error" role="alert">{sleeveError}</p>
+              )}
               {/* The same pointer tilt the card grids use, but nothing overlaid
                   on hover — everything those badges would say is printed on the
                   card, and this one is a portrait, not a row in a list. */}
-              <Link
-                to={`/card/${commanderCard.oracle_id}`}
-                title={commanderCard.name}
-                ref={commanderTilt}
-              >
-                <img src={commanderCard.image_normal} alt={commanderCard.name} />
-              </Link>
+              {/* The sleeve sits behind and offset, the way a sleeved card
+                  shows its back above the card in front of it. Outside the
+                  tilted link on purpose: the commander keeps its pointer
+                  tilt, and the sleeve stays flat behind it rather than
+                  swinging with it, which is what a stack on a table does. */}
+              <div className={`commander-stack${sleeve ? ' sleeved' : ''}`}>
+                {sleeve && <img className="sleeve-art" src={sleeve} alt="" aria-hidden />}
+                <Link
+                  to={`/card/${commanderCard.oracle_id}`}
+                  title={commanderCard.name}
+                  ref={commanderTilt}
+                >
+                  <img src={commanderCard.image_normal} alt={commanderCard.name} />
+                </Link>
+              </div>
             </div>
           )}
 

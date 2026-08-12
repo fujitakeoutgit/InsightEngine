@@ -413,7 +413,32 @@ Real deck-builder work, as opposed to the Binder clone below.
 
 ## Deck sleeves
 
-- **S2 — Per-deck sleeve art.** An upload button immediately right of the
+- ~~**S2 — Per-deck sleeve art.**~~ DONE. A `Sleeves` button beside the
+  `Commander` label; once set the label reads `COMMANDER · SLEEVED` with a
+  reset beside it. The art sits behind the commander, offset down-right, the
+  way a sleeved card shows its back past two edges of the card in front. In
+  Playtest the deck pile wears it — the pile is the one place on the mat you
+  only ever see the back of a card, so it is the one place sleeves can show.
+
+  The tilt was the detail worth getting right: the sleeve is a *sibling* of
+  the tilted link, not a child, so the commander keeps its pointer tilt and
+  the sleeve stays flat behind it. A stack on a table does not swing as one
+  piece. Verified: sleeve is not inside the tilted element and holds
+  `translate(7px, 7px)` while the card tilts.
+
+  **Stored per-machine, not on the deck** (`lib/sleeves.ts`, localStorage
+  keyed by deck id, 1.5MB cap, rejects rather than silently re-encoding). A
+  sleeve is how *your* copy looks; the decklist is what you export and paste
+  to a friend, and a megabyte of base64 riding inside it would burden every
+  save, analysis and export. The honest cost: sleeves do not travel with an
+  exported list or to another machine. If that turns out to be wanted, the fix
+  is a sleeves table keyed by deck id — not a blob in the list.
+
+  Verified end to end on deck 185: upload → label flips, art appears behind at
+  z-index 0, stored under the deck id; playtest pile picks it up as a cover
+  background; reset clears art, label and storage together.
+
+  (original ask) **Per-deck sleeve art.** An upload button immediately right of the
   `Commander` label. Once uploaded the label reads `COMMANDER · SLEEVED` with a
   reset symbol beside it that clears the image. The art shows offset *behind*
   the commander card; the commander keeps its tilt animation while the sleeve
