@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { FIELDS } from '../lib/query'
 import { dissolveIn, riseIn } from '../lib/motion'
+import { Lessons } from '../components/Lessons'
 import { PageHead } from '../components/PageHead'
 
 interface Symbol_ {
@@ -74,6 +75,12 @@ export function GlossaryPage() {
 
   return (
     <section className="shell" ref={rootRef}>
+      {/* Lessons first: this is the page you already come to when you want to
+          know how something works, so being taught comes before the reference
+          you would otherwise have to already understand. */}
+      <PageHead eyebrow="Reference" title="Lessons" />
+      <Lessons />
+
       <PageHead
         eyebrow="Reference"
         title="Syntax &amp; symbols"

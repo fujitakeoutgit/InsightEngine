@@ -401,22 +401,7 @@ function EditorRow({
       e.dataTransfer.setData('text/plain', `1 ${card.name}`)
       e.dataTransfer.effectAllowed = 'move'
       solidDragImage(e, e.currentTarget as HTMLElement)
-      /* Deferred out of the dragstart dispatch, deliberately.
-       *
-       * `onDragStart` sets React state, and a state update from a discrete
-       * event flushes synchronously -- so calling it here re-renders every row
-       * in the section *before* the browser has finished starting the drag.
-       * Chrome rasterises the drag image at the end of this dispatch, and the
-       * ghost is parked off-screen where it is only painted if nothing
-       * invalidates layout first. A hundred rows reconciling is exactly that
-       * invalidation, and Chrome quietly falls back to its own translucent
-       * snapshot: the "dragging an image" ghost, one layer further down than
-       * the teardown race that was fixed before it.
-       *
-       * The playtest surfaces never had this because their dragstart writes to
-       * a ref instead of state. Nothing reads `dragging` until a drop, which is
-       * many frames away, so a tick's delay costs nothing. */
-      setTimeout(onDragStart, 0)
+      onDragStart()
     },
     onDragEnd,
   }

@@ -1090,6 +1090,34 @@
 .deck-search .card-tile.draggable { cursor: grab; }
 .deck-search .card-tile.draggable:active { cursor: grabbing; }
 
+/* The card that follows the pointer during a drag.
+ *
+ * A clone of whatever was picked up, so it keeps that surface's own look, with
+ * only the things that make it a *carried* card overridden. `!important`
+ * throughout, deliberately: the clone still carries the source's classes and
+ * its inline styles, including whatever GSAP happened to have mid-tween, and
+ * this has to win over all of it regardless of which surface the card came
+ * from. `transform` is the exception — it is set inline every pointer move and
+ * must stay writable.
+ *
+ * Above everything, including the coin at z-index 40: a card you are holding
+ * that slides behind a panel reads as a bug. */
+.drag-carry {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  margin: 0 !important;
+  z-index: 9999 !important;
+  pointer-events: none !important;
+  opacity: 1 !important;
+  /* No transition or animation: this element is positioned by hand on every
+     dragover, and anything easing the transform makes it lag the pointer. */
+  transition: none !important;
+  animation: none !important;
+  filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.65)) !important;
+  will-change: transform;
+}
+
 /* Per-card action menu, opened by clicking a tile on the Cards page. */
 /* --------------------------------------------------------------------------
    Cards tray — slides out of the banner over whatever you were doing
@@ -3747,3 +3775,108 @@
 /* A sorted card can be clicked to put it back on the stack. */
 .shuffle-card.sorted { cursor: pointer; }
 .shuffle-card.sorted:hover { filter: brightness(1.14); }
+
+/* Lessons — the teaching block at the top of the Glossary.
+
+   Two columns because the artwork is doing a job the text cannot: it says
+   this is a place to learn rather than another table to scan. It collapses
+   away below the breakpoint, where a large decorative image would push the
+   actual lessons off the first screen. */
+.lessons {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
+  gap: var(--gap-4);
+  align-items: center;
+  margin-bottom: var(--gap-4);
+}
+
+.lessons-list { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+
+.lesson {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r);
+  background: var(--glass);
+  transition: border-color var(--dur-fast), background-color var(--dur-fast);
+}
+
+.lesson:hover { border-color: var(--line); background: var(--glass-hi); }
+
+.lesson-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+/* Ticked reads as quieter, not as decorated: a lesson you have done should
+   recede so the ones you have not are what the eye lands on. */
+.lesson.done { border-color: color-mix(in oklab, var(--ok) 30%, transparent); }
+.lesson.done .lesson-title { color: var(--muted); }
+
+.lesson-tick {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ok);
+  cursor: pointer;
+  transition: border-color var(--dur-fast), background-color var(--dur-fast);
+}
+
+.lesson-tick svg { width: 14px; height: 14px; }
+.lesson-tick:hover { border-color: var(--ok); }
+.lesson.done .lesson-tick {
+  border-color: var(--ok);
+  background: color-mix(in oklab, var(--ok) 14%, transparent);
+}
+
+.lesson-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.lesson-title { font-weight: 600; font-size: 14px; }
+.lesson-blurb { font-size: 12px; color: var(--muted); }
+
+.lesson-chev {
+  flex: none;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  transition: transform var(--dur-fast), color var(--dur-fast);
+}
+
+.lesson-chev.open { transform: rotate(90deg); color: var(--aether-hi); }
+
+.lesson-steps {
+  margin: 0;
+  padding: 0 16px 14px 46px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--faint);
+}
+
+.lesson-steps li::marker { color: var(--aether); font-family: var(--font-m); font-size: 11px; }
+
+.lessons-art { display: grid; place-items: center; min-width: 0; }
+.lessons-art img {
+  width: 100%;
+  max-width: 520px;
+  height: auto;
+  /* The drift is a transform, so it must not be able to smear the edges of
+     the layout it sits in. */
+  will-change: transform;
+}
+
+@media (max-width: 900px) {
+  .lessons { grid-template-columns: minmax(0, 1fr); }
+  .lessons-art { display: none; }
+}

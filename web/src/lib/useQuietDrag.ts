@@ -58,15 +58,35 @@ export function useQuietDrag() {
 }
 
 /**
- * Give a drag a solid picture of the card instead of the browser's washed-out
- * default.
+ * Carry a solid card with the pointer for the length of a drag.
  *
- * Chrome's automatic drag image is a translucent snapshot of the source
- * element, which over a dark background leaves the card barely visible. A clone
- * parked off-screen at full opacity is used instead, and handed to
- * setDragImage with the grab point preserved so the card stays under the
- * pointer where you picked it up.
+ * Chrome's automatic drag image is a translucent snapshot, which over a dark
+ * background leaves the card barely visible. The supported way to replace it —
+ * `setDragImage` with an element of our own — turned out not to be usable:
+ * Chrome rasterises that element exactly once, at the end of the dragstart
+ * dispatch, from whatever it has already painted. An off-screen clone is only
+ * painted if nothing disturbs layout first, and the fallback when it isn't is
+ * the default ghost, chosen silently. Two unrelated bugs came out of that one
+ * behaviour — a clone torn down a tick too early, and a React state update in
+ * a dragstart handler reconciling a hundred rows before the snapshot was
+ * taken — and neither was visible from the code.
+ *
+ * So the browser is no longer asked to draw anything. `setDragImage` gets a
+ * transparent pixel, and a real element follows the pointer instead: ours, on
+ * screen, at full opacity, under our own CSS, for as long as the drag lasts.
+ * It cannot wash out and it cannot silently fall back.
+ *
+ * The drag itself is still a genuine HTML5 drag — same payload, same drop
+ * targets, dropping onto a text field still pastes a decklist line. Only the
+ * picture changed.
  */
+
+/** Decoded at module load, long before any drag. Chrome ignores an image that
+ *  has not loaded and quietly restores its own ghost, which is the entire
+ *  failure mode being avoided here. */
+const BLANK_PIXEL = new Image()
+BLANK_PIXEL.src =
+  'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
 export function solidDragImage(
   event: React.DragEvent,
   source: HTMLElement,
@@ -77,51 +97,57 @@ export function solidDragImage(
   options?: { keepTransform?: boolean },
 ) {
   const rect = source.getBoundingClientRect()
-  const ghost = source.cloneNode(true) as HTMLElement
-  ghost.style.position = 'fixed'
-  // Off-screen horizontally but *within* the viewport vertically. Chrome
-  // rasterises the drag image from what it has painted, and an element parked
-  // at top:-10000px is outside the paint area -- it silently falls back to its
-  // own translucent snapshot, which is the faded card this was meant to fix.
-  ghost.style.top = '0'
-  ghost.style.left = '-10000px'
-  ghost.style.margin = '0'
-  // The layout box, not the bounding rect. A card tapped 90 degrees reports a
-  // rect with its width and height swapped, and stamping that on the clone
-  // squashed the ghost into a card-shaped box lying the wrong way.
-  ghost.style.width = `${source.offsetWidth}px`
-  ghost.style.height = `${source.offsetHeight}px`
-  ghost.style.opacity = '1'
-  ghost.style.pointerEvents = 'none'
-
   const transform = getComputedStyle(source).transform
   const keep = Boolean(options?.keepTransform) && transform !== 'none'
-  ghost.style.transform = keep ? transform : 'none'
 
-  document.body.appendChild(ghost)
-  // A rotated ghost rasterises into a box whose axes no longer line up with
-  // the pointer offset measured against the source, so it is centred instead.
-  // Predictable beats subtly wrong, and a tapped card is small enough that
-  // centring reads as picking it up.
+  const card = source.cloneNode(true) as HTMLElement
+  card.className = `${source.className} drag-carry`
+  // The layout box, not the bounding rect. A card tapped 90 degrees reports a
+  // rect with its width and height swapped, and stamping that on the clone
+  // squashes it into a card-shaped box lying the wrong way.
+  card.style.width = `${source.offsetWidth}px`
+  card.style.height = `${source.offsetHeight}px`
+
+  // Where in the card it was picked up, so it stays under that same point
+  // rather than snapping a corner to the pointer. A rotated card is centred
+  // instead: its axes no longer line up with an offset measured against the
+  // upright source, and predictable beats subtly wrong.
   const ox = keep ? rect.width / 2 : event.clientX - rect.left
   const oy = keep ? rect.height / 2 : event.clientY - rect.top
-  event.dataTransfer.setDragImage(ghost, ox, oy)
 
-  /* Kept alive until the drag ends, not torn down on the next tick.
-   *
-   * `setTimeout(..., 0)` assumed Chrome rasterises the drag image
-   * synchronously inside the dragstart handler. It usually does -- which is
-   * why the search grid always looked right -- but not reliably, and when the
-   * removal wins the race Chrome silently falls back to its own translucent
-   * snapshot of whatever the gesture started on. That is the washed-out
-   * "dragging an image" ghost: not our clone rendering badly, our clone never
-   * being used.
-   *
-   * `dragend` fires on the source for every outcome including a cancelled
-   * drag, so the ghost cannot leak. */
-  const cleanUp = () => {
-    ghost.remove()
-    source.removeEventListener('dragend', cleanUp)
+  const place = (x: number, y: number) => {
+    const at = `translate3d(${Math.round(x - ox)}px, ${Math.round(y - oy)}px, 0)`
+    card.style.transform = keep ? `${at} ${transform}` : at
   }
-  source.addEventListener('dragend', cleanUp)
+
+  // Positioned before it is attached, or it appears at the origin for a frame
+  // and flies across the screen to meet the pointer.
+  place(event.clientX, event.clientY)
+  document.body.appendChild(card)
+  event.dataTransfer.setDragImage(BLANK_PIXEL, 0, 0)
+
+  /* `dragover` rather than `drag`: both fire continuously, but `drag` reports
+   * 0,0 for its final event, which would fling the card into the top-left
+   * corner at the exact moment you let go. Capture phase, so a target that
+   * stops propagation cannot strand the card mid-screen. */
+  const follow = (e: DragEvent) => {
+    if (e.clientX === 0 && e.clientY === 0) return
+    place(e.clientX, e.clientY)
+  }
+
+  /* Torn down on whichever comes first. `dragend` on the source is the one
+   * that always fires -- including for a cancelled drag -- but it cannot fire
+   * if a re-render has replaced the node mid-drag, so the document-level
+   * listeners are there to make a stuck card impossible rather than unlikely. */
+  const done = () => {
+    card.remove()
+    document.removeEventListener('dragover', follow, true)
+    document.removeEventListener('dragend', done, true)
+    document.removeEventListener('drop', done, true)
+    source.removeEventListener('dragend', done)
+  }
+  document.addEventListener('dragover', follow, true)
+  document.addEventListener('dragend', done, true)
+  document.addEventListener('drop', done, true)
+  source.addEventListener('dragend', done)
 }

@@ -422,7 +422,32 @@ Real deck-builder work, as opposed to the Binder clone below.
 
 ## Glossary
 
-- **G1 — Learning modules, at the top of the Glossary**, with
+- ~~**G1 — Learning modules.**~~ DONE. Four of them at the top of the
+  Glossary — Searching properly, Keeping a search, Deck Lab, The playtest mat
+  — with the artwork to their right on a slow 7s drift, and a tick per module.
+
+  The content rule was the hard part and is worth keeping: nothing here
+  explains that fetch lands fetch or that walkers carry loyalty, and there is
+  no lesson for Sets or Settings. What is left is only what is genuinely not
+  discoverable — the operators (including the `*` wildcard the API lacks, and
+  `c:` vs `id:`), that a saved search stores the *query* so it re-runs, what
+  the four category buttons actually ask the server, and the playtest
+  gestures, which no label mentions.
+
+  Two deliberate calls: the tick is yours to set rather than inferred, because
+  this cannot observe whether you understood something and watching which
+  pages you opened to guess would be both creepy and wrong; and a ticked
+  lesson goes *quieter* rather than getting decorated, so the ones you have
+  not done are what the eye lands on.
+
+  Verified: 4 modules, artwork loaded in its own column, expanding shows the
+  steps, the tick does not collapse the panel, and the state survives a reload
+  (`["deck-lab"]`). The drift is unverified — rAF animation, same pane trap.
+
+  Also added `web/src/vite-env.d.ts`, which was missing: without it no asset
+  import typechecks.
+
+  (original ask) **Learning modules, at the top of the Glossary**, with
   `web/src/assets/glossary-lessons.png` to their right, animated slightly.
   Each module shows a tick when complete and nothing when not.
 
