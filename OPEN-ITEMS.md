@@ -438,6 +438,15 @@ Real deck-builder work, as opposed to the Binder clone below.
   z-index 0, stored under the deck id; playtest pile picks it up as a cover
   background; reset clears art, label and storage together.
 
+  Offset settled at +18/-20, and the card now moves down when sleeved. The
+  sleeve is absolutely positioned, so riding it up made it reach into the
+  heading without making its own box any taller — the space it needs has to be
+  reserved separately. Both numbers are `--sleeve-x` / `--sleeve-y` on
+  `.commander-stack` now, with the margin derived as `4px + var(--sleeve-y)`:
+  two literals would drift apart the first time either was nudged, and this
+  was nudged four times. Verified: 14px clear of the heading when sleeved,
+  and the reserved space appears *only* when sleeved (24px vs 4px).
+
   Final round: offset +14/-20, square corners on the sleeve (a sleeve is a
   straight-cornered pocket; rounding it read as a second card peeking out
   rather than as the thing the card sits in), and the shimmer pinned to the

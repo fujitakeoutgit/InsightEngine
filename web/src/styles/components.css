@@ -3903,11 +3903,24 @@
    flat -- a stack on a table does not swing as one piece. */
 /* Shrink-wrapped to the card. Everything inside is measured against this box:
    the link's sheen, and the sleeve's `inset: 0`. If it is wider than the card,
-   both are too. */
+   both are too.
+
+   The two offsets are declared once, here, because the sleeve is absolutely
+   positioned: it is shifted up out of this box without making the box any
+   taller, so the space it needs above the card has to be reserved separately.
+   Two literals would drift apart the first time either is nudged. */
 .commander-stack {
   position: relative;
   width: max-content;
   max-width: 100%;
+  --sleeve-x: 18px;
+  --sleeve-y: 20px;
+}
+
+/* Sleeved, so the card sits down by exactly the amount the sleeve rides up.
+   Without this the sleeve reaches into the heading above it. */
+.commander-card > .commander-stack.sleeved {
+  margin-top: calc(4px + var(--sleeve-y));
 }
 
 .commander-stack .sleeve-art {
@@ -3925,7 +3938,7 @@
   /* Up and to the right: the sleeve shows past the top and right edges, the
      way a card sits down inside one. Down-and-right read as a drop shadow of
      the card rather than as something the card is inside. */
-  transform: translate(14px, -20px);
+  transform: translate(var(--sleeve-x), calc(-1 * var(--sleeve-y)));
   z-index: 0;
   /* Deliberately no filter and no shadow. Dimming it and casting a shadow
      made the sleeve look like a second, badly-composited card behind the
