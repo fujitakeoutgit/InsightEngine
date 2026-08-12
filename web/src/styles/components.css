@@ -2019,11 +2019,19 @@
   border-radius: inherit;
   background: radial-gradient(38% 38% at var(--mx) var(--my),
     rgba(255, 255, 255, 0.28), transparent 70%);
-  transition: opacity var(--dur) var(--ease-out);
+  transition: opacity var(--dur) var(--ease-out),
+              transform var(--dur) var(--ease-out);
 }
 
 .editor-tile:hover::after,
 .commander-card a:hover::after { opacity: 1; }
+
+/* The sheen has to travel with the card it is lighting.
+   Hovering lifts and grows the *image*, but the sheen is a pseudo-element on
+   the link, so it stayed put -- leaving the shimmer sitting a few pixels below
+   the card's top edge and inset from its left, which is the gap the lift and
+   the 1.02 scale open up. Same transform, same easing, so they move as one. */
+.commander-card a:hover::after { transform: translateY(-4px) scale(1.02); }
 
 /* Quantity, top-left. Arrows stack either side of the number so the control
    is a single small column rather than a bar across the card. */
@@ -3911,11 +3919,13 @@
      backing, so seeing all of it at the card's proportions beats seeing a
      well-composed middle of it. */
   object-fit: fill;
-  border-radius: 4.5% / 3.2%;
+  /* Square. A sleeve is a straight-cornered pocket -- rounding it made it read
+     as a second card peeking out rather than as the thing the card is in. */
+  border-radius: 0;
   /* Up and to the right: the sleeve shows past the top and right edges, the
      way a card sits down inside one. Down-and-right read as a drop shadow of
      the card rather than as something the card is inside. */
-  transform: translate(11px, -15px);
+  transform: translate(14px, -20px);
   z-index: 0;
   /* Deliberately no filter and no shadow. Dimming it and casting a shadow
      made the sleeve look like a second, badly-composited card behind the

@@ -438,6 +438,16 @@ Real deck-builder work, as opposed to the Binder clone below.
   z-index 0, stored under the deck id; playtest pile picks it up as a cover
   background; reset clears art, label and storage together.
 
+  Final round: offset +14/-20, square corners on the sleeve (a sleeve is a
+  straight-cornered pocket; rounding it read as a second card peeking out
+  rather than as the thing the card sits in), and the shimmer pinned to the
+  card. That last one: hovering lifts and scales the *image*
+  (`translateY(-4px) scale(1.02)`) while the sheen is a pseudo-element on the
+  link, so the card moved out from under its own highlight — which is exactly
+  the gap you saw at the top and left edges. The sheen now carries the same
+  transform and easing, so they move as one. Verified identical by reading
+  both rules back off the stylesheet.
+
   A further round: offset raised to +11/-15, the sleeve stretched to the card's
   exact box (`object-fit: fill` — a backing is better seen whole than
   well-cropped), and the tilt sheen stopped spilling. That last was a knock-on
