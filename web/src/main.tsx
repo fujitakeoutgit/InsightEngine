@@ -9,6 +9,7 @@ import { CardsPage } from './routes/CardsPage'
 import { DeckGalleryPage } from './routes/DeckGalleryPage'
 import { DeckPage } from './routes/DeckPage'
 import { GlossaryPage } from './routes/GlossaryPage'
+import { DeckPage as BinderPage } from './routes/DeckPage'
 import { NotFoundPage } from './routes/NotFoundPage'
 import { PlaytestPage } from './routes/PlaytestPage'
 import { SearchPage } from './routes/SearchPage'
@@ -39,6 +40,9 @@ const router = createBrowserRouter([
       { path: 'playtest/:deckId', element: <PlaytestPage /> },
       { path: 'sets', element: <SetsPage /> },
       { path: 'glossary', element: <GlossaryPage /> },
+      // The binder is the deck editor in binder mode: one deck, never listed
+      // among the others, reached by its own tab rather than by opening it.
+      { path: 'binder', element: <BinderPage binder /> },
       // Inside the layout, not beside it: a wrong turn should still leave you
       // looking at the app's own navigation rather than a bare page.
       { path: '*', element: <NotFoundPage /> },

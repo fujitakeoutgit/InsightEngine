@@ -537,7 +537,29 @@ touching the real editor to satisfy any of them would be wrong.
 
 **B11 is the one to build first**, because the rest are changes *to* it.
 
-**B11 is part-built.** What exists, and is sound:
+**B11 is mostly built. One defect blocks it — read this first.**
+
+`busy` never clears on `/binder`, so Save, Playtest, Copy, Export and the
+category buttons all stay disabled and the binder cannot be written. Everything
+else works. What is known: the load effect sets `setBusy('load')` and clears it
+in `.finally`; in binder mode the chain is `api.savedDecks().then(find by name
+-> loadDeck | null)` instead of `api.loadDeck(id)`, and when no binder exists
+yet that resolves to `null` and returns early inside `.then`. The `.finally`
+should still run. `analyseText` does not touch `busy`, and no error is shown.
+Suspect the StrictMode double-invoke interacting with `cancelled`, or a second
+effect re-setting `busy` — instrument `setBusy` before changing anything.
+
+Done and verified: the `/binder` route, the nav tab right of Glossary, sections
+reading **Bulk / Trades / Fav** with no Commander, and Recommendations,
+Pipeline and AI recommend all absent. Save writes to the reserved name so it
+cannot fork into a second binder, and the gallery filters it out — both
+written, neither reachable until the `busy` defect is fixed.
+
+Still to do: the category buttons (Ramp / Removal / Counters / Draw) becoming
+filters over the list rather than requests to the server. That is the piece
+with real design left in it.
+
+What exists, and is sound:
 
 - `web/src/lib/binder.ts` — the binder's identity. It is stored as an ordinary
   saved deck under the reserved name `__binder__`, which is the whole design:

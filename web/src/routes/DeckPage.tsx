@@ -9,6 +9,7 @@ import {
   addedCard, fromResolutions, serialize, type DeckCard, type Section,
 } from '../lib/deckModel'
 import { recallDeckView, rememberDeckView } from '../lib/deckViewCache'
+import { BINDER_NAME } from '../lib/binder'
 import { clearSleeve, readSleeveFile, setSleeve, sleeveFor } from '../lib/sleeves'
 import { attachTilt, dissolveIn, riseIn } from '../lib/motion'
 import { CardGrid } from '../components/CardGrid'
@@ -214,9 +215,21 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
     setTab("analysis")
     if (isNew) { setBusy(null); return }
     setBusy('load')
-    api.loadDeck(Number(deckId))
-      .then(async ({ deck }) => {
+    /* The binder has no id in the URL, so it finds itself by name. Absent on
+     * first visit, which is not an error: an empty binder is simply one you
+     * have not put anything in yet, and it is written the first time you save. */
+    const opening = binder
+      ? api.savedDecks().then(({ decks }) => {
+          const mine = decks.find((d) => d.name === BINDER_NAME)
+          if (!mine) return null
+          return api.loadDeck(mine.id)
+        })
+      : api.loadDeck(Number(deckId))
+    opening
+      .then(async (loaded) => {
         if (cancelled) return
+        if (!loaded) { setMode('build'); return }
+        const { deck } = loaded
         setText(deck.text ?? '')
         setSavedText(deck.text ?? '')
         setDeckName(deck.name)
@@ -228,10 +241,10 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         if (!cancelled && analysed) setDeckCards(fromResolutions(analysed.entries))
         setMode('build')
       })
-      .catch(() => !cancelled && setError('Could not load that deck.'))
+      .catch(() => !cancelled && setError(binder ? 'Could not open the binder.' : 'Could not load that deck.'))
       .finally(() => !cancelled && setBusy(null))
     return () => { cancelled = true }
-  }, [deckId, isNew, analyseText])
+  }, [deckId, isNew, analyseText, binder])
 
   /* Unsaved work.
    *
@@ -576,15 +589,18 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
     setBusy('save'); setError(null)
     try {
       const { deck } = await api.saveDeck({
-        name: deckName || 'Untitled deck', text,
+        // The binder always writes to its reserved name, which is what makes
+        // it singular: saving cannot fork it into a second one.
+        name: binder ? BINDER_NAME : (deckName || 'Untitled deck'), text,
         id: savedId ?? undefined, format: format || null, description,
       })
       setSavedId(deck.id)
       setDeckName(deck.name)
       setSavedText(text)
-      setStatus(`Saved “${deck.name}”`)
+      setStatus(binder ? 'Binder saved' : `Saved “${deck.name}”`)
       // The deck is saved; the redirect onto its own URL is not a departure.
-      if (isNew) leave(`/deck/${deck.id}`)
+      // The binder has no such URL -- it is always at /binder.
+      if (isNew && !binder) leave(`/deck/${deck.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save deck')
     } finally { setBusy(null) }
@@ -679,7 +695,8 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
             )
           })}
         </span>
-        {busy === 'ai' ? (
+        {/* Nothing to recommend into: the binder is a record of what you own. */}
+        {!binder && (busy === 'ai' ? (
           <button className="btn btn-danger sm" onClick={() => { aiStream.current?.stop(); setBusy(null) }}>
             Stop AI
           </button>
@@ -691,7 +708,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
           >
             AI recommend
           </button>
-        )}
+        ))}
         {!text && (
           <button className="btn btn-ghost sm push" onClick={() => setText(SAMPLE)}>Sample</button>
         )}
@@ -767,6 +784,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         />
       ) : (
         <DeckEditor
+              binder={binder}
           cards={deckCards}
           onChange={applyEdits}
           onAddSearched={addSearchedCard}
@@ -790,15 +808,21 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         <button className={tab === 'search' ? 'on' : ''} onClick={() => setTab('search')}>
           Search
         </button>
-        <button className={tab === 'recommendations' ? 'on' : ''} disabled={!text.trim()}
-          onClick={() => setTab('recommendations')}>
-          Recommendations{recs && <span className="faint"> {recs.recommendations.length}</span>}
-        </button>
-        <button className={tab === 'pipeline' ? 'on' : ''} disabled={!pipeline.stages.length}
-          onClick={() => setTab('pipeline')}>
-          Pipeline
-          {pipeline.running && <span className="spinner" style={{ marginLeft: 6 }} />}
-        </button>
+        {/* A binder is a list of what you own, not a deck being tuned, so it
+            has nothing to recommend against and no pipeline to watch. */}
+        {!binder && (
+          <button className={tab === 'recommendations' ? 'on' : ''} disabled={!text.trim()}
+            onClick={() => setTab('recommendations')}>
+            Recommendations{recs && <span className="faint"> {recs.recommendations.length}</span>}
+          </button>
+        )}
+        {!binder && (
+          <button className={tab === 'pipeline' ? 'on' : ''} disabled={!pipeline.stages.length}
+            onClick={() => setTab('pipeline')}>
+            Pipeline
+            {pipeline.running && <span className="spinner" style={{ marginLeft: 6 }} />}
+          </button>
+        )}
       </div>
 
       {tab === 'search' && <DeckSearch />}
@@ -825,7 +849,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         <div className="stack gap-4">
           {/* The counts that used to sit here are in Deck info below, so this
               space goes to the card the deck is actually built around. */}
-          {commanderCard?.image_normal && (
+          {!binder && commanderCard?.image_normal && (
             <div className="chart commander-card">
               <div className="chart-head">
                 <span className="label">Commander</span>

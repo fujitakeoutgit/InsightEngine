@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import { isBinder } from '../lib/binder'
 import { api, type SavedDeck } from '../lib/api'
 import { canAnimate, gsap, splitChars } from '../lib/motion'
 import { useTransientMessage } from '../lib/usePersisted'
@@ -79,7 +80,10 @@ export function DeckGalleryPage() {
 
   useEffect(() => {
     api.savedDecks()
-      .then((r) => setDecks(r.decks))
+      // The binder is a deck mechanically, and deliberately not one here: it
+      // has its own tab, and listing it would offer to delete or rename the
+      // one deck that is not allowed to be either.
+      .then((r) => setDecks(r.decks.filter((d) => !isBinder(d))))
       .catch(() => setError('Could not load your decks.'))
   }, [])
 

@@ -18,6 +18,7 @@ const NAV = [
   { to: '/playtest', label: 'Playtest' },
   { to: '/sets', label: 'Sets' },
   { to: '/glossary', label: 'Glossary' },
+  { to: '/binder', label: 'Binder' },
   { to: '/settings', label: 'Settings' },
 ]
 
