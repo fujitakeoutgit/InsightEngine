@@ -3913,14 +3913,20 @@
   position: relative;
   width: max-content;
   max-width: 100%;
-  --sleeve-x: 18px;
-  --sleeve-y: 20px;
+  --sleeve-x: 25px;
+  --sleeve-y: 25px;
 }
 
 /* Sleeved, so the card sits down by exactly the amount the sleeve rides up.
-   Without this the sleeve reaches into the heading above it. */
+   Without this the sleeve reaches into the heading above it.
+
+   And back by half the horizontal overhang. The stack is centred on the card
+   alone, but what you see once it is sleeved is card *plus* the strip showing
+   past its right edge -- so the pair sits visibly right of centre. Half the
+   overhang re-centres what is actually on screen. */
 .commander-card > .commander-stack.sleeved {
   margin-top: calc(4px + var(--sleeve-y));
+  transform: translateX(calc(var(--sleeve-x) / -2));
 }
 
 .commander-stack .sleeve-art {
