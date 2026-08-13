@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 
 import { api, type ModelTier } from '../lib/api'
 import { riseIn } from '../lib/motion'
+import {
+  COIN_SKINS, DICE_SKINS, readCoinSkin, readDieSkin, writeCoinSkin, writeDieSkin,
+} from '../lib/skins'
 import { PageHead } from '../components/PageHead'
 
 /**
@@ -18,6 +21,8 @@ import { PageHead } from '../components/PageHead'
  * take minutes.
  */
 export function SettingsPage() {
+  const [dieSkin, setDieSkin] = useState(readDieSkin)
+  const [coinSkin, setCoinSkin] = useState(readCoinSkin)
   const [tiers, setTiers] = useState<ModelTier[]>([])
   /** What the server has. The draft is compared against this to know whether
    *  there is anything to save. */
@@ -99,6 +104,54 @@ export function SettingsPage() {
           {status}
         </p>
       )}
+
+      <div className="panel settings-panel">
+        <h3>Table</h3>
+        <p className="muted" style={{ fontSize: 13, marginBottom: 14 }}>
+          What the dice and the coin are made of. Nothing is downloaded — both are
+          drawn in CSS, so a finish is only a change of colour.
+        </p>
+
+        <div className="skin-group">
+          <span className="label">Dice</span>
+          <div className="skin-row">
+            {DICE_SKINS.map((s) => (
+              <button
+                key={s.id}
+                className={`skin${dieSkin === s.id ? ' on' : ''}`}
+                style={s.vars as React.CSSProperties}
+                title={s.label}
+                aria-pressed={dieSkin === s.id}
+                onClick={() => { setDieSkin(s.id); writeDieSkin(s.id) }}
+              >
+                <span className="skin-die" aria-hidden>
+                  <i /><i /><i />
+                </span>
+                <span className="skin-name">{s.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="skin-group">
+          <span className="label">Coin</span>
+          <div className="skin-row">
+            {COIN_SKINS.map((s) => (
+              <button
+                key={s.id}
+                className={`skin${coinSkin === s.id ? ' on' : ''}`}
+                style={s.vars as React.CSSProperties}
+                title={s.label}
+                aria-pressed={coinSkin === s.id}
+                onClick={() => { setCoinSkin(s.id); writeCoinSkin(s.id) }}
+              >
+                <span className="skin-coin" aria-hidden />
+                <span className="skin-name">{s.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
 
       <div className="panel settings-panel">
         <h3>Local model</h3>

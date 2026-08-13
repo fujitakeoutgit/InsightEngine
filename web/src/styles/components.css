@@ -3172,6 +3172,19 @@
   pointer-events: none;
 }
 
+/* The d20's slot is the shape it holds.
+   Drawn as an SVG background rather than a bordered box: a `clip-path` on a
+   dashed border cuts the dashes into solid edges along the cut, and CSS has no
+   hexagonal border. The points are the hull's, so outline and die agree by
+   construction rather than by eye. */
+.pt-die-tray.d20 {
+  border: 0;
+  border-radius: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpolygon points='50,4 89.8,27 89.8,73 50,96 10.2,73 10.2,27' fill='none' stroke='%23949bb0' stroke-opacity='0.34' stroke-width='2.5' stroke-dasharray='7 6' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+
 /* Loyalty, bottom-right of a planeswalker -- the corner the tap symbol used
    to sit in, and the corner it is printed in on the card itself. */
 .pt-loyalty {
@@ -3315,11 +3328,18 @@
   width: 100%;
   height: 100%;
   overflow: visible;
+  /* Drawn larger than its box rather than given a larger box. Every placement
+     in `PlayDie` -- the tray centring, the mat span, the bin hit test -- is
+     computed against `DIE_PX`, so widening the element would put the d20 a few
+     pixels out of its own slot, which is the exact bug that had it stacking
+     down the board. The silhouette overflows instead; the die still occupies
+     46px of geometry. */
+  transform: scale(1.2);
 }
 
 .pt-die .pt-d20-shape .hull {
-  fill: var(--bg-hi);
-  stroke: var(--line);
+  fill: var(--die-hi, var(--bg-hi));
+  stroke: var(--die-edge, var(--line));
   stroke-width: 3;
   stroke-linejoin: round;
 }
@@ -3341,8 +3361,9 @@
 }
 
 .pt-die .pt-d20-num {
+  color: var(--die-pip, var(--ink));
   position: relative;
-  font-size: 15px;
+  font-size: 17px;
   /* Sits in the middle of the upward face rather than the middle of the
      hexagon, which is lower. */
   transform: translateY(3px);
@@ -3396,9 +3417,11 @@
      because it is not a piece of interface -- it is a coin, and a coin that
      matched the accent blue read as another button. Lit from the upper left
      with a warm rim, so the disc looks struck rather than filled. */
-  border: 1px solid #7a5a1e;
+  border: 1px solid var(--coin-rim, #7a5a1e);
   background:
-    radial-gradient(circle at 34% 26%, #ffe9a8 0%, #f0c34f 34%, #c8901f 68%, #8a5f14 100%);
+    radial-gradient(circle at 34% 26%,
+      var(--coin-1, #ffe9a8) 0%, var(--coin-2, #f0c34f) 34%,
+      var(--coin-3, #c8901f) 68%, var(--coin-4, #8a5f14) 100%);
   box-shadow: inset 0 0 0 3px rgba(255, 232, 168, 0.28),
               inset 0 -3px 6px rgba(90, 60, 10, 0.55);
   /* Struck into the face: monospaced, spaced out, and shadowed as though
@@ -3408,7 +3431,7 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-shadow: 0 1px 0 rgba(255, 240, 200, 0.45), 0 -1px 1px rgba(70, 46, 8, 0.8);
-  color: #4a3208;
+  color: var(--coin-ink, #4a3208);
   backface-visibility: hidden;
 }
 
@@ -3417,7 +3440,11 @@
 .pt-coin-side.tails {
   transform: rotateX(180deg);
   background:
-    radial-gradient(circle at 34% 26%, #f4d894 0%, #dfae3c 34%, #b07d17 68%, #744f0f 100%);
+    radial-gradient(circle at 34% 26%,
+      color-mix(in oklab, var(--coin-1, #ffe9a8) 88%, #000) 0%,
+      color-mix(in oklab, var(--coin-2, #f0c34f) 88%, #000) 34%,
+      color-mix(in oklab, var(--coin-3, #c8901f) 88%, #000) 68%,
+      color-mix(in oklab, var(--coin-4, #8a5f14) 88%, #000) 100%);
 }
 
 .pt-coin:hover .pt-coin-side { border-color: #d9ab4a; }
@@ -3441,8 +3468,14 @@
   gap: 2px;
   padding: 6px;
   border-radius: 9px;
-  border: 1px solid var(--line);
-  background: linear-gradient(150deg, var(--bg-hi), var(--bg));
+  /* Skinnable. Each falls back to what the die was drawn with, so an
+     unskinned table is the original object rather than a themed one. The
+     optional `--die-face` overlay is layered above the gradient, which is how
+     a patterned skin gets its texture with no extra element. */
+  border: 1px solid var(--die-edge, var(--line));
+  background:
+    var(--die-face, none),
+    linear-gradient(150deg, var(--die-hi, var(--bg-hi)), var(--die-lo, var(--bg)));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07),
               inset 0 0 18px rgba(0, 0, 0, 0.45);
   /* Opaque, so the faces on the far side of the cube do not show through the
@@ -3463,7 +3496,7 @@
 }
 
 .pt-die-side i.on {
-  background: var(--ink);
+  background: var(--die-pip, var(--ink));
   box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.55);
 }
 
@@ -4000,3 +4033,66 @@
   background-repeat: no-repeat;
   border-color: var(--line);
 }
+
+/* Skin pickers. Each swatch paints itself with the skin it offers, so the
+   choice is made by looking rather than by reading a name. */
+.skin-group { margin-bottom: 16px; }
+.skin-group > .label { display: block; margin-bottom: 8px; }
+.skin-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.skin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r);
+  background: var(--glass);
+  cursor: pointer;
+  transition: border-color var(--dur-fast), background-color var(--dur-fast);
+}
+
+.skin:hover { background: var(--glass-hi); border-color: var(--line); }
+.skin.on { border-color: var(--aether); background: color-mix(in oklab, var(--aether) 12%, transparent); }
+
+/* A die face, drawn from the same properties the real die reads. */
+.skin-die {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  place-items: center;
+  padding: 5px;
+  border-radius: 7px;
+  border: 1px solid var(--die-edge, var(--line));
+  background:
+    var(--die-face, none),
+    linear-gradient(150deg, var(--die-hi, var(--bg-hi)), var(--die-lo, var(--bg)));
+}
+
+.skin-die i { width: 5px; height: 5px; border-radius: 50%; background: var(--die-pip, var(--ink)); }
+.skin-die i:nth-child(1) { grid-area: 1 / 1; }
+.skin-die i:nth-child(2) { grid-area: 2 / 2; }
+.skin-die i:nth-child(3) { grid-area: 3 / 3; }
+
+.skin-coin {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--coin-rim, #7a5a1e);
+  background: radial-gradient(circle at 34% 26%,
+    var(--coin-1, #ffe9a8) 0%, var(--coin-2, #f0c34f) 34%,
+    var(--coin-3, #c8901f) 68%, var(--coin-4, #8a5f14) 100%);
+  box-shadow: inset 0 0 0 2px rgba(255, 232, 168, 0.22);
+}
+
+.skin-name {
+  font-family: var(--font-m);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.skin.on .skin-name { color: var(--aether-hi); }

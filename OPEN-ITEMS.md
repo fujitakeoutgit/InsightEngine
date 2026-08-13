@@ -601,7 +601,36 @@ Still to do, in order:
   cards) to a local file and read it back. JSON unless there is a reason not
   to.
 
-- **S3 — Dice and coin skins.** A picker in Settings: a set of colours and
+- ~~**S3 — Dice and coin skins.**~~ DONE. Eight dice finishes (including two
+  patterned — Marble and Speckled) and six coin metals, in a new **Table**
+  panel in Settings. Each swatch paints itself with the skin it offers, so the
+  choice is made by looking rather than by reading a name.
+
+  A skin is a handful of custom properties, not a stylesheet or an asset: the
+  dice and coin are already drawn entirely in CSS, so a skin only says which
+  colours those rules reach for. Every property falls back to the value the
+  rule was written with, so an unskinned table is the *original* object rather
+  than a skin that resembles it. The coin's reverse is `color-mix`ed a shade
+  darker from the same four stops instead of carrying a second palette, so a
+  new metal is six values, not twelve.
+
+  Verified: Obsidian + Silver chosen in Settings, stored, and reaching the mat
+  — face border `rgb(69,75,96)`, pips `rgb(232,236,255)`, silver coin gradient.
+
+- ~~**P24 — d20 larger, and its slot the right shape.**~~ DONE. The silhouette
+  is drawn at 1.2x with a 17px numeral, but the element is still exactly 46px:
+  every placement in `PlayDie` — tray centring, mat span, bin hit test — is
+  computed against `DIE_PX`, so widening the box would have put the d20 a few
+  pixels outside its own slot, which is precisely the bug that had them
+  stacking down the board. The shape overflows; the geometry does not move.
+
+  The d20's slot is now the hexagon it holds, drawn as an SVG background using
+  the hull's own points. Not a bordered box: `clip-path` on a dashed border
+  cuts the dashes into solid edges along the cut, and CSS has no hexagonal
+  border. Verified: shape at `scale(1.2)`, box still 46px, hex background on
+  the d20 tray only, d6 tray still a dashed box.
+
+  (original ask) **Dice and coin skins.** A picker in Settings: a set of colours and
   patterns for the dice, and a set of metal finishes for the coin. Generated
   rather than uploaded — no asset pipeline needed. The d6 pips and the d20's
   drawn shell both take the colour, so a skin is a couple of custom properties
