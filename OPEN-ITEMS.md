@@ -386,7 +386,16 @@ Real deck-builder work, as opposed to the Binder clone below.
   red pips): the old maths reproduces your screenshot exactly — others +10%,
   Red −40% — and the new one puts **Red at 0.0%**. A two-colour deck stays
   sane. The server needs a restart to pick it up.
-- **L3 — Mono-red cannot reach 100%** in the Card costs / Land mana donut.
+- ~~**L3 — Mono-red cannot reach 100% in the donut.**~~ WON'T DO — you like the
+  donut as it is, so it stays. Recording the limitation so nobody "fixes" it by
+  accident: the inner ring plots mana sources per colour as slices of one
+  circle, and those sets *overlap* — an any-colour land is in all five at once.
+  Overlapping sets do not sum to a whole, so no denominator gets mono-red's
+  slice to 100% while other colours still show real fixing. The arithmetic is
+  not wrong; a donut is simply the wrong shape for overlapping sets, and that
+  is an accepted trade rather than a bug. Original note follows.
+
+- ~~(kept for reference)~~ **Mono-red cannot reach 100%** in the Card costs / Land mana donut.
   Related to L2 but *not* fixed by it, and it needs a decision rather than a
   patch. The inner ring plots `produced` per colour as slices of one circle,
   and those sets overlap: an any-colour land is in all five at once. Overlapping
@@ -425,7 +434,32 @@ Real deck-builder work, as opposed to the Binder clone below.
   serialize, foreign markers like `*CMDR*` gone (the commander is the section
   header in this format), and double-faced cards normalised to `//`.
 
-- **L7 — Imports do not honour the printing they arrive with.** Found while
+- ~~**L7 — Imports do not honour the printing they arrive with.**~~ DONE, but
+  not the way I proposed — and the reason matters.
+
+  **The app cannot honour an arbitrary printing, because it does not have one.**
+  The mirror is built from Scryfall's `oracle_cards`, which is one row per
+  *oracle card*: 38,344 rows and 38,344 distinct oracle ids. Arcane Bombardment
+  exists only as `(otc) 154`; there is no `(snc) 101` row to resolve to. So
+  "resolve by (set, collector number) first" would have been a lookup that
+  nearly always missed, and building it would have implied a precision the data
+  cannot support. Honouring printings properly means ingesting `default_cards`
+  instead — every printing, several times the rows and the download, and a
+  review of every place that assumes one row per card. That is a real project,
+  not a fix, and it should be chosen deliberately.
+
+  What the set code *can* do is break a tie, and now does: when a name is
+  ambiguous or fuzzy and exactly one candidate is in the set the line named,
+  that candidate wins. Exact matches are left alone — a name that matches
+  exactly should not be second-guessed — and a set matching no candidate falls
+  back to the old answer rather than forcing a wrong one.
+
+  Verified: `Lightning B` alone is ambiguous (Bolt, with Berserker and Blast as
+  alternatives); with `(dtk)` it resolves to Berserker, with `(tpr)` to Blast,
+  and with a nonsense set code it is ambiguous again. `Path to` + `(mid)` picks
+  Path to the Festival over Path to Exile.
+
+- **L7 (original note) — Imports do not honour the printing they arrive with.** Found while
   verifying L6, and it is the other half of the same job. Round-tripping the
   deck rewrote `Arcane Bombardment (SNC) 101` as `(OTC) 154`: the resolver
   matches on *name* and picks its own printing, so the set and collector

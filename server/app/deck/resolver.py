@@ -117,8 +117,22 @@ class CardNameResolver:
 
     # -- the ladder --------------------------------------------------------
 
-    def resolve_name(self, raw: str) -> tuple[str, str | None, float, list[str]]:
-        """Return (match_kind, oracle_id, score, alternatives)."""
+    def _in_set(self, oracle_id: str, set_code: str) -> bool:
+        card = self._card(oracle_id)
+        return bool(card and (card.get("set_code") or "").lower() == set_code.lower())
+
+    def resolve_name(self, raw: str, set_code: str | None = None
+                     ) -> tuple[str, str | None, float, list[str]]:
+        """Return (match_kind, oracle_id, score, alternatives).
+
+        `set_code` is the `(SET)` an imported line carried, used only to break
+        a tie. It cannot select a *printing* — this mirror is built from
+        Scryfall's `oracle_cards`, which holds one row per oracle card, so the
+        edition a line names is very often not in the database at all. What it
+        can do is choose between two cards whose names are close when one of
+        them is in the set the line mentions, which is exactly the case where
+        the extra word on the line is worth something.
+        """
         folded = fold_name(raw)
         if not folded:
             return "unresolved", None, 0.0, []
@@ -133,6 +147,10 @@ class CardNameResolver:
         if len(prefixes) == 1:
             return "prefix", self._exact[prefixes[0]], 95.0, []
         if prefixes:
+            if set_code:
+                named = [k for k in prefixes if self._in_set(self._exact[k], set_code)]
+                if len(named) == 1:
+                    return "prefix", self._exact[named[0]], 95.0, []
             alternatives = [self._display[self._exact[k]] for k in prefixes[1:6]]
             return "ambiguous", self._exact[prefixes[0]], 90.0, alternatives
 
@@ -147,6 +165,13 @@ class CardNameResolver:
             return "unresolved", None, 0.0, []
 
         best_key, best_score, _ = matches[0]
+        if set_code:
+            # Among candidates too close to call, one that is actually in the
+            # set the line named is the one meant.
+            tied = [k for k, score, _ in matches if best_score - score <= AMBIGUITY_MARGIN]
+            named = [k for k in tied if self._in_set(self._exact[k], set_code)]
+            if len(named) == 1:
+                return "fuzzy", self._exact[named[0]], best_score, []
         close = [
             self._display[self._exact[key]]
             for key, score, _ in matches[1:]
@@ -156,8 +181,8 @@ class CardNameResolver:
         return kind, self._exact[best_key], best_score, close
 
     def resolve(self, raw_name: str, quantity: int, section: str,
-                line_number: int = 0) -> Resolution:
-        kind, oracle_id, score, alternatives = self.resolve_name(raw_name)
+                line_number: int = 0, set_code: str | None = None) -> Resolution:
+        kind, oracle_id, score, alternatives = self.resolve_name(raw_name, set_code)
         return Resolution(
             raw_name=raw_name,
             quantity=quantity,

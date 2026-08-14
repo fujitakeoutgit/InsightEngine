@@ -38,7 +38,7 @@ def _resolve(text: str, commander: str | None) -> list[Resolution]:
     parsed = parse_decklist(text)
     resolver = state.resolver
     resolutions = [
-        resolver.resolve(e.raw_name, e.quantity, e.section, e.line_number)
+        resolver.resolve(e.raw_name, e.quantity, e.section, e.line_number, e.set_code)
         for e in parsed.entries
     ]
 
