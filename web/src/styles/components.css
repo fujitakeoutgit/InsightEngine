@@ -4098,13 +4098,7 @@
 .skin.on .skin-name { color: var(--aether-hi); }
 
 /* The Settings table: a real mat, sized to sit inside a panel. */
-.skin-stage {
-  margin-top: 18px;
-  /* Not the page layout `.playtest` normally brings: this borrows that class
-     only so the dice and coin inherit their own rules. */
-  display: block;
-  height: auto;
-}
+.skin-stage { margin-top: 18px; }
 
 .skin-mat {
   position: relative;
@@ -4154,7 +4148,12 @@
   stroke-linejoin: round;
 }
 
-/* A heading inside a page, below the one page head. */
-.section-head { margin-bottom: var(--gap-3); }
-.section-head h2 { margin: 0 0 4px; font-size: 20px; }
-.section-head p { margin: 0; font-size: 13px; max-width: 68ch; }
+/* A heading *inside* a page, below the one page head.
+
+   Named `page-section` and not `section-head`: `PageHead` already renders a
+   `.section-head` internally, so styling that name from here reached every
+   page title in the app -- and being later in the file, it won. Same shape as
+   the dead `.pt-d20` rule that put every d20 into normal flow. */
+.page-section { margin-bottom: var(--gap-3); }
+.page-section h2 { margin: 0 0 4px; font-size: 20px; }
+.page-section p { margin: 0; font-size: 13px; max-width: 68ch; }

@@ -50,7 +50,12 @@ export function SkinStage() {
   const away = (kind: 'd20' | 'd6') => dice.some((d) => d.kind === kind && !d.home)
 
   return (
-    <div className="skin-stage playtest">
+    /* Deliberately not `.playtest`. That class is the full-screen table --
+       `position: fixed; inset: 0; z-index: 60` over an opaque background --
+       so borrowing it here covered the whole Settings page and left only the
+       dice visible. Nothing the dice or coin need is scoped under it: their
+       rules hang off `.pt-die` and `.pt-coin` directly. */
+    <div className="skin-stage">
       <div className="skin-mat pt-mat" ref={matRef}>
         <div className="pt-tools">
           {(['d20', 'd6'] as const).map((kind) => (

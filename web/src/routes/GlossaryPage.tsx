@@ -85,7 +85,7 @@ export function GlossaryPage() {
           back control and the eyebrow, and one page has one of each — two gave
           the Glossary a duplicate Back and a second "Reference" under the
           first. */}
-      <div className="section-head">
+      <div className="page-section">
         <h2>Syntax &amp; symbols</h2>
         <p className="muted">
           Every operator the search bar understands, the mana symbols, the keywords
