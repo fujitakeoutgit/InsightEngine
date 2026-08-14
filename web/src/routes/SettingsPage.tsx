@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { api, type ModelTier } from '../lib/api'
+import { api, type ModelTier, type SyncStatus } from '../lib/api'
 import { riseIn } from '../lib/motion'
 import {
   COIN_SKINS, DICE_SKINS, readCoinSkin, readD20Skin, readDieSkin,
@@ -29,6 +29,32 @@ export function SettingsPage() {
   const [dieSkin, setDieSkin] = useState(readDieSkin)
   const [d20Skin, setD20Skin] = useState(readD20Skin)
   const [coinSkin, setCoinSkin] = useState(readCoinSkin)
+  const [sync, setSync] = useState<SyncStatus | null>(null)
+  const [syncBusy, setSyncBusy] = useState<'check' | 'refresh' | null>(null)
+  const [syncLog, setSyncLog] = useState<string[]>([])
+
+  /* Polled only while a refresh is actually running. A background poll on a
+   * settings page nobody is looking at would be a request every few seconds
+   * forever, to learn nothing. */
+  useEffect(() => {
+    api.syncStatus().then(setSync).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!sync?.running && syncBusy !== 'refresh') return
+    const timer = setInterval(async () => {
+      try {
+        const p = await api.syncProgress()
+        setSyncLog(p.log)
+        if (!p.running) {
+          setSyncBusy(null)
+          setSync(await api.syncStatus())
+        }
+      } catch { /* the server is busy rebuilding; try again next tick */ }
+    }, 2000)
+    return () => clearInterval(timer)
+  }, [sync?.running, syncBusy])
+
   const [backupBusy, setBackupBusy] = useState<'export' | 'import' | null>(null)
   const [backupNote, setBackupNote] = useState<string | null>(null)
   const [backupError, setBackupError] = useState<string | null>(null)
@@ -125,6 +151,79 @@ export function SettingsPage() {
           {status}
         </p>
       )}
+
+      <div className="panel settings-panel">
+        <h3>Card data</h3>
+        <p className="muted" style={{ fontSize: 13, marginBottom: 14 }}>
+          Every card in print, mirrored locally from Scryfall. Checked each time the
+          app starts; nothing is downloaded until you ask, because a refresh replaces
+          the card table and a failed one would leave you with none.
+        </p>
+
+        {sync?.ready ? (
+          <>
+            <div className="sync-facts mono">
+              <span>{(sync.cards ?? 0).toLocaleString()} cards</span>
+              <span className="faint">·</span>
+              <span>built {(sync.built_at ?? '').slice(0, 10) || 'never'}</span>
+              {sync.checked_at && (
+                <>
+                  <span className="faint">·</span>
+                  <span className="faint">checked {sync.checked_at.slice(0, 10)}</span>
+                </>
+              )}
+            </div>
+
+            <p className={sync.update_available ? 'sync-state stale' : 'sync-state current'}>
+              {sync.update_available
+                ? 'Scryfall has newer data than this mirror.'
+                : 'This mirror is up to date.'}
+            </p>
+          </>
+        ) : (
+          <p className="muted" style={{ fontSize: 12.5 }}>Card data has not been built yet.</p>
+        )}
+
+        <div className="row gap-2" style={{ flexWrap: 'wrap', marginTop: 4 }}>
+          <button
+            className="btn btn-ghost sm"
+            disabled={!!syncBusy}
+            onClick={async () => {
+              setSyncBusy('check')
+              try { setSync(await api.syncCheck()) } catch { /* offline */ }
+              finally { setSyncBusy(null) }
+            }}
+          >
+            {syncBusy === 'check' ? 'Checking…' : 'Check now'}
+          </button>
+
+          <button
+            className="btn btn-primary sm"
+            disabled={!!syncBusy || !!sync?.running}
+            onClick={async () => {
+              setSyncBusy('refresh'); setSyncLog([])
+              try { await api.syncRefresh() } catch { setSyncBusy(null) }
+            }}
+          >
+            {syncBusy === 'refresh' || sync?.running ? 'Refreshing…' : 'Refresh card data'}
+          </button>
+        </div>
+
+        {(syncBusy === 'refresh' || sync?.running) && (
+          <p className="faint" style={{ fontSize: 11.5, marginTop: 10 }}>
+            A few hundred megabytes, and several minutes. Searching keeps working until
+            the new data is written.
+          </p>
+        )}
+
+        {syncLog.length > 0 && (
+          <pre className="sync-log mono">{syncLog.join('\n')}</pre>
+        )}
+
+        {sync?.error && (
+          <p style={{ fontSize: 12.5, marginTop: 10, color: 'var(--danger)' }}>{sync.error}</p>
+        )}
+      </div>
 
       <div className="panel settings-panel">
         <h3>Backup</h3>

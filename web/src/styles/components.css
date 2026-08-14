@@ -4273,3 +4273,23 @@
 }
 
 .lesson:hover .lesson-go { color: var(--aether-hi); }
+
+/* Card data sync. */
+.sync-facts { display: flex; gap: 8px; align-items: baseline; font-size: 12px; margin-bottom: 6px; }
+.sync-state { margin: 0 0 10px; font-size: 12.5px; }
+.sync-state.current { color: var(--ok); }
+.sync-state.stale { color: var(--warn); }
+
+.sync-log {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  max-height: 140px;
+  overflow-y: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r);
+  background: var(--bg);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--faint);
+  white-space: pre-wrap;
+}

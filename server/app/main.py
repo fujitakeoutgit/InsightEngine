@@ -10,6 +10,7 @@ Scryfall or Wizards of the Coast.
 
 from __future__ import annotations
 
+import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -19,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import PROJECT_ROOT, settings
 from .llm.ollama import client as ollama
-from .routers import cards, catalog, deck, search, semantic, sets, settings_api, spell
+from .routers import cards, catalog, deck, search, semantic, sets, settings_api, spell, sync
 from .seed import seed_decks
 from .scryfall import client as scryfall
 from .state import state
@@ -35,6 +36,10 @@ async def lifespan(_: FastAPI):
         seed_decks(state.conn)
     await scryfall.start()
     await ollama.start()
+    # Ask Scryfall whether the card data has moved on, in a thread so a slow or
+    # unreachable network cannot hold up the server coming up. It only *asks* --
+    # nothing is downloaded without you pressing Refresh. See routers/sync.
+    threading.Thread(target=sync.check_now, name="sync-check", daemon=True).start()
     try:
         yield
     finally:
@@ -76,6 +81,7 @@ app.include_router(deck.router)
 app.include_router(spell.router)
 app.include_router(catalog.router)
 app.include_router(settings_api.router)
+app.include_router(sync.router)
 
 
 @app.get("/api/health")

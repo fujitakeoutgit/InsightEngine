@@ -144,6 +144,24 @@ export interface RecommendReport {
   category?: Category
 }
 
+export interface SyncFile {
+  kind: string
+  ingested: string | null
+  available: string | null
+  behind: boolean
+}
+
+export interface SyncStatus {
+  ready: boolean
+  built_at?: string | null
+  checked_at?: string | null
+  cards?: number
+  files?: SyncFile[]
+  update_available?: boolean
+  running?: boolean
+  error?: string | null
+}
+
 export interface SavedDeck {
   id: number
   name: string
@@ -284,6 +302,14 @@ export const api = {
     post<{ run_id: string; cards: number }>("/api/deck/recommend/prepare", {
       text, commander: null, format: format || null, description: description || null,
     }),
+
+  /* Card data sync. `status` is cheap and touches no network; `check` asks
+   * Scryfall; `refresh` starts the download and returns immediately, because
+   * it takes minutes. */
+  syncStatus: () => get<SyncStatus>('/api/sync/status'),
+  syncCheck: () => post<SyncStatus>('/api/sync/check', {}),
+  syncRefresh: () => post<{ started: boolean; reason?: string }>('/api/sync/refresh', {}),
+  syncProgress: () => get<{ running: boolean; error: string | null; log: string[] }>('/api/sync/progress'),
 
   savedDecks: () => get<{ decks: SavedDeck[] }>('/api/deck/saved'),
 

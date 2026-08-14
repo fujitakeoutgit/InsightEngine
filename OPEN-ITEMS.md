@@ -65,7 +65,30 @@ most of the value would have been anyway.
 
 ## Data
 
-- **D1 — Automatic card sync.** On startup, in a background task, compare
+- ~~**D1 — Automatic card sync.**~~ DONE, with one deliberate limit. A **Card
+  data** panel in Settings showing the card count, when the mirror was built,
+  when it was last checked, and whether Scryfall has moved on — plus **Check
+  now** and **Refresh card data**. `bulk.refresh` was already idempotent and
+  already driven off per-file `updated_at`; what was missing was anything that
+  ever called it again, and any way to see how old your cards were.
+
+  **The check is automatic; the download is not**, and that is the limit. On
+  startup a thread asks Scryfall what the current stamps are and records them —
+  a few KB, off the request path, and failing silently because being offline
+  means the answer is unknown, not that anything is wrong. It stops short of
+  fetching, because ingest truncates `cards` and refills it in place: a refresh
+  that dies halfway leaves the app with **no cards at all**. Doing that
+  unattended, on startup, to someone who did not ask for it is not a trade
+  worth making until **D2** is built. Flip it to automatic once it is.
+
+  Verified against real Scryfall on this machine, and it immediately earned its
+  keep: mirror built 2026-07-28, Scryfall's data 2026-08-13, all three files
+  behind — 17 days stale and nothing in the app said so. Panel reads
+  "38,344 cards · built 2026-07-28 · checked 2026-08-14" and flags the update;
+  Check now advances `checked_at`. A real refresh has *not* been run — it is a
+  few hundred MB against your live mirror, and yours to start.
+
+- **D1 (original ask) — Automatic card sync.** On startup, in a background task, compare
   Scryfall's per-file `updated_at` against what was ingested and refresh if it
   has moved. Drive it off `updated_at`, *not* the card count: a banlist
   update, errata, or a new printing of an existing card all leave the count
