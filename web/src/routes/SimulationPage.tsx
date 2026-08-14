@@ -31,6 +31,9 @@ export function SimulationPage() {
   const [iterations, setIterations] = useState(1000)
   const [turns, setTurns] = useState(10)
   const [report, setReport] = useState<SimulationReport | null>(null)
+  const [kinds, setKinds] = useState<Set<SourceKind>>(
+    () => new Set<SourceKind>(['lands', 'rocks', 'dorks', 'other']),
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const ran = useRef(false)
@@ -65,6 +68,9 @@ export function SimulationPage() {
   const rows = report && !report.empty ? report.by_turn : []
   const peakMana = Math.max(1, ...rows.map((r) => r.mana))
   const colourKeys = Object.keys(rows[rows.length - 1]?.sources ?? {})
+  const available = SECTIONS.filter(
+    ([key]) => rows.some((r) => hasAny(r.sources_by_kind[key])),
+  )
 
   return (
     <section className="shell stack gap-4">
@@ -191,27 +197,56 @@ export function SimulationPage() {
             <h3>Sources by colour</h3>
             <p className="faint" style={{ fontSize: 11, marginBottom: 10 }}>
               Weighted: a land making two of the commander&rsquo;s colours counts a half
-              to each, three counts a third, and so on. Split by what produced it,
-              because a deck short on colour from lands but fine once its dorks
-              arrive has a problem one combined number cannot show.
+              to each, three counts a third, and so on. Filter by what produced it:
+              a deck short on colour from its lands but fine once its dorks arrive
+              has a problem the combined figure hides.
             </p>
-            {/* Empty sections are omitted rather than drawn as a table of
-                zeroes: a deck with no dorks should not have to be told so. */}
-            {SECTIONS.filter(([key]) => rows.some((r) => hasAny(r.sources_by_kind[key])))
-              .map(([key, label]) => (
-                <SourceTable
+            {/* Filters rather than stacked sections. Four tables of the same
+                shape made the reader compare across a scroll; one table that
+                changes lets them subtract a kind and watch what happens to the
+                colour they care about.
+
+                Only kinds this deck actually has are offered -- a toggle that
+                does nothing is a question the reader has to rule out. */}
+            <div className="row gap-1 wrap" style={{ marginBottom: 10 }}>
+              {available.map(([key, label]) => (
+                <button
                   key={key}
-                  label={label}
-                  colours={colourKeys}
-                  rows={rows}
-                  pick={(r) => r.sources_by_kind[key]}
-                />
+                  className={kinds.has(key) ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
+                  aria-pressed={kinds.has(key)}
+                  onClick={() => setKinds((prev) => {
+                    const next = new Set(prev)
+                    if (!next.has(key)) { next.add(key); return next }
+                    // Never leave every kind off: an all-zero table reads as a
+                    // broken deck rather than as a filter the reader set.
+                    //
+                    // Counted over the kinds on offer, not over the set. The
+                    // set is seeded with all four, so a deck with no mana
+                    // enchantments carried an invisible "other" that kept the
+                    // size above one and let the last visible filter go off.
+                    const onNow = available.filter(([k]) => next.has(k)).length
+                    if (onNow > 1) next.delete(key)
+                    return next
+                  })}
+                >
+                  {label}
+                </button>
               ))}
+            </div>
+
             <SourceTable
-              label="All sources"
               colours={colourKeys}
               rows={rows}
-              pick={(r) => r.sources}
+              pick={(r) => {
+                const total: Record<string, number> = {}
+                for (const [key] of available) {
+                  if (!kinds.has(key)) continue
+                  for (const [colour, n] of Object.entries(r.sources_by_kind[key])) {
+                    total[colour] = (total[colour] ?? 0) + n
+                  }
+                }
+                return total
+              }}
             />
           </div>
 
@@ -226,28 +261,28 @@ export function SimulationPage() {
   )
 }
 
-const SECTIONS = [
+type SourceKind = 'lands' | 'rocks' | 'dorks' | 'other'
+
+const SECTIONS: readonly (readonly [SourceKind, string])[] = [
   ['lands', 'Lands'],
   ['rocks', 'Rocks'],
   ['dorks', 'Dorks'],
   ['other', 'Other'],
-] as const
+]
 
 function hasAny(counts: Record<string, number> | undefined) {
   return Boolean(counts && Object.values(counts).some((n) => n > 0))
 }
 
 function SourceTable({
-  label, colours, rows, pick,
+  colours, rows, pick,
 }: {
-  label: string
   colours: string[]
   rows: SimulationTurn[]
   pick: (row: SimulationTurn) => Record<string, number>
 }) {
   return (
     <div className="sim-section">
-      <h4 className="label">{label}</h4>
       <div className="scroll-x">
         <table className="card-list sim-colours">
           <thead>
