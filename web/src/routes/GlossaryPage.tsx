@@ -81,11 +81,17 @@ export function GlossaryPage() {
       <PageHead eyebrow="Reference" title="Lessons" />
       <Lessons />
 
-      <PageHead
-        eyebrow="Reference"
-        title="Syntax &amp; symbols"
-        subtitle="Every operator the search bar understands, the mana symbols, the keywords players actually use, and the tag vocabulary the semantic engine draws from."
-      />
+      {/* A section heading, not a second page head. `PageHead` carries the
+          back control and the eyebrow, and one page has one of each — two gave
+          the Glossary a duplicate Back and a second "Reference" under the
+          first. */}
+      <div className="section-head">
+        <h2>Syntax &amp; symbols</h2>
+        <p className="muted">
+          Every operator the search bar understands, the mana symbols, the keywords
+          players actually use, and the tag vocabulary the semantic engine draws from.
+        </p>
+      </div>
 
       <div className="panel" style={{ marginBottom: 'var(--gap-4)' }}>
         <h3>Query syntax</h3>

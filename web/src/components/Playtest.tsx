@@ -729,7 +729,9 @@ export function Playtest({
             </button>
             {/* Confirmed, unlike Mulligan: this throws away the whole board,
                 not just the hand, and it sits one button away from Tutor. */}
-            <button className="btn btn-ghost sm" onClick={() => setConfirmingReset(true)}>
+            {/* Red, matching the button it opens: it is the one control here
+                that throws the whole board away. */}
+            <button className="btn btn-danger sm" onClick={() => setConfirmingReset(true)}>
               Reset
             </button>
           </div>

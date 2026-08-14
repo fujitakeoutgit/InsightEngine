@@ -4153,3 +4153,8 @@
   stroke-width: 2;
   stroke-linejoin: round;
 }
+
+/* A heading inside a page, below the one page head. */
+.section-head { margin-bottom: var(--gap-3); }
+.section-head h2 { margin: 0 0 4px; font-size: 20px; }
+.section-head p { margin: 0; font-size: 13px; max-width: 68ch; }

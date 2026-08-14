@@ -668,17 +668,31 @@ Still to do, in order:
 
 - **P25 — Deck pile sits too high.** Shift the deck and the cards-left number
   slightly lower in the playtest corner.
-- **P26 — Reset button should be red**, matching the confirmation button it
-  opens. It is the one control there that throws the board away.
+- ~~**P26 — Reset button red.**~~ DONE — `btn-danger`, matching the
+  confirmation it opens.
 - **L8 — Rootbound Crag entered untapped** with no Mountain and no Forest on
-  the battlefield. Check-land logic in `server/.../landTiming` (or
-  `web/src/lib/landTiming.ts`) is reading the condition the wrong way round, or
-  matching the subtype against the wrong zone. Reproduce with an empty board.
+  the battlefield. **Not a parsing bug** — I checked before guessing. Ran the
+  real clauses through `tapClause` + `namedTypes`: both the old wording
+  ("enters the battlefield tapped unless you control a Mountain or a Forest")
+  and the modern one ("enters tapped unless…") parse to
+  `['mountain', 'forest']`, and with neither on the board `entersTapped`
+  returns tapped. The logic in `web/src/lib/landTiming.ts` is right.
+
+  So the fault is upstream of it. Prime suspect: `entersTapped` bails with
+  `if (!text) return UNTAPPED` when `oracle_text` is null — which it is for
+  some printings and for the front of certain double-faced cards. A land whose
+  text we cannot read is then silently assumed untapped. Check what
+  `oracle_text` actually holds for the Rootbound Crag printing in that deck
+  before touching the parser; if it is null, the fix is to fall back to the
+  card's other faces, and to treat an unreadable land as tapped only when its
+  type line suggests it should be.
 - **A1 — Set field in Advanced search** should list the most recent few sets
   when empty, and narrow to what you type as you type. Currently neither.
 - **G2 — Cards tray opens a little short.** Its default height clips content.
-- **G3 — Drop the second "Back" and "Reference" eyebrow** now sitting under the
-  Glossary heading; the Lessons head introduced a duplicate.
+- ~~**G3 — Duplicate Back / Reference under the Glossary.**~~ DONE. Adding the
+  Lessons head gave the page two `PageHead`s, and `PageHead` carries the back
+  control and the eyebrow — one page has one of each. The second is now a plain
+  section heading.
 - **G4 — Bigger artwork, smaller lesson bars.** The image should carry more of
   the block and each lesson should take less height.
 - **G5 — A navigation lesson**, describing what each tab is for. It is the one
