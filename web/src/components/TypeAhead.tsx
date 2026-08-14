@@ -15,6 +15,7 @@ export function TypeAhead({
   placeholder,
   multi = true,
   transform,
+  suggestWhenEmpty = false,
 }: {
   /** Catalog name on the server: types, keywords, artists, sets, tags, criteria. */
   kind: string
@@ -23,6 +24,14 @@ export function TypeAhead({
   onChange: (next: string) => void
   placeholder?: string
   multi?: boolean
+  /** Offer suggestions before anything is typed.
+   *
+   *  Opt-in rather than the default. For sets it is the whole point — the
+   *  newest few are what you almost always want and nobody remembers the
+   *  codes — but a list of every card type or keyword the moment a field is
+   *  focused is noise in front of someone who was about to type.
+   */
+  suggestWhenEmpty?: boolean
   /** Map a catalog entry to the value stored, e.g. "mh3 — Modern Horizons 3" -> "mh3". */
   transform?: (entry: string) => string
 }) {
@@ -35,7 +44,7 @@ export function TypeAhead({
   const tokens = value.split(/\s+/).filter(Boolean)
 
   useEffect(() => {
-    if (!draft.trim()) { setOptions([]); return }
+    if (!draft.trim() && !suggestWhenEmpty) { setOptions([]); return }
     let cancelled = false
     const timer = setTimeout(async () => {
       try {
@@ -48,7 +57,7 @@ export function TypeAhead({
       } catch { /* offline: no suggestions, typing still works */ }
     }, 140)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [draft, kind])
+  }, [draft, kind, suggestWhenEmpty])
 
   const commit = (entry: string) => {
     const cleaned = (transform ? transform(entry) : entry).replace(/\s+/g, '-')

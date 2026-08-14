@@ -860,7 +860,19 @@ Still to do, in order:
   before touching the parser; if it is null, the fix is to fall back to the
   card's other faces, and to treat an unreadable land as tapped only when its
   type line suggests it should be.
-- **A1 — Set field in Advanced search** should list the most recent few sets
+- ~~**A1 — Set field in Advanced search.**~~ DONE. It opens on the newest sets
+  and narrows as you type. The server was already returning them newest-first;
+  the field simply never asked while it was empty.
+
+  Opt-in (`suggestWhenEmpty`) rather than the default for every type-ahead.
+  For sets it is the whole point — the set you want is usually a recent one and
+  nobody remembers the codes — but dropping a list of every card type or
+  keyword in front of someone the moment they focus a field is noise.
+
+  Verified: empty and focused gives the ten most recent sets; typing `mod`
+  narrows to the Modern Horizons entries.
+
+- **A1 (original note) — Set field in Advanced search** should list the most recent few sets
   when empty, and narrow to what you type as you type. Currently neither.
 - ~~**G2 — Cards tray opens short.**~~ DONE, and it was not the default — the
   default was always 470. The tray *wrote its clamped height back to storage*.

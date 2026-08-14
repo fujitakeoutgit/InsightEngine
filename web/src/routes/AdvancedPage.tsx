@@ -405,10 +405,13 @@ export function AdvancedPage() {
           <button className="add-row" onClick={() => addRow('formats')}>+ Add another format</button>
         </Row>
 
-        <Row label="Sets" hint="Matches as you type. Enter adds it and starts the next.">
+        <Row label="Sets" hint="The newest sets to start with; narrows as you type.">
           <TypeAhead
             kind="sets" value={b.sets} onChange={(v) => set('sets', v)}
             placeholder="Enter a set name or code"
+            // Nobody remembers set codes, and the set you want is usually a
+            // recent one, so the list opens on the newest rather than empty.
+            suggestWhenEmpty
             // The catalog reads "mh3 — Modern Horizons 3"; the query wants the code.
             transform={(entry) => entry.split(' — ')[0]}
           />
