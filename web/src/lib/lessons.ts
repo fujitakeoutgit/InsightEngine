@@ -27,6 +27,17 @@
  * changes while it works, the resting label is the one to use. A step the
  * reader cannot act on without hunting for the control has failed.
  *
+ * **Write the step as an instruction, not an observation.** "AI recommend is
+ * the slow one" is a remark about a button; "Press **AI recommend** to have the
+ * local model suggest cards" tells the reader what to do and what happens.
+ * Cut similes, cut asides, cut anything that flatters the software. State the
+ * control, the action, and the consequence, in that order.
+ *
+ * **Give a step a `target` whenever it names one thing.** A step about a
+ * specific button that highlights nothing makes the reader hunt for it. Only a
+ * step describing something with no single home on screen -- a gesture, a rule
+ * about how the tray behaves -- should go untargeted.
+ *
  * Text takes `**bold**` and `` `code` `` and nothing else. Two markers are
  * enough to name a control and to set an operator apart from the prose around
  * it, and a fuller markdown parser here would be a dependency in aid of text
@@ -62,82 +73,85 @@ export const LESSONS: Lesson[] = [
   {
     id: 'navigation',
     title: 'Getting around',
-    blurb: 'What each tab is for, and which one you actually want.',
+    blurb: 'What each tab does.',
     steps: [
       {
         route: '/',
         target: '.nav a[href="/"]',
-        text: '**Search** is the whole card pool. Type a card name, or an operator query. Everything else here is built on it.',
+        text: '**Search** searches the whole card pool. Type a card name, or an operator query.',
       },
       {
         target: '.nav a[href="/advanced"]',
-        text: '**Advanced** is the same search as a form. Click instead of remembering syntax, and it writes the query for you.',
+        text: '**Advanced** builds the same query from a form, so you do not have to type operators.',
       },
       {
         target: '.nav a[href="/deck"]',
-        text: '**Deck Lab** holds your decks. Paste or build a list, see what it is made of, and ask for cards it is missing.',
+        text: '**Deck Lab** stores your decks. Open one to edit its list, read its statistics, or request cards it lacks.',
       },
       {
         target: '.nav a[href="/playtest"]',
-        text: '**Playtest** deals you seven and gives you a table. No rules are enforced — it is for seeing whether the deck does anything.',
+        text: '**Playtest** deals an opening hand and gives you a board. It enforces no rules.',
       },
       {
         target: '.nav a[href="/sets"]',
-        text: '**Sets** browses by printing rather than by card. Use it when you want a particular version.',
+        text: '**Sets** browses printings rather than cards. Use it to find a specific edition.',
       },
       {
         target: '.nav a[href="/glossary"]',
-        text: '**Glossary** is the reference: operators, mana symbols, keywords, and these lessons.',
+        text: '**Glossary** lists the operators, mana symbols and keywords, and holds these lessons.',
       },
       {
         target: '.nav a[href="/binder"]',
-        text: '**Binder** is what you own, kept as one long list. It works like a deck, but there is only ever one.',
+        text: '**Binder** is one permanent list of the cards you own. It edits like a deck.',
       },
       {
         target: '.nav a[href="/settings"]',
-        text: '**Settings** holds the local model and the dice finishes. It also holds **Export**, the only button in this app that can save you from a lost database.',
+        text: '**Settings** holds the card data controls, the local model, the dice finishes, and backup.',
       },
       {
         target: '.nav-tray',
-        text: '**Cards** is a scratch pile rather than a page. It slides out over whatever you are doing, so what you found stays beside what you are building.',
+        text: '**Cards** is a tray that slides over the current page. It holds cards you are collecting.',
       },
     ],
   },
   {
     id: 'search-syntax',
     title: 'Searching properly',
-    blurb: 'The operators, and the one this app has that Scryfall does not.',
+    blurb: 'The operators, and the two this app has that Scryfall does not.',
     steps: [
       {
         route: '/',
         target: '.search-input-wrap',
-        text: 'Filters combine with a space, and every one of them has to match. `t:creature c:rg mv<=3` is every red-green creature costing three or less.',
+        text: 'Filters combine with spaces and all of them must match. `t:creature c:rg mv<=3` returns red-green creatures of mana value 3 or less.',
       },
       {
         target: '.search-input-wrap',
-        text: '`c:` is colour. `id:` is colour **identity**. A Golgari commander deck is `id:bg`, a wider set of cards than `c:bg`. That difference is most of what makes a deckbuilding search work.',
+        text: '`c:` matches a card’s colour. `id:` matches its colour identity. `id:bg` returns a wider set than `c:bg`, and is the correct filter for a Golgari commander deck.',
       },
       {
         target: '.search-input-wrap',
-        text: 'Comparisons take `>`, `<`, `>=`, `<=` and `=`, so `pow>=4 tou<=2` finds the glass cannons. Quote anything with a space in it: `o:"whenever you cast"`.',
+        text: 'The comparison operators are `>`, `<`, `>=`, `<=` and `=`. `pow>=4 tou<=2` returns high-power, low-toughness creatures. Quote any value containing a space: `o:"whenever you cast"`.',
       },
       {
         target: '.search-input-wrap',
-        text: '`*` is the wildcard this app adds and the API does not have. `n:thal*` reaches Thalia, Thallid and Thraben. Put `-` in front of a term to exclude it.',
+        text: '`*` is a wildcard. `n:thal*` matches Thalia, Thallid and Thraben. Prefix a term with `-` to exclude it.',
       },
       {
-        text: 'Start a search with `q:` to ask in plain words instead of operators. `q: cheap green creatures that draw a card` goes to the local model. It writes the operator query for you and runs it.',
+        target: '.search-input-wrap',
+        text: 'Prefix a query with `q:` to write it in plain words. `q: cheap green creatures that draw a card` is sent to the local model, which converts it to an operator query and runs that.',
       },
       {
-        text: 'A `q:` search can only return cards that exist, because the model writes a query rather than an answer. It is slower than a plain search, and the badge above the results tells you which engine ran.',
+        // No target: the engine badge only exists once results are on screen,
+        // and this lesson runs on an empty Search page.
+        text: 'A `q:` search returns only cards that exist, because the model writes a query rather than a list. It is slower than a plain search. A badge above the results names which engine answered.',
       },
       {
         target: '.owned-toggle',
-        text: 'Press **In binder** to outline every result you already own in gold. Use it to see what you would be buying twice.',
+        text: 'Press **In binder** to outline every result you already own in gold.',
       },
       {
         target: '.nav a[href="/advanced"]',
-        text: 'If you would rather not memorise any of that, **Advanced** builds the same query from a form.',
+        text: 'Press **Advanced** to build the same query from a form.',
       },
     ],
   },
@@ -148,47 +162,56 @@ export const LESSONS: Lesson[] = [
     steps: [
       {
         route: '/',
-        text: 'Every search is recorded with its result count. It also records which engine answered: the plain index, or the local model for a `q:` question.',
+        target: '.history',
+        text: 'Every search is recorded with its result count and the engine that answered it.',
       },
       {
         target: '.history',
-        text: 'The **Recent searches** table sits under the results. Only the last five unpinned queries are kept, so an afternoon of searching cannot bury the one that mattered.',
+        text: 'This table keeps the last five unpinned queries. Older ones are dropped.',
       },
       {
         target: '.history',
-        text: 'Press the **☆** on a row to pin that search. Pinned searches stay at the top, never age out, and survive the **Clear** button. Running a pinned search again updates its numbers in place.',
+        text: 'Press **☆** on a row to pin that search. Pinned searches stay at the top, never age out, and survive **Clear**. Running one again updates its counts in place.',
       },
     ],
   },
   {
     id: 'deck-lab',
     title: 'Deck Lab',
-    blurb: 'The two modes, the four category buttons, and what the AI is doing.',
+    blurb: 'The two editors, the four category buttons, and the model.',
     steps: [
       {
         route: '/deck',
         target: '.gallery-head',
-        text: 'Every deck you have saved. Open one and you get it in two modes.',
+        text: 'Every deck you have saved. Open one to edit it.',
       },
       {
         example: 'deck',
         target: '.editor-bar',
-        text: 'Press **Text** to edit the deck as a pasted list. Press **Build** to edit it by dragging cards around. Switching between them rewrites every line as `1 Card Name (SET) 123`, so the deck always states which printing it means.',
+        text: 'Press **Text** to edit the deck as a list. Press **Build** to edit it by dragging cards. Switching rewrites every line as `1 Card Name (SET) 123`.',
       },
       {
-        text: 'Name resolution sits under the description and flags any line that did not match exactly. **Approve** writes the match into the list. The alternatives beside it replace the line instead.',
+        text: 'Lines that did not match a card exactly are listed under the description. Press **Approve** to write the matched name into the list, or press one of the alternatives to use that name instead.',
       },
       {
-        text: '**Ramp**, **Removal**, **Counters** and **Draw** ask for cards that do that job *in this deck*, judged against what it already plays. Not a generic list of good cards.',
+        target: '.cat-buttons',
+        text: 'Press **Ramp**, **Removal**, **Counters** or **Draw** to request cards that do that job. Suggestions are scored against the cards this deck already plays.',
       },
       {
-        text: '**AI recommend** is the slow one. It reads your deck description first, so a deck that says what it is trying to do gets markedly better answers. Press the **Pipeline** tab to watch the run stage by stage.',
+        target: '.deck-actions',
+        text: 'Press **AI recommend** to have the local model suggest cards. It uses the deck description as part of its prompt, so write one first. A run takes a minute or more.',
       },
       {
-        text: 'Press the **Sleeves** tab to give the deck a sleeve. It is what the deck wears in the gallery and on the playtest mat, so two decks never look alike.',
+        target: '.result-tabs',
+        text: 'Press the **Pipeline** tab to watch each stage of that run.',
       },
       {
-        text: 'Press **Playtest** to deal this deck onto a table. Press **Copy** to duplicate the deck before trying something you might regret, and **Export** to write the list out as text.',
+        target: '.sleeve-add',
+        text: 'Press the **Sleeves** button to add sleeves to your deck.',
+      },
+      {
+        target: '[data-tour="deck-bar"]',
+        text: 'Press **Playtest** to deal this deck onto a table. Press **Copy** to duplicate the deck, and **Export** to write its list out as text.',
       },
     ],
   },
@@ -200,16 +223,16 @@ export const LESSONS: Lesson[] = [
       {
         route: '/',
         target: '.nav-tray',
-        text: '**Cards** opens over the page you are on rather than taking you somewhere else.',
+        text: 'Press **Cards** to open the tray. It slides over the current page rather than navigating away.',
       },
       {
-        text: 'Press the **+** on a search result to put it in the tray.',
+        text: 'Press **+** on a search result to put that card in the tray.',
       },
       {
-        text: 'Drag a card **out** of the tray onto a deck to add it. Drag a card from a deck **into** the tray to remove it.',
+        text: 'Drag a card from the tray onto a deck section to add it. Drag a card from a deck into the tray to remove it from that deck.',
       },
       {
-        text: 'The tray keeps what you put in it as you move between pages. Nothing in it belongs to a deck until you drag it onto one.',
+        text: 'The tray keeps its contents as you move between pages. Nothing in it belongs to a deck until you drag it onto one.',
       },
     ],
   },
@@ -221,18 +244,19 @@ export const LESSONS: Lesson[] = [
       {
         route: '/binder',
         target: '.section-tabs',
-        text: 'One binder, always here, never listed among your decks. Its three sections are **Bulk**, **Trades** and **Fav**. Drag a card between them the way you would move one around a deck.',
+        text: 'The binder is one list, always present, never shown among your decks. Its sections are **Bulk**, **Trades** and **Fav**. Drag cards between them.',
       },
       {
         target: '.colour-filter',
-        text: 'The pips filter by colour. All five start lit; click one to drop it out. Colourless cards are never hidden, since an artifact goes in any deck.',
+        text: 'Press a pip to remove that colour from the list. All five start active. Colourless cards are never hidden.',
       },
       {
         target: '.cat-buttons',
-        text: '**Ramp**, **Removal**, **Counters** and **Draw** narrow the list to cards you own that do that job. In a deck the same buttons suggest cards you *lack*. Here they show what you have.',
+        text: 'Press **Ramp**, **Removal**, **Counters** or **Draw** to show only cards you own that do that job. In a deck these buttons suggest cards you lack; here they filter what you have.',
       },
       {
-        text: 'The counts and the mana curve beside the list follow both filters, so the numbers always describe what is on screen.',
+        target: '.deck-info',
+        text: 'The counts and the mana curve are computed from the filtered list, not the whole binder.',
       },
       {
         text: 'Hover a card and press **Printing** to choose which edition of it you own.',
@@ -242,77 +266,98 @@ export const LESSONS: Lesson[] = [
   {
     id: 'settings',
     title: 'Settings',
-    blurb: 'Card data, backups, and what the dice are made of.',
+    blurb: 'Card data, backup, the dice, and the model.',
     steps: [
       {
         route: '/settings',
-        target: '.settings-panel',
-        text: '**Card data** shows how old your copy of Scryfall is, and whether a newer one exists. When one does, a gold **+** appears next to the card count on the Search page.',
+        target: '[data-tour="card-data"]',
+        text: '**Card data** reports the age of your local Scryfall copy and whether a newer one exists. When one does, a gold **+** appears next to the card count on the Search page.',
       },
       {
-        text: 'Press **Check now** to ask Scryfall whether newer card data exists. It only checks; it downloads nothing.',
+        target: '[data-tour="card-data"]',
+        text: 'Press **Check now** to ask Scryfall whether newer data exists. It downloads nothing.',
       },
       {
-        text: 'Press **Update Card Pool** to start importing the new card list in the background. It copies over when it finishes, so searching keeps working the whole time.',
+        target: '[data-tour="update-pool"]',
+        text: 'Press **Update Card Pool** to import the new card list in the background. It replaces the old copy when it finishes. Searching works throughout.',
       },
       {
-        text: 'Press **Export** to write your decks, your binder, your collected cards and your sleeves into one file. Press **Restore** to read that file back in. **Restore** only adds — it never deletes anything you already have.',
+        target: '[data-tour="backup"]',
+        text: 'Press **Export** to write your decks, binder, collected cards and sleeves to one file. Press **Restore** to read that file back in. **Restore** only adds; it deletes nothing.',
       },
       {
-        text: '**Tabletop** is where you choose what the dice and coin are made of. Press a swatch to try a finish, then throw the dice beside it to see how it looks in motion. The d20 is picked separately, so your two dice never look alike.',
+        target: '[data-tour="tabletop"]',
+        text: 'Press a swatch to change the dice and coin finish. Throw the dice beside the swatches to preview it. The d20 is set separately from the d6.',
       },
       {
-        text: '**Local model** is the model that answers a `q:` search. Press the **Model** dropdown to change it. Each option lists the video memory it wants. A model bigger than your card still runs, but spills into system memory and slows to minutes per search.',
+        target: '[data-tour="local-model"]',
+        text: 'Press the **Model** dropdown to choose the model that answers a `q:` search. Each option lists the video memory it needs. A model larger than your GPU still runs, but spills into system memory and takes minutes per search.',
       },
       {
-        text: 'Press **Save** to keep a new model. If it is not on this machine yet, the panel prints the exact `ollama pull` command to run first.',
+        target: '[data-tour="local-model"]',
+        text: 'Press **Save** to apply the model. If it is not installed, the panel prints the `ollama pull` command to run.',
       },
     ],
   },
   {
     id: 'playtest',
     title: 'The playtest mat',
-    blurb: 'The gestures, which are the part no label tells you about.',
+    blurb: 'The buttons, and the gestures no label tells you about.',
     steps: [
       {
         route: '/playtest',
         target: '.deck-tile',
-        text: 'Pick a deck and it deals you seven. Nothing is enforced: you are checking whether the deck does anything, not adjudicating a game.',
-      },
-      {
-        text: 'Press **Next turn** to untap everything, step the turn counter and draw a card. Press **Draw** to draw one card without ending the turn, and **Untap all** to untap without drawing.',
-      },
-      {
-        text: 'Press **Tutor** to search your library for any card and put it in your hand. Press **Shuffle** to shuffle the library.',
+        text: 'Pick a deck to deal an opening hand. No rules are enforced.',
       },
       {
         example: 'playtest',
+        target: '.pt-actions',
+        text: 'Press **Next turn** to untap everything, advance the turn counter and draw a card. Press **Tutor** to search your library and put a card in your hand.',
+      },
+      {
+        target: '.pt-deck',
+        text: 'Click the deck to draw one card. The deck also shows how many cards are left.',
+      },
+      {
+        target: '.pt-actions',
+        text: 'Press **Shuffle** to shuffle the library.',
+      },
+      {
+        target: '.pt-life',
+        text: 'Press the arrows beside your life total to change it.',
+      },
+      {
+        target: '.pt-coin',
+        text: 'Press the coin to flip it.',
+      },
+      {
         // The whole tool column, not one tray. The dice are *positioned by
         // script* after the mat lays out, so a highlight pinned to a single
         // empty slot sits beside them rather than on them.
         target: '.pt-tools',
-        text: 'Flick a die to throw it — it tumbles, bounces off the edges and lands on a face. Drag it slowly instead and it just moves.',
+        text: 'Flick a die to throw it. It tumbles, bounces off the mat edges and lands on a face. Drag it to move it without rolling.',
       },
       {
-        text: 'Double-click a die to switch it to **counting**. Clicks step the number. Throw it to go back to rolling.',
+        target: '.pt-tools',
+        text: 'Double-click a die to switch it to counting mode. Each click then steps its number. Throw it to return it to rolling.',
       },
       {
-        text: 'Drag a die out of its slot and a new one appears there, so you can have as many as you need. Drag a die onto the bin above the slots to get rid of it.',
+        target: '.pt-die-bin',
+        text: 'Drag a die out of its slot and a replacement appears there. Drag a die onto this bin to remove it.',
       },
       {
-        text: 'Click a fetch land on the battlefield to crack it. It finds what it can, goes to the graveyard, and the land it fetches arrives tapped if the fetch land says so.',
+        target: '.pt-history-tab',
+        text: 'Press **History** to open the log of everything that has happened this game.',
       },
       {
-        text: 'Press **Reset** to clear the board and sweep the dice home; it asks you to confirm first. Press **Mulligan** to redraw your opening hand and nothing else.',
+        text: 'Click a fetch land on the battlefield to crack it. It finds a land, goes to the graveyard, and the fetched land enters tapped if its text says so.',
       },
       {
-        text: 'Press the arrows either side of your life total to gain or lose life. Press the coin to flip it.',
+        text: 'A planeswalker enters with its printed starting loyalty. Press the arrows on its badge to change the counter. It resets when the card leaves the battlefield.',
       },
       {
-        text: 'Press **History** on the right edge to slide out the log of everything that has happened this game.',
-      },
-      {
-        text: 'A planeswalker you play arrives with its starting loyalty. Press the arrows on its badge to move the counter; leaving the battlefield resets it.',
+        target: '.pt-actions',
+        text: 'Press **Reset** to clear the board and return the dice to their slots; it asks for confirmation first. Press **Mulligan** to redraw your opening hand only.',
       },
     ],
   },

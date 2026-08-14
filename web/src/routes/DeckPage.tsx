@@ -1163,7 +1163,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
           </span>
         )}
 
-        <div className="row gap-2 push">
+        <div className="row gap-2 push" data-tour="deck-bar">
           <button className="btn btn-primary sm" onClick={save} disabled={!!busy || !text.trim()}>
             {busy === 'save' && <span className="spinner" />}Save
           </button>

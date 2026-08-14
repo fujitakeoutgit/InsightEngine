@@ -590,15 +590,15 @@ export function Playtest({
           {inZone.library.length} in library · {untappedLands}/{lands.length} lands untapped
         </span>
 
-        {/* Next turn and Reset moved to the corner beside the deck, with
-            Shuffle and Tutor. What stays here is what has no home down there:
-            drawing, which is otherwise a click on the deck itself, and the two
-            that act on the whole board. */}
+        {/* Next turn and Reset live in the corner beside the deck, with
+            Shuffle and Tutor. Only Mulligan stays here.
+
+            Draw and Untap all are deliberately absent. Drawing is a click on
+            the deck, which is where a player already looks for it, and a
+            button doing the same thing twice is just a second place to check.
+            Untapping is what Next turn is for; a standalone untap button is
+            not a step anyone takes on its own. */}
         <div className="push row gap-2 wrap">
-          <button className="btn sm" onClick={() => draw(1)} disabled={!inZone.library.length}>
-            Draw
-          </button>
-          <button className="btn btn-ghost sm" onClick={untapAll}>Untap all</button>
           <button
             className="btn btn-ghost sm"
             onClick={() => newGame(Math.min(6, mulligans + 1))}

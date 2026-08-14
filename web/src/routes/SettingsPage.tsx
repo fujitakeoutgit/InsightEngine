@@ -152,7 +152,7 @@ export function SettingsPage() {
         </p>
       )}
 
-      <div className="panel settings-panel">
+      <div className="panel settings-panel" data-tour="card-data">
         <h3>Card data</h3>
         <p className="muted" style={{ fontSize: 13, marginBottom: 14 }}>
           Every card in print, mirrored locally from Scryfall. Checked each time the
@@ -199,6 +199,7 @@ export function SettingsPage() {
 
           <button
             className="btn btn-primary sm"
+            data-tour="update-pool"
             disabled={!!syncBusy || !!sync?.running}
             onClick={async () => {
               setSyncBusy('refresh'); setSyncLog([])
@@ -225,7 +226,7 @@ export function SettingsPage() {
         )}
       </div>
 
-      <div className="panel settings-panel">
+      <div className="panel settings-panel" data-tour="backup">
         <h3>Backup</h3>
         <p className="muted" style={{ fontSize: 13, marginBottom: 14 }}>
           One file holding your decks, the binder, the cards you have collected and
@@ -290,7 +291,7 @@ export function SettingsPage() {
         </p>
       </div>
 
-      <div className="panel settings-panel">
+      <div className="panel settings-panel" data-tour="tabletop">
         <h3>Tabletop</h3>
         <p className="muted" style={{ fontSize: 13, marginBottom: 14 }}>
           What the dice and the coin are made of. Nothing is downloaded — both are
@@ -376,7 +377,7 @@ export function SettingsPage() {
         </div>
       </div>
 
-      <div className="panel settings-panel">
+      <div className="panel settings-panel" data-tour="local-model">
         <h3>Local model</h3>
         <p className="muted" style={{ fontSize: 13, marginBottom: 14 }}>
           Five sizes of the same job. Larger models read an awkward sentence more
