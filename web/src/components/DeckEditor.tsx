@@ -19,9 +19,11 @@ import { PrintingPicker } from './PrintingPicker'
 import { ShuffleTriage } from './ShuffleTriage'
 import { ManaCost } from './ManaCost'
 
+// None first, because it is the default and a list should open on its own
+// starting point rather than make you hunt to the end for it.
 const GROUPINGS: [GroupBy, string][] = [
-  ['type', 'Type'], ['cmc', 'Mana value'], ['color', 'Colour'],
-  ['rarity', 'Rarity'], ['none', 'None'],
+  ['none', 'None'], ['type', 'Type'], ['cmc', 'Mana value'],
+  ['color', 'Colour'], ['rarity', 'Rarity'],
 ]
 
 /** Every section, as tabs — Commander included. The binder has its own three,
@@ -66,13 +68,14 @@ export function DeckEditor({
   colours?: string[]
   onColours?: (next: string[]) => void
 }) {
-  /* B6 / B4 — the binder opens ungrouped and on images.
+  /* Both a deck and a binder open ungrouped. Grouping fragments the list into
+   * headed blocks, which is useful when you have a question about shape and in
+   * the way when you are just reading what is there -- and reading what is
+   * there is what opening either one is for. Type grouping is a click away.
    *
-   * A deck is read by type, because that is how you check a curve. A binder is
-   * a pile you are looking *through*, where grouping fragments the one long
-   * list you came to scan — and where the art is how you recognise a card you
-   * own without reading its name. */
-  const [groupBy, setGroupBy] = useState<GroupBy>(binder ? 'none' : 'type')
+   * B4 -- the binder still opens on images, because art is how you recognise a
+   * card you own without reading its name. */
+  const [groupBy, setGroupBy] = useState<GroupBy>('none')
   const [sortBy, setSortBy] = useState<SortBy>('name')
   const [view, setView] = usePersisted<'list' | 'grid'>(
     binder ? 'insight-enigma:binder-view' : 'insight-enigma:deck-view',
@@ -205,16 +208,37 @@ export function DeckEditor({
       {shuffling && (
         <ShuffleTriage
           cards={shuffleCards.map((c) => c.card)}
-          keepLabel="Keep"
-          dropLabel="Maybe"
+          /* The triage asks one question per card, and what that question is
+             depends on what you are sorting. A deck asks "does this make the
+             cut", so the right pile keeps and the left demotes to the
+             maybeboard. A binder is not a deck being cut down -- it is a
+             collection being filed -- so both piles are destinations, and the
+             card lands wherever you put it. */
+          keepLabel={binder ? 'Trades' : 'Keep'}
+          dropLabel={binder ? 'Bulk' : 'Maybe'}
           onClose={() => setShuffling(false)}
-          onSubmit={(_kept, maybes) => {
-            const moving = new Set(maybes.map((c) => c.oracle_id))
-            onChange(cards.map((c) => (
-              c.section === activeSection && moving.has(c.card.oracle_id)
-                ? { ...c, section: 'maybeboard' as Section }
-                : c
-            )))
+          onSubmit={(kept, dropped) => {
+            if (binder) {
+              // Both piles are filed. Trades on the right, Bulk on the left,
+              // and a card is moved even if it was already in that section --
+              // which costs nothing and keeps the rule "the pile you put it in
+              // is the tab it ends up in" true without exception.
+              const toTrades = new Set(kept.map((c) => c.oracle_id))
+              const toBulk = new Set(dropped.map((c) => c.oracle_id))
+              onChange(cards.map((c) => {
+                if (c.section !== activeSection) return c
+                if (toTrades.has(c.card.oracle_id)) return { ...c, section: 'sideboard' as Section }
+                if (toBulk.has(c.card.oracle_id)) return { ...c, section: 'main' as Section }
+                return c
+              }))
+            } else {
+              const moving = new Set(dropped.map((c) => c.oracle_id))
+              onChange(cards.map((c) => (
+                c.section === activeSection && moving.has(c.card.oracle_id)
+                  ? { ...c, section: 'maybeboard' as Section }
+                  : c
+              )))
+            }
             setShuffling(false)
           }}
         />
