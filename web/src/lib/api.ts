@@ -535,15 +535,15 @@ export interface DeckStats {
   pips: Record<string, number>
   produced: Record<string, number>
   coloured_sources: number
+  /** Union of the commander section's colour identity. '' when there is none. */
+  commander_identity: string
   balance: {
     color: string; pips: number; pip_share: number
     sources: number; source_share: number
-    /** Heaviest pips of this colour on one card, 1-3. */
-    intensity: number
-    /** Sources that intensity wants. */
-    target: number
-    /** sources - target, in cards. Negative is short. */
-    shortfall: number
+    /** Sources after splitting each between the commander colours it serves. */
+    weighted_sources: number
+    /** weighted_sources / pips. Higher is better supported. */
+    ratio: number
   }[]
   types: Record<string, number>
   rarity: { main: Record<string, number>; sideboard: Record<string, number> }

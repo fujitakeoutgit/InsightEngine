@@ -26,14 +26,34 @@ CURVE_KEYS = ("0", "1", "2", "3", "4", "5", "6", "7+")
 
 _SYMBOL = re.compile(r"\{([^}]+)\}")
 
-# How many sources of a colour you want, by the heaviest number of that
-# colour's pips on a single card. Frank Karsten's tables, rounded: enough
-# sources to cast the spell on curve about 90% of the time. Index 0 is unused
-# -- a colour with no pips never reaches here.
-_SOURCE_TARGETS = {
-    "commander": (0, 20, 24, 27),
-    "sixty": (0, 14, 20, 23),
-}
+
+
+def _relevant(makes: list[str], allowed: set[str]) -> list[str]:
+    """The colours a source contributes, restricted to the ones that matter.
+
+    A five-colour land in a two-colour deck is a perfect dual, not a fifth of
+    a source in each of five colours -- three of those colours are never cast.
+    Restricting first, then splitting, is what makes the split mean "how much
+    of this card is working for this colour".
+    """
+    return [c for c in makes if c in allowed]
+
+
+def _weigh(
+    weighted: dict[str, float], makes: list[str], qty: int, scope: set[str] | None,
+) -> None:
+    """Add a source to each colour it serves, split evenly between them.
+
+    A card that makes one relevant colour is worth 1 to it. A dual is worth a
+    half to each, a triome a third, a five-colour land a fifth -- or a quarter,
+    if the commander only allows four colours and the fifth is dead weight.
+    """
+    relevant = _relevant(makes, scope) if scope is not None else makes
+    if not relevant:
+        return
+    share = qty / len(relevant)
+    for symbol in relevant:
+        weighted[symbol] += share
 
 
 def _counted(resolutions: list[Resolution]) -> list[Resolution]:
@@ -76,9 +96,24 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
     other_sources = 0
     # Cards that produce at least one coloured symbol, counted once each.
     source_cards = 0
-    # Most pips of one colour on a single card, which is what the source
-    # requirement is keyed on.
-    intensity: Counter = Counter()
+    # Sources weighted by how many of the commander's colours each one makes.
+    # A float, because half a dual is exactly what a dual is worth to a colour.
+    weighted: dict[str, float] = {c: 0.0 for c in COLOURS}
+
+    # The commander's colour identity, unioned across every card in the
+    # commander section -- so a partner pair, a Background, or a Doctor and its
+    # companion contribute both halves. This is the ceiling the deck is built
+    # under, and the charts filter to it: a deck cannot cast a colour its
+    # commander does not allow, so showing that colour is showing noise.
+    #
+    # Empty for a deck with no commander, which the charts read as "no ceiling"
+    # and fall back to the colours actually present.
+    commander_identity = set()
+    for res in resolutions:
+        if res.card and res.section == "commander":
+            commander_identity |= set(res.card.get("color_identity") or "")
+
+    scope = commander_identity or None
 
     for res in cards:
         card = res.card
@@ -102,11 +137,6 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
         card_pips = _pips(card.get("mana_cost"))
         for colour, n in card_pips.items():
             pips[colour] += n * qty
-            # The heaviest single demand in this colour. Twenty one-pip white
-            # cards are easy; one WWW card is not, and it is the WWW card that
-            # decides how many white sources the deck actually needs.
-            if n > intensity[colour]:
-                intensity[colour] = n
 
         # Whether a card is a mana source and which colours it supplies are two
         # different questions. Sol Ring makes only C, so it is very much a rock
@@ -120,6 +150,7 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
                 source_cards += qty
             for symbol in makes:
                 produced[symbol] += qty
+            _weigh(weighted, makes, qty, scope)
             text = (card.get("oracle_text") or "").lower()
             if "enters the battlefield tapped" not in text and "enters tapped" not in text:
                 untapped_lands += qty
@@ -134,6 +165,7 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
                     source_cards += qty
                 for symbol in makes:
                     produced[symbol] += qty
+                _weigh(weighted, makes, qty, scope)
                 if "Creature" in line:
                     dorks += qty
                 elif "Artifact" in line:
@@ -151,71 +183,49 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
             key = card_identity if len(card_identity) == 1 else ("multi" if card_identity else "C")
             curve[bucket][key] += qty
 
-    # The commander's colour identity, unioned across every card in the
-    # commander section -- so a partner pair, a Background, or a Doctor and its
-    # companion contribute both halves. This is the ceiling the deck is built
-    # under, and the charts filter to it: a deck cannot cast a colour its
-    # commander does not allow, so showing that colour is showing noise.
-    #
-    # Empty for a deck with no commander, which the charts read as "no ceiling"
-    # and fall back to the colours actually present.
-    commander_identity = set()
-    for res in resolutions:
-        if res.card and res.section == "commander":
-            commander_identity |= set(res.card.get("color_identity") or "")
-
     for res in resolutions:
         if res.card and res.section == "sideboard":
             side_rarity[res.card.get("rarity") or "unknown"] += res.quantity
 
-    # Sources vs requirements: the question a mana base has to answer.
-    total_pips = sum(pips.values()) or 1
-    # The number of source *cards*, not the sum of the colours they make.
+    # Sources per pip, per colour.
     #
-    # Summing `produced` counted a five-colour land five times, so every extra
-    # colour a source could make inflated the denominator that every colour is
-    # then judged against. A mono-red deck whose fixing all taps for red as
-    # well reported Red at -46% and could never reach 100%: red was measured
-    # against a total that its own colour-agnostic lands had quintupled.
-    # Counting each source once makes the share mean "what fraction of my
-    # sources can produce this colour", which is the question being asked --
-    # and a land that makes any colour now satisfies every colour it makes,
-    # rather than diluting all of them.
+    # The measure is deliberately plain: how much of your mana base is working
+    # for a colour, divided by how much that colour is asked for. Above 1 means
+    # more sources than pips; below 1 means fewer.
+    #
+    # Two rules make it mean something.
+    #
+    # Only the commander's colours count. A land that taps for blue in a deck
+    # with no blue commander is not a blue source, it is a land -- and the old
+    # panel gave that phantom colour a row and a healthy-looking number.
+    #
+    # And a source is split between the colours it serves. A dual is half a
+    # source to each of its two colours, a triome a third to each, a five-colour
+    # land a fifth -- or a quarter, when the commander only allows four and the
+    # fifth colour is dead weight. Counting a dual as a whole source for both
+    # colours is what let a three-colour deck report every colour as covered
+    # while no single colour actually was.
+    total_pips = sum(pips.values()) or 1
     total_sources = source_cards or 1
-    table = _SOURCE_TARGETS["commander" if total_cards >= 80 else "sixty"]
     balance = []
     for colour in COLOURS:
-        # Only colours the deck actually casts. A colour with no pips has no
-        # requirement, so there is nothing to be short or long of -- and the
-        # old code gave it a row anyway. Minsc plays no blue and no black card
-        # at all, and reported a +24% surplus in each, purely because seven of
-        # its lands can incidentally tap for them.
+        # Outside the commander's identity, or never cast: not a row.
+        if commander_identity and colour not in commander_identity:
+            continue
         if not pips[colour]:
             continue
-        need = table[min(intensity[colour], 3)]
+        share = weighted[colour]
         balance.append({
             "color": colour,
             "pips": pips[colour],
             "pip_share": round(pips[colour] / total_pips, 4),
+            # Whole cards that can tap for this colour, for the detail table.
             "sources": produced[colour],
             "source_share": round(produced[colour] / total_sources, 4),
-            # The heaviest cost in this colour, and how many sources that cost
-            # wants. Karsten's tables: roughly 20/24/27 sources in a 99 for
-            # one, two and three pips, and 14/20/23 in a 60.
-            "intensity": intensity[colour],
-            "target": need,
-            # Sources you have minus sources you want, in cards. Negative means
-            # short.
-            #
-            # This replaces a subtraction of two percentages that did not share
-            # a denominator. Pip share was out of all pips and summed to 100%;
-            # source share was out of source *cards* while its numerators
-            # counted every colour a card makes, so it summed to whatever the
-            # average source produced -- 220% in Minsc. Subtracting them left a
-            # figure that was positive for every colour in every multicolour
-            # deck, which is not a measurement, and the number of cards is what
-            # a player can act on anyway.
-            "shortfall": produced[colour] - need,
+            # The same sources after splitting each between the colours it
+            # serves. This is the numerator of the ratio.
+            "weighted_sources": round(share, 2),
+            "ratio": round(share / pips[colour], 3),
         })
 
     return {

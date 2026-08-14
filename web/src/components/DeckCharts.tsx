@@ -187,12 +187,6 @@ export function Curve({ curve }: { curve: Record<string, Record<string, number>>
   )
 }
 
-function listColours(rows: { color: string }[]): string {
-  const names = rows.map((r) => COLOR_NAME[r.color].toLowerCase())
-  if (names.length === 1) return names[0]
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
-}
-
 export function DeckCharts({ stats }: { stats: DeckStats }) {
   const ref = useRef<HTMLDivElement>(null)
   const [showTable, setShowTable] = useState(false)
@@ -206,10 +200,28 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
 
   if (stats.empty) return null
 
-  const short = stats.balance.filter((b) => b.shortfall < 0)
+  /* The panel exists to show where the base is weakest, so the bars are scaled
+     against the best-supported colour rather than an absolute pass mark. A
+     fixed threshold would be a fiction -- a healthy commander deck runs well
+     under one source per pip -- and every colour failing it told the reader
+     nothing about which colour to fix. */
+  const best = Math.max(...stats.balance.map((b) => b.ratio), 0.0001)
+  const worst = stats.balance.reduce(
+    (low, b) => (low === null || b.ratio < low.ratio ? b : low),
+    null as (typeof stats.balance)[number] | null,
+  )
+  // Only worth naming when it is actually behind the others.
+  const lagging = worst && best > 0 && worst.ratio < best * 0.9 ? worst : null
+
+  /* Restricted to the commander's colours, for the same reason the balance
+     rows are: a land that taps for blue in a deck with no blue commander is
+     not a blue source, and a slice for it is a slice of something the deck
+     cannot cast. Decks with no commander keep every colour they use. */
+  const inScope = (c: string) =>
+    !stats.commander_identity || stats.commander_identity.includes(c)
 
   const toSlices = (src: Record<string, number>): Slice[] =>
-    COLOR_ORDER.filter((c) => src[c]).map((c) => ({
+    COLOR_ORDER.filter((c) => src[c] && inScope(c)).map((c) => ({
       key: c, label: COLOR_NAME[c], value: src[c], fill: FILL[c],
     }))
 
@@ -247,13 +259,15 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
             {stats.mana_dorks > 0 && `, ${stats.mana_dorks} dork${stats.mana_dorks === 1 ? '' : 's'}`}
             {stats.other_mana_sources > 0 && `, ${stats.other_mana_sources} other`}
             {`. ${stats.coloured_sources} of them make coloured mana.`}
+            {stats.commander_identity
+              && ' Only the commander’s colours are counted, and each source is split'
+                 + ' between the colours it makes.'}
           </p>
-          <p className={short.length ? 'balance-verdict short' : 'balance-verdict ok'}>
-            {short.length === 0
-              ? 'Every colour has enough sources.'
-              : `Short on ${listColours(short)}. Add sources in ${
-                  short.length === 1 ? 'that colour' : 'those colours'
-                }, or cut the costs that are hardest to pay.`}
+          <p className={lagging ? 'balance-verdict short' : 'balance-verdict ok'}>
+            {lagging
+              ? `${COLOR_NAME[lagging.color]} is your weakest colour, at ${
+                  lagging.ratio.toFixed(2)} sources per pip.`
+              : 'Every colour is supported about equally.'}
           </p>
           <div className="balance">
             {stats.balance.map((b) => (
@@ -266,17 +280,18 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
                     past the bar it is measured against. */}
                 <div
                   className="bal-track"
-                  title={`${b.sources} sources for ${COLOR_NAME[b.color].toLowerCase()}. `
-                    + `Its hardest card costs ${b.intensity} ${COLOR_NAME[b.color].toLowerCase()} `
-                    + `pip${b.intensity === 1 ? '' : 's'}, which wants ${b.target} sources to cast on time.`}
+                  title={`${b.weighted_sources} sources for ${b.pips} `
+                    + `${COLOR_NAME[b.color].toLowerCase()} pip${b.pips === 1 ? '' : 's'}. `
+                    + `${b.sources} cards can tap for it; each is split between the `
+                    + 'commander colours it makes.'}
                 >
                   <div
-                    className={b.shortfall < 0 ? 'bal-have short' : 'bal-have'}
-                    style={{ width: `${Math.min(1, b.sources / b.target) * 100}%` }}
+                    className={b === lagging ? 'bal-have short' : 'bal-have'}
+                    style={{ width: `${(b.ratio / best) * 100}%` }}
                   />
                 </div>
-                <span className={b.shortfall < 0 ? 'bal-gap short' : 'bal-gap ok'}>
-                  {b.shortfall < 0 ? `${-b.shortfall} short` : 'covered'}
+                <span className={b === lagging ? 'bal-gap short' : 'bal-gap'}>
+                  {b.ratio.toFixed(2)}
                 </span>
               </div>
             ))}
@@ -288,17 +303,16 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
             <div className="scroll-x" style={{ marginTop: 12 }}>
               <table className="card-list">
                 <thead>
-                  <tr><th>Colour</th><th>Pips</th><th>Heaviest</th><th>Sources</th><th>Wanted</th><th>Short by</th></tr>
+                  <tr><th>Colour</th><th>Pips</th><th>Cards</th><th>Sources</th><th>Per pip</th></tr>
                 </thead>
                 <tbody>
                   {stats.balance.map((b) => (
                     <tr key={b.color}>
                       <td>{COLOR_NAME[b.color]}</td>
                       <td className="num">{b.pips}</td>
-                      <td className="num">{b.intensity}</td>
                       <td className="num">{b.sources}</td>
-                      <td className="num">{b.target}</td>
-                      <td className="num">{b.shortfall < 0 ? b.shortfall : '—'}</td>
+                      <td className="num">{b.weighted_sources}</td>
+                      <td className="num">{b.ratio.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
