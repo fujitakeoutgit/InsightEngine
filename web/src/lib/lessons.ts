@@ -11,6 +11,16 @@
  * the search bar accepts, that a search can be kept, what the four category
  * buttons actually do, and the parts of the playtest mat that respond to a
  * gesture rather than a click.
+ *
+ * The one exception is "Getting around", which names every tab including Sets
+ * and Settings. Saying what a tab is *for* is not the same as explaining a
+ * page that explains itself, and it is the first thing a new pair of hands
+ * needs — the rest of these assume you already know where you are.
+ *
+ * Steps take `**bold**` and `` `code` `` and nothing else. Two markers are
+ * enough to name a control and to set an operator apart from the prose around
+ * it, and a fuller markdown parser here would be a dependency in aid of text
+ * we write ourselves.
  */
 export interface Lesson {
   id: string
@@ -21,6 +31,22 @@ export interface Lesson {
 }
 
 export const LESSONS: Lesson[] = [
+  {
+    id: 'navigation',
+    title: 'Getting around',
+    blurb: 'What each tab is for, and which one you actually want.',
+    steps: [
+      '**Search** is the whole card pool. Type a name, or an operator query — everything else here is built on it.',
+      '**Advanced** is the same search as a form, for when you would rather click than remember the syntax. It writes the query for you.',
+      '**Deck Lab** holds your decks: paste or build a list, see what it is made of, and ask for cards that do a job it is missing.',
+      '**Playtest** deals you seven and gives you a table. No rules are enforced — it is for seeing whether the deck does anything.',
+      '**Sets** browses by printing rather than by card, which is the view you want when you are looking for a particular version.',
+      '**Glossary** is the reference: operators, mana symbols, keywords, and these lessons.',
+      '**Binder** is what you own, kept as one long list — the same editor as a deck, but singular and never listed among them.',
+      '**Settings** holds the local model, the dice and coin finishes, and Backup, which is the only thing here that can save you from a lost database.',
+      '**Cards** — the tray at the top right — is a scratch pile. Press + on any card to drop it in, and drag from it into a deck.',
+    ],
+  },
   {
     id: 'search-syntax',
     title: 'Searching properly',

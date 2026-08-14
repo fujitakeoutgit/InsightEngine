@@ -13,8 +13,16 @@ import { Lightbox } from './Lightbox'
 /** A card being looked at, and the rect it grew from. */
 interface ZoomView { src: string; alt: string; from: DOMRect }
 
-/** Remembered tray height. Keyed like every other persisted preference. */
-const TRAY_HEIGHT_KEY = 'insight-enigma:tray-height'
+/** Remembered tray height. Keyed like every other persisted preference.
+ *
+ * `-v2` retires the old key rather than trying to repair what is in it. The
+ * previous version wrote its clamped height back to storage, so any session
+ * that ever ran in a short window left the 200px minimum behind — and since
+ * the clamp only reduces, that value then survived every later session on
+ * every screen. There is no way to tell a poisoned 200 from someone who
+ * genuinely wanted the minimum, so the old key is simply abandoned and
+ * everyone starts from the default again. */
+const TRAY_HEIGHT_KEY = 'insight-enigma:tray-height-v2'
 /** What the stylesheet used to hard-code, so nothing moves by default. */
 const DEFAULT_TRAY_HEIGHT = 470
 /** Below this the tabs and one row of cards no longer both fit. */
@@ -142,21 +150,25 @@ export function CardTray({ open, onClose }: { open: boolean; onClose: () => void
   const clampHeight = (px: number) =>
     Math.max(MIN_TRAY_HEIGHT, Math.min(px, window.innerHeight - 120))
 
-  // Re-clamped when the window shrinks below the stored height, so a tray
-  // sized on a large screen cannot end up taller than a small one.
+  /* Clamped for display, never written back.
+   *
+   * This used to store the clamped value, which made a small window
+   * permanently shrink the tray: `clamp` only ever reduces, so once a
+   * transient 320px-tall window had written the 200px minimum into the
+   * preference, every later session opened at 200 on any screen and never
+   * grew back. The stored number is what you asked for; what is rendered is
+   * that number made to fit the window in front of you. */
+  const [, redraw] = useState(0)
   useEffect(() => {
-    const fit = () => {
-      const next = clampHeight(height)
-      if (next !== height) setHeight(next)
-    }
-    fit()
+    const fit = () => redraw((n) => n + 1)
     window.addEventListener('resize', fit)
     return () => window.removeEventListener('resize', fit)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [height])
+  }, [])
+
+  const shownHeight = clampHeight(height)
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
-    resizing.current = { y: event.clientY, from: height }
+    resizing.current = { y: event.clientY, from: shownHeight }
     try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* fine */ }
   }
 
@@ -230,7 +242,7 @@ export function CardTray({ open, onClose }: { open: boolean; onClose: () => void
     <>
       <div
         className={`card-tray ${open ? 'open' : ''} ${overTray ? 'taking' : ''}`}
-        style={{ height: `${height}px` }}
+        style={{ height: `${shownHeight}px` }}
         role="dialog"
         aria-label="Collected cards"
         aria-hidden={!open}

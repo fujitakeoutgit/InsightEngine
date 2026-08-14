@@ -4,6 +4,21 @@ import { canAnimate, gsap } from '../lib/motion'
 import { LESSONS, readDone, writeDone } from '../lib/lessons'
 import artwork from '../assets/glossary-lessons.png'
 
+/** `**bold**` and `` `code` ``, rendered. Split on both markers at once so a
+ *  step can mix them, and the delimiters are dropped rather than shown — they
+ *  were appearing literally, which is worse than no formatting at all. */
+function formatted(step: string) {
+  return step.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).filter(Boolean).map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>
+    }
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return <code key={i}>{part.slice(1, -1)}</code>
+    }
+    return <span key={i}>{part}</span>
+  })
+}
+
 /**
  * Lessons, at the top of the Glossary.
  *
@@ -84,7 +99,7 @@ export function Lessons() {
 
               {showing && (
                 <ol className="lesson-steps">
-                  {lesson.steps.map((step, i) => <li key={i}>{step}</li>)}
+                  {lesson.steps.map((step, i) => <li key={i}>{formatted(step)}</li>)}
                 </ol>
               )}
             </article>

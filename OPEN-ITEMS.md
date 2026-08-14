@@ -716,15 +716,31 @@ Still to do, in order:
   type line suggests it should be.
 - **A1 — Set field in Advanced search** should list the most recent few sets
   when empty, and narrow to what you type as you type. Currently neither.
-- **G2 — Cards tray opens a little short.** Its default height clips content.
+- ~~**G2 — Cards tray opens short.**~~ DONE, and it was not the default — the
+  default was always 470. The tray *wrote its clamped height back to storage*.
+  Clamping only ever reduces, so one session in a short window left the 200px
+  minimum in the preference, and because the stored value was then already at
+  the floor it survived every later session on every screen. It never grew
+  back. Height is now clamped for display only; the stored number stays what
+  you asked for. The key is retired to `-v2` rather than repaired, since a
+  poisoned 200 is indistinguishable from someone who wanted the minimum.
+  Verified with the old key set to 200: the tray opens at 470.
 - ~~**G3 — Duplicate Back / Reference under the Glossary.**~~ DONE. Adding the
   Lessons head gave the page two `PageHead`s, and `PageHead` carries the back
   control and the eyebrow — one page has one of each. The second is now a plain
   section heading.
-- **G4 — Bigger artwork, smaller lesson bars.** The image should carry more of
-  the block and each lesson should take less height.
-- **G5 — A navigation lesson**, describing what each tab is for. It is the one
-  lesson that should exist for someone who has just opened the app.
+- ~~**G4 — Bigger artwork, smaller lesson bars.**~~ DONE. Art to 700px and the
+  wider of the two columns; bars down to 52px. Verified.
+- ~~**G5 — A navigation lesson.**~~ DONE — "Getting around", first in the list,
+  naming every tab including Sets and Settings. Saying what a tab is *for* is
+  not the same as explaining a page that explains itself, and the other lessons
+  all assume you already know where you are.
+
+  It also surfaced a defect in G1: steps were written with `**bold**` and
+  backticks that rendered as literal characters. There is a small inline
+  formatter now — those two markers and nothing else, which is enough to name a
+  control and set an operator apart from prose, without a markdown dependency
+  for text we write ourselves.
 - **G6 — Lessons become a guided walkthrough.** Rather than an expandable list
   of steps, a lesson should move you to the page it is talking about and point
   at things: help boxes with arrows, and everything that is not the subject

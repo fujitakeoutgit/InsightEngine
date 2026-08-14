@@ -3830,13 +3830,15 @@
    actual lessons off the first screen. */
 .lessons {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
+  /* The artwork carries more of the block than the list does: it is what says
+     "this is somewhere to learn" before a word is read. */
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr);
   gap: var(--gap-4);
   align-items: center;
   margin-bottom: var(--gap-4);
 }
 
-.lessons-list { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.lessons-list { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 
 .lesson {
   border: 1px solid var(--line-soft);
@@ -3851,8 +3853,8 @@
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+  gap: 10px;
+  padding: 7px 11px;
   border: 0;
   background: none;
   text-align: left;
@@ -3869,8 +3871,8 @@
   flex: none;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--ok);
@@ -3878,7 +3880,7 @@
   transition: border-color var(--dur-fast), background-color var(--dur-fast);
 }
 
-.lesson-tick svg { width: 14px; height: 14px; }
+.lesson-tick svg { width: 12px; height: 12px; }
 .lesson-tick:hover { border-color: var(--ok); }
 .lesson.done .lesson-tick {
   border-color: var(--ok);
@@ -3886,8 +3888,8 @@
 }
 
 .lesson-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
-.lesson-title { font-weight: 600; font-size: 14px; }
-.lesson-blurb { font-size: 12px; color: var(--muted); }
+.lesson-title { font-weight: 600; font-size: 12.5px; }
+.lesson-blurb { font-size: 11px; color: var(--muted); }
 
 .lesson-chev {
   flex: none;
@@ -3901,7 +3903,7 @@
 
 .lesson-steps {
   margin: 0;
-  padding: 0 16px 14px 46px;
+  padding: 0 14px 11px 39px;
   display: flex;
   flex-direction: column;
   gap: 7px;
@@ -4157,3 +4159,14 @@
 .page-section { margin-bottom: var(--gap-3); }
 .page-section h2 { margin: 0 0 4px; font-size: 20px; }
 .page-section p { margin: 0; font-size: 13px; max-width: 68ch; }
+
+.lesson-steps code {
+  font-family: var(--font-m);
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--aether) 14%, transparent);
+  color: var(--aether-hi);
+}
+
+.lesson-steps strong { color: var(--ink); font-weight: 600; }
