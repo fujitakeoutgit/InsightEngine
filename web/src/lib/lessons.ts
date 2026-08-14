@@ -119,7 +119,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.owned-toggle',
-        text: '**In binder** outlines every result you already own in lime, so you can tell at a glance what you would be buying twice.',
+        text: '**In binder** outlines every result you already own in gold, so you can tell at a glance what you would be buying twice.',
       },
       {
         target: '.nav a[href="/advanced"]',

@@ -4469,10 +4469,9 @@
   pointer-events: none;
 }
 
-/* Already in the binder. A thin lime edge rather than a badge or a tint: it
-   has to carry across a grid of ninety results at a glance, and card art is
-   full of golds and ambers to get lost in. Lime is in none of it, and in none
-   of this app's own palette either. */
+/* Already in the binder. A thin gold edge rather than a badge or a tint: it
+   has to read at a glance across a grid of results without fighting the art,
+   and gold is a colour nothing else in this app spends. */
 /* `::before`, not `::after`.
    `.card-tile::after` is already the hover sheen — it sits at `opacity: 0` and
    is lit by `:hover`, so an outline drawn there was invisible until the
@@ -4481,9 +4480,9 @@
   content: '';
   position: absolute;
   inset: 0;
-  border: 2px solid #9dff3c;
+  border: 2px solid #d9ab4a;
   border-radius: inherit;
-  box-shadow: 0 0 14px -2px rgba(157, 255, 60, 0.65);
+  box-shadow: 0 0 12px -2px rgba(217, 171, 74, 0.55);
   pointer-events: none;
   z-index: 3;
 }
@@ -4506,7 +4505,7 @@
   transition: color var(--dur-fast), border-color var(--dur-fast);
 }
 
-.owned-toggle.on { color: #9dff3c; border-color: #9dff3c; }
+.owned-toggle.on { color: #d9ab4a; border-color: #d9ab4a; }
 
 /* Save confirmation. Pinned to the viewport because the thing it confirms can
    be triggered from anywhere on a very long page. */

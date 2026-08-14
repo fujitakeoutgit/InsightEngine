@@ -117,15 +117,46 @@ export function Walkthrough() {
      * so the retry silently never happened and the very first look decided the
      * answer. A timer keeps ticking either way. */
     const deadline = performance.now() + 8000
+
+    /* Keep measuring for a moment after the first hit.
+     *
+     * The thing being pointed at often grows right after it appears — a mat
+     * lays out its tools, a tile loads its art — and a box measured on the
+     * first frame it exists is a box around the wrong shape. Re-reads for a
+     * second and a half, and only writes when it has actually moved. */
+    const settle = (el: Element) => {
+      const until = performance.now() + 1500
+      const again = () => {
+        if (cancelled || performance.now() > until) return
+        const r = el.getBoundingClientRect()
+        setSpot((prev) => (
+          prev && Math.abs(prev.top - r.top) < 0.5 && Math.abs(prev.left - r.left) < 0.5
+            && Math.abs(prev.height - r.height) < 0.5 && Math.abs(prev.width - r.width) < 0.5
+            ? prev
+            : { top: r.top, left: r.left, width: r.width, height: r.height }
+        ))
+        timer = window.setTimeout(again, 150)
+      }
+      timer = window.setTimeout(again, 150)
+    }
+
     const look = () => {
       if (cancelled) return
       const el = document.querySelector(step.target as string)
       if (el) {
         const r = el.getBoundingClientRect()
         if (r.width || r.height) {
-          el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+          /* Scrolled instantly, not smoothly.
+           *
+           * A smooth scroll is still travelling when the next line measures,
+           * so the highlight was placed at the element's *pre-scroll* position
+           * and the page then slid out from under it — which is why it sat
+           * high, and why stepping away and back fixed it: by then no scroll
+           * was needed and the first measurement was already correct. */
+          el.scrollIntoView({ block: 'center', behavior: 'auto' })
           const after = el.getBoundingClientRect()
           setSpot({ top: after.top, left: after.left, width: after.width, height: after.height })
+          settle(el)
           return
         }
       }
