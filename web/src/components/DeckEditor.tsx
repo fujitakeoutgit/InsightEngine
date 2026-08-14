@@ -15,6 +15,7 @@ import { solidDragImage, useQuietDrag } from '../lib/useQuietDrag'
 import { usePersisted } from '../lib/usePersisted'
 import { CARD_DRAG_TYPE } from './DeckSearch'
 import { FlipButton } from './FlipButton'
+import { PrintingPicker } from './PrintingPicker'
 import { ShuffleTriage } from './ShuffleTriage'
 import { ManaCost } from './ManaCost'
 
@@ -74,6 +75,8 @@ export function DeckEditor({
   const [activeSection, setActiveSection] = useState<Section>("main")
   const sectionTabs = binder ? BINDER_SECTIONS : SECTION_TABS
   const [shuffling, setShuffling] = useState(false)
+  /** The entry whose printing is being chosen, if any. */
+  const [picking, setPicking] = useState<DeckCard | null>(null)
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
   /** Springs a hovered tab open mid-drag. */
   const springTimer = useRef<number | undefined>(undefined)
@@ -166,6 +169,25 @@ export function DeckEditor({
 
   return (
     <div className="editor">
+      {picking && (
+        <PrintingPicker
+          card={picking.card}
+          onClose={() => setPicking(null)}
+          onPick={(printing) => {
+            /* The chosen edition replaces the card on this entry, so the list
+             * writes `(SET) 123` for it and the tile shows that art.
+             *
+             * Not yet durable, and the reason is worth stating: the list is
+             * re-resolved against the mirror when the deck is next opened, and
+             * the mirror holds one row per *oracle* card — so the resolver has
+             * only one printing to give back and hands you that one. Making
+             * the choice survive means ingesting `default_cards`; see L7. */
+            onChange(cards.map((c) => (
+              c.uid === picking.uid ? { ...c, card: printing } : c
+            )))
+          }}
+        />
+      )}
       {shuffling && (
         <ShuffleTriage
           cards={shuffleCards.map((c) => c.card)}
@@ -367,6 +389,8 @@ export function DeckEditor({
                           onAdjust={adjust}
                           onRemove={remove}
                           onMove={move}
+                          binder={binder}
+                          onPickPrinting={setPicking}
                         />
                       ))}
                     </div>
@@ -384,6 +408,7 @@ export function DeckEditor({
 
 function EditorRow({
   entry, view, section, onDragStart, onDragEnd, onAdjust, onRemove, onMove,
+  binder, onPickPrinting,
 }: {
   entry: DeckCard
   view: 'list' | 'grid'
@@ -393,6 +418,9 @@ function EditorRow({
   onAdjust: (uid: string, delta: number) => void
   onRemove: (uid: string) => void
   onMove: (uid: string, section: Section) => void
+  /** Binder mode: the tile offers Printing instead of the section moves. */
+  binder?: boolean
+  onPickPrinting?: (entry: DeckCard) => void
 }) {
   const card: Card = entry.card
   const tiltRef = useRef<HTMLDivElement>(null)
@@ -467,20 +495,31 @@ function EditorRow({
         </Link>
 
         <div className="tile-acts">
-          {/* Only where it could plausibly apply. Dragging onto the Commander
-              tab still works for anything, in keeping with the rest of the
-              editor enforcing nothing. */}
-          {section !== 'commander' && canBeCommander(card) && (
-            <button onClick={() => onMove(entry.uid, 'commander')}>Commander</button>
-          )}
-          {section !== 'main' && (
-            <button onClick={() => onMove(entry.uid, 'main')}>Deck</button>
-          )}
-          {section !== 'sideboard' && (
-            <button onClick={() => onMove(entry.uid, 'sideboard')}>Sideboard</button>
-          )}
-          {section !== 'maybeboard' && (
-            <button onClick={() => onMove(entry.uid, 'maybeboard')}>Maybe</button>
+          {/* B3 — in the binder this is Printing rather than the section
+              moves. Which pocket a card sits in is a drag, and it is the one
+              thing the tabs above already make obvious; which *edition* you
+              own is the question a binder actually asks, and nothing else on
+              the page could answer it. A deck keeps its section moves. */}
+          {binder ? (
+            <button onClick={() => onPickPrinting?.(entry)}>Printing</button>
+          ) : (
+            <>
+              {/* Only where it could plausibly apply. Dragging onto the
+                  Commander tab still works for anything, in keeping with the
+                  rest of the editor enforcing nothing. */}
+              {section !== 'commander' && canBeCommander(card) && (
+                <button onClick={() => onMove(entry.uid, 'commander')}>Commander</button>
+              )}
+              {section !== 'main' && (
+                <button onClick={() => onMove(entry.uid, 'main')}>Deck</button>
+              )}
+              {section !== 'sideboard' && (
+                <button onClick={() => onMove(entry.uid, 'sideboard')}>Sideboard</button>
+              )}
+              {section !== 'maybeboard' && (
+                <button onClick={() => onMove(entry.uid, 'maybeboard')}>Maybe</button>
+              )}
+            </>
           )}
           <button className="danger" onClick={() => onRemove(entry.uid)}>Trash</button>
         </div>

@@ -311,6 +311,12 @@ export const api = {
   syncRefresh: () => post<{ started: boolean; reason?: string }>('/api/sync/refresh', {}),
   syncProgress: () => get<{ running: boolean; error: string | null; log: string[] }>('/api/sync/progress'),
 
+  /* Every edition of a card. Proxied live from Scryfall rather than read from
+   * the mirror, which is built from `oracle_cards` and holds one row per card
+   * -- the other printings are not in it to be found. */
+  printings: (oracleId: string) =>
+    get<{ printings: Card[] }>(`/api/cards/${oracleId}/printings`),
+
   savedDecks: () => get<{ decks: SavedDeck[] }>('/api/deck/saved'),
 
   saveDeck: (deck: { name: string; text: string; id?: number; format?: string | null ; description?: string | null }) =>

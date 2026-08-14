@@ -735,10 +735,33 @@ Still to do, in order:
   case-sensitive check on the rendered text passes whether the field is there
   or not. My first run "confirmed" the binder *and* the deck builder had lost
   all five, which is what exposed the bad method.
-- **B3 — Printing picker.** Drop Commander / Maybe / Sideboard from the tile
-  hover and put **Printing** there instead: a dark full-screen gallery of that
-  card's editions, set name under each, click a printing to choose it, click
-  anywhere else to dismiss.
+- ~~**B3 — Printing picker.**~~ BUILT, with one limitation you should know
+  about before relying on it. The binder's tile hover offers **Printing**
+  instead of the section moves — which pocket a card sits in is a drag, and the
+  tabs already say; which *edition* you own is the question a binder asks.
+  Clicking it opens a dark full-screen gallery of that card's editions, set
+  name and collector number under each, the one you currently hold outlined,
+  click a printing to take it, click anywhere else (or Escape) to dismiss.
+
+  The editions come from **Scryfall live**, not the mirror — the mirror is
+  built from `oracle_cards` and has one row per card, so the other printings
+  are not in it to be found.
+
+  Verified: tile actions reduce to Printing and Trash, the gallery opens on
+  Island with **175 editions**, choosing The Hobbit's rewrites the line to
+  `2 Island (HOB) 195`, and that survives a save and a reload.
+
+  **The limitation.** The choice is written into the list and saved, but the
+  *Build* view is rebuilt by re-resolving the list against the mirror — and the
+  resolver, asked for `2 Island (HOB) 195`, returns `Island (msh) 289`, because
+  one printing is all it has. So the next edit made in Build view re-serialises
+  the line and quietly puts the mirror's printing back. Text-mode edits and
+  saves keep it.
+
+  Making it durable is **L7**: ingest `default_cards` so the mirror holds every
+  printing, then resolve by `(set, collector number)` first. Until then this is
+  a picker whose choice a Build edit can undo, and it should not be described
+  as more than that.
 - ~~**B4 — Images by default.**~~ DONE, in the binder. The art is how you
   recognise a card you own without reading its name. A deck keeps list view,
   where the point is scanning names and counts.
