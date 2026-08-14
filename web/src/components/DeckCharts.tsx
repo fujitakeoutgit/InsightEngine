@@ -187,6 +187,12 @@ export function Curve({ curve }: { curve: Record<string, Record<string, number>>
   )
 }
 
+function listColours(rows: { color: string }[]): string {
+  const names = rows.map((r) => COLOR_NAME[r.color].toLowerCase())
+  if (names.length === 1) return names[0]
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+}
+
 export function DeckCharts({ stats }: { stats: DeckStats }) {
   const ref = useRef<HTMLDivElement>(null)
   const [showTable, setShowTable] = useState(false)
@@ -199,6 +205,8 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
   }, [stats])
 
   if (stats.empty) return null
+
+  const short = stats.balance.filter((b) => b.shortfall < 0)
 
   const toSlices = (src: Record<string, number>): Slice[] =>
     COLOR_ORDER.filter((c) => src[c]).map((c) => ({
@@ -228,15 +236,24 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
               {showTable ? 'Hide numbers' : 'Show numbers'}
             </button>
           </div>
-          <p className="faint" style={{ fontSize: 11, marginBottom: 10 }}>
-            {/* Just what was counted. The sign convention and the ritual
-                exclusion live in the code that computes them; spelling both
-                out here turned a caption into a paragraph. */}
+          {/* What was counted, then the verdict. The old caption explained
+              the method -- "against what the heaviest cost in that colour
+              wants" -- which is the one thing a reader does not need in order
+              to act. Where you are short is the point of the panel, so it is
+              the sentence in the panel. */}
+          <p className="faint" style={{ fontSize: 11, marginBottom: 2 }}>
             {stats.lands} land{stats.lands === 1 ? '' : 's'}
             {stats.mana_rocks > 0 && `, ${stats.mana_rocks} rock${stats.mana_rocks === 1 ? '' : 's'}`}
             {stats.mana_dorks > 0 && `, ${stats.mana_dorks} dork${stats.mana_dorks === 1 ? '' : 's'}`}
             {stats.other_mana_sources > 0 && `, ${stats.other_mana_sources} other`}
-            {'. '}Sources you have, against what the heaviest cost in that colour wants.
+            {`. ${stats.coloured_sources} of them make coloured mana.`}
+          </p>
+          <p className={short.length ? 'balance-verdict short' : 'balance-verdict ok'}>
+            {short.length === 0
+              ? 'Every colour has enough sources.'
+              : `Short on ${listColours(short)}. Add sources in ${
+                  short.length === 1 ? 'that colour' : 'those colours'
+                }, or cut the costs that are hardest to pay.`}
           </p>
           <div className="balance">
             {stats.balance.map((b) => (
@@ -249,15 +266,17 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
                     past the bar it is measured against. */}
                 <div
                   className="bal-track"
-                  title={`${b.sources} sources · ${b.intensity} pip${b.intensity === 1 ? '' : 's'} wants ${b.target}`}
+                  title={`${b.sources} sources for ${COLOR_NAME[b.color].toLowerCase()}. `
+                    + `Its hardest card costs ${b.intensity} ${COLOR_NAME[b.color].toLowerCase()} `
+                    + `pip${b.intensity === 1 ? '' : 's'}, which wants ${b.target} sources to cast on time.`}
                 >
                   <div
                     className={b.shortfall < 0 ? 'bal-have short' : 'bal-have'}
                     style={{ width: `${Math.min(1, b.sources / b.target) * 100}%` }}
                   />
                 </div>
-                <span className={`bal-gap mono ${b.shortfall < 0 ? 'short' : ''}`}>
-                  {b.sources}/{b.target}
+                <span className={b.shortfall < 0 ? 'bal-gap short' : 'bal-gap ok'}>
+                  {b.shortfall < 0 ? `${-b.shortfall} short` : 'covered'}
                 </span>
               </div>
             ))}

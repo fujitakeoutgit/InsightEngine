@@ -3012,7 +3012,20 @@
 }
 
 .bal-have.short { background: var(--warn); }
-.bal-gap { width: 52px; text-align: right; font-size: 11px; color: var(--muted); }
+/* The verdict line. Sits directly under the count of what the base is made
+   of, because that count is context and this is the finding. */
+.balance-verdict {
+  font-size: 12px;
+  margin: 0 0 10px;
+  line-height: 1.45;
+}
+
+.balance-verdict.short { color: var(--warn); }
+.balance-verdict.ok { color: var(--ok); }
+
+.bal-gap.ok { color: var(--ok); }
+
+.bal-gap { width: 62px; text-align: right; font-size: 11px; color: var(--muted); }
 /* Both directions are worth seeing, so both get a colour: short is a warning,
    surplus is fine and reads in the same green as the bars. */
 .bal-gap.short { color: var(--warn); }

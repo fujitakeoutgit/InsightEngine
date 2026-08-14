@@ -534,6 +534,7 @@ export interface DeckStats {
   avg_cmc: number
   pips: Record<string, number>
   produced: Record<string, number>
+  coloured_sources: number
   balance: {
     color: string; pips: number; pip_share: number
     sources: number; source_share: number

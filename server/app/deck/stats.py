@@ -214,6 +214,10 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
         "mana_dorks": dorks,
         "other_mana_sources": other_sources,
         "nonland_sources": rocks + dorks + other_sources,
+        # How many of those cards actually make a coloured symbol. The
+        # caption used to imply all of them did, which is how a base with
+        # 41 sources and 29 colour-producers read as healthier than it is.
+        "coloured_sources": source_cards,
         "avg_cmc": round(total_mv / nonland_cards, 2) if nonland_cards else 0.0,
         "pips": {c: pips[c] for c in COLOURS if pips[c]},
         "produced": {c: produced[c] for c in COLOURS if produced[c]},
