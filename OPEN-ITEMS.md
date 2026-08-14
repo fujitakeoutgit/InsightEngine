@@ -663,3 +663,28 @@ Still to do, in order:
 
 - **R1 — A thorough README**, with a section teaching the search syntax and a
   section on the tray icon.
+
+## New batch (2026-08-12)
+
+- **P25 — Deck pile sits too high.** Shift the deck and the cards-left number
+  slightly lower in the playtest corner.
+- **P26 — Reset button should be red**, matching the confirmation button it
+  opens. It is the one control there that throws the board away.
+- **L8 — Rootbound Crag entered untapped** with no Mountain and no Forest on
+  the battlefield. Check-land logic in `server/.../landTiming` (or
+  `web/src/lib/landTiming.ts`) is reading the condition the wrong way round, or
+  matching the subtype against the wrong zone. Reproduce with an empty board.
+- **A1 — Set field in Advanced search** should list the most recent few sets
+  when empty, and narrow to what you type as you type. Currently neither.
+- **G2 — Cards tray opens a little short.** Its default height clips content.
+- **G3 — Drop the second "Back" and "Reference" eyebrow** now sitting under the
+  Glossary heading; the Lessons head introduced a duplicate.
+- **G4 — Bigger artwork, smaller lesson bars.** The image should carry more of
+  the block and each lesson should take less height.
+- **G5 — A navigation lesson**, describing what each tab is for. It is the one
+  lesson that should exist for someone who has just opened the app.
+- **G6 — Lessons become a guided walkthrough.** Rather than an expandable list
+  of steps, a lesson should move you to the page it is talking about and point
+  at things: help boxes with arrows, and everything that is not the subject
+  dimmed. This supersedes the accordion built in G1 — keep the module list and
+  the ticks, replace the body.

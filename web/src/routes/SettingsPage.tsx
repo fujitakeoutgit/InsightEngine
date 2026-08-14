@@ -3,8 +3,10 @@ import { useEffect, useState } from 'react'
 import { api, type ModelTier } from '../lib/api'
 import { riseIn } from '../lib/motion'
 import {
-  COIN_SKINS, DICE_SKINS, readCoinSkin, readDieSkin, writeCoinSkin, writeDieSkin,
+  COIN_SKINS, DICE_SKINS, readCoinSkin, readD20Skin, readDieSkin,
+  skinVars, writeCoinSkin, writeD20Skin, writeDieSkin,
 } from '../lib/skins'
+import { SkinStage } from '../components/SkinStage'
 import { PageHead } from '../components/PageHead'
 
 /**
@@ -22,6 +24,7 @@ import { PageHead } from '../components/PageHead'
  */
 export function SettingsPage() {
   const [dieSkin, setDieSkin] = useState(readDieSkin)
+  const [d20Skin, setD20Skin] = useState(readD20Skin)
   const [coinSkin, setCoinSkin] = useState(readCoinSkin)
   const [tiers, setTiers] = useState<ModelTier[]>([])
   /** What the server has. The draft is compared against this to know whether
@@ -134,6 +137,32 @@ export function SettingsPage() {
         </div>
 
         <div className="skin-group">
+          <span className="label">D20</span>
+          <div className="skin-row">
+            {DICE_SKINS.map((s) => (
+              <button
+                key={s.id}
+                className={`skin${d20Skin === s.id ? ' on' : ''}`}
+                style={Object.fromEntries(
+                  Object.entries(s.vars).map(([k, v]) => [k, v]),
+                ) as React.CSSProperties}
+                title={s.label}
+                aria-pressed={d20Skin === s.id}
+                onClick={() => { setD20Skin(s.id); writeD20Skin(s.id) }}
+              >
+                <span className="skin-d20" aria-hidden>
+                  <svg viewBox="0 0 100 100">
+                    <polygon className="hull" points="50,4 89.8,27 89.8,73 50,96 10.2,73 10.2,27" />
+                    <polygon className="face" points="50,26 73,66 27,66" />
+                  </svg>
+                </span>
+                <span className="skin-name">{s.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="skin-group">
           <span className="label">Coin</span>
           <div className="skin-row">
             {COIN_SKINS.map((s) => (
@@ -150,6 +179,12 @@ export function SettingsPage() {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* The real objects, so a finish is judged on a die that turns rather
+            than on a square of colour. */}
+        <div style={skinVars(dieSkin, d20Skin, coinSkin)}>
+          <SkinStage />
         </div>
       </div>
 

@@ -123,6 +123,7 @@ export const COIN_SKINS: Skin[] = [
   },
 ]
 
+const D20_KEY = 'insight-enigma:d20-skin'
 const DICE_KEY = 'insight-enigma:die-skin'
 const COIN_KEY = 'insight-enigma:coin-skin'
 
@@ -131,10 +132,15 @@ const read = (key: string, fallback: string) => {
 }
 
 export const readDieSkin = () => read(DICE_KEY, 'bone')
+export const readD20Skin = () => read(D20_KEY, 'obsidian')
 export const readCoinSkin = () => read(COIN_KEY, 'gold')
 
 export function writeDieSkin(id: string) {
   try { localStorage.setItem(DICE_KEY, id) } catch { /* private mode */ }
+}
+
+export function writeD20Skin(id: string) {
+  try { localStorage.setItem(D20_KEY, id) } catch { /* private mode */ }
 }
 
 export function writeCoinSkin(id: string) {
@@ -144,8 +150,15 @@ export function writeCoinSkin(id: string) {
 /** The custom properties for a chosen pair, ready to spread onto a style prop.
  *  An unknown id falls back to the first skin rather than to nothing, so a
  *  renamed skin degrades to a working table instead of an unstyled one. */
-export function skinVars(dieId: string, coinId: string): React.CSSProperties {
+export function skinVars(dieId: string, d20Id: string, coinId: string): React.CSSProperties {
   const die = DICE_SKINS.find((s) => s.id === dieId) ?? DICE_SKINS[0]
+  const d20 = DICE_SKINS.find((s) => s.id === d20Id) ?? DICE_SKINS[0]
   const coin = COIN_SKINS.find((s) => s.id === coinId) ?? COIN_SKINS[0]
-  return { ...die.vars, ...coin.vars } as React.CSSProperties
+  /* The d20 takes the same palette under its own prefix. Two dice on one mat
+   * that cannot be told apart at a glance is a worse table than two that can,
+   * so they are chosen separately rather than sharing one setting. */
+  const twenty = Object.fromEntries(
+    Object.entries(d20.vars).map(([k, v]) => [k.replace('--die-', '--d20-'), v]),
+  )
+  return { ...die.vars, ...twenty, ...coin.vars } as React.CSSProperties
 }

@@ -112,8 +112,10 @@ export function PlayDie({
   /** The playmat, which is both the coordinate space and the walls. */
   matRef: React.RefObject<HTMLDivElement | null>
   /** This die's tray. A die at home is placed from this element's measured
-   *  position rather than from its own coordinates — see `DieState.home`. */
-  trayRef: React.RefObject<HTMLDivElement | null>
+   *  position rather than from its own coordinates — see `DieState.home`.
+   *  Typed as an element rather than a div because only its box is ever read:
+   *  the Settings table makes each slot a button that calls its die home. */
+  trayRef: React.RefObject<HTMLElement | null>
   /** The bin, which only exists while a die is in hand. */
   binRef?: React.RefObject<HTMLDivElement | null>
   /** `backInTray` says the die came to rest on its own slot, which is how a

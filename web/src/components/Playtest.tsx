@@ -4,7 +4,7 @@ import { useCardFace } from '../lib/faces'
 import { entersTapped } from '../lib/landTiming'
 import { useEscape } from '../lib/usePersisted'
 import { sleeveFor } from '../lib/sleeves'
-import { readCoinSkin, readDieSkin, skinVars } from '../lib/skins'
+import { readCoinSkin, readD20Skin, readDieSkin, skinVars } from '../lib/skins'
 import { solidDragImage } from '../lib/useQuietDrag'
 import { Lightbox } from './Lightbox'
 import { ManaCost } from './ManaCost'
@@ -206,7 +206,7 @@ export function Playtest({
   const [sleeve] = useState(() => sleeveFor(gameKey))
   /** The chosen dice and coin finishes, as custom properties on this mat.
    *  Read once: skins are changed in Settings, not mid-game. */
-  const [skin] = useState(() => skinVars(readDieSkin(), readCoinSkin()))
+  const [skin] = useState(() => skinVars(readDieSkin(), readD20Skin(), readCoinSkin()))
   // Read once, at mount. An effect would re-read under StrictMode's double
   // invocation and could observe what this component had itself just written.
   const [resumed] = useState(() => recallGame(gameKey, signature))

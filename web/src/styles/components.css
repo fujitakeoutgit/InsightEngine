@@ -3338,8 +3338,8 @@
 }
 
 .pt-die .pt-d20-shape .hull {
-  fill: var(--die-hi, var(--bg-hi));
-  stroke: var(--die-edge, var(--line));
+  fill: var(--d20-hi, var(--die-hi, var(--bg-hi)));
+  stroke: var(--d20-edge, var(--die-edge, var(--line)));
   stroke-width: 3;
   stroke-linejoin: round;
 }
@@ -3347,7 +3347,7 @@
 /* The face you read the number off, lifted a shade from the body so the
    silhouette still has a front even when it is turning. */
 .pt-die .pt-d20-shape .face {
-  fill: color-mix(in oklab, var(--aether) 10%, var(--bg-hi));
+  fill: color-mix(in oklab, var(--d20-lo, var(--die-lo, var(--bg))) 78%, var(--aether) 12%);
   stroke: var(--line-soft);
   stroke-width: 2;
   stroke-linejoin: round;
@@ -3361,7 +3361,7 @@
 }
 
 .pt-die .pt-d20-num {
-  color: var(--die-pip, var(--ink));
+  color: var(--d20-pip, var(--die-pip, var(--ink)));
   position: relative;
   font-size: 17px;
   /* Sits in the middle of the upward face rather than the middle of the
@@ -3915,7 +3915,7 @@
 .lessons-art { display: grid; place-items: center; min-width: 0; }
 .lessons-art img {
   width: 100%;
-  max-width: 520px;
+  max-width: 1520px;
   height: auto;
   /* The drift is a transform, so it must not be able to smear the edges of
      the layout it sits in. */
@@ -4096,3 +4096,60 @@
 }
 
 .skin.on .skin-name { color: var(--aether-hi); }
+
+/* The Settings table: a real mat, sized to sit inside a panel. */
+.skin-stage {
+  margin-top: 18px;
+  /* Not the page layout `.playtest` normally brings: this borrows that class
+     only so the dice and coin inherit their own rules. */
+  display: block;
+  height: auto;
+}
+
+.skin-mat {
+  position: relative;
+  /* `.pt-mat` is `flex: 1 1 auto` so the real board fills its column. Here it
+     is a fixed panel of a settings page, so it must refuse to grow. */
+  flex: none;
+  height: 210px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r);
+  background:
+    radial-gradient(70% 60% at 50% 45%, rgba(148, 163, 205, 0.06), transparent 70%),
+    var(--glass);
+  overflow: hidden;
+}
+
+/* The slots double as recall buttons here, since nothing spawns to replace a
+   die thrown into a corner. Inert until there is something to call back, so
+   the outline stays a place rather than becoming a control that does nothing. */
+.skin-mat .pt-die-tray.recall {
+  padding: 0;
+  cursor: default;
+  pointer-events: auto;
+  transition: border-color var(--dur-fast), opacity var(--dur-fast);
+}
+
+.skin-mat .pt-die-tray.recall:disabled { opacity: 0.55; }
+.skin-mat .pt-die-tray.recall.armed { cursor: pointer; border-color: var(--aether); }
+.skin-mat .pt-die-tray.recall.armed:hover { background-color: color-mix(in oklab, var(--aether) 12%, transparent); }
+.skin-mat .pt-tools { pointer-events: none; }
+.skin-mat .pt-tools > * { pointer-events: auto; }
+
+.skin-stage-said { font-size: 12px; margin-top: 8px; }
+
+/* The d20 swatch, drawn from the same points as the die itself. */
+.skin-d20 { width: 34px; height: 34px; display: grid; place-items: center; }
+.skin-d20 svg { width: 100%; height: 100%; }
+.skin-d20 .hull {
+  fill: var(--die-hi, var(--bg-hi));
+  stroke: var(--die-edge, var(--line));
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+.skin-d20 .face {
+  fill: color-mix(in oklab, var(--die-lo, var(--bg)) 80%, transparent);
+  stroke: var(--die-edge, var(--line));
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
