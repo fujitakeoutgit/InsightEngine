@@ -4601,6 +4601,7 @@
   position: relative;
   display: flex;
   align-items: center;
+  justify-content: center;
   min-width: 110px;
   height: 18px;
 }
@@ -4615,7 +4616,6 @@
 
 .sim-bar > b {
   position: relative;
-  padding-left: 6px;
   font-weight: 600;
 }
 
@@ -4628,7 +4628,24 @@
 .sim-colours th:first-child, .sim-colours td:first-child { width: 4em; }
 .sim-colours th:not(:first-child), .sim-colours td:not(:first-child) { width: 5.5em; }
 
-.sim-pip-head { display: flex; justify-content: flex-end; }
+.sim-pip-head { display: flex; justify-content: center; }
 
-/* .num right-aligns a cell; a heading over one has to move with it. */
+/* Centred, headings and values alike. These are all short numeric columns of
+   similar magnitude, so there are no decimal points to line up by and no long
+   labels to read down -- centring keeps each heading sitting over its own
+   column instead of drifting to one edge of it.
+
+   The .num override is deliberate: .num right-aligns by default across the
+   app, and it is applied here for the semantic (these are numbers), not for
+   the alignment. */
+.card-list.sim-table th,
+.card-list.sim-table td,
+.card-list.sim-table th.num,
+.card-list.sim-table td.num,
+.card-list.sim-colours th,
+.card-list.sim-colours td,
+.card-list.sim-colours td.num { text-align: center; }
+
+/* .num right-aligns a cell; a heading over one has to move with it. The
+   simulation tables opt out of both above -- they centre instead. */
 .card-list th.num { text-align: right; }
