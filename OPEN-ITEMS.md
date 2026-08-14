@@ -741,8 +741,39 @@ Still to do, in order:
   formatter now — those two markers and nothing else, which is enough to name a
   control and set an operator apart from prose, without a markdown dependency
   for text we write ourselves.
-- **G6 — Lessons become a guided walkthrough.** Rather than an expandable list
-  of steps, a lesson should move you to the page it is talking about and point
-  at things: help boxes with arrows, and everything that is not the subject
-  dimmed. This supersedes the accordion built in G1 — keep the module list and
-  the ticks, replace the body.
+- ~~**G6 — Lessons are a guided walkthrough.**~~ DONE. Pressing a lesson walks
+  you to the page it is about, dims everything that is not the subject, and
+  points at the thing being described with an arrow. Finishing ticks it; the
+  tick is still yours to set by hand. Escape stops, arrow keys step.
+
+  Three things worth keeping:
+
+  **The dimming is one element, not four.** A single box over the target with a
+  9999px spread `box-shadow` darkens everything except itself — no mask, and no
+  four rectangles to keep aligned around a hole.
+
+  **It renders through a portal onto `document.body`, and that is load-bearing.**
+  `position: fixed` resolves against the nearest ancestor with a transform, and
+  this app animates pages with transforms. Inside the layout, the highlight
+  computed its coordinates in one frame of reference and was painted in
+  another: the inline `left` was right to the pixel while the box sat scores of
+  pixels away.
+
+  **A missing target degrades to a centred card**, retried across 30 frames
+  first because a step usually arrives with a route change. An arrow pointing
+  at the corner of an empty page would be worse than no arrow.
+
+  Verified: all 9 steps of "Getting around" spotlight their nav tab exactly
+  (9/9); Deck Lab navigates Glossary → /deck and lands on the gallery head;
+  a step with no target centres itself; Escape stops; finishing ticks the
+  lesson.
+
+  **Trap:** CSS transitions never advance in the browser pane — it does not
+  composite, so the spotlight appears frozen at the previous step's position
+  and every step after the first reads as a miss. It is the transition, not the
+  geometry. Disable `.tour-spot`'s transition before measuring, which is how
+  9/9 was established. Same family as the ResizeObserver and rAF traps above.
+
+  It also caught a fabrication in G1: there was a lesson teaching how to *save*
+  a search, and no such feature exists. What the app has is **Recent searches**
+  with pinning. That lesson has been rewritten to describe the real thing.

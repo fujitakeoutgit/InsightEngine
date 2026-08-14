@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 
 import { canAnimate, gsap } from '../lib/motion'
 import { LESSONS, readDone, writeDone } from '../lib/lessons'
+import { tour } from '../lib/tour'
 import artwork from '../assets/glossary-lessons.png'
 
 /** `**bold**` and `` `code` ``, rendered. Split on both markers at once so a
  *  step can mix them, and the delimiters are dropped rather than shown — they
  *  were appearing literally, which is worse than no formatting at all. */
-function formatted(step: string) {
+export function formatted(step: string) {
   return step.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).filter(Boolean).map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
       return <strong key={i}>{part.slice(2, -2)}</strong>
@@ -27,14 +28,19 @@ function formatted(step: string) {
  * Settings, where they would be a feature you have to know exists before you
  * can be taught anything.
  *
- * A lesson is ticked or it is nothing — no progress bar, no percentage. The
- * tick is yours to set: this cannot observe whether you have understood a
- * thing, and pretending to by watching which pages you opened would be both
- * creepy and wrong.
+ * A lesson is a *walk*, not an article: pressing one takes you to the page it
+ * is about, dims everything that is not the subject, and points at the thing
+ * being described. Reading a numbered list of instructions about a screen you
+ * cannot see was the version this replaced, and it asked you to hold the whole
+ * lesson in your head before you could use any of it.
+ *
+ * A lesson is ticked or it is nothing — no progress bar, no percentage.
+ * Finishing a walk ticks it, and the tick is also yours to set by hand: this
+ * cannot observe whether you understood anything, and pretending to by
+ * watching which pages you opened would be both creepy and wrong.
  */
 export function Lessons() {
   const [done, setDone] = useState<string[]>(readDone)
-  const [open, setOpen] = useState<string | null>(null)
   const artRef = useRef<HTMLImageElement>(null)
 
   useEffect(() => writeDone(done), [done])
@@ -61,16 +67,15 @@ export function Lessons() {
       <div className="lessons-list">
         {LESSONS.map((lesson) => {
           const ticked = done.includes(lesson.id)
-          const showing = open === lesson.id
           return (
             <article key={lesson.id} className={`lesson${ticked ? ' done' : ''}`}>
               <button
                 className="lesson-head"
-                aria-expanded={showing}
-                onClick={() => setOpen(showing ? null : lesson.id)}
+                onClick={() => tour.start(lesson.id)}
+                title={`Walk through: ${lesson.title}`}
               >
                 {/* The tick is a control in its own right, so a lesson you
-                    already knew can be dismissed without opening it. */}
+                    already knew can be dismissed without walking it. */}
                 <span
                   className="lesson-tick"
                   role="checkbox"
@@ -94,14 +99,10 @@ export function Lessons() {
                   <span className="lesson-title">{lesson.title}</span>
                   <span className="lesson-blurb">{lesson.blurb}</span>
                 </span>
-                <span className={`lesson-chev${showing ? ' open' : ''}`} aria-hidden>›</span>
+                <span className="lesson-go mono" aria-hidden>
+                  {lesson.steps.length} steps
+                </span>
               </button>
-
-              {showing && (
-                <ol className="lesson-steps">
-                  {lesson.steps.map((step, i) => <li key={i}>{formatted(step)}</li>)}
-                </ol>
-              )}
             </article>
           )
         })}

@@ -4,6 +4,7 @@ import { useCollection } from '../lib/collection'
 import { canAnimate, dissolvePage, gsap } from '../lib/motion'
 import { CardTray } from './CardTray'
 import { ManaSprite } from './ManaSprite'
+import { Walkthrough } from './Walkthrough'
 
 /* Cards is deliberately absent: it is a tray now, not a destination.
  *
@@ -194,6 +195,10 @@ export function Layout() {
       </header>
 
       <CardTray open={trayOpen} onClose={() => setTrayOpen(false)} />
+
+      {/* Above the outlet, not inside it: a walkthrough navigates between
+          pages, and mounted in a route it would unmount itself doing so. */}
+      <Walkthrough />
 
       <main ref={mainRef}>
         <Outlet />
