@@ -26,7 +26,7 @@ export function SkinStage() {
   }
   const [dice, setDice] = useState<DieState[]>(() => [makeDie('d20'), makeDie('d6')])
   const [coin, setCoin] = useState<CoinFace>('heads')
-  const [said, setSaid] = useState('Throw a die, or flip the coin.')
+
 
   /** No replacement, no putting away: the only state a die has here is where
    *  it is and what it shows. */
@@ -57,6 +57,10 @@ export function SkinStage() {
        rules hang off `.pt-die` and `.pt-coin` directly. */
     <div className="skin-stage">
       <div className="skin-mat pt-mat" ref={matRef}>
+        {/* In the middle of the mat rather than captioned underneath it. The
+            table says what it is for; a running commentary of what the dice
+            just did says nothing you cannot see on the die. */}
+        <span className="skin-stage-hint" aria-hidden>Throw a die, or flip the coin</span>
         <div className="pt-tools">
           {(['d20', 'd6'] as const).map((kind) => (
             <button
@@ -71,7 +75,7 @@ export function SkinStage() {
           ))}
           <PlayCoin
             face={coin}
-            onFlip={(next) => { setCoin(next); setSaid(`Coin: ${next}`) }}
+            onFlip={setCoin}
           />
         </div>
 
@@ -82,12 +86,9 @@ export function SkinStage() {
             matRef={matRef}
             trayRef={trays[d.kind]}
             onChange={(next, backInTray) => update(d.id, next, backInTray)}
-            onRoll={(value, counting) =>
-              setSaid(counting ? `Counting: ${value}` : `Rolled ${d.kind}: ${value}`)}
           />
         ))}
       </div>
-      <p className="muted skin-stage-said" aria-live="polite">{said}</p>
     </div>
   )
 }

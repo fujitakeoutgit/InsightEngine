@@ -146,7 +146,7 @@ function TypeBars({ types }: { types: Record<string, number> }) {
   )
 }
 
-function Curve({ curve }: { curve: Record<string, Record<string, number>> }) {
+export function Curve({ curve }: { curve: Record<string, Record<string, number>> }) {
   const keys = ['0', '1', '2', '3', '4', '5', '6', '7+']
   const totals = keys.map((k) => Object.values(curve[k] ?? {}).reduce((n, v) => n + v, 0))
   const max = Math.max(1, ...totals)

@@ -45,6 +45,9 @@ export function DeckEditor({
   onChange,
   onAddSearched,
   binder,
+  jobFiltered,
+  colours,
+  onColours,
 }: {
   cards: DeckCard[]
   onChange: (next: DeckCard[]) => void
@@ -53,6 +56,15 @@ export function DeckEditor({
   /** Binder mode: Bulk / Trades / Fav in place of the deck's four, and no
    *  commander, which a binder does not have. */
   binder?: boolean
+  /** The subset left by the Ramp / Removal / Counters / Draw filter, when one
+   *  is set. Only what is *shown* narrows: `onChange` still edits the whole
+   *  list, so filtering can never delete what it is hiding. */
+  jobFiltered?: DeckCard[]
+  /** Lit colours. Owned by the page rather than here, because the same filter
+   *  has to narrow the list *and* the numbers beside it, and two copies of it
+   *  would drift the moment one was clicked. */
+  colours?: string[]
+  onColours?: (next: string[]) => void
 }) {
   /* B6 / B4 — the binder opens ungrouped and on images.
    *
@@ -77,17 +89,7 @@ export function DeckEditor({
   const [shuffling, setShuffling] = useState(false)
   /** The entry whose printing is being chosen, if any. */
   const [picking, setPicking] = useState<DeckCard | null>(null)
-  /* B1 — colour pips, in the same row as the totals.
-   *
-   * Read as a *filter* rather than a commander readout: the binder has no
-   * commander (B11 hides it), and a row of pips over a list of what you own
-   * can only sensibly mean "show me these colours". All five start active, so
-   * the default is everything; clicking one drops it out.
-   *
-   * Colourless cards are never hidden by it. An artifact goes in any deck, so
-   * filtering to red and losing your Sol Rings would be the wrong answer to
-   * the question the pips are asking. */
-  const [colours, setColours] = useState<string[]>(['W', 'U', 'B', 'R', 'G'])
+
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
   /** Springs a hovered tab open mid-drag. */
   const springTimer = useRef<number | undefined>(undefined)
@@ -155,15 +157,8 @@ export function DeckEditor({
 
   const move = (uid: string, section: Section) => patch(uid, { section })
 
-  const byColour = useMemo(() => {
-    if (!binder || colours.length === 5) return cards
-    return cards.filter((c) => {
-      const identity = c.card.color_identity || ''
-      return !identity || [...identity].some((letter) => colours.includes(letter))
-    })
-  }, [cards, colours, binder])
-
-  const visible = useMemo(() => filterCards(byColour, query), [byColour, query])
+  const shown = jobFiltered ?? cards
+  const visible = useMemo(() => filterCards(shown, query), [shown, query])
   const totals = useMemo(() => ({
     deck: countCards(cards),
     value: deckValue(cards),
@@ -288,7 +283,7 @@ export function DeckEditor({
           <span className="colour-filter push" role="group" aria-label="Filter by colour">
             <span className="label">Colours</span>
             {(['W', 'U', 'B', 'R', 'G'] as const).map((letter) => {
-              const on = colours.includes(letter)
+              const on = (colours ?? []).includes(letter)
               return (
                 <button
                   key={letter}
@@ -296,9 +291,9 @@ export function DeckEditor({
                   data-c={letter}
                   aria-pressed={on}
                   title={on ? `Hide ${letter}` : `Show ${letter}`}
-                  onClick={() => setColours((cur) => (
-                    cur.includes(letter) ? cur.filter((x) => x !== letter) : [...cur, letter]
-                  ))}
+                  onClick={() => onColours?.(
+                    on ? (colours ?? []).filter((x) => x !== letter) : [...(colours ?? []), letter],
+                  )}
                 />
               )
             })}

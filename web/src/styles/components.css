@@ -4309,7 +4309,8 @@
    somewhere to be thrown. */
 .skin-layout {
   display: grid;
-  grid-template-columns: minmax(0, auto) minmax(280px, 1fr);
+  /* The swatches take the room; the mat needs only enough to throw across. */
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.42fr);
   /* A literal, because there are no `--gap-*` custom properties in this
      codebase -- `.gap-4` and friends are utility *classes*. `var(--gap-4)`
      resolved to nothing, which is why the swatches and the mat were touching. */
@@ -4454,3 +4455,85 @@
 .colour-pip[data-c='B'] { background: var(--mana-b); border-color: var(--mana-b); }
 .colour-pip[data-c='R'] { background: var(--mana-r); border-color: var(--mana-r); }
 .colour-pip[data-c='G'] { background: var(--mana-g); border-color: var(--mana-g); }
+
+/* The one line the table needs, in the middle of it. */
+.skin-stage-hint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0 56px 0 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+/* Already in the binder. A thin gold edge rather than a badge or a tint: it
+   has to read at a glance across a grid of ninety results without competing
+   with the art, and gold is the one colour nothing else in this app spends. */
+.card-tile.owned::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid #d9ab4a;
+  border-radius: inherit;
+  box-shadow: 0 0 12px -2px rgba(217, 171, 74, 0.55);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* The toggle that turns the marking on, beside the size slider. */
+.owned-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: var(--font-m);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.owned-toggle .swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  border: 2px solid #d9ab4a;
+}
+
+.owned-toggle.on { color: #d9ab4a; border-color: #d9ab4a; }
+
+/* Save confirmation. Pinned to the viewport because the thing it confirms can
+   be triggered from anywhere on a very long page. */
+.save-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border: 1px solid color-mix(in oklab, var(--ok) 55%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--ok) 14%, var(--bg-hi));
+  color: var(--ok);
+  font-size: 12px;
+  box-shadow: 0 14px 32px -14px rgba(0, 0, 0, 0.9);
+  animation: save-toast-in var(--dur) var(--ease-out);
+}
+
+.save-toast .tick { font-size: 13px; }
+
+@keyframes save-toast-in {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}

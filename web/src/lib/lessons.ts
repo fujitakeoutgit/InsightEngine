@@ -118,6 +118,10 @@ export const LESSONS: Lesson[] = [
         text: '`*` is the wildcard this app adds and the API does not have: `n:thal*` reaches Thalia, Thallid and Thraben. Prefix any term with `-` to exclude it.',
       },
       {
+        target: '.owned-toggle',
+        text: '**In binder** outlines every result you already own in gold, so you can tell at a glance what you would be buying twice.',
+      },
+      {
         target: '.nav a[href="/advanced"]',
         text: 'If you would rather not memorise any of that, **Advanced** builds the same query from a form.',
       },
@@ -169,6 +173,68 @@ export const LESSONS: Lesson[] = [
     ],
   },
   {
+    id: 'cards-tray',
+    title: 'The Cards tray',
+    blurb: 'The scratch pile you gather results into.',
+    steps: [
+      {
+        route: '/',
+        target: '.nav-tray',
+        text: '**Cards** slides out over whatever you are doing rather than taking you somewhere. What you gather is only useful next to the thing you gathered it for.',
+      },
+      {
+        text: 'Press the **+** on any search result to drop it in. Drag a card out of the tray onto a deck section to add it there, or drag one *into* the tray from a deck to take it out.',
+      },
+      {
+        text: 'The pile is yours until you clear it. It survives moving between pages, and it is not part of any deck until you drop it on one.',
+      },
+    ],
+  },
+  {
+    id: 'binder',
+    title: 'The Binder',
+    blurb: 'What you own, and the filters that make it usable.',
+    steps: [
+      {
+        route: '/binder',
+        target: '.section-tabs',
+        text: 'One binder, always here, never listed among your decks. Its three sections are **Bulk**, **Trades** and **Fav** — drag a card between them the same way you would move one around a deck.',
+      },
+      {
+        target: '.colour-filter',
+        text: 'The pips filter by colour. All five start lit; click one to drop it out. Colourless cards are never hidden, because an artifact goes in any deck.',
+      },
+      {
+        target: '.cat-buttons',
+        text: '**Ramp**, **Removal**, **Counters** and **Draw** filter the list to cards you own that do that job. In a deck those same buttons suggest cards you *lack* — here you are looking at what you have.',
+      },
+      {
+        text: 'The card counts and the mana curve beside the list follow both filters, so the numbers always describe what is actually on screen.',
+      },
+      {
+        text: 'Hover a card and press **Printing** to see every edition of it and pick the one you own.',
+      },
+    ],
+  },
+  {
+    id: 'settings',
+    title: 'Settings',
+    blurb: 'Card data, backups, and what the dice are made of.',
+    steps: [
+      {
+        route: '/settings',
+        target: '.settings-panel',
+        text: '**Card data** says how old your local copy of Scryfall is and whether they have newer. Refreshing builds beside the copy you have and only swaps it in when it finishes, so a failed download costs you nothing.',
+      },
+      {
+        text: '**Backup** writes your decks, the binder, your collected cards and your deck sleeves to one file — and reads it back. Restoring merges: nothing is deleted. It is the only thing here that can save you from a lost database.',
+      },
+      {
+        text: '**Table** is what the dice and coin are made of. Throw the dice beside the swatches to see a finish before you keep it; the d20 is chosen separately so the two are never hard to tell apart.',
+      },
+    ],
+  },
+  {
     id: 'playtest',
     title: 'The playtest mat',
     blurb: 'The gestures, which are the part no label tells you about.',
@@ -180,20 +246,23 @@ export const LESSONS: Lesson[] = [
       },
       {
         example: 'playtest',
-        target: '.pt-die-tray.d6',
-        text: 'Dice are **thrown**, not clicked: pick one up and flick it, and it tumbles across the mat, bounces off the edges and settles on a face. A slow drag places it instead.',
+        // The whole tool column, not one tray. The dice are *positioned by
+        // script* after the mat lays out, so a highlight pinned to a single
+        // empty slot sits beside them rather than on them.
+        target: '.pt-tools',
+        text: 'Flick a die to throw it — it tumbles, bounces off the edges and lands on a face. Drag it slowly instead and it just moves.',
       },
       {
-        text: 'Double-click a die to switch it to **counting**, where clicks step the number — for storm, experience, or anything else you are tracking. Throwing it returns it to rolling.',
+        text: 'Double-click a die on the mat to switch it to **counting**. Clicks step the number; throwing it returns it to rolling.',
       },
       {
-        text: 'Both trays hand out replacements, so taking a die leaves another waiting. Drag one onto the bin above the d20 slot to be rid of it.',
+        text: 'Take a die from a slot and another appears in it, so you can have as many as you need. Drag one to the bin above the slots to remove it.',
       },
       {
-        text: 'Tapping a **fetch land** cracks it: it finds what it is allowed to find, sacrifices itself, and what it finds arrives tapped if the fetch says so.',
+        text: 'Tap a **fetch land** to crack it. It finds what it can, sacrifices itself, and the land arrives tapped if the fetch says so.',
       },
       {
-        text: '**Reset** asks first and sweeps the dice home. **Mulligan** does not, because it is still the same game.',
+        text: '**Reset** asks first, then clears the board and sweeps the dice home. **Mulligan** only redraws your hand.',
       },
     ],
   },

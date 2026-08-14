@@ -67,6 +67,56 @@ export const DICE_SKINS: Skin[] = [
       '--die-face': 'radial-gradient(circle at 22% 28%, rgba(255,215,110,0.5) 0 1.2px, transparent 1.3px), radial-gradient(circle at 68% 61%, rgba(255,215,110,0.4) 0 1px, transparent 1.1px), radial-gradient(circle at 44% 79%, rgba(255,255,255,0.3) 0 1px, transparent 1.1px)',
     },
   },
+  {
+    id: 'nebula',
+    label: 'Nebula',
+    vars: {
+      '--die-hi': '#2a1b52', '--die-lo': '#0d0720', '--die-edge': '#7a4fd6', '--die-pip': '#ffe9ff',
+      '--die-face': 'radial-gradient(circle at 30% 24%, rgba(190,120,255,0.55) 0 18%, transparent 55%), radial-gradient(circle at 74% 70%, rgba(90,190,255,0.45) 0 16%, transparent 52%), radial-gradient(circle at 18% 78%, rgba(255,120,200,0.35) 0 12%, transparent 46%)',
+    },
+  },
+  {
+    id: 'circuit',
+    label: 'Circuit',
+    vars: {
+      '--die-hi': '#0e2b24', '--die-lo': '#04120f', '--die-edge': '#1f9c78', '--die-pip': '#5affc8',
+      '--die-face': 'repeating-linear-gradient(90deg, transparent 0 7px, rgba(90,255,200,0.16) 7px 8px), repeating-linear-gradient(0deg, transparent 0 7px, rgba(90,255,200,0.16) 7px 8px)',
+    },
+  },
+  {
+    id: 'magma',
+    label: 'Magma',
+    vars: {
+      '--die-hi': '#7a1405', '--die-lo': '#150402', '--die-edge': '#ff6a2a', '--die-pip': '#ffd9a0',
+      '--die-face': 'radial-gradient(ellipse at 26% 82%, rgba(255,150,40,0.75) 0 22%, transparent 58%), radial-gradient(ellipse at 72% 26%, rgba(255,90,20,0.55) 0 18%, transparent 52%)',
+    },
+  },
+  {
+    id: 'prism',
+    label: 'Prism',
+    vars: {
+      '--die-hi': '#f4f7ff', '--die-lo': '#b9c4e6', '--die-edge': '#8f9ecd', '--die-pip': '#1b1f2e',
+      '--die-face': 'linear-gradient(126deg, rgba(255,90,140,0.5) 0 16%, rgba(255,200,60,0.5) 16% 33%, rgba(80,230,140,0.5) 33% 50%, rgba(70,180,255,0.5) 50% 67%, rgba(170,110,255,0.5) 67% 84%, rgba(255,110,190,0.5) 84% 100%)',
+    },
+  },
+  {
+    id: 'gold',
+    label: 'Gold',
+    vars: {
+      '--die-hi': '#ffe6a3', '--die-lo': '#a9761a', '--die-edge': '#7d5510', '--die-pip': '#3d2905',
+      // A brushed sheen across the face, so it reads as metal rather than as a
+      // yellow die: the highlight has to run *across* the surface.
+      '--die-face': 'linear-gradient(128deg, rgba(255,255,255,0.42) 0 14%, transparent 14% 38%, rgba(255,240,190,0.35) 38% 46%, transparent 46%)',
+    },
+  },
+  {
+    id: 'platinum',
+    label: 'Platinum',
+    vars: {
+      '--die-hi': '#f2f5f9', '--die-lo': '#9aa6b4', '--die-edge': '#6f7c8c', '--die-pip': '#20262e',
+      '--die-face': 'linear-gradient(128deg, rgba(255,255,255,0.5) 0 12%, transparent 12% 40%, rgba(210,225,240,0.4) 40% 47%, transparent 47%)',
+    },
+  },
 ]
 
 /** The coin is one struck disc, so a finish is four stops, a rim and the ink

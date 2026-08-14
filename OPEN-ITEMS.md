@@ -656,6 +656,34 @@ Real deck-builder work, as opposed to the Binder clone below.
   silently never happened and the first look decided the answer. A timer ticks
   either way.
 
+## Binder mode, second pass (2026-08-14)
+
+- ~~**Category buttons filter instead of fetching.**~~ In a deck, Ramp /
+  Removal / Counters / Draw ask the server for cards you do *not* have. In a
+  binder that is the wrong question — you are looking at what you own — so the
+  same four buttons filter the list. Hidden in Text mode, where there is no
+  list to filter. Classified in the browser from the card's own text
+  (`lib/cardRoles.ts`): heuristics on purpose, wrong in the direction of
+  showing too much rather than hiding something you own.
+- ~~**No Search tab in the binder.**~~ A second card search inside the thing
+  you search is a hall of mirrors; the Cards tray and a drag are how cards get
+  in.
+- ~~**Title reads Binder**~~, not `__binder__` — that is a storage key, not a
+  name — and the format chip is gone: a binder is not legal or illegal in
+  anything.
+- ~~**Binder info, and a mana curve that follows the filters.**~~ Computed in
+  the browser from the filtered list (`components/BinderInfo.tsx`) rather than
+  from a server analysis of the whole text, because the numbers have to
+  describe what is on screen. The colour filter had to move up to the page to
+  make that work: the list and the numbers cannot each own half of it.
+- ~~**Gold outline for cards you own.**~~ A toggle beside the size slider on
+  search results; when lit, anything already in the binder gets a thin gold
+  edge. Off by default — a gold edge on half the grid is noise unless you asked
+  the question. Verified: Sol Ring marked, the other result not.
+- ~~**Saving says so.**~~ The confirmation was a small green line at the top of
+  a page you may have scrolled a long way down, which is indistinguishable from
+  nothing happening. It is a pinned toast now, with `role="status"`.
+
 ## Binder
 
 The Binder is a *clone* of the deck builder, and everything in this section

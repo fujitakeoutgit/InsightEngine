@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom'
 
 import {
@@ -17,6 +17,8 @@ import { DeckEditor } from '../components/DeckEditor'
 import { ManaCost } from '../components/ManaCost'
 import { DeckCharts } from '../components/DeckCharts'
 import { DeckInfo } from '../components/DeckInfo'
+import { BinderInfo } from '../components/BinderInfo'
+import { doesJob } from '../lib/cardRoles'
 import { DeckSearch } from '../components/DeckSearch'
 import { useEscape, usePersisted, useTransient, useTransientMessage } from '../lib/usePersisted'
 import { copyText } from '../lib/clipboard'
@@ -160,6 +162,31 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
   const [showAll, setShowAll] = useState(false)
   const [copied, flashCopied] = useTransient()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  /* Which of the four jobs the binder is filtered to, if any.
+   *
+   * In a deck these buttons ask the server for cards you do not have. In a
+   * binder that is the wrong question entirely — you are looking at what you
+   * own — so the same four buttons filter the list instead of fetching a
+   * table nobody asked for. */
+  const [job, setJob] = useState<Category | null>(null)
+  const [colours, setColours] = useState<string[]>(['W', 'U', 'B', 'R', 'G'])
+
+  /* Both binder filters, applied in one place.
+   *
+   * They have to combine — asking for red *and* removal means both — and the
+   * same result has to feed the list and the numbers beside it, so neither can
+   * own half of it. Colourless cards survive the colour filter: an artifact
+   * goes in any deck, and losing your Sol Rings when you ask for red would be
+   * the wrong answer to the question the pips are asking. */
+  const binderCards = useMemo(() => {
+    if (!binder) return deckCards
+    return deckCards.filter((c) => {
+      if (job && !doesJob(c.card, job)) return false
+      if (colours.length === 5) return true
+      const identity = c.card.color_identity || ''
+      return !identity || [...identity].some((letter) => colours.includes(letter))
+    })
+  }, [binder, job, colours, deckCards])
   useEscape(() => setConfirmingDelete(false), confirmingDelete)
 
   const resultRef = useRef<HTMLDivElement>(null)
@@ -673,9 +700,11 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         {/* Ramp, removal, counterspells and draw never qualify on theme alone,
             which makes them invisible rather than unwanted. This is how you ask
             for them. */}
-        <span className="cat-buttons">
+        {/* Hidden in the binder's Text mode: they filter a list, and in Text
+            mode there is no list to filter — only the raw decklist. */}
+        <span className="cat-buttons" hidden={binder && mode === 'text'}>
           {CATEGORIES.map(([key, label]) => {
-            const on = recs?.category === key
+            const on = binder ? job === key : recs?.category === key
             return (
               <button
                 key={key}
@@ -683,11 +712,17 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
                 aria-pressed={on}
                 // Pressing the active one puts the theme recommendations back,
                 // so the button is a toggle rather than a one-way trip.
-                onClick={() => (on ? getRecommendations() : getCategory(key))}
-                disabled={!!busy || !text.trim()}
-                title={on
-                  ? `Showing ${label.toLowerCase()} — click to go back to themes`
-                  : `Most-played ${label.toLowerCase()} in this deck's colours`}
+                onClick={() => {
+                  if (binder) { setJob(on ? null : key); return }
+                  if (on) getRecommendations()
+                  else getCategory(key)
+                }}
+                disabled={binder ? false : (!!busy || !text.trim())}
+                title={binder
+                  ? (on ? `Showing ${label.toLowerCase()} — click to show everything`
+                        : `Show only the ${label.toLowerCase()} you own`)
+                  : (on ? `Showing ${label.toLowerCase()} — click to go back to themes`
+                        : `Most-played ${label.toLowerCase()} in this deck's colours`)}
               >
                 {busy === key && <span className="spinner" />}
                 {label}
@@ -790,6 +825,9 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
       ) : (
         <DeckEditor
               binder={binder}
+              jobFiltered={binder ? binderCards : undefined}
+              colours={colours}
+              onColours={setColours}
           cards={deckCards}
           onChange={applyEdits}
           onAddSearched={addSearchedCard}
@@ -810,9 +848,14 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
           onClick={() => setTab('analysis')}>
           Analysis{report && <span className="faint"> {report.total_cards}</span>}
         </button>
-        <button className={tab === 'search' ? 'on' : ''} onClick={() => setTab('search')}>
-          Search
-        </button>
+        {/* No Search tab in the binder: adding cards to a record of what you
+            own is what the Cards tray and a drag are for, and a second card
+            search inside the thing you search is a hall of mirrors. */}
+        {!binder && (
+          <button className={tab === 'search' ? 'on' : ''} onClick={() => setTab('search')}>
+            Search
+          </button>
+        )}
         {/* A binder is a list of what you own, not a deck being tuned, so it
             has nothing to recommend against and no pipeline to watch. */}
         {!binder && (
@@ -952,7 +995,9 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
               question about a deck. A binder is not trying to cast anything. */}
           {!binder && report.stats && !report.stats.empty && <DeckCharts stats={report.stats} />}
 
-          {report.stats && !report.stats.empty && (
+          {binder && <BinderInfo cards={binderCards} />}
+
+          {!binder && report.stats && !report.stats.empty && (
             <DeckInfo
               report={report}
               stats={report.stats}
@@ -1099,8 +1144,13 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         {/* Read-only here. The title bar is the deck's identity, not a form:
             the field and the dropdown live under Text, where you are already
             editing what the deck is. */}
-        <h2 className="deck-title">{deckName.trim() || 'Untitled deck'}</h2>
-        <span className="chip">{format || 'Any format'}</span>
+        <h2 className="deck-title">
+          {binder ? 'Binder' : (deckName.trim() || 'Untitled deck')}
+        </h2>
+        {/* `__binder__` is a storage key, not a title, and a binder is not
+            legal or illegal in anything — so neither the reserved name nor the
+            format chip belongs above it. */}
+        {!binder && <span className="chip">{format || 'Any format'}</span>}
 
         {/* Save and Playtest act on the deck as a whole, not on whichever tab
             is open, so they sit with the deck's name rather than beside the
@@ -1157,10 +1207,16 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         </div>
       </div>
 
+      {/* A toast, not a line in the flow.
+          Saving is confirmed at the top of a page you may have scrolled a long
+          way down, and a small green sentence up there is indistinguishable
+          from not having saved at all. This one is pinned to the viewport and
+          announced, so the answer arrives wherever you are. */}
       {status && (
-        <p className="mono" style={{ fontSize: 12, color: 'var(--ok)', marginBottom: 12 }}>
+        <div className="save-toast mono" role="status" aria-live="polite">
+          <span className="tick" aria-hidden>✓</span>
           {status}
-        </p>
+        </div>
       )}
 
 

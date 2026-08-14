@@ -9,6 +9,7 @@ import {
   cacheKey, forgetQuery, fromResponse, readCache, rememberScroll, writeCache,
 } from '../lib/searchCache'
 import { SIZE_KEY, usePersisted, VIEW_KEY } from '../lib/usePersisted'
+import { useBinderIds } from '../lib/binderIds'
 import { collection } from '../lib/collection'
 import { CardGrid, GridSkeleton } from '../components/CardGrid'
 import { CardMenu } from '../components/CardMenu'
@@ -72,6 +73,11 @@ export function SearchPage() {
   const [sort, setSort] = useState('name')
   const [order, setOrder] = useState<'asc' | 'desc'>('asc')
   const [cardSize, setCardSize] = usePersisted(SIZE_KEY, 190)
+  /* Marking what you already own, off by default. It costs a fetch of the
+   * binder and, more to the point, a gold edge on half the grid is noise
+   * unless you asked the question. */
+  const [markOwned, setMarkOwned] = usePersisted('insight-enigma:mark-owned', false)
+  const binderIds = useBinderIds(markOwned)
   const [paperCards, setPaperCards] = useState(0)
   const [shuffling, setShuffling] = useState(false)
   const [picked, setPicked] = useState<{ card: Card; at: { x: number; y: number } } | null>(null)
@@ -487,6 +493,17 @@ export function SearchPage() {
               <span className={`engine-badge ${engine}`}>{engine}</span>
 
               <div className="push row gap-2 wrap">
+                <button
+                  className={markOwned ? 'owned-toggle on' : 'owned-toggle'}
+                  aria-pressed={markOwned}
+                  onClick={() => setMarkOwned(!markOwned)}
+                  title={markOwned
+                    ? 'Stop marking cards that are in your binder'
+                    : 'Outline cards that are already in your binder'}
+                >
+                  <span className="swatch" aria-hidden />
+                  In binder
+                </button>
                 {view === 'grid' && (
                   <label className="size-slider" title="Card size">
                     <span className="label">Size</span>
@@ -539,6 +556,7 @@ export function SearchPage() {
               cards={isSemanticQuery ? sortCards(cards, sort, order) : cards}
               view={view}
               size={cardSize}
+              ownedIds={binderIds}
               // The corner `⋯`, not the tile's click: opening a card is what
               // clicking a result is for, and getting a card into a deck used
               // to mean collecting it, walking to the Cards page and adding it

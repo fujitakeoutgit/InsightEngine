@@ -80,7 +80,7 @@ function MenuButton({
 }
 
 function CardTile({
-  card, collectable, caption, onPick, onMenu, onAdd, addLabel,
+  card, collectable, caption, onPick, onMenu, onAdd, addLabel, owned,
 }: {
   card: Card
   collectable: boolean
@@ -89,6 +89,8 @@ function CardTile({
   onMenu?: CardPick
   onAdd?: (card: Card) => void
   addLabel?: string
+  /** Already in your binder. */
+  owned?: boolean
 }) {
   const ref = useRef<HTMLAnchorElement>(null)
   const [loaded, setLoaded] = useState(false)
@@ -103,7 +105,7 @@ function CardTile({
     <Link
       ref={ref}
       to={`/card/${card.oracle_id}`}
-      className="card-tile"
+      className={owned ? "card-tile owned" : "card-tile"}
       /* Carries the card itself, so a result can be dragged into the Cards
          tray or straight onto a deck section. An anchor is draggable anyway —
          without this it would drag as a URL, which nothing here accepts. */
@@ -212,6 +214,7 @@ export function CardGrid({
   onMenu,
   onAdd,
   addLabel,
+  ownedIds,
 }: {
   cards: Card[]
   view?: 'grid' | 'list'
@@ -225,6 +228,9 @@ export function CardGrid({
   onPick?: CardPick
   /** When set, a corner `⋯` opens a menu and the click still opens the card. */
   onMenu?: CardPick
+  /** Oracle ids you already hold, marked with a thin gold edge. A set rather
+   *  than a predicate so the grid does not re-scan a collection per card. */
+  ownedIds?: Set<string>
   /** Overrides where the corner + sends the card. */
   onAdd?: (card: Card) => void
   addLabel?: string
@@ -283,6 +289,7 @@ export function CardGrid({
           onMenu={onMenu}
           onAdd={onAdd}
           addLabel={addLabel}
+          owned={ownedIds?.has(card.oracle_id)}
         />
       ))}
     </div>
