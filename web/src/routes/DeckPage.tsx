@@ -1206,7 +1206,19 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         </div>
       )}
 
-      <SplitPane storageKey="insight-enigma:deck-split" left={editorPane} right={analysisPane} />
+      {/* B8 / B9 — the binder's splitter starts at its right-hand limit and
+          cannot be dragged as far left.
+          The right pane is analysis, which a binder has almost none of, so the
+          list wants the room; and the list is the whole page, so squeezing it
+          to a quarter of the width -- fine for a deck beside its charts -- just
+          clips it. A deck keeps the balanced default it always had. */}
+      <SplitPane
+        storageKey={binder ? 'insight-enigma:binder-split' : 'insight-enigma:deck-split'}
+        initial={binder ? 0.75 : 0.45}
+        min={binder ? 0.45 : 0.25}
+        left={editorPane}
+        right={analysisPane}
+      />
     </section>
   )
 }

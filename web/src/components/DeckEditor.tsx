@@ -53,9 +53,18 @@ export function DeckEditor({
    *  commander, which a binder does not have. */
   binder?: boolean
 }) {
-  const [groupBy, setGroupBy] = useState<GroupBy>('type')
+  /* B6 / B4 — the binder opens ungrouped and on images.
+   *
+   * A deck is read by type, because that is how you check a curve. A binder is
+   * a pile you are looking *through*, where grouping fragments the one long
+   * list you came to scan — and where the art is how you recognise a card you
+   * own without reading its name. */
+  const [groupBy, setGroupBy] = useState<GroupBy>(binder ? 'none' : 'type')
   const [sortBy, setSortBy] = useState<SortBy>('name')
-  const [view, setView] = usePersisted<'list' | 'grid'>('insight-enigma:deck-view', 'list')
+  const [view, setView] = usePersisted<'list' | 'grid'>(
+    binder ? 'insight-enigma:binder-view' : 'insight-enigma:deck-view',
+    binder ? 'grid' : 'list',
+  )
   const [tileSize, setTileSize] = usePersisted('insight-enigma:editor-tile', 120)
   const [query, setQuery] = useState('')
   /** Which group tab is open, per section. */
@@ -145,7 +154,15 @@ export function DeckEditor({
 
   /** Triage the open section: right keeps a card where it is, left sends it to
    *  the maybeboard to decide on later. */
-  const shuffleCards = visible.filter((c) => c.section === activeSection)
+  /* B10 — basics never reach triage.
+   *
+   * Shuffle asks "keep this, or think about it later?" one card at a time, and
+   * nobody has ever wanted to be asked that about a Mountain. Twenty of them in
+   * the queue is twenty presses between you and the cards the question is
+   * actually for. */
+  const shuffleCards = visible.filter(
+    (c) => c.section === activeSection && !/\bBasic\b/.test(c.card.type_line ?? ''),
+  )
 
   return (
     <div className="editor">

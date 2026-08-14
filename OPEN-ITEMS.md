@@ -729,16 +729,24 @@ Still to do, in order:
   hover and put **Printing** there instead: a dark full-screen gallery of that
   card's editions, set name under each, click a printing to choose it, click
   anywhere else to dismiss.
-- **B4 — Images by default** everywhere that currently defaults to text.
+- ~~**B4 — Images by default.**~~ DONE, in the binder. The art is how you
+  recognise a card you own without reading its name. A deck keeps list view,
+  where the point is scanning names and counts.
 - **B5 — Recommendations follow the deck's grouping and sort.**
-- **B6 — Editor default grouping: none.**
+- ~~**B6 — Editor default grouping: none.**~~ DONE, in the binder. A deck is
+  read by type because that is how you check a curve; a binder is a pile you
+  look *through*, and grouping fragments the one long list you came to scan.
 - **B7 — Move the group/sort control** to the top of the list, above
   `Group: type`.
-- **B8 — Splitter minimum.** The left side needs a larger minimum width; it
-  currently clips into content when dragged far left.
-- **B9 — Splitter default position: far right.** The existing right-hand limit
-  is right.
-- **B10 — Basic lands must not appear in shuffle triage.**
+- ~~**B8 — Splitter minimum.**~~ DONE — the binder's left pane cannot go below
+  45% (a deck's stays at 25%). Squeezing a list to a quarter of the width is
+  fine beside a deck's charts and just clips when the list *is* the page.
+- ~~**B9 — Splitter default: far right.**~~ DONE — the binder opens at the
+  existing right-hand limit, 75%. Verified: binder 913px/304px, deck 45%.
+- ~~**B10 — Basic lands out of shuffle triage.**~~ DONE. Triage asks "keep
+  this, or think about it later?" one card at a time, and nobody wants to be
+  asked that about a Mountain. Verified on Simic Ramp: 3 entries in the
+  section, 2 of them basics, and triage offers exactly 1 — Llanowar Elves.
 
 ## Settings
 
