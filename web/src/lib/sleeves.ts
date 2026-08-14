@@ -37,6 +37,10 @@ function write(store: Store) {
   try { localStorage.setItem(KEY, JSON.stringify(store)) } catch { /* full or private */ }
 }
 
+/** Every sleeve, keyed by deck id. For backups, which have to re-key them
+ *  onto whatever ids a restore hands out. */
+export const allSleeves = (): Record<string, string> => read()
+
 /** The sleeve for a deck, as a data URL, or null. */
 export function sleeveFor(deckId: string | null | undefined): string | null {
   if (!deckId) return null

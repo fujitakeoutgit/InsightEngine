@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { api, type ModelTier } from '../lib/api'
 import { riseIn } from '../lib/motion'
@@ -7,6 +7,9 @@ import {
   skinVars, writeCoinSkin, writeD20Skin, writeDieSkin,
 } from '../lib/skins'
 import { SkinStage } from '../components/SkinStage'
+import {
+  download, exportAll, parseBackup, restore, type RestoreReport,
+} from '../lib/backup'
 import { PageHead } from '../components/PageHead'
 
 /**
@@ -26,6 +29,21 @@ export function SettingsPage() {
   const [dieSkin, setDieSkin] = useState(readDieSkin)
   const [d20Skin, setD20Skin] = useState(readD20Skin)
   const [coinSkin, setCoinSkin] = useState(readCoinSkin)
+  const [backupBusy, setBackupBusy] = useState<'export' | 'import' | null>(null)
+  const [backupNote, setBackupNote] = useState<string | null>(null)
+  const [backupError, setBackupError] = useState<string | null>(null)
+  const backupInput = useRef<HTMLInputElement>(null)
+
+  const said = (r: RestoreReport) => {
+    const bits = [
+      r.created && `${r.created} deck${r.created === 1 ? '' : 's'} added`,
+      r.updated && `${r.updated} updated`,
+      r.sleeves && `${r.sleeves} sleeved`,
+      r.collected && `${r.collected} card${r.collected === 1 ? '' : 's'} collected`,
+    ].filter(Boolean)
+    const done = bits.length ? bits.join(', ') : 'nothing new to add'
+    return r.failed.length ? `${done}. Could not restore: ${r.failed.join(', ')}.` : `${done}.`
+  }
   const [tiers, setTiers] = useState<ModelTier[]>([])
   /** What the server has. The draft is compared against this to know whether
    *  there is anything to save. */
@@ -107,6 +125,71 @@ export function SettingsPage() {
           {status}
         </p>
       )}
+
+      <div className="panel settings-panel">
+        <h3>Backup</h3>
+        <p className="muted" style={{ fontSize: 13, marginBottom: 14 }}>
+          One file holding your decks, the binder, the cards you have collected and
+          the sleeves you put on decks. Not the card data — that is Scryfall's, it is
+          220MB, and any install can rebuild it.
+        </p>
+
+        <div className="row gap-2" style={{ flexWrap: 'wrap' }}>
+          <button
+            className="btn btn-primary sm"
+            disabled={!!backupBusy}
+            onClick={async () => {
+              setBackupBusy('export'); setBackupError(null); setBackupNote(null)
+              try {
+                const backup = await exportAll()
+                download(backup)
+                setBackupNote(`Exported ${backup.decks.length} deck${backup.decks.length === 1 ? '' : 's'}.`)
+              } catch (err) {
+                setBackupError(err instanceof Error ? err.message : 'Could not export.')
+              } finally { setBackupBusy(null) }
+            }}
+          >
+            {backupBusy === 'export' ? 'Exporting…' : 'Export'}
+          </button>
+
+          <button
+            className="btn btn-ghost sm"
+            disabled={!!backupBusy}
+            onClick={() => backupInput.current?.click()}
+          >
+            {backupBusy === 'import' ? 'Restoring…' : 'Restore'}
+          </button>
+
+          <input
+            ref={backupInput}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={async (e) => {
+              const file = e.target.files?.[0]
+              e.target.value = ''
+              if (!file) return
+              setBackupBusy('import'); setBackupError(null); setBackupNote(null)
+              try {
+                const backup = parseBackup(await file.text())
+                setBackupNote(said(await restore(backup)))
+              } catch (err) {
+                setBackupError(err instanceof Error ? err.message : 'Could not restore.')
+              } finally { setBackupBusy(null) }
+            }}
+          />
+        </div>
+
+        {/* Said plainly, because "restored" on its own does not tell you
+            whether the file had anything in it. */}
+        {backupNote && <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>{backupNote}</p>}
+        {backupError && <p style={{ fontSize: 12.5, marginTop: 10, color: 'var(--danger)' }}>{backupError}</p>}
+
+        <p className="faint" style={{ fontSize: 11.5, marginTop: 10 }}>
+          Restoring merges: a deck whose name is already here is updated, anything
+          else is added, and nothing is deleted.
+        </p>
+      </div>
 
       <div className="panel settings-panel">
         <h3>Table</h3>

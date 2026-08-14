@@ -619,9 +619,37 @@ Still to do, in order:
 
 ## Settings
 
-- **S1 — Backup and restore.** Export decks (and the Binder, and collected
-  cards) to a local file and read it back. JSON unless there is a reason not
-  to.
+- ~~**S1 — Backup and restore.**~~ DONE. A Backup panel in Settings: one JSON
+  file holding your decks, the binder among them, the collected cards and the
+  deck sleeves. Not the card mirror — 220MB of Scryfall's data that any install
+  can rebuild, and not yours to carry.
+
+  Three decisions, each of which had a wrong version:
+
+  **Decks travel by name, not by id.** Ids belong to whichever database wrote
+  them, so a file restored elsewhere — or here after a rebuild — would land on
+  whatever now holds those numbers.
+
+  **Names are not unique, so restore claims them in order.** This very database
+  has two decks called "Orzhov Aristocrats". A plain name-to-id map pointed both
+  backup entries at the same deck and would have silently overwritten one with
+  the other, leaving you a deck short — from the operation you reach for
+  *because* you are worried about losing something. It is a queue of ids per
+  name now; each existing deck is claimed once, and duplicates survive a round
+  trip as duplicates.
+
+  **Restore merges; nothing is deleted.** A name already here is updated, the
+  rest are created.
+
+  Sleeves are re-keyed through the deck name on the way out and back, so they
+  re-attach to whatever id the restore hands out.
+
+  Verified against the live database: 7 decks exported with text, both
+  duplicates intact; restoring the file over itself left ids unchanged and
+  created nothing; deleting a deck and restoring brought it back with
+  byte-identical text under a *new* id; a sleeve set on id 186 came back
+  attached to id 187; and the guards reject non-JSON, foreign files and a
+  future version with their own messages.
 
 - ~~**S3 — Dice and coin skins.**~~ DONE. Eight dice finishes (including two
   patterned — Marble and Speckled) and six coin metals, in a new **Table**
