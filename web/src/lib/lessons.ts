@@ -180,13 +180,16 @@ export const LESSONS: Lesson[] = [
       {
         route: '/',
         target: '.nav-tray',
-        text: '**Cards** slides out over whatever you are doing rather than taking you somewhere. What you gather is only useful next to the thing you gathered it for.',
+        text: '**Cards** opens over the page you are on instead of taking you somewhere else, so you can keep what you found next to what you are building.',
       },
       {
-        text: 'Press the **+** on any search result to drop it in. Drag a card out of the tray onto a deck section to add it there, or drag one *into* the tray from a deck to take it out.',
+        text: 'Press the **+** on a search result to put it in the tray.',
       },
       {
-        text: 'The pile is yours until you clear it. It survives moving between pages, and it is not part of any deck until you drop it on one.',
+        text: 'Drag a card **out** of the tray onto a deck to add it. Drag a card from a deck **into** the tray to remove it.',
+      },
+      {
+        text: 'The tray keeps what you put in it as you move between pages. Nothing in it belongs to a deck until you drag it onto one.',
       },
     ],
   },

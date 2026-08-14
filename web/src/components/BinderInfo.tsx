@@ -1,7 +1,31 @@
 import { useMemo } from 'react'
 
-import { colorGroup, primaryType, type DeckCard } from '../lib/deckModel'
+import { primaryType, type DeckCard } from '../lib/deckModel'
 import { Curve } from './DeckCharts'
+
+const RARITY_ORDER = ['common', 'uncommon', 'rare', 'mythic', 'special', 'bonus'] as const
+
+const RARITY_COLOR: Record<string, string> = {
+  common: 'var(--rarity-common)',
+  uncommon: 'var(--rarity-uncommon)',
+  rare: 'var(--rarity-rare)',
+  mythic: 'var(--rarity-mythic)',
+  special: 'var(--rarity-special)',
+  bonus: 'var(--rarity-special)',
+}
+
+/** The curve's own key for a card's colours.
+ *
+ * `W`/`U`/`B`/`R`/`G` for a single colour, `multi` for more than one, `C` for
+ * none — the same vocabulary the server sends for a deck, because the chart
+ * that draws it only knows those seven. Keying it any other way leaves every
+ * bucket with a total and no bar, which is precisely what a nicer-sounding
+ * "White"/"Multicolour" did. */
+function curveKey(identity: string | null | undefined): string {
+  const id = identity || ''
+  if (!id) return 'C'
+  return id.length === 1 ? id : 'multi'
+}
 
 /**
  * What the binder holds, computed here rather than on the server.
@@ -39,10 +63,16 @@ export function BinderInfo({ cards }: { cards: DeckCard[] }) {
         // leaves them out: they cost nothing and would pile onto zero.
         const mv = Math.min(7, Math.floor(entry.card.cmc ?? 0))
         const bucket = mv >= 7 ? '7+' : String(mv)
-        const group = colorGroup(entry.card)
+        const group = curveKey(entry.card.color_identity)
         curve[bucket] = curve[bucket] ?? {}
         curve[bucket][group] = (curve[bucket][group] ?? 0) + n
       }
+    }
+
+    const rarity: Record<string, number> = {}
+    for (const entry of cards) {
+      const key = entry.card.rarity ?? 'unknown'
+      rarity[key] = (rarity[key] ?? 0) + entry.quantity
     }
 
     const types: Record<string, number> = {}
@@ -60,8 +90,14 @@ export function BinderInfo({ cards }: { cards: DeckCard[] }) {
       avgMv: nonlands ? mvSum / nonlands : 0,
       curve,
       types,
+      rarity,
     }
   }, [cards])
+
+  const rarityTotal = Object.values(stats.rarity).reduce((sum, n) => sum + n, 0)
+  const ranked = RARITY_ORDER
+    .filter((r) => stats.rarity[r])
+    .map((r) => [r, stats.rarity[r]] as const)
 
   if (!cards.length) {
     return (
@@ -90,6 +126,32 @@ export function BinderInfo({ cards }: { cards: DeckCard[] }) {
           <Stat label="Avg. mana value" value={stats.avgMv.toFixed(2)} />
           <Stat label="Est. value" value={`$${stats.value.toFixed(2)}`} />
         </div>
+
+        {/* Rarity, drawn the way the deck's own panel draws it — same bar,
+            same swatches, same labels. Losing it here was a regression, and
+            re-inventing it in a different shape would be a second one. */}
+        {rarityTotal > 0 && (
+          <div className="rarity-split">
+            <span className="label">Rarity</span>
+            <div className="rarity-bar">
+              {ranked.map(([name, count]) => (
+                <span
+                  key={name}
+                  style={{ width: `${(count / rarityTotal) * 100}%`, background: RARITY_COLOR[name] }}
+                  title={`${count} ${name}`}
+                />
+              ))}
+            </div>
+            <div className="rarity-keys">
+              {ranked.map(([name, count]) => (
+                <span className="rarity-key" key={name}>
+                  <i style={{ background: RARITY_COLOR[name] }} />
+                  {name} <b className="mono">{count}</b>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </>
   )
