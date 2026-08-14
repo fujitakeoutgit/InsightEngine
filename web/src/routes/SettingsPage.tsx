@@ -205,7 +205,7 @@ export function SettingsPage() {
               try { await api.syncRefresh() } catch { setSyncBusy(null) }
             }}
           >
-            {syncBusy === 'refresh' || sync?.running ? 'Refreshing…' : 'Refresh card data'}
+            {syncBusy === 'refresh' || sync?.running ? 'Updating…' : 'Update Card Pool'}
           </button>
         </div>
 

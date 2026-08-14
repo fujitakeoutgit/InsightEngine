@@ -19,6 +19,14 @@
  * the DOM** — when one stops matching, the walkthrough quietly degrades to a
  * centred card, so they are worth re-checking whenever markup moves.
  *
+ * **Name every control exactly as it is labelled, in full, and say what
+ * pressing it does.** "Refreshing builds beside the copy you have" names no
+ * button and describes an implementation; "Press **Update Card Pool** to start
+ * importing the new card list in the background" names the thing on screen and
+ * the outcome. If a control is an icon, print the icon (`**☆**`). If the label
+ * changes while it works, the resting label is the one to use. A step the
+ * reader cannot act on without hunting for the control has failed.
+ *
  * Text takes `**bold**` and `` `code` `` and nothing else. Two markers are
  * enough to name a control and to set an operator apart from the prose around
  * it, and a fuller markdown parser here would be a dependency in aid of text
@@ -87,7 +95,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.nav a[href="/settings"]',
-        text: '**Settings** holds the local model and the dice finishes. It also holds **Backup**, the only thing here that can save you from a lost database.',
+        text: '**Settings** holds the local model and the dice finishes. It also holds **Export**, the only button in this app that can save you from a lost database.',
       },
       {
         target: '.nav-tray',
@@ -119,7 +127,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.owned-toggle',
-        text: '**In binder** outlines every result you already own in gold. Use it to spot what you would be buying twice.',
+        text: 'Press **In binder** to outline every result you already own in gold. Use it to see what you would be buying twice.',
       },
       {
         target: '.nav a[href="/advanced"]',
@@ -142,7 +150,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.history',
-        text: 'Pin a query to hold it at the top. Pinned queries are never evicted, and **Clear** leaves them alone. Re-running one updates its numbers in place instead of adding a duplicate.',
+        text: 'Press the **☆** on a row to pin that search. Pinned searches stay at the top, never age out, and survive the **Clear** button. Running a pinned search again updates its numbers in place.',
       },
     ],
   },
@@ -159,7 +167,7 @@ export const LESSONS: Lesson[] = [
       {
         example: 'deck',
         target: '.editor-bar',
-        text: '**Text** is the list you paste and edit. **Build** is the one you drag around. Switching rewrites the list as `1 Card Name (SET) 123`, so a deck always states which printing it means.',
+        text: 'Press **Text** to edit the deck as a pasted list. Press **Build** to edit it by dragging cards around. Switching between them rewrites every line as `1 Card Name (SET) 123`, so the deck always states which printing it means.',
       },
       {
         text: 'Name resolution sits under the description and flags any line that did not match exactly. **Approve** writes the match into the list. The alternatives beside it replace the line instead.',
@@ -168,7 +176,7 @@ export const LESSONS: Lesson[] = [
         text: '**Ramp**, **Removal**, **Counters** and **Draw** ask for cards that do that job *in this deck*, judged against what it already plays. Not a generic list of good cards.',
       },
       {
-        text: '**AI recommend** is the slow one, and it reads your deck description first. Say what the deck is trying to do and the answers get markedly better. The **Pipeline** tab shows the run stage by stage.',
+        text: '**AI recommend** is the slow one. It reads your deck description first, so a deck that says what it is trying to do gets markedly better answers. Press the **Pipeline** tab to watch the run stage by stage.',
       },
     ],
   },
@@ -215,7 +223,7 @@ export const LESSONS: Lesson[] = [
         text: 'The counts and the mana curve beside the list follow both filters, so the numbers always describe what is on screen.',
       },
       {
-        text: 'Hover a card and press **Printing** to pick the edition you own.',
+        text: 'Hover a card and press **Printing** to choose which edition of it you own.',
       },
     ],
   },
@@ -227,16 +235,19 @@ export const LESSONS: Lesson[] = [
       {
         route: '/settings',
         target: '.settings-panel',
-        text: '**Card data** says how old your copy of Scryfall is, and whether there is a newer one. When there is, a gold **+** appears beside the card count on Search.',
+        text: '**Card data** shows how old your copy of Scryfall is, and whether a newer one exists. When one does, a gold **+** appears next to the card count on the Search page.',
       },
       {
-        text: 'Refreshing builds the new copy alongside the one you have, and swaps it in only when it finishes. A failed download costs you nothing.',
+        text: 'Press **Check now** to ask Scryfall whether newer card data exists. It only checks; it downloads nothing.',
       },
       {
-        text: '**Backup** writes your decks, the binder, your collected cards and your sleeves to one file, and reads it back. Restoring merges — nothing is deleted. It is the only thing here that can save you from a lost database.',
+        text: 'Press **Update Card Pool** to start importing the new card list in the background. It copies over when it finishes, so searching keeps working the whole time.',
       },
       {
-        text: '**Table** is what the dice and coin are made of. Throw the dice beside the swatches to try a finish before keeping it. The d20 is chosen separately, so the two are never hard to tell apart.',
+        text: 'Press **Export** to write your decks, your binder, your collected cards and your sleeves into one file. Press **Restore** to read that file back in. **Restore** only adds — it never deletes anything you already have.',
+      },
+      {
+        text: '**Table** is where you choose what the dice and coin are made of. Press a swatch to try a finish, then throw the dice beside it to see how it looks in motion. The d20 is picked separately, so your two dice never look alike.',
       },
     ],
   },
@@ -262,13 +273,13 @@ export const LESSONS: Lesson[] = [
         text: 'Double-click a die to switch it to **counting**. Clicks step the number. Throw it to go back to rolling.',
       },
       {
-        text: 'Take a die from a slot and another appears in it, so you can have as many as you need. Drag one to the bin above the slots to remove it.',
+        text: 'Drag a die out of its slot and a new one appears there, so you can have as many as you need. Drag a die onto the bin above the slots to get rid of it.',
       },
       {
-        text: 'Tap a **fetch land** to crack it. It finds what it can, sacrifices itself, and the land arrives tapped if the fetch says so.',
+        text: 'Click a fetch land on the battlefield to crack it. It finds what it can, goes to the graveyard, and the land it fetches arrives tapped if the fetch land says so.',
       },
       {
-        text: '**Reset** asks first, then clears the board and sweeps the dice home. **Mulligan** only redraws your hand.',
+        text: 'Press **Reset** to clear the board and sweep the dice home; it asks you to confirm first. Press **Mulligan** to redraw your opening hand and nothing else.',
       },
     ],
   },
