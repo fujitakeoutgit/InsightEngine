@@ -2239,6 +2239,13 @@
    than to the row when it hangs below the rest. */
 .pt-library { margin-top: 10px; }
 
+/* The deck, the piles and the counters sit lower than the hand they flank.
+   On a table these are set down in front of you rather than lined up with the
+   cards you are holding, and the tray leaves room beneath for exactly this.
+   Relative, so the nudge costs the tray no height. */
+.pt-zones,
+.pt-corner { position: relative; top: 10px; }
+
 .pt-shuffle { width: 100%; }
 
 /* The zone block: three actions sitting directly over the three zones they
@@ -2611,6 +2618,15 @@
   min-width: 0;
   gap: 6px;
   overflow-x: auto;
+  /* Explicit, and the reason is a CSS rule that is easy to walk into: once one
+     axis is non-visible, `visible` on the other computes to `auto`. So
+     overflow-x: auto quietly gave this a vertical scrollbar too, which flashed
+     on load while the hand was still sizing.
+
+     The padding above is what makes hiding it free -- a hovered card lifts 6px
+     and scales 1.06, and without the room it would be clipped instead. */
+  overflow-y: hidden;
+  padding-top: 14px;
   padding-bottom: 4px;
 }
 
