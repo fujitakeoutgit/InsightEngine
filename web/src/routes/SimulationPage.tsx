@@ -64,6 +64,7 @@ export function SimulationPage() {
 
   const rows = report && !report.empty ? report.by_turn : []
   const peakMana = Math.max(1, ...rows.map((r) => r.mana))
+  const colourKeys = Object.keys(rows[rows.length - 1]?.sources ?? {})
 
   return (
     <section className="stack gap-4">
@@ -144,12 +145,15 @@ export function SimulationPage() {
                   <tr>
                     <th>Turn</th>
                     <th>Mana</th>
-                    <th>Lands</th>
-                    <th>Rocks &amp; dorks</th>
-                    <th>Colours</th>
-                    <th>Missed drop</th>
-                    <th>Avg. cost in hand</th>
-                    <th>Hand</th>
+                    {/* These head right-aligned numbers, so they are right
+                        aligned too. A heading at the left of a column whose
+                        values are at the right is not a heading for them. */}
+                    <th className="num">Lands</th>
+                    <th className="num">Rocks &amp; dorks</th>
+                    <th className="num">Colours</th>
+                    <th className="num">Missed drop</th>
+                    <th className="num">Avg. cost in hand</th>
+                    <th className="num">Hand</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -190,13 +194,20 @@ export function SimulationPage() {
               to each, three counts a third, and so on.
             </p>
             <div className="scroll-x">
-              <table className="card-list">
+              <table className="card-list sim-colours">
                 <thead>
                   <tr>
                     <th>Turn</th>
-                    {Object.keys(rows[rows.length - 1]?.sources ?? {}).map((c) => (
-                      <th key={c} style={{ textAlign: 'right' }}>
-                        <span className="bal-pip" style={{ background: FILL[c] }}>{c}</span>
+                    {colourKeys.map((c) => (
+                      <th key={c}>
+                        {/* The pip is display:grid, so it is block-level and
+                            text-align on the cell does nothing to it -- it sat
+                            at the far left of a 307px column while its numbers
+                            sat at the right. A flex wrapper is what actually
+                            moves it. */}
+                        <span className="sim-pip-head">
+                          <span className="bal-pip" style={{ background: FILL[c] }}>{c}</span>
+                        </span>
                       </th>
                     ))}
                   </tr>
@@ -205,7 +216,7 @@ export function SimulationPage() {
                   {rows.map((r) => (
                     <tr key={r.turn}>
                       <td className="mono">{r.turn}</td>
-                      {Object.keys(rows[rows.length - 1]?.sources ?? {}).map((c) => (
+                      {colourKeys.map((c) => (
                         <td key={c} className="num mono">{(r.sources[c] ?? 0).toFixed(2)}</td>
                       ))}
                     </tr>

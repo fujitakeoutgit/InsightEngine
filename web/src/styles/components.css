@@ -4620,3 +4620,15 @@
 }
 
 .sim-table td { vertical-align: middle; }
+
+/* Colour columns are three digits wide. Left to itself the table stretches to
+   the panel and each column becomes 300px of empty space with a heading
+   stranded at one end of it. */
+.sim-colours { width: auto; min-width: 320px; }
+.sim-colours th:first-child, .sim-colours td:first-child { width: 4em; }
+.sim-colours th:not(:first-child), .sim-colours td:not(:first-child) { width: 5.5em; }
+
+.sim-pip-head { display: flex; justify-content: flex-end; }
+
+/* .num right-aligns a cell; a heading over one has to move with it. */
+.card-list th.num { text-align: right; }

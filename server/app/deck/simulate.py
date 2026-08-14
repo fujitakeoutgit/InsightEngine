@@ -172,9 +172,26 @@ def _play_one(
         lands = [c for c in hand if c.is_land]
         missed = not lands
         if lands:
+            # Does entering untapped buy anything *this* turn? Only if the hand
+            # holds a spell that the extra mana would exactly unlock. On turn
+            # one with nothing to cast it never does, so the fixing land is
+            # free to come down tapped -- which is what a player does. On turn
+            # three holding a three-drop it does, and then an untapped basic
+            # beats a tapped triome.
+            #
+            # Ranking purely by new colours got this backwards: eight of the
+            # ten tapped lands in a typical base are the multicolour ones, so
+            # "most new colours" quietly means "tapped" and the deck stalls a
+            # turn behind itself for fixing it did not need yet.
+            online = sum(1 for c in battlefield if c.is_land or c.is_accelerant)
+            untapped_matters = any(
+                not c.is_land and c.cmc == online + 1 for c in hand
+            )
+
             def land_key(card: SimCard) -> tuple[int, int]:
                 new = len({c for c in card.makes if (not scope or c in scope)} - have)
-                return (-new, 1 if card.enters_slow else 0)
+                slow = 1 if card.enters_slow else 0
+                return (slow, -new) if untapped_matters else (-new, slow)
 
             chosen = min(lands, key=land_key)
             hand.remove(chosen)
