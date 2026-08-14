@@ -653,8 +653,14 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
     (rec) => !activeThemes.length || rec.because.some((b) => activeThemes.includes(b)),
   )
   const reasonFor = new Map((recs?.recommendations ?? []).map((r) => [r.card.oracle_id, r.because]))
-  const commanderCard =
-    report?.entries.find((e) => e.section === 'commander' && e.card)?.card ?? null
+  // Every card in the commander slot. Two is the ceiling any pairing rule
+  // allows, and a partner pair is two commanders rather than one commander
+  // with an accessory -- so both are drawn, at the same size.
+  const commanderCards = (report?.entries ?? [])
+    .filter((e) => e.section === 'commander' && e.card)
+    .map((e) => e.card!)
+    .slice(0, 2)
+  const commanderCard = commanderCards[0] ?? null
   const commanderCardId = commanderCard?.oracle_id ?? null
   const uncertain = report?.entries.filter((e) => UNCERTAIN.has(e.match)) ?? []
   const shown = showAll ? (report?.entries ?? []) : uncertain
@@ -962,15 +968,23 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
                   tilted link on purpose: the commander keeps its pointer
                   tilt, and the sleeve stays flat behind it rather than
                   swinging with it, which is what a stack on a table does. */}
-              <div className={`commander-stack${sleeve ? ' sleeved' : ''}`}>
+              <div className={`commander-stack${sleeve ? ' sleeved' : ''}${
+                commanderCards.length > 1 ? ' paired' : ''
+              }`}>
                 {sleeve && <img className="sleeve-art" src={sleeve} alt="" aria-hidden />}
-                <Link
-                  to={`/card/${commanderCard.oracle_id}`}
-                  title={commanderCard.name}
-                  ref={commanderTilt}
-                >
-                  <img src={commanderCard.image_normal} alt={commanderCard.name} />
-                </Link>
+                {commanderCards.filter((c) => c.image_normal).map((cmd, i) => (
+                  <Link
+                    key={cmd.oracle_id}
+                    to={`/card/${cmd.oracle_id}`}
+                    title={cmd.name}
+                    /* Only the first takes the pointer tilt: the ref holds one
+                       node, and two cards leaning independently under one
+                       cursor reads as two separate things rather than a pair. */
+                    ref={i === 0 ? commanderTilt : undefined}
+                  >
+                    <img src={cmd.image_normal!} alt={cmd.name} />
+                  </Link>
+                ))}
               </div>
             </div>
           )}

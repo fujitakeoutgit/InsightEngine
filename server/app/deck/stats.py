@@ -151,6 +151,19 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
             key = card_identity if len(card_identity) == 1 else ("multi" if card_identity else "C")
             curve[bucket][key] += qty
 
+    # The commander's colour identity, unioned across every card in the
+    # commander section -- so a partner pair, a Background, or a Doctor and its
+    # companion contribute both halves. This is the ceiling the deck is built
+    # under, and the charts filter to it: a deck cannot cast a colour its
+    # commander does not allow, so showing that colour is showing noise.
+    #
+    # Empty for a deck with no commander, which the charts read as "no ceiling"
+    # and fall back to the colours actually present.
+    commander_identity = set()
+    for res in resolutions:
+        if res.card and res.section == "commander":
+            commander_identity |= set(res.card.get("color_identity") or "")
+
     for res in resolutions:
         if res.card and res.section == "sideboard":
             side_rarity[res.card.get("rarity") or "unknown"] += res.quantity
@@ -218,6 +231,7 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
         # caption used to imply all of them did, which is how a base with
         # 41 sources and 29 colour-producers read as healthier than it is.
         "coloured_sources": source_cards,
+        "commander_identity": "".join(c for c in COLOURS if c in commander_identity),
         "avg_cmc": round(total_mv / nonland_cards, 2) if nonland_cards else 0.0,
         "pips": {c: pips[c] for c in COLOURS if pips[c]},
         "produced": {c: produced[c] for c in COLOURS if produced[c]},

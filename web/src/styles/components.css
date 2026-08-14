@@ -4582,3 +4582,15 @@
 }
 
 .hero-more:hover { opacity: 0.75; }
+
+/* A partner pair: two commanders side by side at equal size, because they are
+   two commanders rather than one commander and an accessory. The stack keeps
+   its offset sleeve behind whichever card is first. */
+.commander-stack.paired {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.commander-stack.paired > a { flex: 1 1 0; min-width: 0; }
+.commander-stack.paired img { width: 100%; height: auto; }

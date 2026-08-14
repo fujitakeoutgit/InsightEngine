@@ -61,6 +61,14 @@ def detect_commander(conn: sqlite3.Connection, text: str) -> tuple[str | None, s
     named = [e for e in parsed.entries if e.section == "commander" or e.is_commander]
     candidates = named or parsed.entries
 
+    # Every card in the commander slot, not the first one. A partner pair, a
+    # commander and its Background, or a Doctor and its companion are two
+    # commanders and the deck is named after both -- returning only the first
+    # made "Rowan" and "Will" indistinguishable in the gallery.
+    #
+    # The id stays singular: it picks the face shown on a tile, and a tile has
+    # room for one. The editor draws both from the deck's own entries.
+    found: list[tuple[str, str]] = []
     for entry in candidates:
         row = conn.execute(
             "SELECT oracle_id, name, type_line FROM cards WHERE name_fold = ? LIMIT 1",
@@ -71,8 +79,13 @@ def detect_commander(conn: sqlite3.Connection, text: str) -> tuple[str | None, s
         if named or (
             "Legendary" in (row["type_line"] or "") and "Creature" in (row["type_line"] or "")
         ):
-            return row["name"], row["oracle_id"]
-    return None, None
+            found.append((row["name"], row["oracle_id"]))
+            # Two is the maximum any pairing rule allows.
+            if not named or len(found) == 2:
+                break
+    if not found:
+        return None, None
+    return " + ".join(name for name, _ in found), found[0][1]
 
 
 def save(

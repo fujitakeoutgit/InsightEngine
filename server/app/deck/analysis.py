@@ -74,6 +74,60 @@ FORMATS: dict[str, FormatRule] = {
 }
 
 
+def _text(card: dict) -> str:
+    """Oracle text of every face, lowercased. A partner ability can sit on
+    either half of a modal double-faced card."""
+    faces = [f.get("oracle_text") or "" for f in (card.get("card_faces") or [])]
+    return " | ".join([card.get("oracle_text") or "", *faces]).lower()
+
+
+def _pair_reason(a: dict, b: dict) -> str | None:
+    """Why these two may be commanders together, or None if they may not.
+
+    Five ways exist, and they are not interchangeable -- "Partner with" pairs
+    two named cards and nothing else, while bare "Partner" pairs with any other
+    bare Partner. Checking only for the word "partner" would let Thrasios sit
+    beside a card that names a different partner entirely.
+    """
+    ta, tb = _text(a), _text(b)
+    la = (a.get("type_line") or "").lower()
+    lb = (b.get("type_line") or "").lower()
+    na = (a.get("name") or "").lower()
+    nb = (b.get("name") or "").lower()
+
+    # Partner with: each must name the other.
+    if "partner with" in ta or "partner with" in tb:
+        if f"partner with {nb}" in ta and f"partner with {na}" in tb:
+            return "Partner with"
+        return None
+
+    # Bare Partner: both need it.
+    def bare_partner(t: str) -> bool:
+        return "partner" in t and "partner with" not in t and "choose a background" not in t
+
+    if bare_partner(ta) and bare_partner(tb):
+        return "Partner"
+
+    if "friends forever" in ta and "friends forever" in tb:
+        return "Friends forever"
+
+    # Choose a Background: one names the ability, the other is a Background.
+    if "choose a background" in ta and "background" in lb:
+        return "Choose a Background"
+    if "choose a background" in tb and "background" in la:
+        return "Choose a Background"
+
+    # Doctor's companion pairs with a Time Lord Doctor.
+    if "doctor’s companion" in ta or "doctor's companion" in ta:
+        if "time lord doctor" in lb:
+            return "Doctor’s companion"
+    if "doctor’s companion" in tb or "doctor's companion" in tb:
+        if "time lord doctor" in la:
+            return "Doctor’s companion"
+
+    return None
+
+
 @dataclass
 class FormatVerdict:
     format: str
@@ -162,6 +216,23 @@ def check_format(
             limit = "1 copy" if rule.max_copies == 1 else f"{rule.max_copies} copies"
             reason = "singleton format" if rule.singleton else f"maximum {limit}"
             verdict.problem_cards.append({"name": name, "reason": f"{count} copies; {reason}"})
+
+    # How many commanders, and whether they are allowed to sit together.
+    if rule.needs_commander and len(commanders) > 2:
+        verdict.legal = False
+        verdict.issues.append(
+            f"{len(commanders)} cards are in the commander slot; at most two may pair."
+        )
+    elif rule.needs_commander and len(commanders) == 2:
+        first, second = commanders[0].card, commanders[1].card
+        assert first is not None and second is not None
+        if _pair_reason(first, second) is None:
+            verdict.legal = False
+            verdict.issues.append(
+                f"{first['name']} and {second['name']} cannot be commanders together: "
+                "neither has Partner, Friends forever, Choose a Background, "
+                "or Doctor’s companion naming the other."
+            )
 
     # Commander colour identity.
     if rule.commander_identity and commanders:
