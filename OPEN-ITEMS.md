@@ -19,12 +19,10 @@ launcher building the mirror when there is none. A machine installed today
 will still be on today's card data in a year. See **D1**.
 
 **Can you rename the repo?**
-The GitHub side, yes — `gh repo rename insight-engine` — but it is your
-account and renaming breaks every existing clone and link, so it needs your
-say-so rather than my judgement. The local folder, no: the session is running
-inside `…\repos\manafold`, and the shared `.claude/launch.json` hard-codes
-that absolute path. Rename it yourself when nothing is running and I will fix
-the launch config and the remaining references. See **N1**, **N2**.
+Answered and closed: not doing it. Renaming the GitHub repo breaks every
+existing clone and link, and the local folder is hard-coded in the shared
+`.claude/launch.json`. The name stays `manafold` on disk; the app calls itself
+Insight Engine, and that is fine.
 
 **Can we do a proper d20?**
 Yes, but not the way the d6 is done. A cube is six squares; an icosahedron is
