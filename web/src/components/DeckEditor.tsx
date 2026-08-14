@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import type { Card } from '../lib/api'
+import { api, type Card } from '../lib/api'
 import { DECK_UID_TYPE, onCardTaken } from '../lib/cardTransfer'
 import { collection } from '../lib/collection'
 import { BINDER_SECTIONS } from '../lib/binder'
@@ -194,11 +194,19 @@ export function DeckEditor({
             /* The chosen edition replaces the card on this entry, so the list
              * writes `(SET) 123` for it and the tile shows that art.
              *
-             * Not yet durable, and the reason is worth stating: the list is
-             * re-resolved against the mirror when the deck is next opened, and
-             * the mirror holds one row per *oracle* card — so the resolver has
-             * only one printing to give back and hands you that one. Making
-             * the choice survive means ingesting `default_cards`; see L7. */
+             * It is also kept: the server fetches this printing from Scryfall
+             * once and stores it locally, so reopening the deck puts the same
+             * art back. Without that the list would still say "(NEO) 123" but
+             * the resolver, which only has the mirror's single oracle row per
+             * card, would hand back whichever printing that row carries.
+             *
+             * Not awaited. The tile updates now; the keep is bookkeeping for
+             * next time, and a slow network should not hold up a click. If it
+             * fails the choice simply is not durable, which is where it stood
+             * before -- so there is nothing to tell the user about. */
+            if (printing.scryfall_id) {
+              void api.keepPrinting(printing.scryfall_id).catch(() => {})
+            }
             onChange(cards.map((c) => (
               c.uid === picking.uid ? { ...c, card: printing } : c
             )))

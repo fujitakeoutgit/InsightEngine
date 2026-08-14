@@ -358,6 +358,12 @@ export const api = {
 
   loadDeck: (id: number) => get<{ deck: SavedDeck }>(`/api/deck/saved/${id}`),
 
+  /** Fetch a printing from Scryfall once and keep it locally, for good. */
+  keepPrinting: (scryfallId: string) =>
+    post<{ printing: Record<string, unknown> }>('/api/deck/printing/keep', {
+      scryfall_id: scryfallId,
+    }),
+
   simulateDeck: (body: {
     text: string; iterations?: number; turns?: number; seed?: number
   }) => post<SimulationReport>('/api/deck/simulate', body),

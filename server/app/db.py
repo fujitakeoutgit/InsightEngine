@@ -164,6 +164,36 @@ CREATE TABLE IF NOT EXISTS decks (
     updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_decks_updated ON decks(updated_at DESC);
+
+-- Individual printings, fetched from Scryfall the first time one is chosen and
+-- kept from then on.
+--
+-- The mirror is built from Scryfall's oracle_cards file, which holds one row
+-- per *oracle* card and therefore knows nothing about alternate printings. So
+-- a chosen printing had nowhere to live: the decklist text kept "(SET) 123",
+-- but on reload the resolver matched by name, found the single oracle row, and
+-- handed that back -- discarding the choice.
+--
+-- Deliberately in the USER database rather than the mirror. Rebuilding card
+-- data replaces the mirror wholesale, and a printing you picked is your data,
+-- not a derived copy of Scryfall's.
+CREATE TABLE IF NOT EXISTS printings (
+    scryfall_id      TEXT PRIMARY KEY,
+    oracle_id        TEXT NOT NULL,
+    name             TEXT NOT NULL,
+    set_code         TEXT NOT NULL,
+    set_name         TEXT,
+    collector_number TEXT NOT NULL,
+    image_small      TEXT,
+    image_normal     TEXT,
+    usd              REAL,
+    artist           TEXT,
+    released_at      TEXT,
+    fetched_at       REAL NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_printings_lookup
+    ON printings(set_code, collector_number);
+CREATE INDEX IF NOT EXISTS idx_printings_oracle ON printings(oracle_id);
 """
 
 

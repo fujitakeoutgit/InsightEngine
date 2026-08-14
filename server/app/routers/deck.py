@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field
 from ..config import settings
 from ..deck import storage
 from ..deck.analysis import FORMATS, analyse
+from ..deck import printings as printing_store
+from ..scryfall import ScryfallError, client as scryfall
 from ..deck.parser import parse_decklist
 from ..deck.recommend import CATEGORY_TAGS, recommend, recommend_category
 from ..deck.stats import compute as compute_stats
@@ -43,6 +45,20 @@ def _resolve(text: str, commander: str | None) -> list[Resolution]:
         for e in parsed.entries
     ]
 
+    # Re-apply printings the user has chosen before.
+    #
+    # The resolver can only answer with the one oracle row the mirror holds, so
+    # a line that says "(NEO) 123" comes back wearing whatever art that row
+    # happens to carry. If we fetched that printing once, the choice is on
+    # record here and goes back on now.
+    conn = state.require_conn()
+    for res, entry in zip(resolutions, parsed.entries):
+        if not (res.card and entry.set_code and entry.collector_number):
+            continue
+        kept = printing_store.lookup(conn, entry.set_code, entry.collector_number)
+        if kept and kept["oracle_id"] == res.card.get("oracle_id"):
+            res.card = printing_store.overlay(res.card, kept)
+
     # An explicit commander override wins over section/flag detection.
     if commander:
         target = commander.strip().lower()
@@ -71,6 +87,29 @@ async def analyze(request: DecklistRequest):
         for r in resolutions if not r.resolved
     ]
     return report
+
+
+class KeepPrintingRequest(BaseModel):
+    scryfall_id: str = Field(..., description="The printing to fetch and keep")
+
+
+@router.post("/printing/keep")
+async def keep_printing(request: KeepPrintingRequest):
+    """Fetch one printing from Scryfall and keep it locally, for good.
+
+    Called when a printing is chosen. From then on the deck can be reopened,
+    the app restarted and the card data rebuilt, and that card still wears the
+    art that was picked -- without ever ingesting the full printings file.
+    """
+    try:
+        card = await scryfall.card_by_id(request.scryfall_id)
+    except ScryfallError as exc:
+        raise HTTPException(502, f"Could not reach Scryfall: {exc}") from exc
+
+    stored = printing_store.keep(state.require_conn(), card)
+    if stored is None:
+        raise HTTPException(422, "That printing is missing fields we need to keep it")
+    return {"printing": stored}
 
 
 class SimulateRequest(DecklistRequest):
