@@ -85,6 +85,7 @@ export function SearchPage() {
   const page = Math.max(1, Number(params.get("page") ?? 1))
 
   const countRef = useRef<HTMLSpanElement>(null)
+  const [updateReady, setUpdateReady] = useState(false)
   const heroCountRef = useRef<HTMLSpanElement>(null)
   const heroRef = useRef<HTMLHeadingElement>(null)
   const heroRuleRef = useRef<HTMLHRElement>(null)
@@ -106,6 +107,9 @@ export function SearchPage() {
   // Hero count: the number of paper cards actually in the mirror.
   useEffect(() => {
     api.health().then((h) => setPaperCards(h.paper_cards)).catch(() => {})
+    /* Whether Scryfall has cards this mirror does not. Read from what the last
+     * startup check recorded, so it costs no network here. */
+    api.syncStatus().then((s) => setUpdateReady(Boolean(s.update_available))).catch(() => {})
     api
       .semanticStatus()
       .then((s) => setConsole((c) => ({ ...c, model: s.model })))
@@ -360,6 +364,20 @@ export function SearchPage() {
               <span>Scry</span>
               <span className="hero-count" data-nosplit>
                 <span ref={heroCountRef}>{paperCards || '—'}</span>
+                {/* A gold plus when Scryfall has cards this mirror has not.
+                    The number is the one place the count is stated, so it is
+                    the honest place to say the count is behind — and small,
+                    because it is a note rather than a warning. */}
+                {updateReady && (
+                  <Link
+                    to="/settings"
+                    className="hero-more"
+                    title="Scryfall has newer card data — refresh in Settings"
+                    aria-label="Card data update available"
+                  >
+                    +
+                  </Link>
+                )}
               </span>
             </h1>
             <hr className="manaline" ref={heroRuleRef} style={{ maxWidth: 420, marginTop: 10 }} />

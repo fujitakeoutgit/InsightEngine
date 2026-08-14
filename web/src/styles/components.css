@@ -4534,3 +4534,21 @@
   from { opacity: 0; transform: translate(-50%, 10px); }
   to { opacity: 1; transform: translate(-50%, 0); }
 }
+
+/* "There are more cards than this" — shown only when the mirror is behind.
+   Superscript and small: the count is the headline, this is a footnote on it. */
+.hero-more {
+  font-size: 0.34em;
+  line-height: 1;
+  /* Sits on the number's baseline rather than its cap height: bottom-right of
+     the count, the way a footnote marker hangs off a word. */
+  vertical-align: baseline;
+  position: relative;
+  top: -0.1em;
+  margin-left: 0.08em;
+  color: #d9ab4a;
+  text-decoration: none;
+  transition: opacity var(--dur-fast);
+}
+
+.hero-more:hover { opacity: 0.75; }
