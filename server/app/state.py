@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import sqlite3
 
-from .db import attach_mirror, connect, detach_mirror, get_meta, init_db, split_if_needed
+from .db import (
+    attach_mirror, connect, detach_mirror, get_meta, get_mirror_meta, init_db,
+    split_if_needed,
+)
 from .deck.resolver import CardNameResolver
 from .deck.storage import backfill_commanders
 from .spell import SpellChecker
@@ -29,6 +32,7 @@ class AppState:
         split_if_needed()
         self.conn = connect()
         init_db(self.conn)
+        self.index()
 
     def detach_for_swap(self) -> None:
         """Let go of the mirror file so it can be replaced.
@@ -44,12 +48,25 @@ class AppState:
     def reattach_after_swap(self) -> None:
         if self.conn is not None:
             attach_mirror(self.conn)
+        # A swapped-in mirror is a different set of cards, so everything read
+        # from it has to be read again.
+        self.index()
+
+    def index(self) -> None:
+        """Read what the mirror holds, and build what is derived from it.
+
+        Called on start and again after a refresh swaps the mirror. The name
+        index and the spell checker each scan every card, which is why they are
+        built once here rather than per request.
+        """
+        if self.conn is None:
+            return
         row = self.conn.execute(
             "SELECT COUNT(*) AS n, SUM(digital = 0) AS paper FROM cards"
         ).fetchone()
         self.card_count = row["n"] if row else 0
         self.paper_count = (row["paper"] or 0) if row else 0
-        self.built_at = get_meta(self.conn, "built_at")
+        self.built_at = get_mirror_meta(self.conn, "built_at")
         if self.card_count:
             self.resolver = CardNameResolver(self.conn)
             self.spell = SpellChecker(self.conn)
