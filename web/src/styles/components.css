@@ -1529,7 +1529,9 @@
    link then stretched to the panel's full width -- and since the tilt sheen is
    an `inset: 0` pseudo-element on the link, the shine spilled out to the right
    of the card it was supposed to be lighting. */
-.commander-card > .commander-stack { align-self: center; margin-top: 4px; }
+.commander-card > .commander-stack,
+.commander-card > .commander-pair,
+.commander-card > .commander-solo { align-self: center; margin-top: 4px; }
 
 /* Positioned, and carrying the pointer variables the tilt sheen reads. */
 .commander-card a {
@@ -3012,17 +3014,6 @@
 }
 
 .bal-have.short { background: var(--warn); }
-/* The verdict line. Sits directly under the count of what the base is made
-   of, because that count is context and this is the finding. */
-.balance-verdict {
-  font-size: 12px;
-  margin: 0 0 10px;
-  line-height: 1.45;
-}
-
-.balance-verdict.short { color: var(--warn); }
-.balance-verdict.ok { color: var(--ok); }
-
 .bal-gap.ok { color: var(--ok); }
 
 .bal-gap { width: 62px; text-align: right; font-size: 11px; color: var(--muted); }
@@ -4583,17 +4574,19 @@
 
 .hero-more:hover { opacity: 0.75; }
 
-/* A partner pair: two commanders side by side at equal size, because they are
-   two commanders rather than one commander and an accessory. The stack keeps
-   its offset sleeve behind whichever card is first. */
-.commander-stack.paired {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-}
+/* A partner pair: two commanders stacked vertically at full size, each in its
+   own sleeve. Side by side halved them and put a single stretched sleeve
+   behind both; a column keeps every card the size a commander should be. */
+.commander-pair,
+.commander-solo { display: flex; flex-direction: column; align-items: center; }
 
-.commander-stack.paired > a { flex: 1 1 0; min-width: 0; }
-.commander-stack.paired img { width: 100%; height: auto; }
+.commander-pair { gap: 18px; }
+
+/* The sleeve is drawn 25px above its own card, so a sleeved stack needs that
+   much clearance or the sleeve rides up over the "Commander" heading -- and,
+   in a pair, over the card above it. Reserving the offset the sleeve actually
+   uses keeps the two in step if that offset ever changes. */
+.commander-stack.sleeved { margin-top: var(--sleeve-y, 25px); }
 
 /* Simulation: a bar behind the number, so a column of turns reads as a curve
    rather than as eight decimals to compare by eye. */

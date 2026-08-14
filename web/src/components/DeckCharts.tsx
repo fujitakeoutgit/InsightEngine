@@ -263,12 +263,6 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
               && ' Only the commander’s colours are counted, and each source is split'
                  + ' between the colours it makes.'}
           </p>
-          <p className={lagging ? 'balance-verdict short' : 'balance-verdict ok'}>
-            {lagging
-              ? `${COLOR_NAME[lagging.color]} is your weakest colour, at ${
-                  lagging.ratio.toFixed(2)} sources per pip.`
-              : 'Every colour is supported about equally.'}
-          </p>
           <div className="balance">
             {stats.balance.map((b) => (
               <div className="bal-row" key={b.color}>

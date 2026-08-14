@@ -966,22 +966,29 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
                   tilted link on purpose: the commander keeps its pointer
                   tilt, and the sleeve stays flat behind it rather than
                   swinging with it, which is what a stack on a table does. */}
-              <div className={`commander-stack${sleeve ? ' sleeved' : ''}${
-                commanderCards.length > 1 ? ' paired' : ''
-              }`}>
-                {sleeve && <img className="sleeve-art" src={sleeve} alt="" aria-hidden />}
+              {/* One stack per commander, stacked vertically.
+                  The sleeve is an inset:0 layer inside the stack, so putting
+                  two cards in one stack stretched a single sleeve across both
+                  and it spilled out under them. Each card gets its own stack,
+                  its own sleeve, and the pair is just a column. */}
+              <div className={commanderCards.length > 1 ? 'commander-pair' : 'commander-solo'}>
                 {commanderCards.filter((c) => c.image_normal).map((cmd, i) => (
-                  <Link
+                  <div
                     key={cmd.oracle_id}
-                    to={`/card/${cmd.oracle_id}`}
-                    title={cmd.name}
-                    /* Only the first takes the pointer tilt: the ref holds one
-                       node, and two cards leaning independently under one
-                       cursor reads as two separate things rather than a pair. */
-                    ref={i === 0 ? commanderTilt : undefined}
+                    className={`commander-stack${sleeve ? ' sleeved' : ''}`}
                   >
-                    <img src={cmd.image_normal!} alt={cmd.name} />
-                  </Link>
+                    {sleeve && <img className="sleeve-art" src={sleeve} alt="" aria-hidden />}
+                    <Link
+                      to={`/card/${cmd.oracle_id}`}
+                      title={cmd.name}
+                      /* Only the first takes the pointer tilt: the ref holds
+                         one node, and two cards leaning independently under
+                         one cursor reads as two things rather than a pair. */
+                      ref={i === 0 ? commanderTilt : undefined}
+                    >
+                      <img src={cmd.image_normal!} alt={cmd.name} />
+                    </Link>
+                  </div>
                 ))}
               </div>
             </div>

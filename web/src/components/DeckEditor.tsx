@@ -569,32 +569,20 @@ function EditorRow({
         </Link>
 
         <div className="tile-acts">
-          {/* B3 — in the binder this is Printing rather than the section
-              moves. Which pocket a card sits in is a drag, and it is the one
-              thing the tabs above already make obvious; which *edition* you
-              own is the question a binder actually asks, and nothing else on
-              the page could answer it. A deck keeps its section moves. */}
-          {binder ? (
-            <button onClick={() => onPickPrinting?.(entry)}>Printing</button>
-          ) : (
-            <>
-              {/* Only where it could plausibly apply. Dragging onto the
-                  Commander tab still works for anything, in keeping with the
-                  rest of the editor enforcing nothing. */}
-              {section !== 'commander' && canBeCommander(card) && (
-                <button onClick={() => onMove(entry.uid, 'commander')}>Commander</button>
-              )}
-              {section !== 'main' && (
-                <button onClick={() => onMove(entry.uid, 'main')}>Deck</button>
-              )}
-              {section !== 'sideboard' && (
-                <button onClick={() => onMove(entry.uid, 'sideboard')}>Sideboard</button>
-              )}
-              {section !== 'maybeboard' && (
-                <button onClick={() => onMove(entry.uid, 'maybeboard')}>Maybe</button>
-              )}
-            </>
+          {/* Printing everywhere, section moves almost nowhere.
+              Commander, Sideboard and Maybe were four buttons deep on every
+              tile for a move that a drag onto the tab already does, and the
+              tabs are the thing that makes the destination obvious. Which
+              *edition* you own has no other way to be asked, in a deck or in
+              a binder, so that is the button worth the space.
+
+              Deck survives because it is the way back: a card sitting in the
+              sideboard has no tab above it that reads "put this in the deck"
+              as plainly as the others read as destinations. */}
+          {!binder && section !== 'main' && (
+            <button onClick={() => onMove(entry.uid, 'main')}>Deck</button>
           )}
+          <button onClick={() => onPickPrinting?.(entry)}>Printing</button>
           <button className="danger" onClick={() => onRemove(entry.uid)}>Trash</button>
         </div>
       </div>
