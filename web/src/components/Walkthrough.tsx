@@ -2,9 +2,32 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 
+import { api } from '../lib/api'
+import { isBinder } from '../lib/binder'
 import { readDone, writeDone } from '../lib/lessons'
 import { tour, useTour } from '../lib/tour'
 import { formatted } from './Lessons'
+
+/** Where the lessons live, and where a finished one puts you back. */
+const HOME = '/glossary'
+
+/**
+ * A deck to demonstrate on.
+ *
+ * Minsc first because it is the deck this app seeds, so it is the one most
+ * installs have — but it is an ordinary deck and can be deleted, so any other
+ * will do, and the gallery is the honest fallback when there are none. The
+ * binder is skipped: it is not a deck you would open to learn the editor.
+ */
+async function examplePath(kind: 'deck' | 'playtest'): Promise<string> {
+  try {
+    const { decks } = await api.savedDecks()
+    const usable = decks.filter((d) => !isBinder(d))
+    const pick = usable.find((d) => d.name === 'Minsc') ?? usable[0]
+    if (pick) return `/${kind}/${pick.id}`
+  } catch { /* offline: the gallery still teaches the shape of the page */ }
+  return kind === 'deck' ? '/deck' : '/playtest'
+}
 
 /** Gap between the highlighted thing and the card talking about it. */
 const GAP = 14
@@ -49,9 +72,22 @@ export function Walkthrough() {
   const step = lesson?.steps[index] ?? null
 
   /* Walk to the page this step is about. Done as an effect off the step rather
-   * than inside the click, so Back re-navigates too. */
+   * than inside the click, so Back re-navigates too.
+   *
+   * `example` steps resolve a real deck first — a lesson about the editor has
+   * to be *in* the editor, and the editor needs something to edit. */
   useEffect(() => {
-    if (step?.route && step.route !== pathname) navigate(step.route)
+    if (!step) return
+    let cancelled = false
+    if (step.example) {
+      const wanted = step.example === 'deck' ? '/deck/' : '/playtest/'
+      // Already inside one: do not hop to a different deck mid-lesson.
+      if (pathname.startsWith(wanted)) return
+      examplePath(step.example).then((to) => { if (!cancelled) navigate(to) })
+      return () => { cancelled = true }
+    }
+    if (step.route && step.route !== pathname) navigate(step.route)
+    return () => { cancelled = true }
   }, [step, pathname, navigate])
 
   /* Find the thing being pointed at.
@@ -65,9 +101,23 @@ export function Walkthrough() {
     if (!step) { setSpot(null); return }
     if (!step.target) { setSpot(null); return }
 
-    let frame = 0
+    let timer = 0
     let cancelled = false
-    const look = (attempt: number) => {
+    /* Bounded by time, not by a frame count.
+     *
+     * Thirty frames is half a second, which is fine for a step that only
+     * changes route — and far too short for one that opens a deck, since the
+     * playtest mat is not in the DOM until the decklist has been analysed and
+     * dealt. The lesson then pointed at nothing and fell back to a centred
+     * card *while the thing it names was seconds from appearing*. Four
+     * seconds covers a deck load and still gives up rather than hanging.
+     *
+     * Polled on a timer rather than `requestAnimationFrame`. rAF is tied to
+     * the rendering loop, and a page that is not compositing never runs one —
+     * so the retry silently never happened and the very first look decided the
+     * answer. A timer keeps ticking either way. */
+    const deadline = performance.now() + 8000
+    const look = () => {
       if (cancelled) return
       const el = document.querySelector(step.target as string)
       if (el) {
@@ -79,11 +129,11 @@ export function Walkthrough() {
           return
         }
       }
-      if (attempt < 30) frame = requestAnimationFrame(() => look(attempt + 1))
+      if (performance.now() < deadline) timer = window.setTimeout(look, 120)
       else setSpot(null)
     }
-    look(0)
-    return () => { cancelled = true; cancelAnimationFrame(frame) }
+    look()
+    return () => { cancelled = true; window.clearTimeout(timer) }
   }, [step, pathname])
 
   /* Keep the highlight on the thing as the page moves under it. */
@@ -110,8 +160,15 @@ export function Walkthrough() {
   }, [lesson])
 
   const advance = useCallback(() => {
-    if (tour.next() === 'finished') finish()
-  }, [finish])
+    if (tour.next() === 'finished') {
+      finish()
+      /* Back where the lesson was started from. A walkthrough that ends by
+       * abandoning you three pages deep in a deck you did not open leaves you
+       * to find your own way home, and the tick you just earned is on the
+       * Glossary. */
+      navigate(HOME)
+    }
+  }, [finish, navigate])
 
   useEffect(() => {
     if (!lesson) return

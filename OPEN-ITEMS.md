@@ -57,12 +57,6 @@ most of the value would have been anyway.
   relaunch so the tray is present from the second launch. Decide by trying the
   simple version first.
 
-## Naming
-
-- **N1 — Rename the GitHub repo** to `insight-engine`. Needs your go-ahead.
-- **N2 — Rename the local folder** to `insight-engine`. You do it; I follow up
-  with `.claude/launch.json` and any remaining path references.
-
 ## Data
 
 - ~~**D1 — Automatic card sync.**~~ DONE, with one deliberate limit. A **Card
@@ -395,7 +389,7 @@ most of the value would have been anyway.
   editor, no analysis — just the table." becomes "Pick your deck - cast your
   spells and practice your interaction."
 - ~~**P19 — "Goldfish" above Playtest**~~ DONE: becomes "Commander".
-- **P20 — Drag a planeswalker back to hand. LIKELY FIXED, NEEDS YOUR EYES.**
+- ~~**P20 — Drag a planeswalker back to hand.**~~ DONE, confirmed working by you.
   The cause was almost certainly the loyalty badge added in P14: its container
   called `stopPropagation` on pointerdown and covered the card's bottom-right
   corner, so a drag begun anywhere near the badge never started. The container
@@ -637,6 +631,32 @@ Real deck-builder work, as opposed to the Binder clone below.
   loyalty", not "this is your graveyard", not "here is your commander", not
   "this is what the analysis chart means". If a player would already know it,
   or the screen already says it, it is not a module.
+
+- ~~**G7 — A finished lesson returns to the Glossary.**~~ DONE. A walkthrough
+  that ends by abandoning you three pages deep in a deck you did not open
+  leaves you to find your own way back, and the tick you just earned is on the
+  Glossary. Verified: finishing Deck Lab lands on `/glossary`, closed, ticked.
+
+- ~~**G8 — Deck Lab and Playtest lessons open a real deck.**~~ DONE. A lesson
+  about the editor has to be *in* the editor, and the editor needs something to
+  edit. The deck is resolved when the lesson runs rather than written down:
+  **Minsc** by preference, since it is the deck this app seeds and so the one
+  most installs have — then any other deck, and only then the gallery. Deleting
+  Minsc costs you nothing; the lesson simply demonstrates on the next deck.
+  The binder is skipped: not a deck you would open to learn the editor.
+
+  Verified: Deck Lab walks `/deck` → `/deck/14` (Minsc) and lands in the
+  editor; Playtest walks `/playtest` → `/playtest/14` onto a real mat with the
+  d6 tray spotlit.
+
+  Two fixes fell out of it. The retry that waits for a target was bounded by
+  **30 animation frames** — half a second, fine for a route change and far too
+  short for a step that loads and deals a deck, so the lesson pointed at
+  nothing while the thing it names was seconds from appearing. It is bounded by
+  time now. And it polled with `requestAnimationFrame`, which is tied to the
+  rendering loop: in the non-compositing pane no frame ever runs, so the retry
+  silently never happened and the first look decided the answer. A timer ticks
+  either way.
 
 ## Binder
 

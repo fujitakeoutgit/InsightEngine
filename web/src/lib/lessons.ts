@@ -28,6 +28,17 @@ export interface Step {
   text: string
   /** Where the step is shown. Omitted means "wherever you already are". */
   route?: string
+  /**
+   * Show this step inside a real deck, resolved when the lesson runs.
+   *
+   * A lesson about the deck editor has to be *in* the deck editor, and the
+   * editor needs a deck. Which deck cannot be written down here: ids belong to
+   * whichever database made them, and the obvious candidate is deletable.
+   * So the tour looks for one when it gets here — Minsc by preference, since
+   * it is the deck this app seeds and therefore the one most installs have —
+   * then any other deck, and only then gives up and shows the gallery.
+   */
+  example?: 'deck' | 'playtest'
   /** What it points at. Omitted means a centred card with no arrow. */
   target?: string
 }
@@ -142,6 +153,8 @@ export const LESSONS: Lesson[] = [
         text: 'Every deck you have saved. Opening one gives you the same deck in two modes.',
       },
       {
+        example: 'deck',
+        target: '.editor-bar',
         text: '**Text** is the list you paste and edit; **Build** is the one you drag around. Switching rewrites the list into the canonical `1 Card Name (SET) 123`, so a deck always states which printing it means.',
       },
       {
@@ -166,6 +179,8 @@ export const LESSONS: Lesson[] = [
         text: 'Pick a deck and it deals you seven. Nothing is enforced — you are checking whether the deck does anything, not adjudicating a game.',
       },
       {
+        example: 'playtest',
+        target: '.pt-die-tray.d6',
         text: 'Dice are **thrown**, not clicked: pick one up and flick it, and it tumbles across the mat, bounces off the edges and settles on a face. A slow drag places it instead.',
       },
       {
