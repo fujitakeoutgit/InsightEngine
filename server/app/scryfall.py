@@ -13,6 +13,7 @@ by Scryfall or Wizards of the Coast.
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 import json
 import time
 from typing import Any
@@ -55,9 +56,18 @@ class ScryfallClient:
         self._limiter = _RateLimiter(settings.scryfall_min_interval)
         self._semaphore = asyncio.Semaphore(settings.scryfall_max_concurrency)
         self._memory: dict[str, tuple[float, Any]] = {}
-        self._db = connect()
+        # Opened on `start`, not here. This class is instantiated at module
+        # import, and a connection taken at import time is a connection taken
+        # before the app has decided what its database *is* — which is exactly
+        # what stopped the one-time split from ever running: importing this
+        # module opened the old combined file and wrote an empty mirror beside
+        # it, so by the time `state.start` looked, the layout it was meant to
+        # migrate had already been half-created underneath it.
+        self._db: sqlite3.Connection | None = None
 
     async def start(self) -> None:
+        if self._db is None:
+            self._db = connect()
         self._client = httpx.AsyncClient(
             base_url=settings.scryfall_base,
             timeout=settings.scryfall_timeout,
@@ -72,7 +82,9 @@ class ScryfallClient:
         if self._client:
             await self._client.aclose()
             self._client = None
-        self._db.close()
+        if self._db is not None:
+            self._db.close()
+            self._db = None
 
     # -- caching -----------------------------------------------------------
 
@@ -88,6 +100,8 @@ class ScryfallClient:
         if (hit := self._memory.get(key)) and now - hit[0] < settings.cache_ttl_seconds:
             return hit[1]
 
+        if self._db is None:
+            return None
         row = self._db.execute(
             "SELECT body, fetched_at FROM http_cache WHERE key = ?", (key,)
         ).fetchone()
@@ -104,6 +118,8 @@ class ScryfallClient:
             for stale_key, _ in oldest[: len(oldest) // 4 or 1]:
                 self._memory.pop(stale_key, None)
         self._memory[key] = (now, payload)
+        if self._db is None:
+            return
         self._db.execute(
             "INSERT INTO http_cache(key, body, fetched_at) VALUES(?, ?, ?) "
             "ON CONFLICT(key) DO UPDATE SET body = excluded.body, "

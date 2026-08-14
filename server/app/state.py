@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from .db import connect, get_meta, init_db
+from .db import attach_mirror, connect, detach_mirror, get_meta, init_db, split_if_needed
 from .deck.resolver import CardNameResolver
 from .deck.storage import backfill_commanders
 from .spell import SpellChecker
@@ -24,8 +24,26 @@ class AppState:
         self.built_at: str | None = None
 
     def start(self) -> None:
+        # One-time, and a no-op on every start after it: moves an existing
+        # single-file database into the user/mirror pair. See db.split_if_needed.
+        split_if_needed()
         self.conn = connect()
         init_db(self.conn)
+
+    def detach_for_swap(self) -> None:
+        """Let go of the mirror file so it can be replaced.
+
+        Windows will not rename over an open handle, so the attachment has to
+        be dropped first. Between this and `reattach_after_swap` the app has
+        its decks and no cards, which is why the pair brackets a file rename
+        and not a download.
+        """
+        if self.conn is not None:
+            detach_mirror(self.conn)
+
+    def reattach_after_swap(self) -> None:
+        if self.conn is not None:
+            attach_mirror(self.conn)
         row = self.conn.execute(
             "SELECT COUNT(*) AS n, SUM(digital = 0) AS paper FROM cards"
         ).fetchone()

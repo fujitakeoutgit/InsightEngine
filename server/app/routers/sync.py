@@ -6,19 +6,25 @@ anything unchanged. What was missing was anything that ever called it again
 after the first build, and any way to see how old your cards are. A machine
 installed today would still be on today's card data in a year.
 
-**The check is automatic; the download is not.** On startup this asks Scryfall
-what the current stamps are and records whether they have moved — a few KB, and
-it means Settings can say "there is an update" without you going to look. It
-deliberately stops short of fetching the data, because ingest truncates `cards`
-and refills it in place: a refresh that dies halfway leaves the app with no
-cards at all. Doing that unattended, on startup, to someone who did not ask, is
-not a trade worth making until that is fixed. See D2 in OPEN-ITEMS.
+A refresh never touches the live mirror. It copies it, fills the copy in, and
+swaps the finished file into place — so a download that dies halfway costs a
+temporary file and nothing else. The copy is what keeps the refresh
+*incremental*: the stamps of what was already ingested come with it, so a run
+where only one bulk file has moved re-ingests only that one.
+
+**The check is automatic; the download still is not.** Startup asks Scryfall
+what the current stamps are — a few KB — so Settings can say there is an update
+without you going to look. Fetching several hundred megabytes unbidden is a
+different matter, and remains something you press a button for.
 """
 
 from __future__ import annotations
 
+import os
+import shutil
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -26,7 +32,7 @@ from fastapi import APIRouter
 
 from .. import bulk
 from ..config import settings
-from ..db import get_meta, set_meta
+from ..db import connect_mirror, get_meta, get_mirror_meta, set_meta
 from ..state import state
 
 router = APIRouter(prefix="/api/sync", tags=["sync"])
@@ -60,7 +66,7 @@ def _status(remote: dict[str, str] | None) -> dict[str, Any]:
     files = []
     stale = False
     for kind in bulk.WANTED_BULK:
-        ingested = get_meta(conn, f"ingest:{kind}")
+        ingested = get_mirror_meta(conn, f"ingest:{kind}")
         latest = (remote or {}).get(kind)
         behind = bool(latest and ingested and latest != ingested)
         # Never ingested at all counts as behind, but only once we know there
@@ -73,7 +79,7 @@ def _status(remote: dict[str, str] | None) -> dict[str, Any]:
     cards = conn.execute("SELECT COUNT(*) AS n FROM cards").fetchone()["n"]
     return {
         "ready": True,
-        "built_at": get_meta(conn, "built_at"),
+        "built_at": get_mirror_meta(conn, "built_at"),
         "checked_at": get_meta(conn, "sync:checked_at"),
         "cards": cards,
         "files": files,
@@ -107,15 +113,60 @@ def check_now() -> dict[str, Any]:
     return _status(remote)
 
 
+def _build_path() -> Path:
+    return settings.mirror_path.with_name(settings.mirror_path.stem + ".build.sqlite3")
+
+
+def _discard(path: Path) -> None:
+    """Remove a database and the WAL sidecars that belong to it."""
+    for suffix in ("", "-wal", "-shm"):
+        stray = path.with_name(path.name + suffix)
+        if stray.exists():
+            stray.unlink()
+
+
 def _run_refresh() -> None:
     _progress.update({"running": True, "started_at": time.time(), "error": None, "log": []})
+    build = _build_path()
     try:
-        _note("starting")
-        bulk.refresh()
+        _discard(build)
+        if settings.mirror_path.exists():
+            # Copied, not started from empty, so the ingest stamps travel with
+            # it: a refresh where one bulk file has moved re-ingests one file
+            # rather than all three.
+            _note("copying the current mirror")
+            shutil.copy2(settings.mirror_path, build)
+
+        _note("building")
+        bulk.refresh(db=build)
+
+        _note("swapping in the new mirror")
+        conn = connect_mirror(build)
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        conn.close()
+        _discard(build.with_name(build.name + "-wal"))
+
+        # The live connection has the old file attached, and Windows will not
+        # rename over an open handle. Detached and remade around the swap, so
+        # the window with no cards is a few milliseconds rather than the length
+        # of a download.
+        state.detach_for_swap()
+        try:
+            _discard(settings.mirror_path)
+            os.replace(build, settings.mirror_path)
+        finally:
+            state.reattach_after_swap()
         _note("done")
     except Exception as exc:  # noqa: BLE001 - reported to the caller, not raised into a thread
         _progress["error"] = str(exc)
         _note(f"failed: {exc}")
+        # A failed build is a file. The mirror you had is still the mirror you
+        # have, which is the whole point of building beside it.
+        try:
+            _discard(build)
+            _note("discarded the partial build; your existing cards are untouched")
+        except OSError:
+            pass
     finally:
         _progress["running"] = False
         _running.release()

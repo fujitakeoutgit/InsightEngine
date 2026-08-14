@@ -51,7 +51,13 @@ class Settings(BaseSettings):
 
     # --- storage -----------------------------------------------------------
     data_dir: Path = _default_data_dir()
+    # The user's own data: decks, preferences. Small, irreplaceable, and never
+    # rebuilt.
     db_path: Path = _default_data_dir() / "manafold.sqlite3"
+    # The card mirror: everything derived from Scryfall's bulk files. Large,
+    # entirely rebuildable, and replaced wholesale by a refresh — which is the
+    # point of keeping it in a file of its own. See db.connect.
+    mirror_path: Path = _default_data_dir() / "mirror.sqlite3"
 
     # --- Scryfall ----------------------------------------------------------
     # Scryfall asks for a descriptive User-Agent and ~10 requests/second.

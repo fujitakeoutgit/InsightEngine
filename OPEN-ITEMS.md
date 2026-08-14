@@ -95,7 +95,51 @@ most of the value would have been anyway.
   identical, because `oracle_cards` is keyed by oracle_id. A "last synced"
   line in Settings with a Refresh button is the minimum surface.
 
-- **D2 — Make the refresh safe to fail.** Ingest currently truncates `cards`
+- ~~**D2 — Make the refresh safe to fail.**~~ DONE, option 3 as planned: the
+  database is split. `manafold.sqlite3` holds your decks and preferences;
+  `mirror.sqlite3` holds everything derived from Scryfall. The app opens the
+  first and ATTACHes the second, and because unqualified names resolve against
+  `main` and then attachments, **every existing query that says `cards` found
+  `mirror.cards` without being rewritten**.
+
+  A refresh now copies the mirror, fills the copy in, and swaps the finished
+  file into place. A build that dies halfway costs a temporary file. The copy
+  (rather than starting from empty) is what keeps it incremental: the ingest
+  stamps travel with it, so a run where one bulk file has moved re-ingests one
+  file rather than three.
+
+  The migration renames rather than copies. The old file already *is* the
+  mirror; the decks are a few kilobytes. So it renames the old file to the
+  mirror's name and lifts the small half out — **0.18s** instead of moving a
+  quarter of a gigabyte. Ordered so any interruption is recoverable: rename
+  first, copy the decks second, drop the originals last; dying in between
+  leaves the decks in the mirror where the next start finds them.
+
+  Verified on a copy of the real database, then on the real one: 236MB combined
+  → 48KB user + 225MB mirror, 6 decks intact, 38,344 cards, provenance read
+  from the mirror's own meta, search returning results. A build that deletes
+  every card and then throws leaves the mirror **byte-identical** and reports
+  the failure; a build that completes swaps in and the change is visible.
+
+  Three bugs the testing caught, all worth knowing:
+
+  1. `with sqlite3.connect(...)` manages the *transaction* and leaves the
+     connection open. On Windows that kept the file locked against the rename.
+  2. One predicate was answering two questions. "Has a `cards` table" and "has
+     any cards in it" are different, and the empty placeholder `attach_mirror`
+     writes has the table — so it looked exactly like a finished mirror and the
+     migration politely declined to run.
+  3. `ScryfallClient` was instantiated at module import and connected in its
+     constructor, so importing the app opened the old database and wrote a
+     placeholder beside it *before* `state.start` could migrate anything. Now
+     opened in `start`. A connection taken at import time is a connection taken
+     before the app has decided what its database is.
+
+  **The download can now be made automatic** — that was the only thing D1 was
+  waiting for. Left manual for now so it stays your choice, but the hazard it
+  was avoiding is gone.
+
+- **D2 (original note) — Make the refresh safe to fail.** Ingest currently truncates `cards`
   and refills it in place, so a download that dies halfway leaves the app with
   no cards. Three ways out, in ascending order of both cost and payoff:
 

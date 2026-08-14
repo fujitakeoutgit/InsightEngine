@@ -24,7 +24,7 @@ from typing import Any, Iterator
 import httpx
 
 from .config import settings
-from .db import connect, fold_name, init_db, get_meta, normalize_name, set_meta
+from .db import connect_mirror, fold_name, init_mirror, get_meta, normalize_name, set_meta
 
 WANTED_BULK = ("oracle_cards", "oracle_tags", "rulings")
 _HEADERS = {"User-Agent": settings.scryfall_user_agent, "Accept": "application/json"}
@@ -337,9 +337,16 @@ def _ingest(conn: sqlite3.Connection, kind: str, dest: Path, funny_sets: set[str
         ingest_rulings(conn, dest)
 
 
-def refresh(force: bool = False, reingest: bool = False) -> None:
-    conn = connect()
-    init_db(conn)
+def refresh(force: bool = False, reingest: bool = False, db: Path | None = None) -> None:
+    """Build the card mirror.
+
+    `db` names the file to build into, which is how a refresh is made safe to
+    fail: the caller hands over a *copy* of the live mirror, this fills it in,
+    and only a completed build is swapped into place. Nothing here knows about
+    that — it just builds the database it was given.
+    """
+    conn = connect_mirror(db)
+    init_mirror(conn)
 
     with httpx.Client(timeout=60.0, follow_redirects=True) as client:
         manifest = fetch_manifest(client)
@@ -391,7 +398,7 @@ def refresh(force: bool = False, reingest: bool = False) -> None:
     conn.commit()
 
     total = conn.execute("SELECT COUNT(*) AS n FROM cards").fetchone()["n"]
-    _log(f"ready: {total} unique oracle cards in {settings.db_path}")
+    _log(f"ready: {total} unique oracle cards in {db or settings.mirror_path}")
     conn.close()
 
 
