@@ -2231,6 +2231,12 @@
   gap: 8px;
 }
 
+/* The library sits a little lower than Shuffle would leave it.
+   On a table the deck is set down beside your hand rather than lined up with
+   the controls above it, and the count reads as belonging to the pile rather
+   than to the row when it hangs below the rest. */
+.pt-library { margin-top: 10px; }
+
 .pt-shuffle { width: 100%; }
 
 /* The zone block: three actions sitting directly over the three zones they

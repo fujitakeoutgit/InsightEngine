@@ -808,8 +808,10 @@ Still to do, in order:
 
 ## New batch (2026-08-12)
 
-- **P25 — Deck pile sits too high.** Shift the deck and the cards-left number
-  slightly lower in the playtest corner.
+- ~~**P25 — Deck pile sits too high.**~~ DONE — the library (deck and its count
+  together) drops 10px, so it reads as set down beside the hand rather than
+  lined up with the controls above it. Verified: 18px between Shuffle and the
+  pile.
 - ~~**P26 — Reset button red.**~~ DONE — `btn-danger`, matching the
   confirmation it opens.
 - ~~**L8 — Rootbound Crag entered untapped.**~~ DONE, and neither of my two
