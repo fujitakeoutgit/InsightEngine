@@ -4469,18 +4469,23 @@
   pointer-events: none;
 }
 
-/* Already in the binder. A thin gold edge rather than a badge or a tint: it
-   has to read at a glance across a grid of ninety results without competing
-   with the art, and gold is the one colour nothing else in this app spends. */
-.card-tile.owned::after {
+/* Already in the binder. A thin lime edge rather than a badge or a tint: it
+   has to carry across a grid of ninety results at a glance, and card art is
+   full of golds and ambers to get lost in. Lime is in none of it, and in none
+   of this app's own palette either. */
+/* `::before`, not `::after`.
+   `.card-tile::after` is already the hover sheen — it sits at `opacity: 0` and
+   is lit by `:hover`, so an outline drawn there was invisible until the
+   pointer arrived, which is the opposite of what a marker is for. */
+.card-tile.owned::before {
   content: '';
   position: absolute;
   inset: 0;
-  border: 2px solid #d9ab4a;
+  border: 2px solid #9dff3c;
   border-radius: inherit;
-  box-shadow: 0 0 12px -2px rgba(217, 171, 74, 0.55);
+  box-shadow: 0 0 14px -2px rgba(157, 255, 60, 0.65);
   pointer-events: none;
-  z-index: 2;
+  z-index: 3;
 }
 
 /* The toggle that turns the marking on, beside the size slider. */
@@ -4501,14 +4506,7 @@
   transition: color var(--dur-fast), border-color var(--dur-fast);
 }
 
-.owned-toggle .swatch {
-  width: 11px;
-  height: 11px;
-  border-radius: 3px;
-  border: 2px solid #d9ab4a;
-}
-
-.owned-toggle.on { color: #d9ab4a; border-color: #d9ab4a; }
+.owned-toggle.on { color: #9dff3c; border-color: #9dff3c; }
 
 /* Save confirmation. Pinned to the viewport because the thing it confirms can
    be triggered from anywhere on a very long page. */

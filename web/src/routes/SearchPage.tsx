@@ -501,7 +501,6 @@ export function SearchPage() {
                     ? 'Stop marking cards that are in your binder'
                     : 'Outline cards that are already in your binder'}
                 >
-                  <span className="swatch" aria-hidden />
                   In binder
                 </button>
                 {view === 'grid' && (
