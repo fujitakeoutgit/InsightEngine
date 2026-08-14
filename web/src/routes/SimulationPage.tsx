@@ -67,7 +67,7 @@ export function SimulationPage() {
   const colourKeys = Object.keys(rows[rows.length - 1]?.sources ?? {})
 
   return (
-    <section className="stack gap-4">
+    <section className="shell stack gap-4">
       <PageHead
         back={{ fallback: '/deck' }}
         title="Simulation"
