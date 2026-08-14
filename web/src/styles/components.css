@@ -4649,3 +4649,9 @@
 /* .num right-aligns a cell; a heading over one has to move with it. The
    simulation tables opt out of both above -- they centre instead. */
 .card-list th.num { text-align: right; }
+
+/* One block per source kind. The heading is what makes the numbers legible --
+   0.75 red means something different from lands than from dorks. */
+.sim-section + .sim-section { margin-top: 14px; }
+.sim-section > h4 { margin: 0 0 4px; }
+.sim-section .sim-colours { margin-top: 0; }

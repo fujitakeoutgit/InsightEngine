@@ -38,6 +38,8 @@ from typing import Any
 from .resolver import Resolution
 from .stats import COLOURS, _ONE_SHOT, _PERMANENT, _pips
 
+SOURCE_KINDS = ("lands", "rocks", "dorks", "other")
+
 MAX_ITERATIONS = 20000
 MAX_TURNS = 20
 
@@ -54,6 +56,11 @@ class SimCard:
     makes: tuple[str, ...]
     #: A permanent that produces mana and is not a land: a rock, dork or similar.
     is_accelerant: bool
+    #: "land", "rock", "dork" or "other". Which pile a source belongs to is a
+    #: different question from how much mana it makes -- a deck short on colour
+    #: from lands but fine once its dorks land has a specific problem, and one
+    #: combined number cannot show it.
+    kind: str
     #: Enters tapped, or is a creature and therefore summoning sick.
     enters_slow: bool
 
@@ -72,6 +79,9 @@ class TurnTally:
     castable_on_curve: int = 0
     #: Weighted sources per colour, so a colour can be traced turn by turn.
     per_colour: Counter = field(default_factory=Counter)
+    #: The same, split by what kind of permanent produced it.
+    per_kind: dict[str, Counter] = field(
+        default_factory=lambda: {k: Counter() for k in SOURCE_KINDS})
 
 
 def _weighted(makes: tuple[str, ...], scope: set[str]) -> dict[str, float]:
@@ -125,6 +135,17 @@ def _build(conn: sqlite3.Connection, resolutions: list[Resolution]) -> tuple[lis
         pip_counter = _pips(card.get("mana_cost"))
         pips = tuple(c for c in COLOURS for _ in range(pip_counter[c]))
 
+        if is_land:
+            kind = "lands"
+        elif not accelerant:
+            kind = "other"
+        elif "Creature" in line:
+            kind = "dorks"
+        elif "Artifact" in line:
+            kind = "rocks"
+        else:
+            kind = "other"
+
         sim = SimCard(
             name=card["name"],
             cmc=int(card.get("cmc") or 0),
@@ -132,6 +153,7 @@ def _build(conn: sqlite3.Connection, resolutions: list[Resolution]) -> tuple[lis
             is_land=is_land,
             makes=makes,
             is_accelerant=accelerant,
+            kind=kind,
             enters_slow=slow,
         )
         library.extend([sim] * res.quantity)
@@ -214,9 +236,11 @@ def _play_one(
                 available += 1
 
         weights: Counter = Counter()
+        by_kind: dict[str, Counter] = {k: Counter() for k in SOURCE_KINDS}
         for card in battlefield:
             for colour, share in _weighted(card.makes, scope).items():
                 weights[colour] += share
+                by_kind[card.kind][colour] += share
 
         # A colour counts as "available" when the board can actually produce
         # it — one whole source's worth, however that source is split.
@@ -238,6 +262,7 @@ def _play_one(
             "hand_size": len(hand),
             "accelerants": sum(1 for c in in_play if c.is_accelerant),
             "weights": weights,
+            "by_kind": by_kind,
             # Could the most expensive castable-looking spell in hand actually
             # be paid for this turn? A cheap proxy for "did the deck function".
             "on_curve": any(c.cmc <= available for c in nonlands) if nonlands else False,
@@ -284,6 +309,9 @@ def simulate(
             tally.castable_on_curve += 1 if turn["on_curve"] else 0
             for colour, share in turn["weights"].items():
                 tally.per_colour[colour] += share
+            for kind, counts in turn["by_kind"].items():
+                for colour, share in counts.items():
+                    tally.per_kind[kind][colour] += share
             if turn["missed"]:
                 tally.missed += 1
                 if missed_this_game is None:
@@ -318,6 +346,14 @@ def simulate(
                     c: round(t.per_colour[c] / iterations, 2)
                     for c in COLOURS
                     if (not scope or c in scope) and t.per_colour[c]
+                },
+                "sources_by_kind": {
+                    kind: {
+                        c: round(t.per_kind[kind][c] / iterations, 2)
+                        for c in COLOURS
+                        if (not scope or c in scope) and t.per_kind[kind][c]
+                    }
+                    for kind in SOURCE_KINDS
                 },
             }
             for index, t in enumerate(tallies)

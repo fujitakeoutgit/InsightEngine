@@ -262,6 +262,8 @@ export interface SimulationTurn {
   on_curve: number
   /** Weighted sources per colour, split between the colours each makes. */
   sources: Record<string, number>
+  /** The same, split by what kind of permanent produced it. */
+  sources_by_kind: Record<'lands' | 'rocks' | 'dorks' | 'other', Record<string, number>>
 }
 
 export type SimulationReport =

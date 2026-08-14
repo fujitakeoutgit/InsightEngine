@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
-import { api, type SimulationReport } from '../lib/api'
+import { api, type SimulationReport, type SimulationTurn } from '../lib/api'
 import { PageHead } from '../components/PageHead'
 
 const PRESETS = [100, 1000, 5000, 20000]
@@ -191,39 +191,28 @@ export function SimulationPage() {
             <h3>Sources by colour</h3>
             <p className="faint" style={{ fontSize: 11, marginBottom: 10 }}>
               Weighted: a land making two of the commander&rsquo;s colours counts a half
-              to each, three counts a third, and so on.
+              to each, three counts a third, and so on. Split by what produced it,
+              because a deck short on colour from lands but fine once its dorks
+              arrive has a problem one combined number cannot show.
             </p>
-            <div className="scroll-x">
-              <table className="card-list sim-colours">
-                <thead>
-                  <tr>
-                    <th>Turn</th>
-                    {colourKeys.map((c) => (
-                      <th key={c}>
-                        {/* The pip is display:grid, so it is block-level and
-                            text-align on the cell does nothing to it -- it sat
-                            at the far left of a 307px column while its numbers
-                            sat at the right. A flex wrapper is what actually
-                            moves it. */}
-                        <span className="sim-pip-head">
-                          <span className="bal-pip" style={{ background: FILL[c] }}>{c}</span>
-                        </span>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.turn}>
-                      <td className="mono">{r.turn}</td>
-                      {colourKeys.map((c) => (
-                        <td key={c} className="num mono">{(r.sources[c] ?? 0).toFixed(2)}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {/* Empty sections are omitted rather than drawn as a table of
+                zeroes: a deck with no dorks should not have to be told so. */}
+            {SECTIONS.filter(([key]) => rows.some((r) => hasAny(r.sources_by_kind[key])))
+              .map(([key, label]) => (
+                <SourceTable
+                  key={key}
+                  label={label}
+                  colours={colourKeys}
+                  rows={rows}
+                  pick={(r) => r.sources_by_kind[key]}
+                />
+              ))}
+            <SourceTable
+              label="All sources"
+              colours={colourKeys}
+              rows={rows}
+              pick={(r) => r.sources}
+            />
           </div>
 
           <p className="faint" style={{ fontSize: 11 }}>
@@ -234,6 +223,61 @@ export function SimulationPage() {
         </>
       )}
     </section>
+  )
+}
+
+const SECTIONS = [
+  ['lands', 'Lands'],
+  ['rocks', 'Rocks'],
+  ['dorks', 'Dorks'],
+  ['other', 'Other'],
+] as const
+
+function hasAny(counts: Record<string, number> | undefined) {
+  return Boolean(counts && Object.values(counts).some((n) => n > 0))
+}
+
+function SourceTable({
+  label, colours, rows, pick,
+}: {
+  label: string
+  colours: string[]
+  rows: SimulationTurn[]
+  pick: (row: SimulationTurn) => Record<string, number>
+}) {
+  return (
+    <div className="sim-section">
+      <h4 className="label">{label}</h4>
+      <div className="scroll-x">
+        <table className="card-list sim-colours">
+          <thead>
+            <tr>
+              <th>Turn</th>
+              {colours.map((c) => (
+                <th key={c}>
+                  {/* The pip is display:grid and therefore block-level, so
+                      text-align on the cell does nothing to it. A flex wrapper
+                      is what actually moves it. */}
+                  <span className="sim-pip-head">
+                    <span className="bal-pip" style={{ background: FILL[c] }}>{c}</span>
+                  </span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.turn}>
+                <td className="mono">{r.turn}</td>
+                {colours.map((c) => (
+                  <td key={c} className="num mono">{(pick(r)[c] ?? 0).toFixed(2)}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   )
 }
 
