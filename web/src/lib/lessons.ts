@@ -263,6 +263,10 @@ export const LESSONS: Lesson[] = [
         text: 'The counts and the mana curve are computed from the filtered list, not the whole binder.',
       },
       {
+        target: '.cat-buttons',
+        text: 'Press **Bulk Edit** to file several cards at once. Click a card to tick it, then press **Bulk**, **Trades** or **Fav** to move everything ticked there.',
+      },
+      {
         target: '.result-tabs',
         text: 'Press the **Search** tab to look a card up and add it without leaving the binder.',
       },

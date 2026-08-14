@@ -4581,7 +4581,7 @@
      the count, the way a footnote marker hangs off a word. */
   vertical-align: baseline;
   position: relative;
-  top: -0.1em;
+  top: 0.06em;
   margin-left: 0.08em;
   color: #d9ab4a;
   text-decoration: none;
@@ -4676,3 +4676,55 @@
   opacity: 1;
   transform: none;
 }
+
+/* Bulk edit. The tile becomes a checkbox, so everything that made it a card
+   you could pick up or adjust stands down -- hidden rather than unmounted, so
+   leaving the mode puts the tile back exactly as it was. */
+.editor-tile.picking { cursor: pointer; }
+
+.editor-tile.picking .tile-qty,
+.editor-tile.picking .tile-acts,
+.editor-tile.picking .tile-info,
+.editor-tile.picking .price,
+.editor-tile.picking .flip-btn { display: none; }
+
+/* Stiff: no lift, no lean. A card leaning under the pointer reads as
+   something about to be dragged, which is the one thing it cannot do here. */
+.editor-tile.picking,
+.editor-tile.picking:hover { transform: none; }
+
+.tile-check {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  z-index: 3;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  border: 1.5px solid var(--line);
+  background: rgba(7, 8, 12, 0.82);
+  backdrop-filter: blur(6px);
+  color: #0b0d12;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.editor-tile.picked .tile-check {
+  background: var(--aether);
+  border-color: var(--aether-hi, var(--aether));
+}
+
+/* Selected cards are dimmed-out-of-the-way rather than highlighted: in a grid
+   of forty, the four you have picked are easier to see as the ones that are
+   not faded. */
+.editor-tile.picking:not(.picked) img { opacity: 0.55; }
+
+.editor-tile.picked {
+  outline: 2px solid var(--aether);
+  outline-offset: 1px;
+}
+
+.bulk-move { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }

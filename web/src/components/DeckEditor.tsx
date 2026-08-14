@@ -78,6 +78,15 @@ export function DeckEditor({
   const [groupBy, setGroupBy] = useState<GroupBy>('none')
   const [sortBy, setSortBy] = useState<SortBy>('name')
   const [pinOverlay, setPinOverlay] = usePersisted<boolean>(OVERLAY_KEY, false)
+  /* Bulk edit: a mode, not a gesture.
+   *
+   * Filing a shoebox means moving thirty cards to Trades in one go, and doing
+   * that one drag at a time is the reason a binder stops getting updated. In
+   * this mode a tile is a checkbox and nothing else -- the tilt, the quantity
+   * steppers and the hover actions all stand down, because a tile that both
+   * selects and adjusts is a tile you cannot click confidently. */
+  const [bulkEdit, setBulkEdit] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [view, setView] = usePersisted<'list' | 'grid'>(
     binder ? 'insight-enigma:binder-view' : 'insight-enigma:deck-view',
     binder ? 'grid' : 'list',
@@ -328,6 +337,43 @@ export function DeckEditor({
           Shuffle
         </button>
         {binder && (
+          <button
+            className={bulkEdit ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
+            aria-pressed={bulkEdit}
+            onClick={() => {
+              // Leaving the mode clears the selection: a set you cannot see is
+              // a set that will surprise you when you come back.
+              setBulkEdit((on) => { if (on) setSelected(new Set()); return !on })
+            }}
+          >
+            Bulk Edit
+          </button>
+        )}
+        {binder && bulkEdit && (
+          <span className="bulk-move" role="group" aria-label="Move selected cards">
+            <span className="label">Move to:</span>
+            {BINDER_SECTIONS.map(({ key, label }) => (
+              <button
+                key={key}
+                className="btn btn-ghost sm"
+                disabled={!selected.size}
+                onClick={() => {
+                  onChange(cards.map((c) => (
+                    selected.has(c.uid) ? { ...c, section: key } : c
+                  )))
+                  // The selection survives the move, so a mis-file is one more
+                  // click to correct rather than thirty. The view follows the
+                  // cards, because watching them arrive is the confirmation.
+                  setActiveSection(key)
+                }}
+              >
+                {label}
+              </button>
+            ))}
+            <span className="faint mono" style={{ fontSize: 11 }}>{selected.size} selected</span>
+          </span>
+        )}
+        {binder && (
           <span className="colour-filter push" role="group" aria-label="Filter by colour">
             <span className="label">Colours</span>
             {(['W', 'U', 'B', 'R', 'G'] as const).map((letter) => {
@@ -489,6 +535,14 @@ export function DeckEditor({
                           onMove={move}
                           binder={binder}
                           onPickPrinting={setPicking}
+                          bulkEdit={bulkEdit}
+                          picked={selected.has(entry.uid)}
+                          onPick={() => setSelected((prev) => {
+                            const next = new Set(prev)
+                            if (next.has(entry.uid)) next.delete(entry.uid)
+                            else next.add(entry.uid)
+                            return next
+                          })}
                         />
                       ))}
                     </div>
@@ -506,7 +560,7 @@ export function DeckEditor({
 
 function EditorRow({
   entry, view, section, onDragStart, onDragEnd, onAdjust, onRemove, onMove,
-  binder, onPickPrinting,
+  binder, onPickPrinting, bulkEdit, picked, onPick,
 }: {
   entry: DeckCard
   view: 'list' | 'grid'
@@ -519,6 +573,10 @@ function EditorRow({
   /** Binder mode: the tile offers Printing instead of the section moves. */
   binder?: boolean
   onPickPrinting?: (entry: DeckCard) => void
+  /** Bulk edit is on: the tile is a checkbox and nothing else. */
+  bulkEdit?: boolean
+  picked?: boolean
+  onPick?: () => void
 }) {
   const card: Card = entry.card
   const tiltRef = useRef<HTMLDivElement>(null)
@@ -527,9 +585,12 @@ function EditorRow({
   // Same pointer-tracking tilt the search grid uses, so a card behaves the
   // same way wherever you meet it.
   useEffect(() => {
-    if (view !== 'grid' || !tiltRef.current) return
+    // Stiff in bulk edit. A card that leans away under the pointer reads as
+    // something you are about to pick up, which is the opposite of what a
+    // checkbox is doing.
+    if (view !== 'grid' || bulkEdit || !tiltRef.current) return
     return attachTilt(tiltRef.current, 6)
-  }, [view])
+  }, [view, bulkEdit])
 
   const dragProps = {
     draggable: true,
@@ -552,9 +613,18 @@ function EditorRow({
   if (view === 'grid') {
     return (
       <div
-        className="editor-tile"
+        className={`editor-tile${bulkEdit ? ' picking' : ''}${picked ? ' picked' : ''}`}
         ref={tiltRef}
-        {...dragProps}
+        // Dragging is off while selecting: the same press cannot mean both
+        // "move this card" and "tick this card".
+        {...(bulkEdit ? {} : dragProps)}
+        onClick={bulkEdit ? onPick : undefined}
+        role={bulkEdit ? 'checkbox' : undefined}
+        aria-checked={bulkEdit ? Boolean(picked) : undefined}
+        tabIndex={bulkEdit ? 0 : undefined}
+        onKeyDown={bulkEdit
+          ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick?.() } }
+          : undefined}
         // No tooltip: the name and type are printed on the art itself.
         title={undefined}
       >
@@ -562,6 +632,13 @@ function EditorRow({
           <img src={face.src} alt={face.faceName} loading="lazy" draggable={false} />
         ) : (
           <div className="fallback"><div className="nm">{card.name}</div></div>
+        )}
+
+        {/* The only overlay in this mode. Everything else on the tile is
+            hidden by CSS rather than unmounted, so leaving the mode restores
+            the tile exactly as it was. */}
+        {bulkEdit && (
+          <span className="tile-check" aria-hidden>{picked ? '✓' : ''}</span>
         )}
 
         {/* Below the info control, which already owns this corner. */}
