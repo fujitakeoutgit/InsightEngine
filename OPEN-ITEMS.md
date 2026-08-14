@@ -720,9 +720,17 @@ Still to do, in order:
   Sections are **Bulk, Trades, Fav** rather than commander/deck/sideboard/
   maybeboard.
 
-- **B1 — Commander colour pips.** In the same row as `# cards · $cost`, a
-  `Commander:` label then the pips. Clicking one toggles it, shown by
-  lightness. All start active. The row must not grow taller.
+- ~~**B1 — Colour pips.**~~ DONE, read as a **filter**, and labelled *Colours*
+  rather than *Commander*. Asked three times and told to go ahead, so this is
+  my call to overrule: the binder hides Commander (B11), so a row of pips over
+  a list of what you own can only sensibly mean "show me these colours". All
+  five start active, clicking one drops it out, off is dimmed rather than
+  hidden — a filter you cannot see the shape of is one you forget you set.
+
+  Colourless cards are never hidden by it. An artifact goes in any deck, so
+  filtering to red and losing your Sol Rings would answer the wrong question.
+  Verified: all five → Island and Sol Ring; blue only → both; red only → Sol
+  Ring alone.
 - ~~**B2 — Remove the deck-only panels from the binder.**~~ DONE: the manabase
   panel and the Card costs / Land mana donut (both answer "can this deck cast
   what it plays?", which is a question about a deck), "How this deck works"
@@ -765,12 +773,21 @@ Still to do, in order:
 - ~~**B4 — Images by default.**~~ DONE, in the binder. The art is how you
   recognise a card you own without reading its name. A deck keeps list view,
   where the point is scanning names and counts.
-- **B5 — Recommendations follow the deck's grouping and sort.**
+- ~~**B5 — Recommendations follow the deck's grouping and sort.**~~ NOT
+  APPLICABLE, closed rather than built. B11 removes Recommendations from the
+  binder entirely, and B1–B10 are binder items, so there is no panel here for a
+  grouping to follow. It is either a deck-builder item that was swept into this
+  block by mistake or it is dead; say which and I will build it against the
+  deck editor.
 - ~~**B6 — Editor default grouping: none.**~~ DONE, in the binder. A deck is
   read by type because that is how you check a curve; a binder is a pile you
   look *through*, and grouping fragments the one long list you came to scan.
-- **B7 — Move the group/sort control** to the top of the list, above
-  `Group: type`.
+- ~~**B7 — Group/sort controls together at the top.**~~ DONE. The sort
+  *direction* was sitting at the end of the section-tabs row, a row below the
+  `Group:` and `Sort:` dropdowns it belongs with; in the binder it now sits
+  beside `Sort:`. It stays a single button rather than becoming a second menu —
+  a direction is one bit. A deck keeps it where it was. Verified: present in
+  the binder's toolbar and absent below the tabs; the reverse in a deck.
 - ~~**B8 — Splitter minimum.**~~ DONE — the binder's left pane cannot go below
   45% (a deck's stays at 25%). Squeezing a list to a quarter of the width is
   fine beside a deck's charts and just clips when the list *is* the page.

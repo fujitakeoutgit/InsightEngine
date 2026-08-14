@@ -77,6 +77,17 @@ export function DeckEditor({
   const [shuffling, setShuffling] = useState(false)
   /** The entry whose printing is being chosen, if any. */
   const [picking, setPicking] = useState<DeckCard | null>(null)
+  /* B1 — colour pips, in the same row as the totals.
+   *
+   * Read as a *filter* rather than a commander readout: the binder has no
+   * commander (B11 hides it), and a row of pips over a list of what you own
+   * can only sensibly mean "show me these colours". All five start active, so
+   * the default is everything; clicking one drops it out.
+   *
+   * Colourless cards are never hidden by it. An artifact goes in any deck, so
+   * filtering to red and losing your Sol Rings would be the wrong answer to
+   * the question the pips are asking. */
+  const [colours, setColours] = useState<string[]>(['W', 'U', 'B', 'R', 'G'])
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
   /** Springs a hovered tab open mid-drag. */
   const springTimer = useRef<number | undefined>(undefined)
@@ -144,7 +155,15 @@ export function DeckEditor({
 
   const move = (uid: string, section: Section) => patch(uid, { section })
 
-  const visible = useMemo(() => filterCards(cards, query), [cards, query])
+  const byColour = useMemo(() => {
+    if (!binder || colours.length === 5) return cards
+    return cards.filter((c) => {
+      const identity = c.card.color_identity || ''
+      return !identity || [...identity].some((letter) => colours.includes(letter))
+    })
+  }, [cards, colours, binder])
+
+  const visible = useMemo(() => filterCards(byColour, query), [byColour, query])
   const totals = useMemo(() => ({
     deck: countCards(cards),
     value: deckValue(cards),
@@ -228,6 +247,20 @@ export function DeckEditor({
         >
           {SORTS.map(([v, l]) => <option key={v} value={v}>Sort: {l}</option>)}
         </select>
+        {/* B7 — grouping and sorting live together at the top of the list.
+            The direction is one bit, so it stays a single button rather than
+            becoming a second menu; it just sits beside the field it reverses
+            instead of a row further down. */}
+        {binder && (
+          <button
+            className="sort-dir"
+            onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+            title={sortDir === 'asc' ? 'Ascending — click for descending' : 'Descending — click for ascending'}
+            aria-label={`Sort ${sortDir === 'asc' ? 'ascending' : 'descending'}`}
+          >
+            {sortDir === 'asc' ? '↑' : '↓'}
+          </button>
+        )}
         {view === 'grid' && (
           <label className="size-slider" title="Card size">
             <input
@@ -251,10 +284,30 @@ export function DeckEditor({
         >
           Shuffle
         </button>
+        {binder && (
+          <span className="colour-filter push" role="group" aria-label="Filter by colour">
+            <span className="label">Colours</span>
+            {(['W', 'U', 'B', 'R', 'G'] as const).map((letter) => {
+              const on = colours.includes(letter)
+              return (
+                <button
+                  key={letter}
+                  className={`colour-pip${on ? ' on' : ''}`}
+                  data-c={letter}
+                  aria-pressed={on}
+                  title={on ? `Hide ${letter}` : `Show ${letter}`}
+                  onClick={() => setColours((cur) => (
+                    cur.includes(letter) ? cur.filter((x) => x !== letter) : [...cur, letter]
+                  ))}
+                />
+              )
+            })}
+          </span>
+        )}
         {/* `paddingRight` rather than a margin: it is `push` that pins this to
             the right edge, and the gap it needs is from the rule the bar is
             drawn with, not from the control before it. */}
-        <span className="push mono faint" style={{ fontSize: 11, paddingRight: 6 }}>
+        <span className={`mono faint${binder ? '' : ' push'}`} style={{ fontSize: 11, paddingRight: 6 }}>
           {totals.deck} cards · ${totals.value.toFixed(2)}
         </span>
       </div>
@@ -307,17 +360,19 @@ export function DeckEditor({
           )
         })}
 
-        {/* Sort direction sits with the section it applies to, at the far end
-            of the same row. The sort *field* is a dropdown in the toolbar; its
-            direction is one bit and deserves one control, not a second menu. */}
-        <button
-          className="sort-dir push"
-          onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
-          title={sortDir === 'asc' ? 'Ascending — click for descending' : 'Descending — click for ascending'}
-          aria-label={`Sort ${sortDir === 'asc' ? 'ascending' : 'descending'}`}
-        >
-          {sortDir === 'asc' ? '↑' : '↓'}
-        </button>
+        {/* B7 — in the binder the direction has moved up beside the Sort
+            dropdown it belongs to. A deck keeps it here, at the end of the
+            section row it applies to. */}
+        {!binder && (
+          <button
+            className="sort-dir push"
+            onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+            title={sortDir === 'asc' ? 'Ascending — click for descending' : 'Descending — click for ascending'}
+            aria-label={`Sort ${sortDir === 'asc' ? 'ascending' : 'descending'}`}
+          >
+            {sortDir === 'asc' ? '↑' : '↓'}
+          </button>
+        )}
       </div>
 
       <div className="sections">

@@ -4427,3 +4427,30 @@
 
 .printing-set { font-size: 12px; padding: 0 4px; }
 .printing-num { font-size: 10px; padding: 0 4px; }
+
+/* Colour filter: five pips in the editor bar, all lit by default.
+   Sized to the row it joins -- the totals line must not grow taller for it. */
+.colour-filter { display: inline-flex; align-items: center; gap: 5px; }
+.colour-filter .label { margin-right: 2px; }
+
+.colour-pip {
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--bg-hi);
+  cursor: pointer;
+  /* Off is not hidden, only unlit: a filter you cannot see the shape of is a
+     filter you forget you set. */
+  opacity: 0.32;
+  transition: opacity var(--dur-fast), box-shadow var(--dur-fast);
+}
+
+.colour-pip.on { opacity: 1; }
+.colour-pip:hover { box-shadow: 0 0 0 2px color-mix(in oklab, var(--aether) 40%, transparent); }
+.colour-pip[data-c='W'] { background: var(--mana-w); border-color: var(--mana-w); }
+.colour-pip[data-c='U'] { background: var(--mana-u); border-color: var(--mana-u); }
+.colour-pip[data-c='B'] { background: var(--mana-b); border-color: var(--mana-b); }
+.colour-pip[data-c='R'] { background: var(--mana-r); border-color: var(--mana-r); }
+.colour-pip[data-c='G'] { background: var(--mana-g); border-color: var(--mana-g); }
