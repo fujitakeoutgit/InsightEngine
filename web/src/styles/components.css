@@ -4349,3 +4349,12 @@
   .skin-layout { grid-template-columns: minmax(0, 1fr); }
   .skin-preview .skin-mat { min-height: 190px; }
 }
+
+/* The turn, under the deck. Louder than the count it replaced: it is the one
+   number on this side of the mat you actually act on. */
+.pt-turn {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}

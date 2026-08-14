@@ -582,7 +582,10 @@ export function Playtest({
     <div className="playtest" style={skin}>
       <div className="pt-bar">
         <button className="back-link" onClick={onClose}>← Back to deck</button>
-        <span className="mono">Turn {turn}</span>
+        {/* The turn lives under the deck now, beside Next turn — the control
+            that changes it. Two of them disagreed about which was the real
+            one. What is left here is the board reading you glance at rather
+            than act on. */}
         <span className="mono faint">
           {inZone.library.length} in library · {untappedLands}/{lands.length} lands untapped
         </span>
@@ -799,7 +802,12 @@ export function Playtest({
               className="pt-deck"
               onClick={() => draw(1)}
               disabled={!inZone.library.length}
-              title={inZone.library.length ? 'Draw a card' : 'Library is empty'}
+              /* The hover says how many are left, because the number under
+                 the pile now says which turn it is. "Draw a card" was telling
+                 you what clicking a deck does, which the deck already says. */
+              title={inZone.library.length
+                ? `${inZone.library.length} cards left`
+                : 'Library is empty'}
               aria-label={`Draw a card — ${inZone.library.length} left`}
             >
               {/* Wearing this deck's sleeves, if it has any. The pile is the
@@ -811,7 +819,10 @@ export function Playtest({
                 aria-hidden
               />
             </button>
-            <span className="mono faint">{inZone.library.length}</span>
+            {/* The turn, not the card count. Which turn it is changes what
+                you do next; how many cards remain almost never does, and it is
+                a hover away. */}
+            <span className="mono faint pt-turn">Turn {turn}</span>
           </div>
         </div>
       </div>

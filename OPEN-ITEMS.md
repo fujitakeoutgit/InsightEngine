@@ -404,8 +404,17 @@ most of the value would have been anyway.
   P11/P12 trap), so this is a reasoned fix rather than an observed one — try
   it, and if a walker still will not move, say *what* it does: nothing, moves
   with a wrong ghost, or moves but will not drop.
-- **P21 — Turn counter on the deck.** The remaining-cards counter becomes
-  `TURN #`. The card count moves to the deck's hover, replacing "Draw".
+- ~~**P21 — Turn counter on the deck.**~~ DONE. The number under the pile reads
+  `Turn N`, and the card count moved to the deck's hover — "Draw a card" was
+  telling you what clicking a deck does, which a deck already says.
+
+  The turn counter in the top bar is gone rather than duplicated: two of them
+  would disagree about which is the real one, and the one that belongs is the
+  one sitting beside **Next turn**, the control that changes it. What stays in
+  the bar is the board reading you glance at rather than act on.
+
+  Verified on a real deck: `Turn 1` under the pile, advancing to `Turn 2`,
+  hover reading "92 cards left", and no second turn counter in the bar.
 - ~~**P22 — History needs a scrollbar.**~~ DONE. The drawer runs off the bottom.
 - ~~**P23 — Playtest deck tiles**~~ DONE: should carry Deck Lab's own subtitle — number
   of lines and the date — rather than "N lines · deal seven".
