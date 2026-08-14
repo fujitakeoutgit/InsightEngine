@@ -211,7 +211,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '[data-tour="deck-bar"]',
-        text: 'Press **Playtest** to deal this deck onto a table. Press **Copy** to duplicate the deck, and **Export** to write its list out as text.',
+        text: 'Press **Playtest** to deal this deck onto a table, or **Simulation** to shuffle it a few thousand times and read the averages. Press **Copy** to duplicate the deck, and **Export** to write its list out as text.',
       },
     ],
   },
@@ -257,6 +257,10 @@ export const LESSONS: Lesson[] = [
       {
         target: '.deck-info',
         text: 'The counts and the mana curve are computed from the filtered list, not the whole binder.',
+      },
+      {
+        target: '.result-tabs',
+        text: 'Press the **Search** tab to look a card up and add it without leaving the binder.',
       },
       {
         text: 'Hover a card and press **Printing** to choose which edition of it you own.',

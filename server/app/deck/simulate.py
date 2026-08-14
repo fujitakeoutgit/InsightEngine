@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .resolver import Resolution
-from .stats import COLOURS, _ONE_SHOT, _PERMANENT, _pips
+from .stats import COLOURS, _ONE_SHOT, _PERMANENT, _pips, fetch_profile
 
 SOURCE_KINDS = ("lands", "rocks", "dorks", "other")
 
@@ -132,6 +132,19 @@ def _build(conn: sqlite3.Connection, resolutions: list[Resolution]) -> tuple[lis
             if is_land
             else ("Creature" in line)
         )
+
+        # A fetch land is played and cracked in one motion, so it stands in for
+        # the land it finds: those colours, and tapped if the fetch says the
+        # land arrives tapped. Left alone it was worse than useless here --
+        # produced_mana is empty, so it counted as one generic mana and no
+        # colour at all, which is the opposite of why it is in the deck.
+        #
+        # Activation costs are ignored, in keeping with everything else here.
+        # Krosan Verge wants {2} and is treated as free, which flatters it.
+        fetched, fetch_tapped = fetch_profile(card)
+        if is_land and fetched:
+            makes = tuple(c for c in COLOURS if c in set(makes) | set(fetched))
+            slow = slow or fetch_tapped
         pip_counter = _pips(card.get("mana_cost"))
         pips = tuple(c for c in COLOURS for _ in range(pip_counter[c]))
 

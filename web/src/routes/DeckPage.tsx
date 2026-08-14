@@ -854,14 +854,12 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
           onClick={() => setTab('analysis')}>
           Analysis{report && <span className="faint"> {report.total_cards}</span>}
         </button>
-        {/* No Search tab in the binder: adding cards to a record of what you
-            own is what the Cards tray and a drag are for, and a second card
-            search inside the thing you search is a hall of mirrors. */}
-        {!binder && (
-          <button className={tab === 'search' ? 'on' : ''} onClick={() => setTab('search')}>
-            Search
-          </button>
-        )}
+        {/* The binder gets Search too. Finding a card you just pulled and
+            adding it is the binder's main job, and routing that through the
+            Cards tray on another page was the long way round. */}
+        <button className={tab === 'search' ? 'on' : ''} onClick={() => setTab('search')}>
+          Search
+        </button>
         {/* A binder is a list of what you own, not a deck being tuned, so it
             has nothing to recommend against and no pipeline to watch. */}
         {!binder && (
@@ -1181,38 +1179,48 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
           <button className="btn btn-primary sm" onClick={save} disabled={!!busy || !text.trim()}>
             {busy === 'save' && <span className="spinner" />}Save
           </button>
-          <button
-            className="btn sm"
-            onClick={() => setPlaying((p) => !p)}
-            disabled={!deckCards.length}
-            title={deckCards.length ? 'Goldfish this deck' : 'Build or load a deck first'}
-          >
-            {playing ? 'Close playtest' : 'Playtest'}
-          </button>
+          {/* None of the next three mean anything for a binder. You cannot
+              goldfish a shelf of cards, there is no commander to simulate a
+              mana base against, and copying the binder produces a second copy
+              of the one list that is meant to be singular. */}
+          {!binder && (
+            <button
+              className="btn sm"
+              onClick={() => setPlaying((p) => !p)}
+              disabled={!deckCards.length}
+              title={deckCards.length ? 'Goldfish this deck' : 'Build or load a deck first'}
+            >
+              {playing ? 'Close playtest' : 'Playtest'}
+            </button>
+          )}
           {/* Playtest shows you one game. Simulation shows you a thousand,
               which is the only way to see a pattern rather than an anecdote.
               Needs a saved deck: the page loads the list by id. */}
-          <button
-            className="btn sm"
-            onClick={() => navigate(`/simulate/${deckId}`)}
-            disabled={!deckCards.length || !deckId}
-            title={deckId
-              ? 'Shuffle and play the opening turns many times over'
-              : 'Save the deck first'}
-          >
-            Simulation
-          </button>
+          {!binder && (
+            <button
+              className="btn sm"
+              onClick={() => navigate(`/simulate/${deckId}`)}
+              disabled={!deckCards.length || !deckId}
+              title={deckId
+                ? 'Shuffle and play the opening turns many times over'
+                : 'Save the deck first'}
+            >
+              Simulation
+            </button>
+          )}
           {/* A decklist is portable text, and every other site reads it. Not
               being able to get one back out made this a place decks came to
               and stayed. */}
-          <button
-            className={copied ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
-            onClick={copyList}
-            disabled={!text.trim()}
-            title="Copy the decklist to the clipboard"
-          >
-            {copied ? '✓ Copied' : 'Copy'}
-          </button>
+          {!binder && (
+            <button
+              className={copied ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
+              onClick={copyList}
+              disabled={!text.trim()}
+              title="Copy the decklist to the clipboard"
+            >
+              {copied ? '✓ Copied' : 'Copy'}
+            </button>
+          )}
           <button
             className="btn btn-ghost sm"
             onClick={download}

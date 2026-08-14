@@ -28,6 +28,47 @@ _SYMBOL = re.compile(r"\{([^}]+)\}")
 
 
 
+_BASIC_COLOUR = {
+    "plains": "W", "island": "U", "swamp": "B", "mountain": "R", "forest": "G",
+}
+
+# "{T}, Pay 1 life, Sacrifice this land: Search your library for a Forest or
+# Plains card, ..." -- the clause after the colon, up to the sentence end.
+_SACRIFICE_SEARCH = re.compile(
+    r"sacrifice[^:.]*:[^.]*?search your library for ([^.]*)", re.I)
+
+
+def fetch_profile(card: dict[str, Any]) -> tuple[tuple[str, ...], bool]:
+    """The colours a fetch land supplies, and whether what it finds is tapped.
+
+    Scryfall gives a fetch land `produced_mana: []`, because the land itself
+    taps for nothing -- it sacrifices. Taken literally that makes Windswept
+    Heath contribute to no colour at all, which is the opposite of why it is in
+    the deck. What it is really worth is the colours it can go and get.
+
+    Returns an empty tuple for anything that is not a sacrifice-to-search land,
+    so callers can fall back to produced_mana.
+    """
+    text = (card.get("oracle_text") or "")
+    match = _SACRIFICE_SEARCH.search(text)
+    if not match:
+        return (), False
+
+    clause = match.group(1).lower()
+    named = tuple(
+        colour for basic, colour in _BASIC_COLOUR.items() if basic in clause
+    )
+    if not named and "basic land" in clause:
+        # "a basic land card" reaches any of them.
+        named = tuple(_BASIC_COLOUR.values())
+    if not named:
+        return (), False
+
+    # Ordered like COLOURS so two lands fetching the same pair compare equal.
+    ordered = tuple(c for c in COLOURS if c in named)
+    return ordered, "battlefield tapped" in clause
+
+
 def _relevant(makes: list[str], allowed: set[str]) -> list[str]:
     """The colours a source contributes, restricted to the ones that matter.
 
@@ -143,6 +184,14 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
         # while contributing to no colour's balance.
         all_makes = card.get("produced_mana") or []
         makes = [s for s in all_makes if s in COLOURS]
+
+        # A fetch land's worth is the colours it can go and get. Krosan Verge
+        # taps for {C} and fetches a Forest and a Plains, so it is a green and
+        # white source with a colourless ability, not a colourless land.
+        fetched, _ = fetch_profile(card)
+        if fetched and is_land:
+            makes = sorted(set(makes) | set(fetched), key=COLOURS.index)
+            all_makes = list(all_makes) + list(fetched)
 
         if is_land:
             lands += qty
