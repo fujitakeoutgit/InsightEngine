@@ -12,7 +12,7 @@ import {
 import { useCardFace } from '../lib/faces'
 import { attachTilt } from '../lib/motion'
 import { solidDragImage, useQuietDrag } from '../lib/useQuietDrag'
-import { usePersisted } from '../lib/usePersisted'
+import { OVERLAY_KEY, usePersisted } from '../lib/usePersisted'
 import { CARD_DRAG_TYPE } from './DeckSearch'
 import { FlipButton } from './FlipButton'
 import { PrintingPicker } from './PrintingPicker'
@@ -77,6 +77,7 @@ export function DeckEditor({
    * card you own without reading its name. */
   const [groupBy, setGroupBy] = useState<GroupBy>('none')
   const [sortBy, setSortBy] = useState<SortBy>('name')
+  const [pinOverlay, setPinOverlay] = usePersisted<boolean>(OVERLAY_KEY, false)
   const [view, setView] = usePersisted<'list' | 'grid'>(
     binder ? 'insight-enigma:binder-view' : 'insight-enigma:deck-view',
     binder ? 'grid' : 'list',
@@ -185,7 +186,7 @@ export function DeckEditor({
   )
 
   return (
-    <div className="editor">
+    <div className={pinOverlay ? 'editor overlay-pinned' : 'editor'}>
       {picking && (
         <PrintingPicker
           card={picking.card}
@@ -303,6 +304,21 @@ export function DeckEditor({
         <button className="btn btn-ghost sm" onClick={() => setView(view === 'list' ? 'grid' : 'list')}>
           {view === 'list' ? 'Images' : 'List'}
         </button>
+        {/* Price and quantity normally fade in on hover, so comparing two
+            cards means hovering each in turn. Only meaningful over images --
+            the list view prints both in columns already. */}
+        {view === 'grid' && (
+          <button
+            className={pinOverlay ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
+            aria-pressed={pinOverlay}
+            onClick={() => setPinOverlay(!pinOverlay)}
+            title={pinOverlay
+              ? 'Show price and quantity only on hover'
+              : 'Always show price and quantity, without hovering'}
+          >
+            Toggle Overlay
+          </button>
+        )}
         <button
           className="btn sm"
           onClick={() => setShuffling(true)}

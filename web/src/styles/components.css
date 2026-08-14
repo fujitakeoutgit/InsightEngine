@@ -4664,3 +4664,15 @@
 .sim-section + .sim-section { margin-top: 14px; }
 .sim-section > h4 { margin: 0 0 4px; }
 .sim-section .sim-colours { margin-top: 0; }
+
+/* Toggle Overlay: the price and quantity chips normally fade in on hover, so
+   comparing two cards means hovering each in turn. Pinned, they are simply on.
+
+   Scoped to a container rather than set on the chips themselves, so one class
+   on the grid covers every tile in it and the hover rules underneath are left
+   exactly as they were for when it is off. */
+.overlay-pinned .price,
+.overlay-pinned .tile-qty {
+  opacity: 1;
+  transform: none;
+}

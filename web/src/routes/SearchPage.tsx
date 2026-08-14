@@ -8,7 +8,7 @@ import { hasSemantic, withCommanderDefault } from '../lib/query'
 import {
   cacheKey, forgetQuery, fromResponse, readCache, rememberScroll, writeCache,
 } from '../lib/searchCache'
-import { SIZE_KEY, usePersisted, VIEW_KEY } from '../lib/usePersisted'
+import { OVERLAY_KEY, SIZE_KEY, usePersisted, VIEW_KEY } from '../lib/usePersisted'
 import { useBinderIds } from '../lib/binderIds'
 import { collection } from '../lib/collection'
 import { CardGrid, GridSkeleton } from '../components/CardGrid'
@@ -85,6 +85,7 @@ export function SearchPage() {
   const page = Math.max(1, Number(params.get("page") ?? 1))
 
   const countRef = useRef<HTMLSpanElement>(null)
+  const [pinOverlay, setPinOverlay] = usePersisted<boolean>(OVERLAY_KEY, false)
   const [updateReady, setUpdateReady] = useState(false)
   const heroCountRef = useRef<HTMLSpanElement>(null)
   const heroRef = useRef<HTMLHeadingElement>(null)
@@ -521,6 +522,18 @@ export function SearchPage() {
                 >
                   In binder
                 </button>
+                {/* No quantity out here -- a search result is a card that
+                    exists, not a card you have any number of. */}
+                <button
+                  className={pinOverlay ? 'owned-toggle on' : 'owned-toggle'}
+                  aria-pressed={pinOverlay}
+                  onClick={() => setPinOverlay(!pinOverlay)}
+                  title={pinOverlay
+                    ? 'Show prices only on hover'
+                    : 'Always show prices, without hovering'}
+                >
+                  Toggle Overlay
+                </button>
                 {view === 'grid' && (
                   <label className="size-slider" title="Card size">
                     <span className="label">Size</span>
@@ -569,6 +582,9 @@ export function SearchPage() {
               </div>
             </div>
 
+            {/* The pin is a container class, so one flag covers every tile
+                in the grid and the hover rules stay untouched underneath. */}
+            <div className={pinOverlay ? 'overlay-pinned' : undefined}>
             <CardGrid
               cards={isSemanticQuery ? sortCards(cards, sort, order) : cards}
               view={view}
@@ -580,6 +596,7 @@ export function SearchPage() {
               // from there.
               onMenu={(card, at) => setPicked({ card, at })}
             />
+            </div>
 
             {/* Semantic runs return every match in one batch, so they have no
                 pages to turn. */}

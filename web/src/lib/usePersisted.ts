@@ -100,3 +100,10 @@ export function usePersisted<T>(key: string, initial: T): [T, (next: T) => void]
    narrower column. */
 export const VIEW_KEY = 'insight-enigma:card-view'
 export const SIZE_KEY = 'insight-enigma:card-size'
+
+/* Pinned card overlays: price always shown, and quantity where a view has one.
+   Deliberately one key across the search grid, the deck editor and the binder.
+   The question it answers -- "what is this worth, and how many do I have" --
+   is the same question in all three, and someone who wants it answered wants
+   it answered everywhere rather than three times. */
+export const OVERLAY_KEY = 'insight-enigma:pin-overlays'

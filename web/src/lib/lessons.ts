@@ -150,6 +150,10 @@ export const LESSONS: Lesson[] = [
         text: 'Press **In binder** to outline every result you already own in gold.',
       },
       {
+        target: '.owned-toggle',
+        text: 'Press **Toggle Overlay** to keep prices on the cards instead of showing them on hover. In a deck or the binder it shows the quantity too.',
+      },
+      {
         target: '.nav a[href="/advanced"]',
         text: 'Press **Advanced** to build the same query from a form.',
       },
