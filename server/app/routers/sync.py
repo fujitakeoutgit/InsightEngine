@@ -125,6 +125,27 @@ def _discard(path: Path) -> None:
             stray.unlink()
 
 
+def _replace_with_retry(source: Path, target: Path, attempts: int = 10) -> None:
+    """Rename over the target, waiting briefly if Windows says it is in use.
+
+    Every attachment of the mirror is a handle on the file, and a rename cannot
+    cross one. The connections that matter are dropped before this runs, but a
+    request already in flight can still be holding the database for the few
+    milliseconds it takes to finish, and an antivirus scanner can hold it for
+    longer than that. Retrying for a second or so turns a race that would
+    discard a completed build into a pause nobody notices.
+    """
+    last: OSError | None = None
+    for attempt in range(attempts):
+        try:
+            os.replace(source, target)
+            return
+        except OSError as exc:
+            last = exc
+            time.sleep(0.1 * (attempt + 1))
+    raise last if last else OSError("could not replace the mirror")
+
+
 def _run_refresh() -> None:
     _progress.update({"running": True, "started_at": time.time(), "error": None, "log": []})
     build = _build_path()
@@ -153,7 +174,7 @@ def _run_refresh() -> None:
         state.detach_for_swap()
         try:
             _discard(settings.mirror_path)
-            os.replace(build, settings.mirror_path)
+            _replace_with_retry(build, settings.mirror_path)
         finally:
             state.reattach_after_swap()
         _note("done")

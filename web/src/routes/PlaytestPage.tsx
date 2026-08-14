@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
+import { isBinder } from '../lib/binder'
 import { api, type SavedDeck } from '../lib/api'
 import { fromResolutions, type DeckCard } from '../lib/deckModel'
 import { canAnimate, gsap, splitChars } from '../lib/motion'
@@ -51,7 +52,9 @@ export function PlaytestPage() {
     if (deckId) return
     setCards(null)
     api.savedDecks()
-      .then((r) => setDecks(r.decks))
+      // Same reason the gallery hides it: the binder is a record of what you
+      // own, not a deck you would sit down and goldfish.
+      .then((r) => setDecks(r.decks.filter((d) => !isBinder(d))))
       .catch(() => setError('Could not load your decks.'))
   }, [deckId])
 

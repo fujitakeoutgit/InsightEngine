@@ -21,7 +21,7 @@ from typing import Any
 import httpx
 
 from .config import settings
-from .db import connect
+from .db import connect_user
 
 
 class ScryfallError(RuntimeError):
@@ -67,7 +67,7 @@ class ScryfallClient:
 
     async def start(self) -> None:
         if self._db is None:
-            self._db = connect()
+            self._db = connect_user()
         self._client = httpx.AsyncClient(
             base_url=settings.scryfall_base,
             timeout=settings.scryfall_timeout,

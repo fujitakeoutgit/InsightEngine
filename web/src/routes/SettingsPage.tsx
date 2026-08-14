@@ -297,6 +297,8 @@ export function SettingsPage() {
           drawn in CSS, so a finish is only a change of colour.
         </p>
 
+        <div className="skin-layout">
+        <div className="skin-choices">
         <div className="skin-group">
           <span className="label">Dice</span>
           <div className="skin-row">
@@ -363,10 +365,14 @@ export function SettingsPage() {
           </div>
         </div>
 
-        {/* The real objects, so a finish is judged on a die that turns rather
-            than on a square of colour. */}
-        <div style={skinVars(dieSkin, d20Skin, coinSkin)}>
+        </div>
+
+        {/* The real objects, beside the swatches rather than under them: a
+            finish is judged on a die that turns, and the comparison only works
+            if the choice and the thing it changes are in view at once. */}
+        <div className="skin-preview" style={skinVars(dieSkin, d20Skin, coinSkin)}>
           <SkinStage />
+        </div>
         </div>
       </div>
 

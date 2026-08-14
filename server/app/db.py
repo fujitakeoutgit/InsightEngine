@@ -223,6 +223,19 @@ def connect_mirror(path: Path | None = None) -> sqlite3.Connection:
     return conn
 
 
+def connect_user(path: Path | None = None) -> sqlite3.Connection:
+    """Open the user database *without* the mirror.
+
+    For callers that only touch user tables — the Scryfall HTTP cache is the
+    one that matters. Attaching the mirror to a connection that never reads a
+    card is not merely wasteful: every attachment is a handle on the file, and
+    the refresh has to replace that file. One long-lived connection holding the
+    mirror for no reason is enough to make the swap fail with "the process
+    cannot access the file because it is being used by another process".
+    """
+    return _open(path or settings.db_path)
+
+
 def connect(path: Path | None = None) -> sqlite3.Connection:
     """Open the user database, with the card mirror attached.
 

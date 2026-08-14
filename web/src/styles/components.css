@@ -3839,9 +3839,9 @@
   /* The artwork carries more of the block than the list does: it is what says
      "this is somewhere to learn" before a word is read. */
   grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr);
-  gap: var(--gap-4);
+  gap: 26px;
   align-items: center;
-  margin-bottom: var(--gap-4);
+  margin-bottom: 26px;
 }
 
 .lessons-list { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
@@ -4162,7 +4162,7 @@
    `.section-head` internally, so styling that name from here reached every
    page title in the app -- and being later in the file, it won. Same shape as
    the dead `.pt-d20` rule that put every d20 into normal flow. */
-.page-section { margin-bottom: var(--gap-3); }
+.page-section { margin-bottom: 16px; }
 .page-section h2 { margin: 0 0 4px; font-size: 20px; }
 .page-section p { margin: 0; font-size: 13px; max-width: 68ch; }
 
@@ -4298,4 +4298,54 @@
   line-height: 1.45;
   color: var(--faint);
   white-space: pre-wrap;
+}
+
+/* Table: the swatches on the left, the working dice on the right.
+
+   Side by side rather than stacked, so the choice and the object it changes
+   are in view together -- picking a finish from a square of colour and then
+   scrolling to see what it did is not choosing, it is guessing. The preview
+   spans the full height of the three pickers, which is what gives the dice
+   somewhere to be thrown. */
+.skin-layout {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(280px, 1fr);
+  /* A literal, because there are no `--gap-*` custom properties in this
+     codebase -- `.gap-4` and friends are utility *classes*. `var(--gap-4)`
+     resolved to nothing, which is why the swatches and the mat were touching. */
+  gap: 22px;
+  align-items: stretch;
+}
+
+/* The last picker carries no trailing margin, so the column ends level with
+   its bottom row and the mat beside it can end there too. */
+.skin-choices .skin-group:last-child { margin-bottom: 0; }
+
+.skin-choices { display: flex; flex-direction: column; min-width: 0; }
+.skin-preview { display: flex; min-width: 0; }
+/* The caption is taken out of the flow: it is a line of help text, and letting
+   it consume height was what left the mat ending ten pixels above the swatches
+   it is meant to line up with. */
+.skin-preview .skin-stage {
+  margin-top: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.skin-preview .skin-stage-said {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 6px;
+}
+
+/* Fills the column rather than standing at a fixed height, so the mat is as
+   tall as the pickers beside it. */
+.skin-preview .skin-mat { flex: 1 1 auto; height: auto; min-height: 210px; }
+
+@media (max-width: 900px) {
+  .skin-layout { grid-template-columns: minmax(0, 1fr); }
+  .skin-preview .skin-mat { min-height: 190px; }
 }
