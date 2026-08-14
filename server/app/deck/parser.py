@@ -24,7 +24,8 @@ _LINE_RE = re.compile(
 
 _SECTION_RE = re.compile(
     r"^\s*(?://|\#)?\s*(?P<name>deck|main(?:board|deck)?|sideboard|side|commander|"
-    r"companion|maybe(?:board)?|tokens?)\s*:?\s*(?:\(\d+\))?\s*$",
+    r"companion|maybe(?:board)?|tokens?|bulk|trades?|fav(?:ou?rites?)?)"
+    r"\s*:?\s*(?:\(\d+\))?\s*$",
     re.IGNORECASE,
 )
 
@@ -34,6 +35,12 @@ _SECTION_ALIASES = {
     "commander": "commander", "companion": "companion",
     "maybe": "maybeboard", "maybeboard": "maybeboard",
     "token": "tokens", "tokens": "tokens",
+    # The binder's own names for the same three sections. It is a deck in every
+    # mechanical sense and stores an ordinary decklist, so its headings have to
+    # be readable by the same parser — otherwise "Bulk" and "Trades" come back
+    # as cards, which is exactly what they did.
+    "bulk": "main", "trade": "sideboard", "trades": "sideboard",
+    "fav": "maybeboard", "favourite": "maybeboard", "favorite": "maybeboard",
 }
 
 # "SB: 2 Duress" -- old MTGO style

@@ -112,9 +112,13 @@ function printing(card: { set_code?: string | null; collector_number?: string | 
   return set && number ? ` (${set.toUpperCase()}) ${number}` : ''
 }
 
-export function serialize(cards: DeckCard[]): string {
+export function serialize(cards: DeckCard[], sections = SECTIONS): string {
   const out: string[] = []
-  for (const { key, label } of SECTIONS) {
+  /* `sections` names the headings to write. The binder passes its own — Bulk,
+   * Trades, Fav — because it stores an ordinary decklist and its Text view has
+   * to show the same three sections its Build view does. The server's parser
+   * accepts both sets, so a list written either way reads back correctly. */
+  for (const { key, label } of sections) {
     const inSection = cards.filter((c) => c.section === key)
     if (!inSection.length) continue
     if (out.length) out.push('')

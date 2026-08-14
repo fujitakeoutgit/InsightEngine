@@ -9,7 +9,7 @@ import {
   addedCard, fromResolutions, serialize, type DeckCard, type Section,
 } from '../lib/deckModel'
 import { recallDeckView, rememberDeckView } from '../lib/deckViewCache'
-import { BINDER_NAME } from '../lib/binder'
+import { BINDER_NAME, BINDER_SECTIONS } from '../lib/binder'
 import { clearSleeve, readSleeveFile, setSleeve, sleeveFor } from '../lib/sleeves'
 import { attachTilt, dissolveIn, riseIn } from '../lib/motion'
 import { CardGrid } from '../components/CardGrid'
@@ -378,7 +378,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
   const applyEdits = (next: DeckCard[]) => {
     remember()
     setDeckCards(next)
-    setText(serialize(next))
+    setText(serialize(next, binder ? BINDER_SECTIONS : undefined))
   }
 
   /** Undo and redo are the same move in opposite directions: pop the stack you

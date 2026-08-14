@@ -638,17 +638,30 @@ touching the real editor to satisfy any of them would be wrong.
 
 **B11 is the one to build first**, because the rest are changes *to* it.
 
-**B11 is mostly built. One defect blocks it — read this first.**
+**B11 is built and working.**
 
-`busy` never clears on `/binder`, so Save, Playtest, Copy, Export and the
-category buttons all stay disabled and the binder cannot be written. Everything
-else works. What is known: the load effect sets `setBusy('load')` and clears it
-in `.finally`; in binder mode the chain is `api.savedDecks().then(find by name
--> loadDeck | null)` instead of `api.loadDeck(id)`, and when no binder exists
-yet that resolves to `null` and returns early inside `.then`. The `.finally`
-should still run. `analyseText` does not touch `busy`, and no error is shown.
-Suspect the StrictMode double-invoke interacting with `cancelled`, or a second
-effect re-setting `busy` — instrument `setBusy` before changing anything.
+The "`busy` never clears" defect recorded here did not exist. My test had typed
+the decklist into the *description* textarea — `document.querySelector('textarea')`
+finds `.deck-desc`, not `.decklist-input` — so `text` stayed empty and Save was
+disabled by `!text.trim()`, exactly as it should be. Copy and Export were
+disabled by the same predicate, which was the clue: neither of them looks at
+`busy` at all. Read what the button is actually disabled *by* before theorising
+about state.
+
+One real flaw did turn up while verifying it. The binder's sections are
+relabelled Bulk / Trades / Fav in the UI, but the decklist format still spoke
+Deck / Sideboard / Maybeboard — so typing `Bulk` as a heading in Text mode
+parsed it as a *card*, and the binder gained two cards called "Bulk" and
+"Trades". Both ends now agree: the server's section regex accepts the binder's
+headings (mapping them onto the same three keys), and `serialize` takes the
+label set to write, so the binder's Text view shows the sections its Build view
+does.
+
+Verified end to end: typing a Bulk/Trades/Fav list parses to Bulk 3, Trades 1,
+Fav 1 with no stray cards; switching back to Text writes the same headings
+byte-for-byte; Save writes `__binder__` and stays at `/binder`; the gallery
+lists your six decks and no binder; reopening `/binder` restores all three
+sections.
 
 Done and verified: the `/binder` route, the nav tab right of Glossary, sections
 reading **Bulk / Trades / Fav** with no Commander, and Recommendations,
