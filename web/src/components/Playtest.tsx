@@ -292,7 +292,9 @@ export function Playtest({
     return map
   }, [cards])
 
-  const move = (iid: string, zone: Zone, at?: { x: number; y: number }) => {
+  const move = (
+    iid: string, zone: Zone, at?: { x: number; y: number }, tapped?: boolean,
+  ) => {
     setCards((cs) => cs.map((c) => {
       if (c.iid !== iid) return c
       /* Leaving the battlefield resets a planeswalker's loyalty to its
@@ -304,7 +306,8 @@ export function Playtest({
         ? { loyalty: startingLoyalty(c.card) as number }
         : {}
       return {
-        ...c, zone, tapped: zone === 'battlefield' ? c.tapped : false,
+        ...c, zone,
+        tapped: zone === 'battlefield' ? (tapped ?? c.tapped) : false,
         ...reset, ...(at ?? {}),
       }
     }))
@@ -540,10 +543,35 @@ export function Playtest({
     const rect = mat.getBoundingClientRect()
     const x = (event.clientX - rect.left - (held?.dx ?? 0)) / rect.width
     const y = (event.clientY - rect.top - (held?.dy ?? 0)) / rect.height
+    /* A land dragged onto the mat has to obey its own text.
+     *
+     * Only `play` consulted `entersTapped`, so a land *clicked* in hand came
+     * down tapped when it should and a land *dragged* to the same place came
+     * down untapped — same card, same board, different answer depending on
+     * which gesture you happened to use. Rootbound Crag with no Mountain and
+     * no Forest was the report; every check land, shock land and fast land had
+     * it too.
+     *
+     * Only when it is arriving. Nudging a permanent that is already on the
+     * battlefield must not re-roll its tapped state. */
+    const inst = cards.find((c) => c.iid === iid)
+    const arriving = inst && inst.zone !== 'battlefield'
+    const verdict = arriving
+      ? entersTapped(
+          inst.card,
+          inZone.battlefield.map((c) => c.card),
+          inZone.hand.filter((c) => c.iid !== iid).map((c) => c.card),
+        )
+      : null
+
     move(iid, 'battlefield', {
       x: Math.min(0.97, Math.max(0, x)),
       y: Math.min(0.94, Math.max(0, y)),
-    })
+    }, verdict ? verdict.tapped : undefined)
+
+    if (verdict?.tapped && inst) {
+      note(`Played ${inst.card.name} tapped${verdict.why ? ` — ${verdict.why}` : ''}`)
+    }
     drag.current = null
   }
 

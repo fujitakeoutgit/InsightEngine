@@ -812,7 +812,28 @@ Still to do, in order:
   slightly lower in the playtest corner.
 - ~~**P26 — Reset button red.**~~ DONE — `btn-danger`, matching the
   confirmation it opens.
-- **L8 — Rootbound Crag entered untapped** with no Mountain and no Forest on
+- ~~**L8 — Rootbound Crag entered untapped.**~~ DONE, and neither of my two
+  earlier theories was right. The parser was never wrong and `oracle_text` was
+  never null: verified against the real rows, Rootbound Crag reads *TAPPED (no
+  mountain or forest)* on an empty board and untapped with a Mountain down;
+  Sulfur Falls, Sunpetal Grove, Steam Vents and a basic Mountain all answer
+  correctly too.
+
+  `entersTapped` simply was never **called**. Only `play()` consulted it — the
+  path taken when you *click* a card in hand. Dropping a card on the mat goes
+  through `onMatDrop` → `move()`, which set the zone and never asked. So the
+  same land, on the same board, came down tapped or untapped depending on
+  which gesture you happened to use, and dragging is the natural one. Every
+  check land, shock land and fast land had it.
+
+  `move` now takes an optional tapped state and `onMatDrop` computes the
+  verdict — but only when the card is *arriving*, since nudging a permanent
+  already on the battlefield must not re-roll it.
+
+  The lesson, for the third time today: before theorising about why a function
+  is wrong, check that it runs at all.
+
+- **L8 (original note) — Rootbound Crag entered untapped** with no Mountain and no Forest on
   the battlefield. **Not a parsing bug** — I checked before guessing. Ran the
   real clauses through `tapClause` + `namedTypes`: both the old wording
   ("enters the battlefield tapped unless you control a Mountain or a Forest")
