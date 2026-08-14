@@ -152,7 +152,11 @@ FIELD_ALIASES = {
 }
 
 # Operators that only ever make sense against the local engine.
-LOCAL_ONLY_FIELDS = {"q", "otag"}
+# Filters no remote API can answer, so a query using one must run against the
+# mirror. `binder:` is the clearest case: what you own is a fact about this
+# install and exists nowhere else. Leaving it out sent "binder:true" to
+# Scryfall, which does not know the word and answered with everything.
+LOCAL_ONLY_FIELDS = {"q", "otag", "binder"}
 
 
 # --------------------------------------------------------------------------

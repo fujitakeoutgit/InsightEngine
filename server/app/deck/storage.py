@@ -123,8 +123,56 @@ def save(
         deck_id = cursor.lastrowid
     conn.commit()
 
+    # The binder drives the `binder:` search filter, so its index follows it.
+    if name == BINDER_NAME:
+        reindex_binder(conn, text)
+
     row = conn.execute("SELECT * FROM decks WHERE id = ?", (deck_id,)).fetchone()
     return _row(row)
+
+
+#: The one deck that is not a deck. Matches web/src/lib/binder.ts.
+BINDER_NAME = "__binder__"
+
+
+def reindex_binder(conn: sqlite3.Connection, text: str | None = None) -> int:
+    """Rebuild the oracle-id index that `binder:true` searches against.
+
+    Resolving a decklist is not free, and a search should not pay for it on
+    every keystroke -- so it is done once when the binder is saved and the
+    result is a table the query planner can join against.
+
+    Replaced wholesale rather than diffed: the binder is one list, rebuilding
+    it is milliseconds, and a diff would have to reason about a card whose name
+    resolves differently after a card-data update.
+    """
+    from ..state import state
+
+    if text is None:
+        row = conn.execute(
+            "SELECT text FROM decks WHERE name = ? LIMIT 1", (BINDER_NAME,),
+        ).fetchone()
+        text = row["text"] if row else ""
+
+    ids: set[str] = set()
+    resolver = state.resolver
+    if resolver and text:
+        from .parser import parse_decklist
+        for entry in parse_decklist(text).entries:
+            resolution = resolver.resolve(
+                entry.raw_name, entry.quantity, entry.section,
+                entry.line_number, entry.set_code,
+            )
+            if resolution.card:
+                ids.add(resolution.card["oracle_id"])
+
+    conn.execute("DELETE FROM binder_cards")
+    conn.executemany(
+        "INSERT OR IGNORE INTO binder_cards(oracle_id) VALUES(?)",
+        [(i,) for i in ids],
+    )
+    conn.commit()
+    return len(ids)
 
 
 def backfill_commanders(conn: sqlite3.Connection) -> int:

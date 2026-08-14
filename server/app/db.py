@@ -194,6 +194,17 @@ CREATE TABLE IF NOT EXISTS printings (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_printings_lookup
     ON printings(set_code, collector_number);
 CREATE INDEX IF NOT EXISTS idx_printings_oracle ON printings(oracle_id);
+
+-- What is in the binder, as oracle ids, so `binder:true` is a join rather than
+-- a decklist parsed per search.
+--
+-- Derived from the binder deck's text and rebuilt whenever that deck is saved.
+-- It is a cache of user data rather than of the mirror, which is why it lives
+-- here and not there -- but unlike `decks` it can always be regenerated, so
+-- losing it costs nothing.
+CREATE TABLE IF NOT EXISTS binder_cards (
+    oracle_id TEXT PRIMARY KEY
+);
 """
 
 

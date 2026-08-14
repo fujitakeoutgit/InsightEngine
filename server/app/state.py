@@ -72,6 +72,13 @@ class AppState:
             self.spell = SpellChecker(self.conn)
             # Decks saved before commander art existed would show blank tiles.
             backfill_commanders(self.conn)
+            # `binder:` searches join against a resolved index of the binder.
+            # Rebuilt here as well as on save, because a card-data update can
+            # change what a name resolves to -- and because the index is a
+            # cache, so an install that has never saved the binder since the
+            # feature landed still gets one.
+            from .deck.storage import reindex_binder
+            reindex_binder(self.conn)
 
     def close(self) -> None:
         if self.conn:

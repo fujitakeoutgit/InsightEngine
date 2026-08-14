@@ -42,6 +42,7 @@ export const FIELDS: Record<string, string> = {
   rank: 'edhrec rank', edhrec: 'edhrec rank',
   layout: 'layout', produces: 'produces',
   otag: 'oracle tag', function: 'oracle tag', tag: 'oracle tag',
+  binder: 'in your binder',
   q: 'ask the model', ask: 'ask the model',
 }
 

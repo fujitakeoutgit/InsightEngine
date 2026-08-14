@@ -308,6 +308,18 @@ def compile_term(term: Term) -> Compiled:
             raise QueryCompileError(f"unknown 'is:' filter '{value}'")
         # `is:transform` and friends are layout equality under another name.
         return Compiled(f"({predicate})", [], pins_layout=predicate.startswith("layout ="))
+    if key == "binder":
+        # Cards you own. The binder is a decklist, so it cannot be joined
+        # against directly -- `binder_cards` is the resolved index of it,
+        # rebuilt whenever the binder is saved.
+        #
+        # `binder:false` and `-binder:true` mean the same thing and both work;
+        # negation is handled generically one level up, so this only has to
+        # know how to say "is in it".
+        wanted = value.lower() not in ("false", "no", "0")
+        clause = ("EXISTS (SELECT 1 FROM binder_cards bc "
+                  "WHERE bc.oracle_id = cards.oracle_id)")
+        return Compiled(clause if wanted else f"NOT ({clause})", [])
     if key == "otag":
         return Compiled(
             "EXISTS (SELECT 1 FROM tag_cards tc WHERE tc.oracle_id = cards.oracle_id "

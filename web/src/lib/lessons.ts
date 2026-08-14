@@ -150,6 +150,10 @@ export const LESSONS: Lesson[] = [
         text: 'Press **In binder** to outline every result you already own in gold.',
       },
       {
+        target: '.search-input-wrap',
+        text: '`binder:true` returns only cards in your binder, and `-binder:true` only cards that are not. Combine it like any other filter: `binder:true t:creature id:bg`.',
+      },
+      {
         target: '.owned-toggle',
         text: 'Press **Toggle Overlay** to keep prices on the cards instead of showing them on hover. In a deck or the binder it shows the quantity too.',
       },
