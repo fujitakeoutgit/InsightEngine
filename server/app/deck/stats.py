@@ -26,6 +26,15 @@ CURVE_KEYS = ("0", "1", "2", "3", "4", "5", "6", "7+")
 
 _SYMBOL = re.compile(r"\{([^}]+)\}")
 
+# How many sources of a colour you want, by the heaviest number of that
+# colour's pips on a single card. Frank Karsten's tables, rounded: enough
+# sources to cast the spell on curve about 90% of the time. Index 0 is unused
+# -- a colour with no pips never reaches here.
+_SOURCE_TARGETS = {
+    "commander": (0, 20, 24, 27),
+    "sixty": (0, 14, 20, 23),
+}
+
 
 def _counted(resolutions: list[Resolution]) -> list[Resolution]:
     """Cards occupying deck slots. The maybeboard is a holding area, not a deck."""
@@ -67,6 +76,9 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
     other_sources = 0
     # Cards that produce at least one coloured symbol, counted once each.
     source_cards = 0
+    # Most pips of one colour on a single card, which is what the source
+    # requirement is keyed on.
+    intensity: Counter = Counter()
 
     for res in cards:
         card = res.card
@@ -90,6 +102,11 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
         card_pips = _pips(card.get("mana_cost"))
         for colour, n in card_pips.items():
             pips[colour] += n * qty
+            # The heaviest single demand in this colour. Twenty one-pip white
+            # cards are easy; one WWW card is not, and it is the WWW card that
+            # decides how many white sources the deck actually needs.
+            if n > intensity[colour]:
+                intensity[colour] = n
 
         # Whether a card is a mana source and which colours it supplies are two
         # different questions. Sol Ring makes only C, so it is very much a rock
@@ -152,22 +169,40 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
     # and a land that makes any colour now satisfies every colour it makes,
     # rather than diluting all of them.
     total_sources = source_cards or 1
+    table = _SOURCE_TARGETS["commander" if total_cards >= 80 else "sixty"]
     balance = []
     for colour in COLOURS:
-        if not pips[colour] and not produced[colour]:
+        # Only colours the deck actually casts. A colour with no pips has no
+        # requirement, so there is nothing to be short or long of -- and the
+        # old code gave it a row anyway. Minsc plays no blue and no black card
+        # at all, and reported a +24% surplus in each, purely because seven of
+        # its lands can incidentally tap for them.
+        if not pips[colour]:
             continue
+        need = table[min(intensity[colour], 3)]
         balance.append({
             "color": colour,
             "pips": pips[colour],
             "pip_share": round(pips[colour] / total_pips, 4),
             "sources": produced[colour],
             "source_share": round(produced[colour] / total_sources, 4),
-            # Sources minus demand, so the sign reads the way a player thinks:
-            # positive is mana you have spare, negative is a colour you are
-            # short of. The other way round, a deck making black mana it never
-            # spends reported a *negative* number, which reads as a shortage of
-            # the very thing it has too much of.
-            "gap": round(produced[colour] / total_sources - pips[colour] / total_pips, 4),
+            # The heaviest cost in this colour, and how many sources that cost
+            # wants. Karsten's tables: roughly 20/24/27 sources in a 99 for
+            # one, two and three pips, and 14/20/23 in a 60.
+            "intensity": intensity[colour],
+            "target": need,
+            # Sources you have minus sources you want, in cards. Negative means
+            # short.
+            #
+            # This replaces a subtraction of two percentages that did not share
+            # a denominator. Pip share was out of all pips and summed to 100%;
+            # source share was out of source *cards* while its numerators
+            # counted every colour a card makes, so it summed to whatever the
+            # average source produced -- 220% in Minsc. Subtracting them left a
+            # figure that was positive for every colour in every multicolour
+            # deck, which is not a measurement, and the number of cards is what
+            # a player can act on anyway.
+            "shortfall": produced[colour] - need,
         })
 
     return {

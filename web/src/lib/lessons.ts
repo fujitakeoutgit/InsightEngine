@@ -126,6 +126,12 @@ export const LESSONS: Lesson[] = [
         text: '`*` is the wildcard this app adds and the API does not have. `n:thal*` reaches Thalia, Thallid and Thraben. Put `-` in front of a term to exclude it.',
       },
       {
+        text: 'Start a search with `q:` to ask in plain words instead of operators. `q: cheap green creatures that draw a card` goes to the local model. It writes the operator query for you and runs it.',
+      },
+      {
+        text: 'A `q:` search can only return cards that exist, because the model writes a query rather than an answer. It is slower than a plain search, and the badge above the results tells you which engine ran.',
+      },
+      {
         target: '.owned-toggle',
         text: 'Press **In binder** to outline every result you already own in gold. Use it to see what you would be buying twice.',
       },
@@ -177,6 +183,12 @@ export const LESSONS: Lesson[] = [
       },
       {
         text: '**AI recommend** is the slow one. It reads your deck description first, so a deck that says what it is trying to do gets markedly better answers. Press the **Pipeline** tab to watch the run stage by stage.',
+      },
+      {
+        text: 'Press the **Sleeves** tab to give the deck a sleeve. It is what the deck wears in the gallery and on the playtest mat, so two decks never look alike.',
+      },
+      {
+        text: 'Press **Playtest** to deal this deck onto a table. Press **Copy** to duplicate the deck before trying something you might regret, and **Export** to write the list out as text.',
       },
     ],
   },
@@ -247,7 +259,13 @@ export const LESSONS: Lesson[] = [
         text: 'Press **Export** to write your decks, your binder, your collected cards and your sleeves into one file. Press **Restore** to read that file back in. **Restore** only adds — it never deletes anything you already have.',
       },
       {
-        text: '**Table** is where you choose what the dice and coin are made of. Press a swatch to try a finish, then throw the dice beside it to see how it looks in motion. The d20 is picked separately, so your two dice never look alike.',
+        text: '**Tabletop** is where you choose what the dice and coin are made of. Press a swatch to try a finish, then throw the dice beside it to see how it looks in motion. The d20 is picked separately, so your two dice never look alike.',
+      },
+      {
+        text: '**Local model** is the model that answers a `q:` search. Press the **Model** dropdown to change it. Each option lists the video memory it wants. A model bigger than your card still runs, but spills into system memory and slows to minutes per search.',
+      },
+      {
+        text: 'Press **Save** to keep a new model. If it is not on this machine yet, the panel prints the exact `ollama pull` command to run first.',
       },
     ],
   },
@@ -260,6 +278,12 @@ export const LESSONS: Lesson[] = [
         route: '/playtest',
         target: '.deck-tile',
         text: 'Pick a deck and it deals you seven. Nothing is enforced: you are checking whether the deck does anything, not adjudicating a game.',
+      },
+      {
+        text: 'Press **Next turn** to untap everything, step the turn counter and draw a card. Press **Draw** to draw one card without ending the turn, and **Untap all** to untap without drawing.',
+      },
+      {
+        text: 'Press **Tutor** to search your library for any card and put it in your hand. Press **Shuffle** to shuffle the library.',
       },
       {
         example: 'playtest',
@@ -280,6 +304,15 @@ export const LESSONS: Lesson[] = [
       },
       {
         text: 'Press **Reset** to clear the board and sweep the dice home; it asks you to confirm first. Press **Mulligan** to redraw your opening hand and nothing else.',
+      },
+      {
+        text: 'Press the arrows either side of your life total to gain or lose life. Press the coin to flip it.',
+      },
+      {
+        text: 'Press **History** on the right edge to slide out the log of everything that has happened this game.',
+      },
+      {
+        text: 'A planeswalker you play arrives with its starting loyalty. Press the arrows on its badge to move the counter; leaving the battlefield resets it.',
       },
     ],
   },

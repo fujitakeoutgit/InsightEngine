@@ -291,7 +291,7 @@ export function SettingsPage() {
       </div>
 
       <div className="panel settings-panel">
-        <h3>Table</h3>
+        <h3>Tabletop</h3>
         <p className="muted" style={{ fontSize: 13, marginBottom: 14 }}>
           What the dice and the coin are made of. Nothing is downloaded — both are
           drawn in CSS, so a finish is only a change of colour.

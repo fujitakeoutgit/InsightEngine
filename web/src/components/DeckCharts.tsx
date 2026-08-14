@@ -236,18 +236,28 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
             {stats.mana_rocks > 0 && `, ${stats.mana_rocks} rock${stats.mana_rocks === 1 ? '' : 's'}`}
             {stats.mana_dorks > 0 && `, ${stats.mana_dorks} dork${stats.mana_dorks === 1 ? '' : 's'}`}
             {stats.other_mana_sources > 0 && `, ${stats.other_mana_sources} other`}
+            {'. '}Sources you have, against what the heaviest cost in that colour wants.
           </p>
           <div className="balance">
             {stats.balance.map((b) => (
               <div className="bal-row" key={b.color}>
                 <span className="bal-pip" style={{ background: FILL[b.color] }}>{b.color}</span>
                 <span className="bal-name">{COLOR_NAME[b.color]}</span>
-                <div className="bal-track">
-                  <div className="bal-need" style={{ width: `${b.pip_share * 100}%` }} />
-                  <div className="bal-have" style={{ width: `${b.source_share * 100}%` }} />
+                {/* Sources against the number this colour's heaviest cost
+                    wants. The track is the target; the fill is what you have,
+                    clamped so a surplus reads as "full" rather than spilling
+                    past the bar it is measured against. */}
+                <div
+                  className="bal-track"
+                  title={`${b.sources} sources · ${b.intensity} pip${b.intensity === 1 ? '' : 's'} wants ${b.target}`}
+                >
+                  <div
+                    className={b.shortfall < 0 ? 'bal-have short' : 'bal-have'}
+                    style={{ width: `${Math.min(1, b.sources / b.target) * 100}%` }}
+                  />
                 </div>
-                <span className={`bal-gap mono ${b.gap < -0.08 ? 'short' : b.gap > 0.08 ? 'over' : ''}`}>
-                  {b.gap > 0 ? '+' : ''}{Math.round(b.gap * 100)}%
+                <span className={`bal-gap mono ${b.shortfall < 0 ? 'short' : ''}`}>
+                  {b.sources}/{b.target}
                 </span>
               </div>
             ))}
@@ -259,17 +269,17 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
             <div className="scroll-x" style={{ marginTop: 12 }}>
               <table className="card-list">
                 <thead>
-                  <tr><th>Colour</th><th>Pips</th><th>Share</th><th>Sources</th><th>Share</th><th>Gap</th></tr>
+                  <tr><th>Colour</th><th>Pips</th><th>Heaviest</th><th>Sources</th><th>Wanted</th><th>Short by</th></tr>
                 </thead>
                 <tbody>
                   {stats.balance.map((b) => (
                     <tr key={b.color}>
                       <td>{COLOR_NAME[b.color]}</td>
                       <td className="num">{b.pips}</td>
-                      <td className="num">{Math.round(b.pip_share * 100)}%</td>
+                      <td className="num">{b.intensity}</td>
                       <td className="num">{b.sources}</td>
-                      <td className="num">{Math.round(b.source_share * 100)}%</td>
-                      <td className="num">{b.gap > 0 ? '+' : ''}{Math.round(b.gap * 100)}%</td>
+                      <td className="num">{b.target}</td>
+                      <td className="num">{b.shortfall < 0 ? b.shortfall : '—'}</td>
                     </tr>
                   ))}
                 </tbody>

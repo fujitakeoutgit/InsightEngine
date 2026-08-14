@@ -2991,14 +2991,31 @@
 .bal-row { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
 .bal-pip { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-m); font-size: 10px; font-weight: 700; color: #0b0d12; flex: none; }
 .bal-name { width: 78px; flex: none; color: var(--muted); }
-.bal-track { flex: 1; position: relative; height: 14px; }
-.bal-need { position: absolute; inset: 0 auto 7px 0; height: 6px; background: var(--aether); border-radius: 2px; opacity: 0.85; }
-.bal-have { position: absolute; inset: 8px auto 0 0; height: 6px; background: var(--ok); border-radius: 2px; opacity: 0.85; }
-.bal-gap { width: 46px; text-align: right; font-size: 11px; color: var(--muted); }
+/* One track, not two. The groove is the target the colour is measured
+   against and the fill is what the deck has, so a short colour is visibly an
+   unfilled bar rather than two stripes the reader has to compare. */
+.bal-track {
+  flex: 1;
+  position: relative;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--surface-3, rgba(255, 255, 255, 0.07));
+  overflow: hidden;
+}
+
+.bal-have {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--ok);
+  border-radius: 3px;
+  opacity: 0.9;
+}
+
+.bal-have.short { background: var(--warn); }
+.bal-gap { width: 52px; text-align: right; font-size: 11px; color: var(--muted); }
 /* Both directions are worth seeing, so both get a colour: short is a warning,
    surplus is fine and reads in the same green as the bars. */
 .bal-gap.short { color: var(--warn); }
-.bal-gap.over { color: var(--ok); }
 
 .deck-desc { width: 100%; min-height: 62px; resize: vertical; font-family: var(--font-b); font-size: 13.5px; line-height: 1.5; padding: 10px 12px; border-radius: var(--r); border: 1px solid var(--line); background: rgba(7,8,12,.6); color: var(--ink); }
 .deck-desc:focus { outline: none; border-color: var(--aether); }
