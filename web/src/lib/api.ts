@@ -248,6 +248,35 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return resp.json()
 }
 
+/** One turn, averaged across every simulated game. */
+export interface SimulationTurn {
+  turn: number
+  lands: number
+  mana: number
+  accelerants: number
+  colours: number
+  hand_size: number
+  avg_cmc_in_hand: number
+  /** Share of games that had no land in hand this turn. */
+  missed_land_drop: number
+  on_curve: number
+  /** Weighted sources per colour, split between the colours each makes. */
+  sources: Record<string, number>
+}
+
+export type SimulationReport =
+  | { empty: true; reason: string }
+  | {
+      empty: false
+      iterations: number
+      turns: number
+      library_size: number
+      commander_identity: string
+      games_missing_a_drop: number
+      avg_first_missed_turn: number | null
+      by_turn: SimulationTurn[]
+    }
+
 export const api = {
   search: (params: {
     q: string
@@ -326,6 +355,10 @@ export const api = {
     }),
 
   loadDeck: (id: number) => get<{ deck: SavedDeck }>(`/api/deck/saved/${id}`),
+
+  simulateDeck: (body: {
+    text: string; iterations?: number; turns?: number; seed?: number
+  }) => post<SimulationReport>('/api/deck/simulate', body),
 
   /** Change one thing about a saved deck without opening it.
    *

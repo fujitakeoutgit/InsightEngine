@@ -16,6 +16,7 @@ from ..deck.parser import parse_decklist
 from ..deck.recommend import CATEGORY_TAGS, recommend, recommend_category
 from ..deck.stats import compute as compute_stats
 from ..deck.resolver import Resolution
+from ..deck.simulate import MAX_ITERATIONS, MAX_TURNS, simulate
 from ..llm.deck_pipeline import DeckRecommendPipeline
 from ..state import state
 from .semantic import HEARTBEAT_SECONDS, RECONNECT_HINT_MS, _RUNS, _sse
@@ -70,6 +71,28 @@ async def analyze(request: DecklistRequest):
         for r in resolutions if not r.resolved
     ]
     return report
+
+
+class SimulateRequest(DecklistRequest):
+    iterations: int = Field(1000, ge=1, le=MAX_ITERATIONS)
+    turns: int = Field(10, ge=1, le=MAX_TURNS)
+    seed: int | None = Field(None, description="Fix the shuffle, for a repeatable run")
+
+
+@router.post("/simulate")
+async def simulate_deck(request: SimulateRequest):
+    """Shuffle and play the opening turns many times over."""
+    resolutions = _resolve(request.text, request.commander)
+    # Off the event loop: twenty thousand games is real CPU work, and a request
+    # this slow would otherwise stall every other request in the process.
+    return await asyncio.to_thread(
+        simulate,
+        state.require_conn(),
+        resolutions,
+        request.iterations,
+        request.turns,
+        request.seed,
+    )
 
 
 class RecommendRequest(DecklistRequest):

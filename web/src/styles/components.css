@@ -4594,3 +4594,29 @@
 
 .commander-stack.paired > a { flex: 1 1 0; min-width: 0; }
 .commander-stack.paired img { width: 100%; height: auto; }
+
+/* Simulation: a bar behind the number, so a column of turns reads as a curve
+   rather than as eight decimals to compare by eye. */
+.sim-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 110px;
+  height: 18px;
+}
+
+.sim-bar > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--aether);
+  opacity: 0.28;
+  border-radius: 3px;
+}
+
+.sim-bar > b {
+  position: relative;
+  padding-left: 6px;
+  font-weight: 600;
+}
+
+.sim-table td { vertical-align: middle; }

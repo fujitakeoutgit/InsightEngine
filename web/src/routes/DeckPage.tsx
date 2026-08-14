@@ -1189,6 +1189,19 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
           >
             {playing ? 'Close playtest' : 'Playtest'}
           </button>
+          {/* Playtest shows you one game. Simulation shows you a thousand,
+              which is the only way to see a pattern rather than an anecdote.
+              Needs a saved deck: the page loads the list by id. */}
+          <button
+            className="btn sm"
+            onClick={() => navigate(`/simulate/${deckId}`)}
+            disabled={!deckCards.length || !deckId}
+            title={deckId
+              ? 'Shuffle and play the opening turns many times over'
+              : 'Save the deck first'}
+          >
+            Simulation
+          </button>
           {/* A decklist is portable text, and every other site reads it. Not
               being able to get one back out made this a place decks came to
               and stayed. */}

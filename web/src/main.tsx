@@ -12,6 +12,7 @@ import { GlossaryPage } from './routes/GlossaryPage'
 import { DeckPage as BinderPage } from './routes/DeckPage'
 import { NotFoundPage } from './routes/NotFoundPage'
 import { PlaytestPage } from './routes/PlaytestPage'
+import { SimulationPage } from './routes/SimulationPage'
 import { SearchPage } from './routes/SearchPage'
 import { SetsPage } from './routes/SetsPage'
 import { SettingsPage } from './routes/SettingsPage'
@@ -38,6 +39,7 @@ const router = createBrowserRouter([
       // Two faces of one route: the picker, then the table.
       { path: 'playtest', element: <PlaytestPage /> },
       { path: 'playtest/:deckId', element: <PlaytestPage /> },
+      { path: 'simulate/:deckId', element: <SimulationPage /> },
       { path: 'sets', element: <SetsPage /> },
       { path: 'glossary', element: <GlossaryPage /> },
       // The binder is the deck editor in binder mode: one deck, never listed
