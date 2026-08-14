@@ -723,8 +723,18 @@ Still to do, in order:
 - **B1 — Commander colour pips.** In the same row as `# cards · $cost`, a
   `Commander:` label then the pips. Clicking one toggles it, shown by
   lightness. All start active. The row must not grow taller.
-- **B2 — Remove** the manabase panel, "Card costs (outer) / Land mana (inner)",
-  "How this deck works", the format control and the deck-name field.
+- ~~**B2 — Remove the deck-only panels from the binder.**~~ DONE: the manabase
+  panel and the Card costs / Land mana donut (both answer "can this deck cast
+  what it plays?", which is a question about a deck), "How this deck works"
+  (a statement of intent for a recommender the binder does not have), the
+  format control (nothing about legality applies to a list of what you own)
+  and the deck-name field (there is one binder, named for itself).
+
+  Verified by reading `.label` **textContent**, not `innerText` — those labels
+  are uppercased in CSS, so `innerText` returns "DECK NAME" and a
+  case-sensitive check on the rendered text passes whether the field is there
+  or not. My first run "confirmed" the binder *and* the deck builder had lost
+  all five, which is what exposed the bad method.
 - **B3 — Printing picker.** Drop Commander / Maybe / Sideboard from the tile
   hover and put **Printing** there instead: a dark full-screen gallery of that
   card's editions, set name under each, click a printing to choose it, click

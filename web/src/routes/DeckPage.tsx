@@ -714,7 +714,10 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         )}
       </div>
 
-      {mode === 'text' && (
+      {/* B2 — a binder has no name to choose and no format to be legal in.
+          It is *the* binder: one of it, named for it, and nothing about a
+          format applies to a list of what you own. */}
+      {mode === 'text' && !binder && (
         <div className="row gap-2 wrap">
           <label className="stack gap-1" style={{ flex: '1 1 240px', minWidth: 0 }}>
             <span className="label">Deck name</span>
@@ -735,7 +738,9 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         </div>
       )}
 
-      {mode === 'text' && (
+      {/* B2 — "How this deck works" is a statement of intent for the AI
+          recommender, and a binder has neither an intent nor a recommender. */}
+      {mode === 'text' && !binder && (
         <label className="stack gap-1">
           <span className="label">How this deck works</span>
           <textarea
@@ -942,7 +947,10 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
 
           {/* Charts first: the shape of the deck is what you opened this tab
               for. DeckInfo is reference material and goes last. */}
-          {report.stats && !report.stats.empty && <DeckCharts stats={report.stats} />}
+          {/* B2 — no manabase panel and no cost/land donut in the binder.
+              Both answer "can this deck cast what it plays?", which is a
+              question about a deck. A binder is not trying to cast anything. */}
+          {!binder && report.stats && !report.stats.empty && <DeckCharts stats={report.stats} />}
 
           {report.stats && !report.stats.empty && (
             <DeckInfo
