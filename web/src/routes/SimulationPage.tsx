@@ -82,7 +82,7 @@ export function SimulationPage() {
           : 'Shuffling a deck and playing the opening turns, over and over.'}
       />
 
-      <div className="panel">
+      <div className="panel" data-tour="sim-controls">
         <div className="row gap-3 wrap" style={{ alignItems: 'flex-end' }}>
           <label className="stack gap-1">
             <span className="label">Games</span>
@@ -126,7 +126,7 @@ export function SimulationPage() {
 
       {report && !report.empty && (
         <>
-          <div className="panel">
+          <div className="panel" data-tour="sim-drops">
             <h3>Land drops</h3>
             <p className="faint" style={{ fontSize: 11, marginBottom: 10 }}>
               {report.iterations.toLocaleString()} games · {report.library_size} cards in
@@ -193,7 +193,7 @@ export function SimulationPage() {
             </div>
           </div>
 
-          <div className="panel">
+          <div className="panel" data-tour="sim-sources">
             <h3>Sources by colour</h3>
             <p className="faint" style={{ fontSize: 11, marginBottom: 10 }}>
               Weighted: a land making two of the commander&rsquo;s colours counts a half

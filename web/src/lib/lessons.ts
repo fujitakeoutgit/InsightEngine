@@ -57,7 +57,7 @@ export interface Step {
    * it is the deck this app seeds and therefore the one most installs have —
    * then any other deck, and only then gives up and shows the gallery.
    */
-  example?: 'deck' | 'playtest'
+  example?: 'deck' | 'playtest' | 'simulate'
   /** What it points at. Omitted means a centred card with no arrow. */
   target?: string
 }
@@ -164,6 +164,26 @@ export const LESSONS: Lesson[] = [
     ],
   },
   {
+    id: 'advanced',
+    title: 'The Advanced form',
+    blurb: 'The same search, built by clicking.',
+    steps: [
+      {
+        route: '/advanced',
+        target: '.adv-form',
+        text: 'Every row here writes part of a query. Nothing is hidden from you — the line it builds is the same syntax you could have typed.',
+      },
+      {
+        target: '.query-preview',
+        text: 'The query updates as you click, so this is also how to learn the operators. Press **Copy** to take it, or **Search with these options** to run it.',
+      },
+      {
+        target: '.checks',
+        text: 'Press **Only Binder** under **Collection** to restrict a search to cards you own, or **Not in Binder** for everything you do not. They write `binder:true` and `-binder:true`.',
+      },
+    ],
+  },
+  {
     id: 'recent-searches',
     title: 'Recent searches',
     blurb: 'The last few queries, and how to stop one ageing out.',
@@ -212,6 +232,13 @@ export const LESSONS: Lesson[] = [
       {
         target: '.result-tabs',
         text: 'Press the **Pipeline** tab to watch each stage of that run.',
+      },
+      {
+        target: '.commander-card',
+        text: 'A deck can have two commanders when the pair is legal — Partner, Friends forever, a Background, or a Doctor and its companion. Put both in the Commander section and their colours combine.',
+      },
+      {
+        text: 'Hover a card and press **Printing** to choose which edition you own. It is fetched once and kept, so it is still there when you reopen the deck.',
       },
       {
         target: '.sleeve-add',
@@ -312,6 +339,74 @@ export const LESSONS: Lesson[] = [
       {
         target: '[data-tour="local-model"]',
         text: 'Press **Save** to apply the model. If it is not installed, the panel prints the `ollama pull` command to run.',
+      },
+    ],
+  },
+  {
+    id: 'deck-stats',
+    title: 'Reading the charts',
+    blurb: 'The curve, the ring, and what the mana base is actually measuring.',
+    steps: [
+      {
+        route: '/deck',
+        example: 'deck',
+        target: '.chart.wide',
+        text: 'The curve counts nonland cards by mana value, stacked by colour. Lands are left out: they cost nothing and would pile onto zero.',
+      },
+      {
+        target: '.chart-grid',
+        text: 'The ring shows what your cards cost against what your lands make. Only the commander’s colours appear — a land that taps for blue in a deck with no blue commander is a land, not a blue source.',
+      },
+      {
+        target: '.balance',
+        text: '**Mana base** is sources per pip: how much of your mana works for a colour, divided by how much that colour is asked for. The weakest colour is marked in amber.',
+      },
+      {
+        target: '.balance',
+        text: 'Each source is split between the colours it makes. A dual counts a half to each, a triome a third, a five-colour land a fifth — or a quarter, if the commander only allows four.',
+      },
+      {
+        target: '.balance',
+        text: 'A fetch land counts as the colours it can go and get, not as nothing. Scryfall says it produces no mana, which is true of the card and false of what it does for your deck.',
+      },
+      {
+        text: 'Bars are scaled against your best-supported colour rather than a pass mark. A healthy deck runs well under one source per pip, so a fixed threshold would fail every colour and tell you nothing.',
+      },
+      {
+        target: '.deck-info',
+        text: 'Press **Show numbers** for the counts behind the bars: pips, cards that can tap for the colour, weighted sources, and the ratio.',
+      },
+    ],
+  },
+  {
+    id: 'simulation',
+    title: 'Simulation',
+    blurb: 'Shuffle the deck a few thousand times and read the averages.',
+    steps: [
+      {
+        route: '/deck',
+        example: 'simulate',
+        target: '[data-tour="sim-controls"]',
+        text: 'Playtest shows one game, which is an anecdote. This one deals and plays the opening turns as many times as you ask. Choose how many games and how many turns, then press **Run simulation**.',
+      },
+      {
+        target: '[data-tour="sim-drops"]',
+        text: '**Missed a drop** is the share of games where some turn had no land in hand. **First miss** is the turn it usually happened on.',
+      },
+      {
+        target: '.sim-table',
+        text: 'One row per turn, averaged over every game: mana available, lands and accelerants on the board, and how many colours it could actually produce.',
+      },
+      {
+        target: '.sim-table',
+        text: '**Missed drop** turns amber above 30%. **Avg. cost in hand** is what you were holding, so a figure that stays above your mana is a curve problem rather than a land problem.',
+      },
+      {
+        target: '[data-tour="sim-sources"]',
+        text: 'Press **Lands**, **Rocks** or **Dorks** to see where a colour comes from. A deck short on green from its lands but fine once its dorks arrive has a different problem from one that is simply short.',
+      },
+      {
+        text: 'It is a mana simulation, not a game. No spell is cast except a rock or a dork, one land is played per turn whenever the hand holds one, and anything entering tapped or summoning-sick pays nothing until the next turn. Nothing is mulliganed.',
       },
     ],
   },
