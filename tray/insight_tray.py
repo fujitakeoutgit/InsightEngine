@@ -79,7 +79,7 @@ def _lerp(a: tuple, b: tuple, t: float) -> tuple:
 
 
 def _sample(stops: tuple, t: float) -> tuple:
-    """Colour at position t across an arbitrary number of gradient stops."""
+    """Color at position t across an arbitrary number of gradient stops."""
     if len(stops) == 1:
         return stops[0]
     span = 1 / (len(stops) - 1)
@@ -96,9 +96,9 @@ def make_icon(stops: tuple, hollow: bool = False, size: int = 64) -> Image.Image
     gradient = Image.new("RGBA", (big, big))
     pixels = gradient.load()
     for x in range(big):
-        colour = _sample(stops, x / max(1, big - 1)) + (255,)
+        color = _sample(stops, x / max(1, big - 1)) + (255,)
         for y in range(big):
-            pixels[x, y] = colour
+            pixels[x, y] = color
 
     mask = Image.new("L", (big, big), 0)
     draw = ImageDraw.Draw(mask)

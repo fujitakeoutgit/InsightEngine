@@ -159,8 +159,8 @@ def test_basic_lands_exempt_from_copy_limit(resolver):
     assert not islands
 
 
-def test_commander_colour_identity_enforced(resolver):
-    # Sol Ring is colourless (fine); Lightning Bolt is red and must be flagged
+def test_commander_color_identity_enforced(resolver):
+    # Sol Ring is colorless (fine); Lightning Bolt is red and must be flagged
     # under a mono-blue commander.
     report = analyse(_resolve_list(
         resolver, "Commander\n1 Talrand, Sky Summoner\nDeck\n1 Lightning Bolt\n1 Sol Ring\n"

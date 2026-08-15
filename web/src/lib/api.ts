@@ -254,13 +254,13 @@ export interface SimulationTurn {
   lands: number
   mana: number
   accelerants: number
-  colours: number
+  colors: number
   hand_size: number
   avg_cmc_in_hand: number
   /** Share of games that had no land in hand this turn. */
   missed_land_drop: number
   on_curve: number
-  /** Weighted sources per colour, split between the colours each makes. */
+  /** Weighted sources per color, split between the colors each makes. */
   sources: Record<string, number>
   /** The same, split by what kind of permanent produced it. */
   sources_by_kind: Record<'lands' | 'rocks' | 'dorks' | 'other', Record<string, number>>
@@ -575,13 +575,13 @@ export interface DeckStats {
   avg_cmc: number
   pips: Record<string, number>
   produced: Record<string, number>
-  coloured_sources: number
-  /** Union of the commander section's colour identity. '' when there is none. */
+  colored_sources: number
+  /** Union of the commander section's color identity. '' when there is none. */
   commander_identity: string
   balance: {
     color: string; pips: number; pip_share: number
     sources: number; source_share: number
-    /** Sources after splitting each between the commander colours it serves. */
+    /** Sources after splitting each between the commander colors it serves. */
     weighted_sources: number
     /** weighted_sources / pips. Higher is better supported. */
     ratio: number

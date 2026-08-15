@@ -4,7 +4,7 @@
  * Bricolage Grotesque for display, Instrument Sans for body, IBM Plex Mono for
  * every label and number. Near-black canvas, cool blue-grey glass, a single
  * aether-blue accent, and the WUBRG manaline reserved for moments that are
- * genuinely about Magic's colours.
+ * genuinely about Magic's colors.
  */
 
 :root {
@@ -35,8 +35,8 @@
   --manaline: linear-gradient(90deg, #e9e2c6, #4d93d6 30%, #8b8494 50%, #dd6b4e 70%, #55a96f);
   --mana-w: #e9e2c6;
   --mana-u: #4d93d6;
-  /* Black is actually black. It was a mid grey, which collided with colourless
-     and left the two indistinguishable; grey now belongs to colourless alone.
+  /* Black is actually black. It was a mid grey, which collided with colorless
+     and left the two indistinguishable; grey now belongs to colorless alone.
      A fill this dark only reaches ~1.5:1 against the chart panel, so segments
      carry an outline for relief -- see .cc-seg / .donut-arc. */
   --mana-b: #2f3145;
@@ -49,7 +49,7 @@
      -- silver is supposed to read as silver -- so they fail the categorical
      lightness/chroma bands by design. What they do pass, measured against the
      #0d0f16 panel: every adjacent pair separates by ΔE 16.0 normal / 12.6
-     protan, and all five clear 3:1 contrast. Nothing here is encoded by colour
+     protan, and all five clear 3:1 contrast. Nothing here is encoded by color
      alone in any case: each swatch is printed beside its name and count. */
   --rarity-common: #6f7789;
   --rarity-uncommon: #b9c6d4;

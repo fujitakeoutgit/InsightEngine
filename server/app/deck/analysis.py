@@ -4,7 +4,7 @@ Legality is checked on two axes, because either one alone is misleading:
 
 * per-card status from Scryfall's `legalities` blob (legal / banned / restricted)
 * format construction rules (deck size, copy limits, singleton, sideboard,
-  commander colour identity)
+  commander color identity)
 """
 
 from __future__ import annotations
@@ -234,7 +234,7 @@ def check_format(
                 "or Doctor’s companion naming the other."
             )
 
-    # Commander colour identity.
+    # Commander color identity.
     if rule.commander_identity and commanders:
         allowed: set[str] = set()
         for res in commanders:
@@ -248,7 +248,7 @@ def check_format(
                 outside = "".join(sorted(identity - allowed))
                 verdict.problem_cards.append({
                     "name": res.card["name"],
-                    "reason": f"colour identity {outside} outside commander",
+                    "reason": f"color identity {outside} outside commander",
                 })
 
     return verdict
@@ -271,7 +271,7 @@ def analyse(resolutions: list[Resolution]) -> dict[str, Any]:
             missing_price += res.quantity
 
     curve: dict[str, int] = {}
-    colours: dict[str, int] = {}
+    colors: dict[str, int] = {}
     for res in counted:
         card = res.card
         assert card is not None
@@ -280,7 +280,7 @@ def analyse(resolutions: list[Resolution]) -> dict[str, Any]:
             key = "7+" if bucket >= 7 else str(bucket)
             curve[key] = curve.get(key, 0) + res.quantity
         for letter in card.get("color_identity") or "":
-            colours[letter] = colours.get(letter, 0) + res.quantity
+            colors[letter] = colors.get(letter, 0) + res.quantity
 
     verdicts = [check_format(key, rule, resolutions).as_dict()
                 for key, rule in FORMATS.items()]
@@ -293,7 +293,7 @@ def analyse(resolutions: list[Resolution]) -> dict[str, Any]:
         "price_usd": round(price, 2),
         "cards_missing_price": missing_price,
         "curve": curve,
-        "colors": colours,
+        "colors": colors,
         "formats": verdicts,
         "entries": [r.as_dict() for r in resolutions],
     }

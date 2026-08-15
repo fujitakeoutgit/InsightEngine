@@ -130,12 +130,12 @@ def test_no_summarisation_prompt_remains():
 # --- plan isolation --------------------------------------------------------
 
 def test_one_broken_plan_does_not_kill_the_run(conn):
-    """The regression: a planner emitted a regex as a colour and the whole
+    """The regression: a planner emitted a regex as a color and the whole
     eight-minute run aborted on QueryCompileError."""
     pipeline = SemanticPipeline(conn)
     plans = [
         {"rationale": "good plan", "filters": {"oracle_any": ["sacrifice a creature"]}},
-        {"rationale": "regex as colour", "filters": {"colors": "^[^b]*$"}},
+        {"rationale": "regex as color", "filters": {"colors": "^[^b]*$"}},
         {"rationale": "unknown key", "filters": {"nonsense_key": "x"}},
         {"rationale": "bad rarity", "filters": {"rarity": ["legendary"]}},
         {"rationale": "another good plan", "filters": {"type_contains": ["Creature"]}},
@@ -146,10 +146,10 @@ def test_one_broken_plan_does_not_kill_the_run(conn):
     assert len(stats) == len(plans)
     failed = [s for s in stats if s.get("error")]
     assert len(failed) == 3
-    assert any("colour" in w for w in warnings)
+    assert any("color" in w for w in warnings)
 
 
-def test_colour_exclusion_replaces_the_regex_workaround(conn):
+def test_color_exclusion_replaces_the_regex_workaround(conn):
     """'nonblack' now has a real filter, so no planner needs a pattern."""
     cards = search_mtg_database(
         conn,
@@ -167,7 +167,7 @@ def test_global_constraints_reach_every_plan_and_the_sweep(conn):
     all. It is now forced onto every query in code."""
     pipeline = SemanticPipeline(conn)
     plans = [
-        # None of these mention colour; the constraint must still bite.
+        # None of these mention color; the constraint must still bite.
         {"rationale": "sac outlets", "filters": {"oracle_any": ["sacrifice a creature"]}},
         {"rationale": "death triggers", "filters": {"oracle_any": ["dies"]}},
     ]
@@ -217,7 +217,7 @@ def test_global_constraint_merges_with_a_plans_own_exclusion():
     assert set(merged["color_identity_exclude"]) == {"R", "B"}
 
 
-def test_colour_exclusion_accepts_words_and_letters(conn):
+def test_color_exclusion_accepts_words_and_letters(conn):
     by_word = search_mtg_database(conn, {"colors_exclude": "black, red"}, limit=20)
     by_letter = search_mtg_database(conn, {"colors_exclude": "BR"}, limit=20)
     assert [c["oracle_id"] for c in by_word] == [c["oracle_id"] for c in by_letter]

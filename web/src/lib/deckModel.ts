@@ -66,8 +66,8 @@ export function canBeCommander(card: Card): boolean {
 
 export function colorGroup(card: Card): string {
   const id = card.color_identity || ''
-  if (!id) return 'Colourless'
-  if (id.length > 1) return 'Multicolour'
+  if (!id) return 'Colorless'
+  if (id.length > 1) return 'Multicolor'
   return COLOR_LABEL[id] ?? id
 }
 

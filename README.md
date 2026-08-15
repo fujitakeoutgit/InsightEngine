@@ -336,12 +336,12 @@ cd server
 
 68 tests covering the query grammar and SQL compiler, `_` wildcard semantics,
 the decklist ladder (`fire/fall` ≡ `fire fall` ≡ `firefall`), format legality
-including commander colour identity, plan isolation, and the guard.
+including commander color identity, plan isolation, and the guard.
 
 These deliberately run without a model — they assert the properties that hold
 *even if the model misbehaves*: invented ids resolve to nothing, out-of-range
 indices are dropped, the selection schema is structurally incapable of carrying
-text, and a plan set containing a regex-as-colour still returns cards from the
+text, and a plan set containing a regex-as-color still returns cards from the
 plans that were valid.
 
 ---

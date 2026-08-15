@@ -23,7 +23,7 @@ import { ManaCost } from './ManaCost'
 // starting point rather than make you hunt to the end for it.
 const GROUPINGS: [GroupBy, string][] = [
   ['none', 'None'], ['type', 'Type'], ['cmc', 'Mana value'],
-  ['color', 'Colour'], ['rarity', 'Rarity'],
+  ['color', 'Color'], ['rarity', 'Rarity'],
 ]
 
 /** Every section, as tabs — Commander included. The binder has its own three,
@@ -32,7 +32,7 @@ const SECTION_TABS = SECTIONS
 
 const SORTS: [SortBy, string][] = [
   ['name', 'Name'], ['cmc', 'Mana value'], ['price', 'Price'],
-  ['rarity', 'Rarity'], ['color', 'Colour'],
+  ['rarity', 'Rarity'], ['color', 'Color'],
 ]
 
 /**
@@ -48,8 +48,8 @@ export function DeckEditor({
   onAddSearched,
   binder,
   jobFiltered,
-  colours,
-  onColours,
+  colors,
+  onColors,
 }: {
   cards: DeckCard[]
   onChange: (next: DeckCard[]) => void
@@ -62,11 +62,11 @@ export function DeckEditor({
    *  is set. Only what is *shown* narrows: `onChange` still edits the whole
    *  list, so filtering can never delete what it is hiding. */
   jobFiltered?: DeckCard[]
-  /** Lit colours. Owned by the page rather than here, because the same filter
+  /** Lit colors. Owned by the page rather than here, because the same filter
    *  has to narrow the list *and* the numbers beside it, and two copies of it
    *  would drift the moment one was clicked. */
-  colours?: string[]
-  onColours?: (next: string[]) => void
+  colors?: string[]
+  onColors?: (next: string[]) => void
 }) {
   /* Both a deck and a binder open ungrouped. Grouping fragments the list into
    * headed blocks, which is useful when you have a question about shape and in
@@ -378,20 +378,20 @@ export function DeckEditor({
           </span>
         )}
         {binder && (
-          <span className="colour-filter push" role="group" aria-label="Filter by colour">
-            <span className="label">Colours</span>
+          <span className="color-filter push" role="group" aria-label="Filter by color">
+            <span className="label">Colors</span>
             {(['W', 'U', 'B', 'R', 'G', 'C'] as const).map((letter) => {
-              const on = (colours ?? []).includes(letter)
+              const on = (colors ?? []).includes(letter)
               return (
                 <button
                   key={letter}
-                  className={`colour-pip${on ? ' on' : ''}`}
+                  className={`color-pip${on ? ' on' : ''}`}
                   data-c={letter}
                   aria-pressed={on}
                   title={`${on ? 'Hide' : 'Show'} ${
-                    letter === 'C' ? 'colourless cards' : letter}`}
-                  onClick={() => onColours?.(
-                    on ? (colours ?? []).filter((x) => x !== letter) : [...(colours ?? []), letter],
+                    letter === 'C' ? 'colorless cards' : letter}`}
+                  onClick={() => onColors?.(
+                    on ? (colors ?? []).filter((x) => x !== letter) : [...(colors ?? []), letter],
                   )}
                 />
               )
@@ -414,7 +414,7 @@ export function DeckEditor({
           That was true of *reading* it and wrong about writing it: with no tab
           there was no drop target, and so no way to set or change a commander
           in this editor at all -- you had to switch to Text mode and type a
-          section header, for the one card that decides the deck's colour
+          section header, for the one card that decides the deck's color
           identity, its legality and its gallery art. */}
       <div className="section-tabs">
         {sectionTabs.map(({ key, label }) => {

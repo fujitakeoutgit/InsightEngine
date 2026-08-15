@@ -11,7 +11,7 @@ data:
 
   1. READ       (model)  decklist + its tags -> strategy, wanted roles, avoids
   2. VOCABULARY (code)   wanted roles -> real oracle-tag slugs
-  3. PLAN       (model)  roles + tag menu -> filter sets, colour/format bound
+  3. PLAN       (model)  roles + tag menu -> filter sets, color/format bound
   4. QUERY      (code)   plans -> SQL -> rows, minus what the deck already runs
   5. JUDGE      (model)  numbered batches -> indices worth adding
 
@@ -107,7 +107,7 @@ class DeckRecommendPipeline:
             f"Effects wanted: {'; '.join(read.get('wanted_roles', []))}\n"
             f"Effects to avoid: {'; '.join(read.get('avoid', []))}\n\n"
             f"MENU OF REAL ORACLE TAGS (use slugs verbatim, or none):\n{_tag_menu(tags)}\n\n"
-            f"Colour identity available: {identity or 'colourless only'}\n"
+            f"Color identity available: {identity or 'colorless only'}\n"
             f"{f'Format: {format_key}' if format_key else ''}\n\n"
             f"Write up to {settings.semantic_max_plans} complementary plans that find "
             "cards to ADD."
@@ -153,7 +153,7 @@ class DeckRecommendPipeline:
             })
             return
 
-        # Colour ceiling: the commander's identity, else the deck's union.
+        # Color ceiling: the commander's identity, else the deck's union.
         commanders = [r.card for r in resolutions if r.card and r.section == "commander"]
         source = commanders or [r.card for r in resolutions if r.card]
         allowed = set()

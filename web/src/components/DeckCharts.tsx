@@ -6,12 +6,12 @@ import { canAnimate, gsap } from '../lib/motion'
 /**
  * Deck composition charts.
  *
- * Magic's five colours are semantically fixed — white must be pale, black must
- * be black, colourless must be grey, and red/green is the canonical
+ * Magic's five colors are semantically fixed — white must be pale, black must
+ * be black, colorless must be grey, and red/green is the canonical
  * deuteranopia confusion (measured ΔE 4.8, far under the ΔE 8 floor). Those
- * hues cannot be re-picked without making the charts wrong, so colour never
+ * hues cannot be re-picked without making the charts wrong, so color never
  * carries meaning alone here: every segment prints its own count, segments are
- * separated by a surface-coloured gap and an outline, and a table view carries
+ * separated by a surface-colored gap and an outline, and a table view carries
  * the same numbers.
  */
 
@@ -25,7 +25,7 @@ const FILL: Record<string, string> = {
 
 const COLOR_NAME: Record<string, string> = {
   W: 'White', U: 'Blue', B: 'Black', R: 'Red', G: 'Green',
-  C: 'Colourless', multi: 'Multicolour',
+  C: 'Colorless', multi: 'Multicolor',
 }
 
 const TYPE_FILL: Record<string, string> = {
@@ -88,8 +88,8 @@ function Donut({
             fill={slice.fill}
             opacity={hover && !hover.startsWith(slice.label) ? 0.45 : 1}
           />
-          {/* The count, not the colour's letter. A number is the thing you
-              wanted to read, and it doubles as the non-colour encoding the
+          {/* The count, not the color's letter. A number is the thing you
+              wanted to read, and it doubles as the non-color encoding the
               letter used to provide. Too narrow a slice gets none: an
               overlapping label is worse than the tooltip. */}
           {share > 0.07 && (
@@ -113,7 +113,7 @@ function Donut({
           gets is a layout question and belongs in CSS. Capping it at the
           drawing size left it marooned in the middle of a wide panel. */}
       <svg viewBox={`0 0 ${size} ${size}`} role="img"
-        aria-label={`${outerLabel} and ${innerLabel} by colour`}>
+        aria-label={`${outerLabel} and ${innerLabel} by color`}>
         {ring(outer, size / 2 - 4, 26, 'o')}
         {ring(inner, size / 2 - 36, 24, 'i')}
       </svg>
@@ -201,10 +201,10 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
   if (stats.empty) return null
 
   /* The panel exists to show where the base is weakest, so the bars are scaled
-     against the best-supported colour rather than an absolute pass mark. A
+     against the best-supported color rather than an absolute pass mark. A
      fixed threshold would be a fiction -- a healthy commander deck runs well
-     under one source per pip -- and every colour failing it told the reader
-     nothing about which colour to fix. */
+     under one source per pip -- and every color failing it told the reader
+     nothing about which color to fix. */
   const best = Math.max(...stats.balance.map((b) => b.ratio), 0.0001)
   const worst = stats.balance.reduce(
     (low, b) => (low === null || b.ratio < low.ratio ? b : low),
@@ -213,10 +213,10 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
   // Only worth naming when it is actually behind the others.
   const lagging = worst && best > 0 && worst.ratio < best * 0.9 ? worst : null
 
-  /* Restricted to the commander's colours, for the same reason the balance
+  /* Restricted to the commander's colors, for the same reason the balance
      rows are: a land that taps for blue in a deck with no blue commander is
      not a blue source, and a slice for it is a slice of something the deck
-     cannot cast. Decks with no commander keep every colour they use. */
+     cannot cast. Decks with no commander keep every color they use. */
   const inScope = (c: string) =>
     !stats.commander_identity || stats.commander_identity.includes(c)
 
@@ -249,7 +249,7 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
             </button>
           </div>
           {/* What was counted, then the verdict. The old caption explained
-              the method -- "against what the heaviest cost in that colour
+              the method -- "against what the heaviest cost in that color
               wants" -- which is the one thing a reader does not need in order
               to act. Where you are short is the point of the panel, so it is
               the sentence in the panel. */}
@@ -258,17 +258,17 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
             {stats.mana_rocks > 0 && `, ${stats.mana_rocks} rock${stats.mana_rocks === 1 ? '' : 's'}`}
             {stats.mana_dorks > 0 && `, ${stats.mana_dorks} dork${stats.mana_dorks === 1 ? '' : 's'}`}
             {stats.other_mana_sources > 0 && `, ${stats.other_mana_sources} other`}
-            {`. ${stats.coloured_sources} of them make coloured mana.`}
+            {`. ${stats.colored_sources} of them make colored mana.`}
             {stats.commander_identity
-              && ' Only the commander’s colours are counted, and each source is split'
-                 + ' between the colours it makes.'}
+              && ' Only the commander’s colors are counted, and each source is split'
+                 + ' between the colors it makes.'}
           </p>
           <div className="balance">
             {stats.balance.map((b) => (
               <div className="bal-row" key={b.color}>
                 <span className="bal-pip" style={{ background: FILL[b.color] }}>{b.color}</span>
                 <span className="bal-name">{COLOR_NAME[b.color]}</span>
-                {/* Sources against the number this colour's heaviest cost
+                {/* Sources against the number this color's heaviest cost
                     wants. The track is the target; the fill is what you have,
                     clamped so a surplus reads as "full" rather than spilling
                     past the bar it is measured against. */}
@@ -277,7 +277,7 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
                   title={`${b.weighted_sources} sources for ${b.pips} `
                     + `${COLOR_NAME[b.color].toLowerCase()} pip${b.pips === 1 ? '' : 's'}. `
                     + `${b.sources} cards can tap for it; each is split between the `
-                    + 'commander colours it makes.'}
+                    + 'commander colors it makes.'}
                 >
                   <div
                     className={b === lagging ? 'bal-have short' : 'bal-have'}
@@ -297,7 +297,7 @@ export function DeckCharts({ stats }: { stats: DeckStats }) {
             <div className="scroll-x" style={{ marginTop: 12 }}>
               <table className="card-list">
                 <thead>
-                  <tr><th>Colour</th><th>Pips</th><th>Cards</th><th>Sources</th><th>Per pip</th></tr>
+                  <tr><th>Color</th><th>Pips</th><th>Cards</th><th>Sources</th><th>Per pip</th></tr>
                 </thead>
                 <tbody>
                   {stats.balance.map((b) => (

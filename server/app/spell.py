@@ -32,8 +32,8 @@ EXTRA_TERMS = {
     "usd", "price", "eur", "tix", "year", "date", "rank", "edhrec", "layout",
     "produces", "otag", "function", "tag", "q", "ask", "or", "and", "not",
     # values people type
-    "red", "blue", "green", "white", "black", "colorless", "colourless",
-    "multicolor", "multicolour", "gold", "common", "uncommon", "rare",
+    "red", "blue", "green", "white", "black", "colorless",
+    "multicolor", "multicolor", "gold", "common", "uncommon", "rare",
     "mythic", "special", "bonus", "standard", "pioneer", "modern", "legacy",
     "vintage", "pauper", "brawl", "historic", "timeless", "alchemy",
     "explorer", "penny", "oathbreaker", "duel", "predh", "premodern",

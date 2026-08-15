@@ -1,5 +1,5 @@
 /** Authentic mana symbols, lifted from the EDH league tracker so both apps
- * draw the same pips. The colourless symbol in particular is a real diamond
+ * draw the same pips. The colorless symbol in particular is a real diamond
  * rather than the grey circle that was standing in for it.
  *
  * Rendered once as a hidden sprite; every pip is a <use> reference, so the
@@ -23,7 +23,7 @@ export function ManaSprite() {
 
 export const MANA_SYMBOLS = ['w', 'u', 'b', 'r', 'g', 'c'] as const
 
-/** One pip by colour letter. Falls back to nothing for unknown symbols. */
+/** One pip by color letter. Falls back to nothing for unknown symbols. */
 export function ManaPip({ code, size = 18 }: { code: string; size?: number }) {
   const key = code.toLowerCase()
   if (!MANA_SYMBOLS.includes(key as typeof MANA_SYMBOLS[number])) return null

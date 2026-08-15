@@ -185,30 +185,30 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
    * own — so the same four buttons filter the list instead of fetching a
    * table nobody asked for. */
   const [job, setJob] = useState<Category | null>(null)
-  const [colours, setColours] = useState<string[]>(['W', 'U', 'B', 'R', 'G', 'C'])
+  const [colors, setColors] = useState<string[]>(['W', 'U', 'B', 'R', 'G', 'C'])
 
   /* Both binder filters, applied in one place.
    *
    * They have to combine — asking for red *and* removal means both — and the
    * same result has to feed the list and the numbers beside it, so neither can
-   * own half of it. Colourless cards survive the colour filter: an artifact
+   * own half of it. Colorless cards survive the color filter: an artifact
    * goes in any deck, and losing your Sol Rings when you ask for red would be
    * the wrong answer to the question the pips are asking. */
   const binderCards = useMemo(() => {
     if (!binder) return deckCards
     return deckCards.filter((c) => {
       if (job && !doesJob(c.card, job)) return false
-      if (colours.length === 6) return true
+      if (colors.length === 6) return true
       const identity = c.card.color_identity || ''
-      // Colourless is a colour here, with its own pip. It used to be exempt --
+      // Colorless is a color here, with its own pip. It used to be exempt --
       // an artifact goes in any deck, so hiding Sol Ring when you asked for
       // red seemed wrong. But a binder is mostly artifacts and lands, and
       // being unable to get them out of the way made the pips much less useful
       // than being unable to keep them in.
-      if (!identity) return colours.includes('C')
-      return [...identity].some((letter) => colours.includes(letter))
+      if (!identity) return colors.includes('C')
+      return [...identity].some((letter) => colors.includes(letter))
     })
-  }, [binder, job, colours, deckCards])
+  }, [binder, job, colors, deckCards])
   useEscape(() => setConfirmingDelete(false), confirmingDelete)
 
   const resultRef = useRef<HTMLDivElement>(null)
@@ -760,7 +760,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
                   ? (on ? `Showing ${label.toLowerCase()} — click to show everything`
                         : `Show only the ${label.toLowerCase()} you own`)
                   : (on ? `Showing ${label.toLowerCase()} — click to go back to themes`
-                        : `Most-played ${label.toLowerCase()} in this deck's colours`)}
+                        : `Most-played ${label.toLowerCase()} in this deck's colors`)}
               >
                 {busy === key && <span className="spinner" />}
                 {label}
@@ -876,8 +876,8 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         <DeckEditor
               binder={binder}
               jobFiltered={binder ? binderCards : undefined}
-              colours={colours}
-              onColours={setColours}
+              colors={colors}
+              onColors={setColors}
           cards={deckCards}
           onChange={applyEdits}
           onAddSearched={addSearchedCard}

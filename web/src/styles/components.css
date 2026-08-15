@@ -752,7 +752,7 @@
 
 .remove-row:hover { color: var(--danger); border-color: var(--danger); }
 
-/* Colour + rarity checkbox clusters */
+/* Color + rarity checkbox clusters */
 .checks { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .check {
@@ -772,7 +772,7 @@
 .check:hover { color: var(--ink); border-color: var(--line); }
 .check input { display: none; }
 
-/* Only the colour checks carry data-c. They stack the pip above the label so
+/* Only the color checks carry data-c. They stack the pip above the label so
    the symbol -- the thing you actually scan for -- leads. */
 .check[data-c] {
   flex-direction: column;
@@ -2953,7 +2953,7 @@
 .chart-note { font-size: 10.5px; color: var(--muted); min-height: 1.2em; margin-top: 6px; }
 
 /* Counts sit on the segment: the number is what you wanted to read, and it
-   doubles as the non-colour encoding. */
+   doubles as the non-color encoding. */
 .donut-label {
   font-family: var(--font-m);
   font-size: 9.5px;
@@ -3022,8 +3022,8 @@
 .bal-row { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
 .bal-pip { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-m); font-size: 10px; font-weight: 700; color: #0b0d12; flex: none; }
 .bal-name { width: 78px; flex: none; color: var(--muted); }
-/* One track, not two. The groove is the target the colour is measured
-   against and the fill is what the deck has, so a short colour is visibly an
+/* One track, not two. The groove is the target the color is measured
+   against and the fill is what the deck has, so a short color is visibly an
    unfilled bar rather than two stripes the reader has to compare. */
 .bal-track {
   flex: 1;
@@ -3046,7 +3046,7 @@
 .bal-gap.ok { color: var(--ok); }
 
 .bal-gap { width: 62px; text-align: right; font-size: 11px; color: var(--muted); }
-/* Both directions are worth seeing, so both get a colour: short is a warning,
+/* Both directions are worth seeing, so both get a color: short is a warning,
    surplus is fine and reads in the same green as the bars. */
 .bal-gap.short { color: var(--warn); }
 
@@ -3427,7 +3427,7 @@
 
 /* Counting rather than rolling: the outline takes the accent and the faces
    keep whatever the skin painted them. The d20 has no box around it, so the
-   hull is its border -- widened as well as recoloured, since a stroke on a
+   hull is its border -- widened as well as recolored, since a stroke on a
    twenty-sided outline is thin enough to miss. */
 .pt-die.pt-d20.counting .pt-d20-shape .hull {
   stroke: var(--aether);
@@ -4360,7 +4360,7 @@
 /* Table: the swatches on the left, the working dice on the right.
 
    Side by side rather than stacked, so the choice and the object it changes
-   are in view together -- picking a finish from a square of colour and then
+   are in view together -- picking a finish from a square of color and then
    scrolling to see what it did is not choosing, it is guessing. The preview
    spans the full height of the three pickers, which is what gives the dice
    somewhere to be thrown. */
@@ -4486,12 +4486,12 @@
 .printing-set { font-size: 12px; padding: 0 4px; }
 .printing-num { font-size: 10px; padding: 0 4px; }
 
-/* Colour filter: five pips in the editor bar, all lit by default.
+/* Color filter: five pips in the editor bar, all lit by default.
    Sized to the row it joins -- the totals line must not grow taller for it. */
-.colour-filter { display: inline-flex; align-items: center; gap: 5px; }
-.colour-filter .label { margin-right: 2px; }
+.color-filter { display: inline-flex; align-items: center; gap: 5px; }
+.color-filter .label { margin-right: 2px; }
 
-.colour-pip {
+.color-pip {
   width: 13px;
   height: 13px;
   padding: 0;
@@ -4505,16 +4505,16 @@
   transition: opacity var(--dur-fast), box-shadow var(--dur-fast);
 }
 
-.colour-pip.on { opacity: 1; }
-.colour-pip:hover { box-shadow: 0 0 0 2px color-mix(in oklab, var(--aether) 40%, transparent); }
-/* Colourless has no mana colour of its own, so it takes the diamond grey the
+.color-pip.on { opacity: 1; }
+.color-pip:hover { box-shadow: 0 0 0 2px color-mix(in oklab, var(--aether) 40%, transparent); }
+/* Colorless has no mana color of its own, so it takes the diamond grey the
    rest of the app uses for generic mana. */
-.colour-pip[data-c='C'] { background: var(--mana-c, #b8b8bd); border-color: var(--mana-c, #b8b8bd); }
-.colour-pip[data-c='W'] { background: var(--mana-w); border-color: var(--mana-w); }
-.colour-pip[data-c='U'] { background: var(--mana-u); border-color: var(--mana-u); }
-.colour-pip[data-c='B'] { background: var(--mana-b); border-color: var(--mana-b); }
-.colour-pip[data-c='R'] { background: var(--mana-r); border-color: var(--mana-r); }
-.colour-pip[data-c='G'] { background: var(--mana-g); border-color: var(--mana-g); }
+.color-pip[data-c='C'] { background: var(--mana-c, #b8b8bd); border-color: var(--mana-c, #b8b8bd); }
+.color-pip[data-c='W'] { background: var(--mana-w); border-color: var(--mana-w); }
+.color-pip[data-c='U'] { background: var(--mana-u); border-color: var(--mana-u); }
+.color-pip[data-c='B'] { background: var(--mana-b); border-color: var(--mana-b); }
+.color-pip[data-c='R'] { background: var(--mana-r); border-color: var(--mana-r); }
+.color-pip[data-c='G'] { background: var(--mana-g); border-color: var(--mana-g); }
 
 /* The one line the table needs, in the middle of it. */
 .skin-stage-hint {
@@ -4531,7 +4531,7 @@
 
 /* Already in the binder. A thin gold edge rather than a badge or a tint: it
    has to read at a glance across a grid of results without fighting the art,
-   and gold is a colour nothing else in this app spends. */
+   and gold is a color nothing else in this app spends. */
 /* `::before`, not `::after`.
    `.card-tile::after` is already the hover sheen — it sits at `opacity: 0` and
    is lit by `:hover`, so an outline drawn there was invisible until the
@@ -4653,12 +4653,12 @@
 
 .sim-table td { vertical-align: middle; }
 
-/* Colour columns are three digits wide. Left to itself the table stretches to
+/* Color columns are three digits wide. Left to itself the table stretches to
    the panel and each column becomes 300px of empty space with a heading
    stranded at one end of it. */
-.sim-colours { width: auto; min-width: 320px; }
-.sim-colours th:first-child, .sim-colours td:first-child { width: 4em; }
-.sim-colours th:not(:first-child), .sim-colours td:not(:first-child) { width: 5.5em; }
+.sim-colors { width: auto; min-width: 320px; }
+.sim-colors th:first-child, .sim-colors td:first-child { width: 4em; }
+.sim-colors th:not(:first-child), .sim-colors td:not(:first-child) { width: 5.5em; }
 
 .sim-pip-head { display: flex; justify-content: center; }
 
@@ -4674,9 +4674,9 @@
 .card-list.sim-table td,
 .card-list.sim-table th.num,
 .card-list.sim-table td.num,
-.card-list.sim-colours th,
-.card-list.sim-colours td,
-.card-list.sim-colours td.num { text-align: center; }
+.card-list.sim-colors th,
+.card-list.sim-colors td,
+.card-list.sim-colors td.num { text-align: center; }
 
 /* .num right-aligns a cell; a heading over one has to move with it. The
    simulation tables opt out of both above -- they centre instead. */
@@ -4686,7 +4686,7 @@
    0.75 red means something different from lands than from dorks. */
 .sim-section + .sim-section { margin-top: 14px; }
 .sim-section > h4 { margin: 0 0 4px; }
-.sim-section .sim-colours { margin-top: 0; }
+.sim-section .sim-colors { margin-top: 0; }
 
 /* Toggle Overlay: the price and quantity chips normally fade in on hover, so
    comparing two cards means hovering each in turn. Pinned, they are simply on.

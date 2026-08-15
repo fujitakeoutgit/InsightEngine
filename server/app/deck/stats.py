@@ -2,7 +2,7 @@
 
 What replaces the format-legality wall: the numbers you actually look at while
 building — where your pips are, whether your lands can pay for them, the curve
-broken down by colour, and what the deck puts onto the battlefield.
+broken down by color, and what the deck puts onto the battlefield.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from typing import Any
 
 from .resolver import Resolution
 
-COLOURS = ("W", "U", "B", "R", "G")
+COLORS = ("W", "U", "B", "R", "G")
 
 # A mana source has to stay on the battlefield to be one. Scryfall lists
 # produced_mana for rituals too, and counting Dark Ritual as a black source
@@ -28,7 +28,7 @@ _SYMBOL = re.compile(r"\{([^}]+)\}")
 
 
 
-_BASIC_COLOUR = {
+_BASIC_COLOR = {
     "plains": "W", "island": "U", "swamp": "B", "mountain": "R", "forest": "G",
 }
 
@@ -39,12 +39,12 @@ _SACRIFICE_SEARCH = re.compile(
 
 
 def fetch_profile(card: dict[str, Any]) -> tuple[tuple[str, ...], bool]:
-    """The colours a fetch land supplies, and whether what it finds is tapped.
+    """The colors a fetch land supplies, and whether what it finds is tapped.
 
     Scryfall gives a fetch land `produced_mana: []`, because the land itself
     taps for nothing -- it sacrifices. Taken literally that makes Windswept
-    Heath contribute to no colour at all, which is the opposite of why it is in
-    the deck. What it is really worth is the colours it can go and get.
+    Heath contribute to no color at all, which is the opposite of why it is in
+    the deck. What it is really worth is the colors it can go and get.
 
     Returns an empty tuple for anything that is not a sacrifice-to-search land,
     so callers can fall back to produced_mana.
@@ -56,26 +56,26 @@ def fetch_profile(card: dict[str, Any]) -> tuple[tuple[str, ...], bool]:
 
     clause = match.group(1).lower()
     named = tuple(
-        colour for basic, colour in _BASIC_COLOUR.items() if basic in clause
+        color for basic, color in _BASIC_COLOR.items() if basic in clause
     )
     if not named and "basic land" in clause:
         # "a basic land card" reaches any of them.
-        named = tuple(_BASIC_COLOUR.values())
+        named = tuple(_BASIC_COLOR.values())
     if not named:
         return (), False
 
-    # Ordered like COLOURS so two lands fetching the same pair compare equal.
-    ordered = tuple(c for c in COLOURS if c in named)
+    # Ordered like COLORS so two lands fetching the same pair compare equal.
+    ordered = tuple(c for c in COLORS if c in named)
     return ordered, "battlefield tapped" in clause
 
 
 def _relevant(makes: list[str], allowed: set[str]) -> list[str]:
-    """The colours a source contributes, restricted to the ones that matter.
+    """The colors a source contributes, restricted to the ones that matter.
 
-    A five-colour land in a two-colour deck is a perfect dual, not a fifth of
-    a source in each of five colours -- three of those colours are never cast.
+    A five-color land in a two-color deck is a perfect dual, not a fifth of
+    a source in each of five colors -- three of those colors are never cast.
     Restricting first, then splitting, is what makes the split mean "how much
-    of this card is working for this colour".
+    of this card is working for this color".
     """
     return [c for c in makes if c in allowed]
 
@@ -83,11 +83,11 @@ def _relevant(makes: list[str], allowed: set[str]) -> list[str]:
 def _weigh(
     weighted: dict[str, float], makes: list[str], qty: int, scope: set[str] | None,
 ) -> None:
-    """Add a source to each colour it serves, split evenly between them.
+    """Add a source to each color it serves, split evenly between them.
 
-    A card that makes one relevant colour is worth 1 to it. A dual is worth a
-    half to each, a triome a third, a five-colour land a fifth -- or a quarter,
-    if the commander only allows four colours and the fifth is dead weight.
+    A card that makes one relevant color is worth 1 to it. A dual is worth a
+    half to each, a triome a third, a five-color land a fifth -- or a quarter,
+    if the commander only allows four colors and the fifth is dead weight.
     """
     relevant = _relevant(makes, scope) if scope is not None else makes
     if not relevant:
@@ -104,11 +104,11 @@ def _counted(resolutions: list[Resolution]) -> list[Resolution]:
 
 
 def _pips(mana_cost: str | None) -> Counter:
-    """Coloured pips in a mana cost. Hybrid counts for both halves."""
+    """Colored pips in a mana cost. Hybrid counts for both halves."""
     found: Counter = Counter()
     for symbol in _SYMBOL.findall(mana_cost or ""):
         for part in symbol.split("/"):
-            if part in COLOURS:
+            if part in COLORS:
                 found[part] += 1
     return found
 
@@ -135,20 +135,20 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
     rocks = 0
     dorks = 0
     other_sources = 0
-    # Cards that produce at least one coloured symbol, counted once each.
+    # Cards that produce at least one colored symbol, counted once each.
     source_cards = 0
-    # Sources weighted by how many of the commander's colours each one makes.
-    # A float, because half a dual is exactly what a dual is worth to a colour.
-    weighted: dict[str, float] = {c: 0.0 for c in COLOURS}
+    # Sources weighted by how many of the commander's colors each one makes.
+    # A float, because half a dual is exactly what a dual is worth to a color.
+    weighted: dict[str, float] = {c: 0.0 for c in COLORS}
 
-    # The commander's colour identity, unioned across every card in the
+    # The commander's color identity, unioned across every card in the
     # commander section -- so a partner pair, a Background, or a Doctor and its
     # companion contribute both halves. This is the ceiling the deck is built
-    # under, and the charts filter to it: a deck cannot cast a colour its
-    # commander does not allow, so showing that colour is showing noise.
+    # under, and the charts filter to it: a deck cannot cast a color its
+    # commander does not allow, so showing that color is showing noise.
     #
     # Empty for a deck with no commander, which the charts read as "no ceiling"
-    # and fall back to the colours actually present.
+    # and fall back to the colors actually present.
     commander_identity = set()
     for res in resolutions:
         if res.card and res.section == "commander":
@@ -176,21 +176,21 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
             types["Other"] += qty
 
         card_pips = _pips(card.get("mana_cost"))
-        for colour, n in card_pips.items():
-            pips[colour] += n * qty
+        for color, n in card_pips.items():
+            pips[color] += n * qty
 
-        # Whether a card is a mana source and which colours it supplies are two
+        # Whether a card is a mana source and which colors it supplies are two
         # different questions. Sol Ring makes only C, so it is very much a rock
-        # while contributing to no colour's balance.
+        # while contributing to no color's balance.
         all_makes = card.get("produced_mana") or []
-        makes = [s for s in all_makes if s in COLOURS]
+        makes = [s for s in all_makes if s in COLORS]
 
-        # A fetch land's worth is the colours it can go and get. Krosan Verge
+        # A fetch land's worth is the colors it can go and get. Krosan Verge
         # taps for {C} and fetches a Forest and a Plains, so it is a green and
-        # white source with a colourless ability, not a colourless land.
+        # white source with a colorless ability, not a colorless land.
         fetched, _ = fetch_profile(card)
         if fetched and is_land:
-            makes = sorted(set(makes) | set(fetched), key=COLOURS.index)
+            makes = sorted(set(makes) | set(fetched), key=COLORS.index)
             all_makes = list(all_makes) + list(fetched)
 
         if is_land:
@@ -224,7 +224,7 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
             mv = int(card.get("cmc") or 0)
             total_mv += (card.get("cmc") or 0) * qty
             bucket = "7+" if mv >= 7 else str(mv)
-            # Curve is stacked by colour identity so you can see which colour
+            # Curve is stacked by color identity so you can see which color
             # sits where on the curve, not just how tall each column is.
             # Named separately from the deck-wide `identity` accumulator, which
             # this would otherwise clobber with a single card's string.
@@ -236,45 +236,45 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
         if res.card and res.section == "sideboard":
             side_rarity[res.card.get("rarity") or "unknown"] += res.quantity
 
-    # Sources per pip, per colour.
+    # Sources per pip, per color.
     #
     # The measure is deliberately plain: how much of your mana base is working
-    # for a colour, divided by how much that colour is asked for. Above 1 means
+    # for a color, divided by how much that color is asked for. Above 1 means
     # more sources than pips; below 1 means fewer.
     #
     # Two rules make it mean something.
     #
-    # Only the commander's colours count. A land that taps for blue in a deck
+    # Only the commander's colors count. A land that taps for blue in a deck
     # with no blue commander is not a blue source, it is a land -- and the old
-    # panel gave that phantom colour a row and a healthy-looking number.
+    # panel gave that phantom color a row and a healthy-looking number.
     #
-    # And a source is split between the colours it serves. A dual is half a
-    # source to each of its two colours, a triome a third to each, a five-colour
+    # And a source is split between the colors it serves. A dual is half a
+    # source to each of its two colors, a triome a third to each, a five-color
     # land a fifth -- or a quarter, when the commander only allows four and the
-    # fifth colour is dead weight. Counting a dual as a whole source for both
-    # colours is what let a three-colour deck report every colour as covered
-    # while no single colour actually was.
+    # fifth color is dead weight. Counting a dual as a whole source for both
+    # colors is what let a three-color deck report every color as covered
+    # while no single color actually was.
     total_pips = sum(pips.values()) or 1
     total_sources = source_cards or 1
     balance = []
-    for colour in COLOURS:
+    for color in COLORS:
         # Outside the commander's identity, or never cast: not a row.
-        if commander_identity and colour not in commander_identity:
+        if commander_identity and color not in commander_identity:
             continue
-        if not pips[colour]:
+        if not pips[color]:
             continue
-        share = weighted[colour]
+        share = weighted[color]
         balance.append({
-            "color": colour,
-            "pips": pips[colour],
-            "pip_share": round(pips[colour] / total_pips, 4),
-            # Whole cards that can tap for this colour, for the detail table.
-            "sources": produced[colour],
-            "source_share": round(produced[colour] / total_sources, 4),
-            # The same sources after splitting each between the colours it
+            "color": color,
+            "pips": pips[color],
+            "pip_share": round(pips[color] / total_pips, 4),
+            # Whole cards that can tap for this color, for the detail table.
+            "sources": produced[color],
+            "source_share": round(produced[color] / total_sources, 4),
+            # The same sources after splitting each between the colors it
             # serves. This is the numerator of the ratio.
             "weighted_sources": round(share, 2),
-            "ratio": round(share / pips[colour], 3),
+            "ratio": round(share / pips[color], 3),
         })
 
     return {
@@ -286,14 +286,14 @@ def compute(conn: sqlite3.Connection, resolutions: list[Resolution]) -> dict[str
         "mana_dorks": dorks,
         "other_mana_sources": other_sources,
         "nonland_sources": rocks + dorks + other_sources,
-        # How many of those cards actually make a coloured symbol. The
+        # How many of those cards actually make a colored symbol. The
         # caption used to imply all of them did, which is how a base with
-        # 41 sources and 29 colour-producers read as healthier than it is.
-        "coloured_sources": source_cards,
-        "commander_identity": "".join(c for c in COLOURS if c in commander_identity),
+        # 41 sources and 29 color-producers read as healthier than it is.
+        "colored_sources": source_cards,
+        "commander_identity": "".join(c for c in COLORS if c in commander_identity),
         "avg_cmc": round(total_mv / nonland_cards, 2) if nonland_cards else 0.0,
-        "pips": {c: pips[c] for c in COLOURS if pips[c]},
-        "produced": {c: produced[c] for c in COLOURS if produced[c]},
+        "pips": {c: pips[c] for c in COLORS if pips[c]},
+        "produced": {c: produced[c] for c in COLORS if produced[c]},
         "balance": balance,
         "types": dict(types.most_common()),
         "rarity": {"main": dict(rarity), "sideboard": dict(side_rarity)},
@@ -341,12 +341,12 @@ def tokens_made(
             tuple(chunk),
         ).fetchall()
         # Several distinct tokens share a name ("Zombie" exists in white and
-        # black). Prefer the one inside the deck's colour identity, since that
+        # black). Prefer the one inside the deck's color identity, since that
         # is the one the deck can actually make.
-        # Ranking, in order: inside the deck's colours first, then *coloured*
-        # ahead of colourless. Without the second key the empty identity wins
+        # Ranking, in order: inside the deck's colors first, then *colored*
+        # ahead of colorless. Without the second key the empty identity wins
         # every tie -- it is a subset of everything -- and a black Zombie deck
-        # gets shown the colourless Zombie.
+        # gets shown the colorless Zombie.
         rows = sorted(
             rows,
             key=lambda r: (

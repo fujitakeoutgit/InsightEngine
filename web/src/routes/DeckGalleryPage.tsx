@@ -195,7 +195,7 @@ export function DeckGalleryPage() {
     try {
       const { deck: copy } = await api.duplicateDeck(deck.id)
       // Refetched rather than appended: the listing carries the commander art
-      // and colour identity, which the save response has no reason to join in.
+      // and color identity, which the save response has no reason to join in.
       const { decks: next } = await api.savedDecks()
       setDecks(next)
       setStatus(`Copied to “${copy.name}”`)

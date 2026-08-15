@@ -140,7 +140,7 @@ def test_category_returns_cards_of_that_kind(conn, resolver):
         assert set(rec["because"]) <= REMOVAL_TAGS
 
 
-def test_category_respects_colour_identity(conn, resolver):
+def test_category_respects_color_identity(conn, resolver):
     """A mono-green deck must not be offered Swords to Plowshares."""
     res = resolve(resolver, "Commander\n1 Yeva, Nature's Herald\n\nDeck\n20 Forest")
     out = recommend_category(conn, res, "removal", format_key="commander", limit=30)

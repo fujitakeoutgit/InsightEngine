@@ -25,7 +25,7 @@ COLOR_WORDS: dict[str, str] = {
     # Shards and wedges
     "bant": "GWU", "esper": "WUB", "grixis": "UBR", "jund": "BRG", "naya": "RGW",
     "abzan": "WBG", "jeskai": "URW", "sultai": "BGU", "mardu": "RWB", "temur": "GUR",
-    # Four- and five-colour
+    # Four- and five-color
     "chaos": "UBRG", "aggression": "WBRG", "altruism": "WURG", "growth": "WUBG",
     "artifice": "WUBR", "wubrg": "WUBRG", "five": "WUBRG", "rainbow": "WUBRG",
 }
@@ -176,12 +176,12 @@ def _colors(column: str, term: Term) -> Compiled:
         elif key in ("m", "multicolor", "multicolored", "gold"):
             return Compiled(f"length({column}) >= 2", [])
         else:
-            raise QueryCompileError(f"unknown colour '{term.value}'")
+            raise QueryCompileError(f"unknown color '{term.value}'")
 
     wanted = set(letters)
     op = term.op
 
-    if not wanted:  # colourless
+    if not wanted:  # colorless
         return Compiled(f"length({column}) = 0", [])
 
     has_all = " AND ".join(f"instr({column}, '{c}') > 0" for c in sorted(wanted))
@@ -201,7 +201,7 @@ def _colors(column: str, term: Term) -> Compiled:
         return Compiled(f"({excludes_rest})", [])
     if op == "<":
         return Compiled(f"({excludes_rest} AND length({column}) < {len(wanted)})", [])
-    raise QueryCompileError(f"unsupported colour operator '{op}'")
+    raise QueryCompileError(f"unsupported color operator '{op}'")
 
 
 def _rarity(term: Term) -> Compiled:

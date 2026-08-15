@@ -87,7 +87,7 @@ def _relax(filters: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _global_constraints(concepts: dict[str, Any]) -> dict[str, Any]:
-    """Colour constraints that apply to the whole request, not to one plan."""
+    """Color constraints that apply to the whole request, not to one plan."""
     constraints: dict[str, Any] = {}
     if required := (concepts.get("colors_required") or "").strip():
         constraints["color_identity"] = required
@@ -245,7 +245,7 @@ class SemanticPipeline:
             filters = _apply_global(filters, constraints)
 
             # One malformed plan must never end the run. A planner that emits a
-            # regex where a colour belongs is a bad plan, not a broken search --
+            # regex where a color belongs is a bad plan, not a broken search --
             # it is discarded with a warning and the remaining plans proceed.
             try:
                 rows = search_mtg_database(

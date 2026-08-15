@@ -14,13 +14,13 @@ const RARITY_COLOR: Record<string, string> = {
   bonus: 'var(--rarity-special)',
 }
 
-/** The curve's own key for a card's colours.
+/** The curve's own key for a card's colors.
  *
- * `W`/`U`/`B`/`R`/`G` for a single colour, `multi` for more than one, `C` for
+ * `W`/`U`/`B`/`R`/`G` for a single color, `multi` for more than one, `C` for
  * none — the same vocabulary the server sends for a deck, because the chart
  * that draws it only knows those seven. Keying it any other way leaves every
  * bucket with a total and no bar, which is precisely what a nicer-sounding
- * "White"/"Multicolour" did. */
+ * "White"/"Multicolor" did. */
 function curveKey(identity: string | null | undefined): string {
   const id = identity || ''
   if (!id) return 'C'
@@ -32,7 +32,7 @@ function curveKey(identity: string | null | undefined): string {
  *
  * The deck's own panels are built from a server analysis of the whole
  * decklist, which is the right shape for a deck: you analyse it once and read
- * the result. A binder is filtered — by colour, and by which of the four jobs
+ * the result. A binder is filtered — by color, and by which of the four jobs
  * a card does — and the numbers have to answer *the list in front of you*. A
  * round trip per pip click would be both slow and wrong, since the server is
  * being asked about text that no longer describes what is on screen.

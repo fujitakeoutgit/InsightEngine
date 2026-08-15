@@ -129,7 +129,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.search-input-wrap',
-        text: '`c:` matches a card’s colour. `id:` matches its colour identity. `id:bg` returns a wider set than `c:bg`, and is the correct filter for a Golgari commander deck.',
+        text: '`c:` matches a card’s color. `id:` matches its color identity. `id:bg` returns a wider set than `c:bg`, and is the correct filter for a Golgari commander deck.',
       },
       {
         target: '.search-input-wrap',
@@ -289,8 +289,8 @@ export const LESSONS: Lesson[] = [
         text: 'Binder for your owned cards. Its sections are **Bulk**, **Trades** and **Fav**. Drag cards between them.',
       },
       {
-        target: '.colour-filter',
-        text: 'Press a pip to remove that colour from the list of cards.',
+        target: '.color-filter',
+        text: 'Press a pip to remove that color from the list of cards.',
       },
       {
         target: '.cat-buttons',
@@ -358,7 +358,7 @@ export const LESSONS: Lesson[] = [
         route: '/deck',
         example: 'deck',
         target: '.chart.wide',
-        text: 'The curve counts nonland cards by mana value, stacked by colour. Lands are left out: they cost nothing and would pile onto zero.',
+        text: 'The curve counts nonland cards by mana value, stacked by color. Lands are left out: they cost nothing and would pile onto zero.',
       },
       {
         target: '.chart-grid',
@@ -366,11 +366,11 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.balance',
-        text: '**Mana base** is sources per pip: how much of your mana works for a colour, divided by how much that colour is asked for. The weakest colour is marked in amber.',
+        text: '**Mana base** is sources per pip: how much of your mana works for a color, divided by how much that color is asked for. The weakest color is marked in amber.',
       },
       {
         target: '.balance',
-        text: 'Each source is split between the Colors it makes. A dual counts a half to each, a triome a third, a five-colour land a fifth — or a quarter, if the commander only allows four.',
+        text: 'Each source is split between the Colors it makes. A dual counts a half to each, a triome a third, a five-color land a fifth — or a quarter, if the commander only allows four.',
       },
     ],
   },

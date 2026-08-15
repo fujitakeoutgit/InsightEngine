@@ -74,7 +74,7 @@ export function DeckInfo({
       {rarityTotal > 0 && (
         <div className="rarity-split">
           <span className="label">Rarity</span>
-          {/* Labelled segments, not a colour-only bar: the counts are printed
+          {/* Labelled segments, not a color-only bar: the counts are printed
               beside each swatch so the split is readable without the hues. */}
           <div className="rarity-bar">
             {ranked.map(([name, count]) => (

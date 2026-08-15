@@ -81,7 +81,7 @@ def test_generic_staples_are_not_recommended(conn, resolver):
     result = recommend(conn, resolutions, format_key="commander", limit=150)
     names = {r["card"]["name"] for r in result["recommendations"]}
 
-    # Colourless auto-includes every Commander deck runs. None of these
+    # Colorless auto-includes every Commander deck runs. None of these
     # interact with sacrifice, so none should be suggested here.
     staples = {"Sol Ring", "Arcane Signet", "Swiftfoot Boots", "Lightning Greaves",
                "Commander's Sphere", "Mind Stone", "Fellwar Stone", "Talisman of Hierarchy"}
@@ -130,7 +130,7 @@ def test_recommendations_are_real_playable_cards(conn, resolver):
         assert entry["because"], "every suggestion must say which themes it hit"
 
 
-def test_recommendations_respect_commander_colour_identity(conn, resolver):
+def test_recommendations_respect_commander_color_identity(conn, resolver):
     # Teysa Karlov is W/B, so nothing red, blue or green may be suggested.
     resolutions = resolve_deck(resolver, ARISTOCRATS)
     result = recommend(conn, resolutions, format_key="commander", limit=40)

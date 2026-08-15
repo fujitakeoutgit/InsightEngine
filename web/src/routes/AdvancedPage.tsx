@@ -13,13 +13,13 @@ import { TypeAhead } from '../components/TypeAhead'
    -------------------------------------------------------------------------- */
 
 const COLORS: [string, string][] = [
-  ['W', 'White'], ['U', 'Blue'], ['B', 'Black'], ['R', 'Red'], ['G', 'Green'], ['C', 'Colourless'],
+  ['W', 'White'], ['U', 'Blue'], ['B', 'Black'], ['R', 'Red'], ['G', 'Green'], ['C', 'Colorless'],
 ]
 
 const COLOR_MODES: [string, string][] = [
-  [':', 'Including these colours'],
-  ['=', 'Exactly these colours'],
-  ['<=', 'At most these colours'],
+  [':', 'Including these colors'],
+  ['=', 'Exactly these colors'],
+  ['<=', 'At most these colors'],
   ['>=', 'Including all of these'],
 ]
 
@@ -63,7 +63,7 @@ const CURRENCIES: [string, string][] = [['usd', 'USD'], ['eur', 'EUR'], ['tix', 
 
 const SORTS: [string, string][] = [
   ['', 'Default'], ['name', 'Name'], ['edhrec', 'Popularity'], ['cmc', 'Mana value'],
-  ['usd', 'Price'], ['released', 'Release date'], ['rarity', 'Rarity'], ['color', 'Colour'],
+  ['usd', 'Price'], ['released', 'Release date'], ['rarity', 'Rarity'], ['color', 'Color'],
 ]
 
 /* --------------------------------------------------------------------------
@@ -186,13 +186,13 @@ function Row({
 }
 
 function Check({
-  on, onClick, children, colour,
-}: { on: boolean; onClick: () => void; children: React.ReactNode; colour?: string }) {
+  on, onClick, children, color,
+}: { on: boolean; onClick: () => void; children: React.ReactNode; color?: string }) {
   return (
     <button
       type="button"
       className={`check ${on ? 'on' : ''}`}
-      data-c={colour}
+      data-c={color}
       aria-pressed={on}
       onClick={onClick}
     >
@@ -307,11 +307,11 @@ export function AdvancedPage() {
           />
         </Row>
 
-        <Row label="Colors" hint="The colours in the card’s mana cost">
+        <Row label="Colors" hint="The colors in the card’s mana cost">
           <div className="checks">
             {COLORS.map(([code, label]) => (
               <Check
-                key={code} colour={code} on={b.colors.includes(code)}
+                key={code} color={code} on={b.colors.includes(code)}
                 onClick={() => toggle('colors', code)}
               >
                 <ManaPip code={code} size={17} />
@@ -322,7 +322,7 @@ export function AdvancedPage() {
           <select
             className="fld" style={{ width: 'auto' }} value={b.colorMode}
             onChange={(e) => set('colorMode', e.target.value)}
-            aria-label="Colour comparison"
+            aria-label="Color comparison"
           >
             {COLOR_MODES.map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
@@ -330,11 +330,11 @@ export function AdvancedPage() {
           </select>
         </Row>
 
-        <Row label="Commander" hint="Colour identity, for Commander decks">
+        <Row label="Commander" hint="Color identity, for Commander decks">
           <div className="checks">
             {COLORS.filter(([c]) => c !== 'C').map(([code, label]) => (
               <Check
-                key={code} colour={code} on={b.identity.includes(code)}
+                key={code} color={code} on={b.identity.includes(code)}
                 onClick={() => toggle('identity', code)}
               >
                 <ManaPip code={code} size={17} />

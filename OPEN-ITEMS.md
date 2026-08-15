@@ -436,39 +436,39 @@ Real deck-builder work, as opposed to the Binder clone below.
 
 - ~~**L1 — Move `# cards · $cost` a few pixels left.**~~ DONE. It sits too close to the
   right-hand rule in the editor bar.
-- ~~**L2 — Mana base ignores colour-agnostic sources.**~~ DONE. The denominator
-  was `sum(produced.values())` — the sum of *colours made*, not the count of
-  sources. A five-colour land counted five times, so every extra colour a
-  source could make inflated the total that every colour was then judged
+- ~~**L2 — Mana base ignores color-agnostic sources.**~~ DONE. The denominator
+  was `sum(produced.values())` — the sum of *colors made*, not the count of
+  sources. A five-color land counted five times, so every extra color a
+  source could make inflated the total that every color was then judged
   against. A mono-red deck whose fixing also taps for red measured red against
   a total its own lands had quintupled. Now counted once per source card, so a
-  share means "what fraction of my sources can make this colour" — and a land
-  making any colour satisfies every colour it makes instead of diluting all of
+  share means "what fraction of my sources can make this color" — and a land
+  making any color satisfies every color it makes instead of diluting all of
   them. In `server/app/deck/stats.py`.
 
-  Verified against a mono-red shape (30 Mountains + 6 any-colour lands, all
+  Verified against a mono-red shape (30 Mountains + 6 any-color lands, all
   red pips): the old maths reproduces your screenshot exactly — others +10%,
-  Red −40% — and the new one puts **Red at 0.0%**. A two-colour deck stays
+  Red −40% — and the new one puts **Red at 0.0%**. A two-color deck stays
   sane. The server needs a restart to pick it up.
 - ~~**L3 — Mono-red cannot reach 100% in the donut.**~~ WON'T DO — you like the
   donut as it is, so it stays. Recording the limitation so nobody "fixes" it by
-  accident: the inner ring plots mana sources per colour as slices of one
-  circle, and those sets *overlap* — an any-colour land is in all five at once.
+  accident: the inner ring plots mana sources per color as slices of one
+  circle, and those sets *overlap* — an any-color land is in all five at once.
   Overlapping sets do not sum to a whole, so no denominator gets mono-red's
-  slice to 100% while other colours still show real fixing. The arithmetic is
+  slice to 100% while other colors still show real fixing. The arithmetic is
   not wrong; a donut is simply the wrong shape for overlapping sets, and that
   is an accepted trade rather than a bug. Original note follows.
 
 - ~~(kept for reference)~~ **Mono-red cannot reach 100%** in the Card costs / Land mana donut.
   Related to L2 but *not* fixed by it, and it needs a decision rather than a
-  patch. The inner ring plots `produced` per colour as slices of one circle,
-  and those sets overlap: an any-colour land is in all five at once. Overlapping
+  patch. The inner ring plots `produced` per color as slices of one circle,
+  and those sets overlap: an any-color land is in all five at once. Overlapping
   sets do not sum to a whole, so no denominator makes a mono-red deck's red
-  slice reach 100% while the other colours still show the fixing they really
+  slice reach 100% while the other colors still show the fixing they really
   have. Either the inner ring stops being a donut — five small bars, each "% of
-  sources that can make this colour", which is what L2's `source_share` now
+  sources that can make this color", which is what L2's `source_share` now
   says — or it keeps the donut and plots something that genuinely partitions,
-  such as each source's *primary* colour. The first is honest; the second keeps
+  such as each source's *primary* color. The first is honest; the second keeps
   the shape. Ask before building.
 - ~~**L4 — Approve button on name resolution.**~~ DONE. Approve *writes the
   match down*: a fuzzy line is re-flagged on every analysis because the raw
@@ -693,7 +693,7 @@ Real deck-builder work, as opposed to the Binder clone below.
 - ~~**Binder info, and a mana curve that follows the filters.**~~ Computed in
   the browser from the filtered list (`components/BinderInfo.tsx`) rather than
   from a server analysis of the whole text, because the numbers have to
-  describe what is on screen. The colour filter had to move up to the page to
+  describe what is on screen. The color filter had to move up to the page to
   make that work: the list and the numbers cannot each own half of it.
 - ~~**Gold outline for cards you own.**~~ A toggle beside the size slider on
   search results; when lit, anything already in the binder gets a thin gold
@@ -785,14 +785,14 @@ Still to do, in order:
   Sections are **Bulk, Trades, Fav** rather than commander/deck/sideboard/
   maybeboard.
 
-- ~~**B1 — Colour pips.**~~ DONE, read as a **filter**, and labelled *Colours*
+- ~~**B1 — Color pips.**~~ DONE, read as a **filter**, and labelled *Colors*
   rather than *Commander*. Asked three times and told to go ahead, so this is
   my call to overrule: the binder hides Commander (B11), so a row of pips over
-  a list of what you own can only sensibly mean "show me these colours". All
+  a list of what you own can only sensibly mean "show me these colors". All
   five start active, clicking one drops it out, off is dimmed rather than
   hidden — a filter you cannot see the shape of is one you forget you set.
 
-  Colourless cards are never hidden by it. An artifact goes in any deck, so
+  Colorless cards are never hidden by it. An artifact goes in any deck, so
   filtering to red and losing your Sol Rings would answer the wrong question.
   Verified: all five → Island and Sol Ring; blue only → both; red only → Sol
   Ring alone.
@@ -904,7 +904,7 @@ Still to do, in order:
 
   A skin is a handful of custom properties, not a stylesheet or an asset: the
   dice and coin are already drawn entirely in CSS, so a skin only says which
-  colours those rules reach for. Every property falls back to the value the
+  colors those rules reach for. Every property falls back to the value the
   rule was written with, so an unskinned table is the *original* object rather
   than a skin that resembles it. The coin's reverse is `color-mix`ed a shade
   darker from the same four stops instead of carrying a second palette, so a
@@ -926,10 +926,10 @@ Still to do, in order:
   border. Verified: shape at `scale(1.2)`, box still 46px, hex background on
   the d20 tray only, d6 tray still a dashed box.
 
-  (original ask) **Dice and coin skins.** A picker in Settings: a set of colours and
+  (original ask) **Dice and coin skins.** A picker in Settings: a set of colors and
   patterns for the dice, and a set of metal finishes for the coin. Generated
   rather than uploaded — no asset pipeline needed. The d6 pips and the d20's
-  drawn shell both take the colour, so a skin is a couple of custom properties
+  drawn shell both take the color, so a skin is a couple of custom properties
   on `.pt-die` rather than a second copy of either. The coin already carries a
   struck-metal gradient (see P8); a finish swaps its two stops.
 

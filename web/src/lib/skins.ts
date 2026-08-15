@@ -3,7 +3,7 @@
  *
  * Each skin is a handful of custom properties, not a stylesheet or an asset.
  * The dice and the coin are already drawn entirely in CSS — six gradient faces
- * and a struck disc — so a skin only has to say which colours those rules
+ * and a struck disc — so a skin only has to say which colors those rules
  * reach for. Nothing new is rendered, nothing is downloaded, and a skin that
  * is never chosen costs nothing.
  *

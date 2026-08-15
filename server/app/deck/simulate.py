@@ -21,8 +21,8 @@ The deliberate simplifications, all of which flatter no deck in particular:
 * Rocks and dorks are cast as soon as the mana is there, cheapest first, one
   per turn. A dork is summoning-sick, so like a tapped land it pays nothing on
   the turn it arrives.
-* Colour requirements are never checked when casting a rock — a two-mana rock
-  is cast on turn two whatever colours those two lands make. Checking would
+* Color requirements are never checked when casting a rock — a two-mana rock
+  is cast on turn two whatever colors those two lands make. Checking would
   make the simulation depend on a solver, and rocks are overwhelmingly
   generic-costed anyway.
 """
@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .resolver import Resolution
-from .stats import COLOURS, _ONE_SHOT, _PERMANENT, _pips, fetch_profile
+from .stats import COLORS, _ONE_SHOT, _PERMANENT, _pips, fetch_profile
 
 SOURCE_KINDS = ("lands", "rocks", "dorks", "other")
 
@@ -52,12 +52,12 @@ class SimCard:
     cmc: int
     pips: tuple[str, ...]
     is_land: bool
-    #: Coloured symbols this card can produce, restricted to the scope colours.
+    #: Colored symbols this card can produce, restricted to the scope colors.
     makes: tuple[str, ...]
     #: A permanent that produces mana and is not a land: a rock, dork or similar.
     is_accelerant: bool
     #: "land", "rock", "dork" or "other". Which pile a source belongs to is a
-    #: different question from how much mana it makes -- a deck short on colour
+    #: different question from how much mana it makes -- a deck short on color
     #: from lands but fine once its dorks land has a specific problem, and one
     #: combined number cannot show it.
     kind: str
@@ -71,25 +71,25 @@ class TurnTally:
 
     lands: float = 0.0
     mana: float = 0.0
-    colours: float = 0.0
+    colors: float = 0.0
     hand_cmc: float = 0.0
     hand_size: float = 0.0
     accelerants: float = 0.0
     missed: int = 0
     castable_on_curve: int = 0
-    #: Weighted sources per colour, so a colour can be traced turn by turn.
-    per_colour: Counter = field(default_factory=Counter)
+    #: Weighted sources per color, so a color can be traced turn by turn.
+    per_color: Counter = field(default_factory=Counter)
     #: The same, split by what kind of permanent produced it.
     per_kind: dict[str, Counter] = field(
         default_factory=lambda: {k: Counter() for k in SOURCE_KINDS})
 
 
 def _weighted(makes: tuple[str, ...], scope: set[str]) -> dict[str, float]:
-    """A source split between the colours it serves.
+    """A source split between the colors it serves.
 
     The same rule the mana base panel uses: a dual is half a source to each of
-    its colours, a triome a third, a five-colour land a fifth — or a quarter,
-    when the commander allows only four and the fifth colour is dead weight.
+    its colors, a triome a third, a five-color land a fifth — or a quarter,
+    when the commander allows only four and the fifth color is dead weight.
     """
     relevant = [c for c in makes if c in scope] if scope else list(makes)
     if not relevant:
@@ -99,7 +99,7 @@ def _weighted(makes: tuple[str, ...], scope: set[str]) -> dict[str, float]:
 
 
 def _build(conn: sqlite3.Connection, resolutions: list[Resolution]) -> tuple[list[SimCard], set[str]]:
-    """The library, and the colours worth measuring.
+    """The library, and the colors worth measuring.
 
     The commander is excluded: it starts in the command zone, so shuffling it
     into the library would both understate the deck's real card count and
@@ -120,7 +120,7 @@ def _build(conn: sqlite3.Connection, resolutions: list[Resolution]) -> tuple[lis
         is_land = "Land" in line
         text = (card.get("oracle_text") or "").lower()
         all_makes = card.get("produced_mana") or []
-        makes = tuple(s for s in all_makes if s in COLOURS)
+        makes = tuple(s for s in all_makes if s in COLORS)
         accelerant = bool(
             not is_land
             and all_makes
@@ -134,19 +134,19 @@ def _build(conn: sqlite3.Connection, resolutions: list[Resolution]) -> tuple[lis
         )
 
         # A fetch land is played and cracked in one motion, so it stands in for
-        # the land it finds: those colours, and tapped if the fetch says the
+        # the land it finds: those colors, and tapped if the fetch says the
         # land arrives tapped. Left alone it was worse than useless here --
         # produced_mana is empty, so it counted as one generic mana and no
-        # colour at all, which is the opposite of why it is in the deck.
+        # color at all, which is the opposite of why it is in the deck.
         #
         # Activation costs are ignored, in keeping with everything else here.
         # Krosan Verge wants {2} and is treated as free, which flatters it.
         fetched, fetch_tapped = fetch_profile(card)
         if is_land and fetched:
-            makes = tuple(c for c in COLOURS if c in set(makes) | set(fetched))
+            makes = tuple(c for c in COLORS if c in set(makes) | set(fetched))
             slow = slow or fetch_tapped
         pip_counter = _pips(card.get("mana_cost"))
-        pips = tuple(c for c in COLOURS for _ in range(pip_counter[c]))
+        pips = tuple(c for c in COLORS for _ in range(pip_counter[c]))
 
         if is_land:
             kind = "lands"
@@ -197,7 +197,7 @@ def _play_one(
         battlefield.extend(pending)
         pending = []
 
-        # Land drop. Prefer a land that adds a colour the board cannot yet
+        # Land drop. Prefer a land that adds a color the board cannot yet
         # make; failing that, prefer one that enters untapped. A player picks
         # the land that unlocks something, not the first one they see.
         have: set[str] = set()
@@ -214,9 +214,9 @@ def _play_one(
             # three holding a three-drop it does, and then an untapped basic
             # beats a tapped triome.
             #
-            # Ranking purely by new colours got this backwards: eight of the
-            # ten tapped lands in a typical base are the multicolour ones, so
-            # "most new colours" quietly means "tapped" and the deck stalls a
+            # Ranking purely by new colors got this backwards: eight of the
+            # ten tapped lands in a typical base are the multicolor ones, so
+            # "most new colors" quietly means "tapped" and the deck stalls a
             # turn behind itself for fixing it did not need yet.
             online = sum(1 for c in battlefield if c.is_land or c.is_accelerant)
             untapped_matters = any(
@@ -251,13 +251,13 @@ def _play_one(
         weights: Counter = Counter()
         by_kind: dict[str, Counter] = {k: Counter() for k in SOURCE_KINDS}
         for card in battlefield:
-            for colour, share in _weighted(card.makes, scope).items():
-                weights[colour] += share
-                by_kind[card.kind][colour] += share
+            for color, share in _weighted(card.makes, scope).items():
+                weights[color] += share
+                by_kind[card.kind][color] += share
 
-        # A colour counts as "available" when the board can actually produce
+        # A color counts as "available" when the board can actually produce
         # it — one whole source's worth, however that source is split.
-        variety = sum(1 for c in COLOURS if weights[c] >= 1.0)
+        variety = sum(1 for c in COLORS if weights[c] >= 1.0)
 
         nonlands = [c for c in hand if not c.is_land]
         # Lands and accelerants are in play the moment they arrive, even when
@@ -269,7 +269,7 @@ def _play_one(
         record.append({
             "lands": sum(1 for c in in_play if c.is_land),
             "mana": available,
-            "colours": variety,
+            "colors": variety,
             "missed": missed,
             "hand_cmc": (sum(c.cmc for c in nonlands) / len(nonlands)) if nonlands else 0.0,
             "hand_size": len(hand),
@@ -315,16 +315,16 @@ def simulate(
             tally = tallies[index]
             tally.lands += turn["lands"]
             tally.mana += turn["mana"]
-            tally.colours += turn["colours"]
+            tally.colors += turn["colors"]
             tally.hand_cmc += turn["hand_cmc"]
             tally.hand_size += turn["hand_size"]
             tally.accelerants += turn["accelerants"]
             tally.castable_on_curve += 1 if turn["on_curve"] else 0
-            for colour, share in turn["weights"].items():
-                tally.per_colour[colour] += share
+            for color, share in turn["weights"].items():
+                tally.per_color[color] += share
             for kind, counts in turn["by_kind"].items():
-                for colour, share in counts.items():
-                    tally.per_kind[kind][colour] += share
+                for color, share in counts.items():
+                    tally.per_kind[kind][color] += share
             if turn["missed"]:
                 tally.missed += 1
                 if missed_this_game is None:
@@ -341,7 +341,7 @@ def simulate(
         "iterations": iterations,
         "turns": turns,
         "library_size": len(library),
-        "commander_identity": "".join(c for c in COLOURS if c in scope),
+        "commander_identity": "".join(c for c in COLORS if c in scope),
         "games_missing_a_drop": round(games_missing / iterations, 4),
         "avg_first_missed_turn": round(first_miss_total / games_missing, 2) if games_missing else None,
         "by_turn": [
@@ -350,20 +350,20 @@ def simulate(
                 "lands": mean(t.lands),
                 "mana": mean(t.mana),
                 "accelerants": mean(t.accelerants),
-                "colours": mean(t.colours),
+                "colors": mean(t.colors),
                 "hand_size": mean(t.hand_size),
                 "avg_cmc_in_hand": mean(t.hand_cmc),
                 "missed_land_drop": round(t.missed / iterations, 4),
                 "on_curve": round(t.castable_on_curve / iterations, 4),
                 "sources": {
-                    c: round(t.per_colour[c] / iterations, 2)
-                    for c in COLOURS
-                    if (not scope or c in scope) and t.per_colour[c]
+                    c: round(t.per_color[c] / iterations, 2)
+                    for c in COLORS
+                    if (not scope or c in scope) and t.per_color[c]
                 },
                 "sources_by_kind": {
                     kind: {
                         c: round(t.per_kind[kind][c] / iterations, 2)
-                        for c in COLOURS
+                        for c in COLORS
                         if (not scope or c in scope) and t.per_kind[kind][c]
                     }
                     for kind in SOURCE_KINDS

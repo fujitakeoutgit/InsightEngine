@@ -30,7 +30,7 @@ const SORTS = [
   ['usd', 'Price'],
   ['released', 'Release date'],
   ['rarity', 'Rarity'],
-  ['color', 'Colour'],
+  ['color', 'Color'],
 ]
 
 /** Sort an already-fetched list. Used for `q:` results, which arrive whole and

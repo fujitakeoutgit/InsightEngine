@@ -8,7 +8,7 @@ import { PlayDie } from './PlayDie'
  * A working table, in Settings.
  *
  * The real dice and the real coin, not pictures of them: swatches can show a
- * colour, but they cannot show what a die looks like turning over, which is
+ * color, but they cannot show what a die looks like turning over, which is
  * most of what choosing a finish is about. Throw them, flip the coin, and the
  * choice is made against the thing itself.
  *

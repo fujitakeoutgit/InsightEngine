@@ -46,10 +46,10 @@ FILTER_SCHEMA: dict[str, type | tuple[type, ...]] = {
 
 VALID_IDENTITY_MODES = {"subset", "exact", "contains"}
 
-_COLOUR_ALIASES = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
+_COLOR_ALIASES = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
 
 
-def _colour_letters(value: str) -> list[str]:
+def _color_letters(value: str) -> list[str]:
     """Parse 'B', 'wu', 'black' or 'black, red' into WUBRG letters.
 
     Anything unrecognised is ignored rather than raising: an exclusion the
@@ -59,7 +59,7 @@ def _colour_letters(value: str) -> list[str]:
         return []
     letters: list[str] = []
     for part in value.replace(",", " ").split():
-        if alias := _COLOUR_ALIASES.get(part.lower()):
+        if alias := _COLOR_ALIASES.get(part.lower()):
             letters.append(alias)
             continue
         for char in part.upper():
@@ -155,9 +155,9 @@ def to_ast(filters: dict[str, Any]) -> Node:
 
     # Exclusions get their own keys because there is no way to say "nonblack"
     # with an inclusion filter. Without these a planner will reach for a regex
-    # and the plan dies on an unknown-colour error.
+    # and the plan dies on an unknown-color error.
     for key, field in (("colors_exclude", "color"), ("color_identity_exclude", "identity")):
-        for letter in _colour_letters(filters.get(key, "")):
+        for letter in _color_letters(filters.get(key, "")):
             clauses.append(Not(Term(field, ":", letter)))
 
     numeric_map = [

@@ -9,7 +9,7 @@ interesting when it is common inside the deck but uncommon across the corpus --
 "sacrifice-outlet-creature" appearing on eight of your cards is the whole point
 of the deck. That ratio is what gets ranked, and cards carrying the surviving
 tags are then filtered to what is actually playable in this deck: inside the
-commander's colour identity, legal in the format, and not already included.
+commander's color identity, legal in the format, and not already included.
 """
 
 from __future__ import annotations
@@ -271,7 +271,7 @@ def _identity_filter(
     cards: list[dict[str, Any]],
     format_key: str | None,
 ) -> tuple[list[str], list[Any], str]:
-    """Colour-identity ceiling and format legality, shared by both entry points."""
+    """Color-identity ceiling and format legality, shared by both entry points."""
     commanders = [r.card for r in resolutions if r.card and r.section == "commander"]
     source = commanders or cards
     allowed: set[str] = set()
@@ -345,7 +345,7 @@ def recommend_category(
         "format": format_key,
         "category": category,
         "recommendations": out,
-        "note": f"Most-played {category} in these colours, by EDHREC rank.",
+        "note": f"Most-played {category} in these colors, by EDHREC rank.",
     }
 
 
@@ -396,7 +396,7 @@ def recommend(
             continue
         matched = sorted(set((row["matched"] or "").split(",")) & set(slugs))
         # Matching only supporting themes means the card is a generic staple
-        # in these colours, not something this deck wants. Requiring a
+        # in these colors, not something this deck wants. Requiring a
         # signature hit is what keeps ramp and removal out of the list.
         if not (set(matched) & signature):
             continue

@@ -82,7 +82,7 @@ def test_wildcard_is_stricter_than_plain_contains(conn):
 
 # --- live searches ---------------------------------------------------------
 
-def test_colour_and_cost(conn):
+def test_color_and_cost(conn):
     res = run(conn, 'c:red t:creature mv<=3', per_page=10)
     assert res.total > 500
     for card in res.cards:
@@ -103,13 +103,13 @@ def test_format_legality(conn):
         assert card["legalities"]["commander"] == "legal"
 
 
-def test_colour_identity_subset(conn):
+def test_color_identity_subset(conn):
     res = run(conn, 'id<=wu t:creature', per_page=25)
     for card in res.cards:
         assert set(card["color_identity"]) <= {"W", "U"}
 
 
-def test_exact_colour_match(conn):
+def test_exact_color_match(conn):
     res = run(conn, 'c=rg', per_page=25)
     for card in res.cards:
         assert set(card["colors"]) == {"R", "G"}

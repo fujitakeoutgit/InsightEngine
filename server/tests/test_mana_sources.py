@@ -50,7 +50,7 @@ def test_rocks_and_dorks_are_counted(conn, resolver):
     assert s["lands"] == 4
 
 
-def test_dorks_add_to_the_colour_they_make(conn, resolver):
+def test_dorks_add_to_the_color_they_make(conn, resolver):
     """Green sources must exceed the land count once dorks are counted."""
     with_dorks = stats_for(conn, resolver, "4 Llanowar Elves\n4 Forest")
     lands_only = stats_for(conn, resolver, "4 Forest")
@@ -72,14 +72,14 @@ def test_a_deck_with_no_nonland_sources_reports_zero(conn, resolver):
     assert s["nonland_sources"] == 0
 
 
-def test_colourless_rocks_do_not_inflate_a_colour(conn, resolver):
-    """Sol Ring makes C, which is not one of the five tracked colours."""
+def test_colorless_rocks_do_not_inflate_a_color(conn, resolver):
+    """Sol Ring makes C, which is not one of the five tracked colors."""
     s = stats_for(conn, resolver, "1 Sol Ring\n4 Island")
     assert s["mana_rocks"] == 1
     assert set(s["produced"]) == {"U"}
 
 
-def test_gap_improves_when_a_dork_supplies_the_short_colour(conn, resolver):
+def test_gap_improves_when_a_dork_supplies_the_short_color(conn, resolver):
     """The balance must actually respond to a non-land source."""
     short = stats_for(conn, resolver, "4 Llanowar Elves\n2 Forest")
     green_short = next(b for b in short["balance"] if b["color"] == "G")
@@ -88,16 +88,25 @@ def test_gap_improves_when_a_dork_supplies_the_short_colour(conn, resolver):
     assert green_short["sources"] > green_without["sources"]
 
 
-def test_gap_sign_reads_as_surplus_not_shortage(conn, resolver):
-    """Positive is mana to spare, negative is a colour you are short of.
+def test_a_color_the_deck_never_casts_gets_no_row(conn, resolver):
+    """Ten Swamps in a deck with no black card is not a black mana base.
 
-    The other way round, a deck making black mana it never spends reported a
-    *negative* number, which reads as a shortage of the thing it has too much
-    of. This is the sign convention, not an implementation detail.
+    This replaces a test of the old signed "gap", which subtracted two
+    percentages that did not share a denominator and reported a *surplus* for
+    every color of every multicolor deck -- including colors the deck could
+    not cast. Black earned a row and a healthy number here purely for sitting
+    on ten lands nothing spent.
+
+    The balance now answers "how much of my mana works for this color, against
+    how much that color is asked for", and a color never asked for has no
+    question to answer.
     """
     s = stats_for(conn, resolver, "4 Lightning Bolt\n10 Mountain\n10 Swamp")
-    black = next(b for b in s["balance"] if b["color"] == "B")
-    red = next(b for b in s["balance"] if b["color"] == "R")
-    assert black["pips"] == 0 and black["sources"] > 0
-    assert black["gap"] > 0, "unspent black mana is a surplus"
-    assert red["gap"] < 0, "red is doing all the work, so it is stretched"
+    rows = {b["color"]: b for b in s["balance"]}
+    assert "B" not in rows, "black is never cast, so it is not part of the base"
+
+    red = rows["R"]
+    assert red["pips"] > 0
+    # Ten Mountains against four single-pip Bolts: comfortably more than one
+    # source per pip, which is what the ratio measures.
+    assert red["ratio"] > 1

@@ -2,7 +2,7 @@
  *
  * This mirrors the server's lexer for *display* only -- the server remains the
  * single authority on what a query means. It exists so the search bar can echo
- * a parsed, colour-coded reading of what the user typed, which is the fastest
+ * a parsed, color-coded reading of what the user typed, which is the fastest
  * way to teach the syntax.
  */
 

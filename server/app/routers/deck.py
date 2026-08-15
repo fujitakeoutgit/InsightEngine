@@ -143,7 +143,7 @@ class RecommendRequest(DecklistRequest):
 
 @router.post("/recommend")
 async def recommendations(request: RecommendRequest):
-    """Suggest cards that fit the deck's themes, colours and format.
+    """Suggest cards that fit the deck's themes, colors and format.
 
     No model is involved: suggestions are drawn from the deck's own oracle tags,
     so every one is a real card and the same deck always yields the same advice.

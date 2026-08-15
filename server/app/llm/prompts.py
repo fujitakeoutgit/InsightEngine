@@ -41,10 +41,10 @@ them all as separate concepts.
 - `oracle_phrases` must be literal substrings that would genuinely appear in a \
 card's rules text, e.g. "sacrifice a creature", "when this creature dies".
 - Prefer more concepts over fewer. Recall matters more than precision here.
-- If the request constrains COLOUR for the whole search, put it in
+- If the request constrains COLOR for the whole search, put it in
   `colors_required` / `colors_excluded` as WUBRG letters. "nonblack aristocrats"
   is `colors_excluded: "B"`; "red and green ramp" is `colors_required: "RG"`.
-  Leave both empty when colour is not mentioned. These apply to every result,
+  Leave both empty when color is not mentioned. These apply to every result,
   so do not repeat them inside individual concepts."""
 
 CONCEPT_SCHEMA = {
@@ -108,10 +108,10 @@ plans are harmless but narrow coverage is not.
   min_price_usd, max_price_usd (numbers), exclude_funny (boolean)
 - Any other key is rejected and the plan is discarded.
 - A plan with no keys matches nothing. Never emit an empty plan.
-- Do not add colour or cost restrictions the user did not ask for.
+- Do not add color or cost restrictions the user did not ask for.
 
-COLOURS. All colour fields take WUBRG letters only ("B", "wu"), never a regex
-and never a word like "nonblack". To exclude a colour use the dedicated
+COLORS. All color fields take WUBRG letters only ("B", "wu"), never a regex
+and never a word like "nonblack". To exclude a color use the dedicated
 exclusion keys: "nonblack aristocrats" is
 `{"color_identity_exclude": "B"}`, not a pattern.
 

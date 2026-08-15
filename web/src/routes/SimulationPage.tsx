@@ -6,10 +6,44 @@ import { PageHead } from '../components/PageHead'
 
 const PRESETS = [100, 1000, 5000, 20000]
 
-/** Mana symbol colours, matching the charts. */
+/** Mana symbol colors, matching the charts. */
 const FILL: Record<string, string> = {
   W: 'var(--mana-w)', U: 'var(--mana-u)', B: 'var(--mana-b)',
   R: 'var(--mana-r)', G: 'var(--mana-g)',
+}
+
+/** Mana on the board, turn by turn, that a deck should be pleased with.
+ *
+ * Supplied rather than derived: these are a player's read of what a healthy
+ * curve looks like at each turn, and there is no formula here that would not
+ * just be a worse guess at the same thing. Turns beyond the twentieth reuse
+ * the last value, which is flat enough by then not to matter. */
+const GOOD_MANA = [
+  0.19, 1.47, 2.44, 3.38, 4.24, 5.07, 5.82, 6.45, 7.00, 7.53,
+  8.04, 8.54, 9.05, 9.53, 10.00, 10.47, 10.97, 11.44, 11.94, 12.40,
+]
+
+/** Green above the mark, red below, and neither when it is close.
+ *
+ * A band rather than a threshold: a hundredth either side of the mark is not
+ * a different deck, and colouring it as though it were makes the column
+ * flicker between judgements it cannot really support. */
+function verdictColor(actual: number, good: number): string | undefined {
+  const margin = Math.max(0.15, good * 0.04)
+  if (actual >= good + margin) return 'var(--ok)'
+  if (actual <= good - margin) return 'var(--danger)'
+  return undefined
+}
+
+/** The turn a first missed land drop usually arrives on.
+ *
+ * Five is the middle: four is early enough to hurt, six is late enough to be
+ * unlucky rather than structural. */
+function missColor(turn: number | null): string | undefined {
+  if (turn === null) return 'var(--ok)'
+  if (turn >= 6) return 'var(--ok)'
+  if (turn <= 4) return 'var(--danger)'
+  return undefined
 }
 
 function pct(value: number) {
@@ -67,7 +101,7 @@ export function SimulationPage() {
 
   const rows = report && !report.empty ? report.by_turn : []
   const peakMana = Math.max(1, ...rows.map((r) => r.mana))
-  const colourKeys = Object.keys(rows[rows.length - 1]?.sources ?? {})
+  const colorKeys = Object.keys(rows[rows.length - 1]?.sources ?? {})
   const available = SECTIONS.filter(
     ([key]) => rows.some((r) => hasAny(r.sources_by_kind[key])),
   )
@@ -139,6 +173,7 @@ export function SimulationPage() {
                 value={report.avg_first_missed_turn
                   ? `turn ${report.avg_first_missed_turn}`
                   : 'never'}
+                color={missColor(report.avg_first_missed_turn)}
               />
             </div>
           </div>
@@ -156,7 +191,7 @@ export function SimulationPage() {
                         values are at the right is not a heading for them. */}
                     <th className="num">Lands</th>
                     <th className="num">Rocks &amp; dorks</th>
-                    <th className="num">Colours</th>
+                    <th className="num">Colors</th>
                     <th className="num">Missed drop</th>
                     <th className="num">Avg. cost in hand</th>
                     <th className="num">Hand</th>
@@ -172,12 +207,24 @@ export function SimulationPage() {
                             is work the chart can do instead. */}
                         <div className="sim-bar">
                           <span style={{ width: `${(r.mana / peakMana) * 100}%` }} />
-                          <b className="mono">{r.mana.toFixed(2)}</b>
+                          <b
+                            className="mono"
+                            style={{
+                              color: verdictColor(
+                                r.mana,
+                                GOOD_MANA[Math.min(r.turn, GOOD_MANA.length) - 1],
+                              ),
+                            }}
+                            title={`A good turn ${r.turn} is about ${
+                              GOOD_MANA[Math.min(r.turn, GOOD_MANA.length) - 1].toFixed(2)}`}
+                          >
+                            {r.mana.toFixed(2)}
+                          </b>
                         </div>
                       </td>
                       <td className="num mono">{r.lands.toFixed(2)}</td>
                       <td className="num mono">{r.accelerants.toFixed(2)}</td>
-                      <td className="num mono">{r.colours.toFixed(2)}</td>
+                      <td className="num mono">{r.colors.toFixed(2)}</td>
                       <td
                         className="num mono"
                         style={{ color: r.missed_land_drop > 0.3 ? 'var(--warn)' : undefined }}
@@ -194,17 +241,17 @@ export function SimulationPage() {
           </div>
 
           <div className="panel" data-tour="sim-sources">
-            <h3>Sources by colour</h3>
+            <h3>Sources by color</h3>
             <p className="faint" style={{ fontSize: 11, marginBottom: 10 }}>
-              Weighted: a land making two of the commander&rsquo;s colours counts a half
+              Weighted: a land making two of the commander&rsquo;s colors counts a half
               to each, three counts a third, and so on. Filter by what produced it:
-              a deck short on colour from its lands but fine once its dorks arrive
+              a deck short on color from its lands but fine once its dorks arrive
               has a problem the combined figure hides.
             </p>
             {/* Filters rather than stacked sections. Four tables of the same
                 shape made the reader compare across a scroll; one table that
                 changes lets them subtract a kind and watch what happens to the
-                colour they care about.
+                color they care about.
 
                 Only kinds this deck actually has are offered -- a toggle that
                 does nothing is a question the reader has to rule out. */}
@@ -235,14 +282,14 @@ export function SimulationPage() {
             </div>
 
             <SourceTable
-              colours={colourKeys}
+              colors={colorKeys}
               rows={rows}
               pick={(r) => {
                 const total: Record<string, number> = {}
                 for (const [key] of available) {
                   if (!kinds.has(key)) continue
-                  for (const [colour, n] of Object.entries(r.sources_by_kind[key])) {
-                    total[colour] = (total[colour] ?? 0) + n
+                  for (const [color, n] of Object.entries(r.sources_by_kind[key])) {
+                    total[color] = (total[color] ?? 0) + n
                   }
                 }
                 return total
@@ -275,20 +322,20 @@ function hasAny(counts: Record<string, number> | undefined) {
 }
 
 function SourceTable({
-  colours, rows, pick,
+  colors, rows, pick,
 }: {
-  colours: string[]
+  colors: string[]
   rows: SimulationTurn[]
   pick: (row: SimulationTurn) => Record<string, number>
 }) {
   return (
     <div className="sim-section">
       <div className="scroll-x">
-        <table className="card-list sim-colours">
+        <table className="card-list sim-colors">
           <thead>
             <tr>
               <th>Turn</th>
-              {colours.map((c) => (
+              {colors.map((c) => (
                 <th key={c}>
                   {/* The pip is display:grid and therefore block-level, so
                       text-align on the cell does nothing to it. A flex wrapper
@@ -304,7 +351,7 @@ function SourceTable({
             {rows.map((r) => (
               <tr key={r.turn}>
                 <td className="mono">{r.turn}</td>
-                {colours.map((c) => (
+                {colors.map((c) => (
                   <td key={c} className="num mono">{(pick(r)[c] ?? 0).toFixed(2)}</td>
                 ))}
               </tr>
@@ -316,10 +363,10 @@ function SourceTable({
   )
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <div className="stat">
-      <span className="v mono">{value}</span>
+      <span className="v mono" style={{ color }}>{value}</span>
       <span className="label">{label}</span>
     </div>
   )

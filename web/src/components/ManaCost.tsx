@@ -1,6 +1,6 @@
 import { ManaPip } from './ManaSprite'
 
-/** Renders a Scryfall mana-cost string ("{2}{W}{U/B}") as coloured pips. */
+/** Renders a Scryfall mana-cost string ("{2}{W}{U/B}") as colored pips. */
 
 const COLOR_KEYS = new Set(['W', 'U', 'B', 'R', 'G'])
 
@@ -9,7 +9,7 @@ const VAR = (c: string) => `var(--mana-${c.toLowerCase()})`
 function Pip({ symbol }: { symbol: string }) {
   const inner = symbol.replace(/[{}]/g, '')
 
-  // The five colours and colourless get their real Magic symbol. Generic
+  // The five colors and colorless get their real Magic symbol. Generic
   // numerals and everything else keep the numbered disc.
   if (/^[WUBRGC]$/.test(inner)) {
     return <ManaPip code={inner} />
@@ -53,17 +53,17 @@ export function ManaCost({ cost, className }: { cost?: string | null; className?
   )
 }
 
-/** Compact colour-identity dots, used in dense list views. */
+/** Compact color-identity dots, used in dense list views. */
 export function IdentityDots({ identity }: { identity: string }) {
   if (!identity) {
     return (
-      <span className="identity-dots" title="Colourless">
+      <span className="identity-dots" title="Colorless">
         <ManaPip code="c" size={11} />
       </span>
     )
   }
   return (
-    <span className="identity-dots" title={`Colour identity ${identity}`}>
+    <span className="identity-dots" title={`Color identity ${identity}`}>
       {identity.split('').map((c) => (
         <i key={c} style={{ background: VAR(c) }} />
       ))}
