@@ -19,12 +19,15 @@ const HOME = '/glossary'
  * will do, and the gallery is the honest fallback when there are none. The
  * binder is skipped: it is not a deck you would open to learn the editor.
  */
-async function examplePath(kind: 'deck' | 'playtest' | 'simulate'): Promise<string> {
+async function examplePath(
+  kind: 'deck' | 'playtest' | 'simulate', query?: string,
+): Promise<string> {
+  const suffix = query ? `?${query}` : ''
   try {
     const { decks } = await api.savedDecks()
     const usable = decks.filter((d) => !isBinder(d))
     const pick = usable.find((d) => d.name === 'Minsc') ?? usable[0]
-    if (pick) return `/${kind}/${pick.id}`
+    if (pick) return `/${kind}/${pick.id}${suffix}`
   } catch { /* offline: the gallery still teaches the shape of the page */ }
   return kind === 'playtest' ? '/playtest' : '/deck'
 }
@@ -83,7 +86,8 @@ export function Walkthrough() {
       const wanted = step.example === 'deck' ? '/deck/' : '/playtest/'
       // Already inside one: do not hop to a different deck mid-lesson.
       if (pathname.startsWith(wanted)) return
-      examplePath(step.example).then((to) => { if (!cancelled) navigate(to) })
+      examplePath(step.example, step.exampleQuery)
+        .then((to) => { if (!cancelled) navigate(to) })
       return () => { cancelled = true }
     }
     if (step.route && step.route !== pathname) navigate(step.route)

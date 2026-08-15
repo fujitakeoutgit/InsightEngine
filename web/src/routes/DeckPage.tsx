@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom'
+import { Link, useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import {
   api, streamDeckRecommendations, type Category,
@@ -141,7 +141,23 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
   const [format, setFormat] = useState('commander')
   const [description, setDescription] = useState("")
 
-  const [mode, setMode] = useState<'text' | 'build'>('build')
+  const [searchParams] = useSearchParams()
+  /* The editor opens on Build. A lesson about importing a list has to be
+   * looking at the Text tab, so it asks for it in the URL rather than the
+   * walkthrough reaching in and clicking things. Read once, at mount: this is
+   * an opening state, not a mode the address bar keeps owning. */
+  const wantsText = useRef(searchParams.get('mode') === 'text')
+  const [mode, setMode] = useState<'text' | 'build'>(
+    () => (wantsText.current ? 'text' : 'build'),
+  )
+  /* Opening a deck switches to Build once it has been analysed, which is the
+   * right default and the wrong one when the URL asked for Text -- the tab
+   * would flip back a moment after arriving. Honoured once, then cleared, so
+   * pressing Build afterwards behaves normally. */
+  const settleMode = (next: 'text' | 'build') => {
+    if (wantsText.current) { wantsText.current = false; return }
+    setMode(next)
+  }
   const [deckCards, setDeckCards] = useState<DeckCard[]>([])
   const [report, setReport] = useState<DeckReport | null>(null)
   const [recs, setRecs] = useState<RecommendReport | null>(null)
@@ -255,7 +271,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
     opening
       .then(async (loaded) => {
         if (cancelled) return
-        if (!loaded) { setMode('build'); return }
+        if (!loaded) { settleMode('build'); return }
         const { deck } = loaded
         setText(deck.text ?? '')
         setSavedText(deck.text ?? '')
@@ -266,7 +282,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         if (deck.format) setFormat(deck.format)
         const analysed = await analyseText(deck.text ?? '')
         if (!cancelled && analysed) setDeckCards(fromResolutions(analysed.entries))
-        setMode('build')
+        settleMode('build')
       })
       .catch(() => !cancelled && setError(binder ? 'Could not open the binder.' : 'Could not load that deck.'))
       .finally(() => !cancelled && setBusy(null))
@@ -744,6 +760,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         ) : (
           <button
             className="btn btn-primary sm"
+            data-tour="ai-recommend"
             onClick={getAiRecommendations}
             disabled={!!busy || !text.trim()}
           >
@@ -869,7 +886,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
           </button>
         )}
         {!binder && (
-          <button className={tab === 'pipeline' ? 'on' : ''} disabled={!pipeline.stages.length}
+          <button data-tour="tab-pipeline" className={tab === 'pipeline' ? 'on' : ''} disabled={!pipeline.stages.length}
             onClick={() => setTab('pipeline')}>
             Pipeline
             {pipeline.running && <span className="spinner" style={{ marginLeft: 6 }} />}

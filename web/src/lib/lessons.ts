@@ -58,6 +58,9 @@ export interface Step {
    * then any other deck, and only then gives up and shows the gallery.
    */
   example?: 'deck' | 'playtest' | 'simulate'
+  /** Appended to the example's path, for a page that opens on the wrong tab
+   *  for what the step is about. `mode=text` opens the deck editor on Text. */
+  exampleQuery?: string
   /** What it points at. Omitted means a centred card with no arrow. */
   target?: string
 }
@@ -82,11 +85,11 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.nav a[href="/advanced"]',
-        text: '**Advanced** builds the same query from a form, so you do not have to type operators.',
+        text: '**Advanced** builds the query for you, so you do not have to type operators.',
       },
       {
         target: '.nav a[href="/deck"]',
-        text: '**Deck Lab** stores your decks. Open one to edit its list, read its statistics, or request cards it lacks.',
+        text: '**Deck Lab** manage your decks. Search for recommendations and view statistics.',
       },
       {
         target: '.nav a[href="/playtest"]',
@@ -94,23 +97,23 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.nav a[href="/sets"]',
-        text: '**Sets** browses printings rather than cards. Use it to find a specific edition.',
+        text: '**Sets** browse sets of cards.',
       },
       {
         target: '.nav a[href="/glossary"]',
-        text: '**Glossary** lists the operators, mana symbols and keywords, and holds these lessons.',
+        text: '**Glossary** information and lessons.',
       },
       {
         target: '.nav a[href="/binder"]',
-        text: '**Binder** is one permanent list of the cards you own. It edits like a deck.',
+        text: '**Binder** manage your collection of cards. Your binder can be applied as a filter in search queries.',
       },
       {
         target: '.nav a[href="/settings"]',
-        text: '**Settings** holds the card data controls, the local model, the dice finishes, and backup.',
+        text: '**Settings** settings and backup management.',
       },
       {
         target: '.nav-tray',
-        text: '**Cards** is a tray that slides over the current page. It holds cards you are collecting.',
+        text: '**Cards** is a tray that slides over the current page. It holds cards.',
       },
     ],
   },
@@ -134,7 +137,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.search-input-wrap',
-        text: '`*` is a wildcard. `n:thal*` matches Thalia, Thallid and Thraben. Prefix a term with `-` to exclude it.',
+        text: '`*` is a wildcard. `n:thal*` matches Thalia, Thallid and Thraben.',
       },
       {
         target: '.search-input-wrap',
@@ -171,15 +174,15 @@ export const LESSONS: Lesson[] = [
       {
         route: '/advanced',
         target: '.adv-form',
-        text: 'Every row here writes part of a query. Nothing is hidden from you — the line it builds is the same syntax you could have typed.',
+        text: 'Every row here writes part of a query.',
       },
       {
         target: '.query-preview',
-        text: 'The query updates as you click, so this is also how to learn the operators. Press **Copy** to take it, or **Search with these options** to run it.',
+        text: 'The query updates live. Press **Copy** to take it, or **Search with these options** to run it.',
       },
       {
         target: '.checks',
-        text: 'Press **Only Binder** under **Collection** to restrict a search to cards you own, or **Not in Binder** for everything you do not. They write `binder:true` and `-binder:true`.',
+        text: 'Press **Only Binder** under **Collection** to restrict a search to cards you own, or **Not in Binder** for everything you do not. `binder:true` and `-binder:true`.',
       },
     ],
   },
@@ -191,7 +194,7 @@ export const LESSONS: Lesson[] = [
       {
         route: '/',
         target: '.history',
-        text: 'Every search is recorded with its result count and the engine that answered it.',
+        text: 'Search history can be used to save custom queries. Usually you will have a few for one deck.',
       },
       {
         target: '.history',
@@ -199,7 +202,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.history',
-        text: 'Press **☆** on a row to pin that search. Pinned searches stay at the top, never age out, and survive **Clear**. Running one again updates its counts in place.',
+        text: 'Press **☆** on a row to pin that search. Pinned searches stay at the top and survive **Clear**. Running one again updates its counts in place.',
       },
     ],
   },
@@ -216,29 +219,33 @@ export const LESSONS: Lesson[] = [
       {
         example: 'deck',
         target: '.editor-bar',
-        text: 'Press **Text** to edit the deck as a list. Press **Build** to edit it by dragging cards. Switching rewrites every line as `1 Card Name (SET) 123`.',
+        text: 'Can view cards as **LIST** or **IMAGE**. Press **SHUFFLE** to sort cards.',
       },
       {
-        text: 'Lines that did not match a card exactly are listed under the description. Press **Approve** to write the matched name into the list, or press one of the alternatives to use that name instead.',
+        example: 'deck',
+        exampleQuery: 'mode=text',
+        target: '.decklist-input',
+        text: 'Under the **TEXT** tab you can import a full list of cards (multiple formatting options work). When importing a list under **TEXT**, Lines that did not match a card exactly are listed under the description. Press **Approve** to write the matched name into the list.',
       },
       {
         target: '.cat-buttons',
-        text: 'Press **Ramp**, **Removal**, **Counters** or **Draw** to request cards that do that job. Suggestions are scored against the cards this deck already plays.',
+        text: 'Press **Ramp**, **Removal**, **Counters** or **Draw** to show cards with those functions that fit well with the deck synergy. ',
       },
       {
-        target: '.deck-actions',
-        text: 'Press **AI recommend** to have the local model suggest cards. It uses the deck description as part of its prompt, so write one first. A run takes a minute or more.',
+        example: 'deck',
+        target: '[data-tour="ai-recommend"]',
+        text: 'Press **AI recommend** to have the local model suggest cards. It uses the deck description under **TEXT** as part of its prompt. A run takes a minute or more.',
       },
       {
-        target: '.result-tabs',
-        text: 'Press the **Pipeline** tab to watch each stage of that run.',
+        target: '[data-tour="tab-pipeline"]',
+        text: 'The **Pipeline** tab show the AI model at work.',
       },
       {
         target: '.commander-card',
         text: 'A deck can have two commanders when the pair is legal — Partner, Friends forever, a Background, or a Doctor and its companion. Put both in the Commander section and their colours combine.',
       },
       {
-        text: 'Hover a card and press **Printing** to choose which edition you own. It is fetched once and kept, so it is still there when you reopen the deck.',
+        text: 'Hover a card and press **Printing** to choose which edition you own.',
       },
       {
         target: '.sleeve-add',
@@ -246,7 +253,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '[data-tour="deck-bar"]',
-        text: 'Press **Playtest** to deal this deck onto a table, or **Simulation** to shuffle it a few thousand times and read the averages. Press **Copy** to duplicate the deck, and **Export** to write its list out as text.',
+        text: 'Press **Playtest** to deal this deck onto a table, or **Simulation** to simulate a few thousand games and read the averages. Press **Copy** to duplicate the deck, and **Export** to write its list out as text.',
       },
     ],
   },
@@ -258,16 +265,16 @@ export const LESSONS: Lesson[] = [
       {
         route: '/',
         target: '.nav-tray',
-        text: 'Press **Cards** to open the tray. It slides over the current page rather than navigating away.',
+        text: 'Press **Cards** to open the tray. It slides over the current page.',
       },
       {
-        text: 'Press **+** on a search result to put that card in the tray.',
+        text: 'Drag cards from the search result into the tray.',
       },
       {
-        text: 'Drag a card from the tray onto a deck section to add it. Drag a card from a deck into the tray to remove it from that deck.',
+        text: 'Drag cards from the tray onto a deck section to add them. Drag a card from a deck into the tray to remove it from that deck.',
       },
       {
-        text: 'The tray keeps its contents as you move between pages. Nothing in it belongs to a deck until you drag it onto one.',
+        text: 'The tray can be resized by dragging the bottom edge.',
       },
     ],
   },

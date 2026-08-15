@@ -2649,7 +2649,20 @@
   gap: 2px;
   margin-bottom: 16px;
   border-bottom: 1px solid var(--line-soft);
+  /* These four need 455px and the column is not always that wide, so the last
+     tab simply fell off the end -- Pipeline, being last, was the one nobody
+     could reach. Scrolling keeps every tab reachable at any width, where
+     wrapping would push the underline onto a second row and shrinking would
+     squeeze the labels into each other. */
+  overflow-x: auto;
+  /* Explicit: `visible` on the other axis computes to `auto` once this one is
+     not visible, which would put a vertical scrollbar on a row of tabs. */
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
+
+/* No shrinking. A tab that fits by losing its own letters is not a fix. */
+.result-tabs button { flex: none; white-space: nowrap; }
 
 .result-tabs button {
   position: relative;
