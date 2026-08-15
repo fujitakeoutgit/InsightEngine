@@ -242,7 +242,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.commander-card',
-        text: 'A deck can have two commanders when the pair is legal — Partner, Friends forever, a Background, or a Doctor and its companion. Put both in the Commander section and their colours combine.',
+        text: 'A deck can have two commanders when the pair is legal — Partner, Friends forever, a Background, or a Doctor and its companion. Put both in the Commander section and their Colors combine.',
       },
       {
         text: 'Hover a card and press **Printing** to choose which edition you own.',
@@ -362,7 +362,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.chart-grid',
-        text: 'The ring shows what your cards cost against what your lands make. Only the commander’s colours appear — a land that taps for blue in a deck with no blue commander is a land, not a blue source.',
+        text: 'The ring shows what your cards cost against what your lands make. Only the commander’s Colors appear — a land that taps for blue in a deck with no blue commander is a land, not a blue source.',
       },
       {
         target: '.balance',
@@ -370,7 +370,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.balance',
-        text: 'Each source is split between the colours it makes. A dual counts a half to each, a triome a third, a five-colour land a fifth — or a quarter, if the commander only allows four.',
+        text: 'Each source is split between the Colors it makes. A dual counts a half to each, a triome a third, a five-colour land a fifth — or a quarter, if the commander only allows four.',
       },
     ],
   },
@@ -383,7 +383,7 @@ export const LESSONS: Lesson[] = [
         route: '/deck',
         example: 'simulate',
         target: '[data-tour="sim-controls"]',
-        text: 'Playtest shows one game, which is an anecdote. This one deals and plays the opening turns as many times as you ask. Choose how many games and how many turns, then press **Run simulation**.',
+        text: 'Choose how many games and how many turns to simulate, then press **Run simulation**.',
       },
       {
         target: '[data-tour="sim-drops"]',
@@ -391,18 +391,18 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.sim-table',
-        text: 'One row per turn, averaged over every game: mana available, lands and accelerants on the board, and how many colours it could actually produce.',
+        text: 'Results averaged over games: mana available, lands and accelerants on the board, and how many Colors it could actually produce.',
       },
       {
         target: '.sim-table',
-        text: '**Missed drop** turns amber above 30%. **Avg. cost in hand** is what you were holding, so a figure that stays above your mana is a curve problem rather than a land problem.',
+        text: 'Wondering why first turn says 0.99 lands and 0.56 mana? 0.99 is because a land drop was missed on turn one, likely one occurrence out of the thousands. 0.56 because sometimes a tapped land was played turn one and tapped lands do not contribute until turn two.',
       },
       {
         target: '[data-tour="sim-sources"]',
-        text: 'Press **Lands**, **Rocks** or **Dorks** to see where a colour comes from. A deck short on green from its lands but fine once its dorks arrive has a different problem from one that is simply short.',
+        text: 'Press **Lands**, **Rocks** or **Dorks** to toggle results.',
       },
       {
-        text: 'It is a mana simulation, not a game. No spell is cast except a rock or a dork, one land is played per turn whenever the hand holds one, and anything entering tapped or summoning-sick pays nothing until the next turn. Nothing is mulliganed.',
+        text: 'It is a mana simulation, not a game. No spell is cast except a rock or a dork, one land is played per turn whenever the hand holds one, and anything entering tapped or summoning-sick pays nothing until the next turn.',
       },
     ],
   },
@@ -414,7 +414,7 @@ export const LESSONS: Lesson[] = [
       {
         route: '/playtest',
         target: '.deck-tile',
-        text: 'Pick a deck to deal an opening hand. No rules are enforced.',
+        text: 'Deck selection.',
       },
       {
         example: 'playtest',
@@ -423,11 +423,11 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.pt-actions',
-        text: '**Tutor** also lists the tokens this deck can make. Picking one puts it straight onto the battlefield — a token is created rather than drawn, so the library is untouched.',
+        text: '**Tutor** also searches for the tokens this deck can make.',
       },
       {
         target: '.pt-deck',
-        text: 'Click the deck to draw one card. The deck also shows how many cards are left.',
+        text: 'Click the deck to draw one card. The number of cards remaining are shown below.',
       },
       {
         target: '.pt-actions',
@@ -446,7 +446,7 @@ export const LESSONS: Lesson[] = [
         // script* after the mat lays out, so a highlight pinned to a single
         // empty slot sits beside them rather than on them.
         target: '.pt-tools',
-        text: 'Flick a die to throw it. It tumbles, bounces off the mat edges and lands on a face. Drag it to move it without rolling.',
+        text: 'Flick a die to throw it. Drag it to move it without rolling.',
       },
       {
         target: '.pt-tools',
