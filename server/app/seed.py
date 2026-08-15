@@ -21,8 +21,20 @@ from .db import get_meta, set_meta
 SEED_KEY = "seed:decks"
 SEED_DIR = Path(__file__).resolve().parent / "seed"
 
-#: Name, format, and the file holding the decklist.
-SEED_DECKS = (("Minsc", "commander", "minsc.txt"),)
+#: Name, format, decklist file, and how the deck works.
+#:
+#: The description is not decoration. It is what **AI recommend** reads as part
+#: of its prompt, so a seeded deck without one demonstrates the feature at its
+#: worst -- and it is the one deck a new install opens.
+SEED_DECKS = (
+    (
+        "Minsc",
+        "commander",
+        "minsc.txt",
+        "Aristocrat, value in things entering and leaving the graveyard. "
+        "Token gen for sacrifice.",
+    ),
+)
 
 
 def _mirror_ready(conn: sqlite3.Connection) -> bool:
@@ -58,7 +70,7 @@ def seed_decks(conn: sqlite3.Connection) -> int:
     from .deck import storage
 
     added = 0
-    for name, fmt, filename in SEED_DECKS:
+    for name, fmt, filename, description in SEED_DECKS:
         path = SEED_DIR / filename
         if not path.exists():
             continue
@@ -66,7 +78,13 @@ def seed_decks(conn: sqlite3.Connection) -> int:
         clash = conn.execute("SELECT 1 FROM decks WHERE name = ?", (name,)).fetchone()
         if clash:
             continue
-        storage.save(conn, name, path.read_text(encoding="utf-8"), format_key=fmt)
+        storage.save(
+            conn,
+            name,
+            path.read_text(encoding="utf-8"),
+            format_key=fmt,
+            description=description,
+        )
         added += 1
 
     set_meta(conn, SEED_KEY, "done")

@@ -182,7 +182,10 @@ const read = (key: string, fallback: string) => {
 }
 
 export const readDieSkin = () => read(DICE_KEY, 'bone')
-export const readD20Skin = () => read(D20_KEY, 'obsidian')
+// Bone, like the d6. The two used to differ so a glance told them apart, but
+// the d20 is a different shape and already unmistakable, and a table whose two
+// dice do not match looks like two dice rather than a set.
+export const readD20Skin = () => read(D20_KEY, 'bone')
 export const readCoinSkin = () => read(COIN_KEY, 'gold')
 
 export function writeDieSkin(id: string) {

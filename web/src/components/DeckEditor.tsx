@@ -87,9 +87,12 @@ export function DeckEditor({
    * selects and adjusts is a tile you cannot click confidently. */
   const [bulkEdit, setBulkEdit] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  // Images everywhere, matching the binder and the search results. A deck read
+  // as rows is a spreadsheet of names; the art is how a card is recognised
+  // without reading one. List is a click away for when the names are the point.
   const [view, setView] = usePersisted<'list' | 'grid'>(
     binder ? 'insight-enigma:binder-view' : 'insight-enigma:deck-view',
-    binder ? 'grid' : 'list',
+    'grid',
   )
   const [tileSize, setTileSize] = usePersisted('insight-enigma:editor-tile', 120)
   const [query, setQuery] = useState('')
