@@ -88,31 +88,107 @@ def _fail(message: str) -> None:
 
 
 def _mirror_present() -> bool:
-    """Whether there is a usable mirror already.
+    """Whether there are cards to search.
 
-    Checked by opening it rather than by looking for the file: an interrupted
-    first run leaves a database that exists and has no cards in it, and
-    treating that as done is how someone ends up with an app that starts
-    cleanly and finds nothing.
+    Checked by opening the mirror rather than by looking for the file: an
+    interrupted first run leaves a database that exists and has no cards in
+    it, and treating that as done is how someone ends up with an app that
+    starts cleanly and finds nothing.
+
+    The *mirror*, specifically. This used to test `db_path` -- the user
+    database, which holds decks and is created when the server first starts.
+    On a fresh install that file does not exist yet: the ingest writes only the
+    mirror. So the guard returned False on its first line however well the
+    download had gone, and a first run that had just indexed 38,626 cards
+    reported "The card database did not finish building" and gave up. It was
+    invisible on any machine that had run the app before, because the user
+    database was already there.
     """
-    if not settings.db_path.exists():
+    if not settings.mirror_path.exists():
         return False
     try:
-        from .db import connect
+        from .db import connect_mirror
 
-        conn = connect()
+        conn = connect_mirror()
         try:
-            row = conn.execute("SELECT 1 FROM cards LIMIT 1").fetchone()
-            return bool(row)
+            return bool(conn.execute("SELECT 1 FROM cards LIMIT 1").fetchone())
         finally:
             conn.close()
-    except Exception:
+    except Exception:  # noqa: BLE001 - unreadable is indistinguishable from absent
+        return False
+
+
+def _seed_source() -> "Path | None":
+    """The starter mirror shipped inside the build, if there is one."""
+    from pathlib import Path
+
+    roots = []
+    bundled = getattr(sys, "_MEIPASS", None)
+    if bundled:
+        roots.append(Path(bundled))
+    # A source checkout, so the same path can be exercised without freezing.
+    roots.append(Path(__file__).resolve().parent.parent.parent / "packaging")
+    for root in roots:
+        candidate = root / "seed-mirror.sqlite3"
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _plant_seed() -> bool:
+    """Put the shipped starter mirror in place. False if there is none.
+
+    A fresh install used to be unusable until 175MB had been downloaded and
+    indexed, and if that failed for any reason -- a flaky connection, a proxy,
+    an antivirus holding the file -- the app opened on "the card database did
+    not finish building" and offered nothing else. A few thousand cards ship
+    with the build so that the first launch is a working app, and the full
+    mirror becomes something that happens in the background.
+
+    Copied rather than opened in place: the bundle is read-only, and the
+    mirror is written to constantly.
+    """
+    import shutil
+
+    source = _seed_source()
+    if source is None:
+        return False
+    try:
+        settings.mirror_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, settings.mirror_path)
+    except Exception as exc:  # noqa: BLE001 - fall through to the full build
+        _say(f"  Could not place the starter card data: {exc}")
+        return False
+    _say("  Starter card data in place.")
+    return True
+
+
+def mirror_is_seed() -> bool:
+    """Whether what we have is the shipped starter rather than the real thing."""
+    try:
+        from .db import connect_mirror, get_meta
+
+        conn = connect_mirror()
+        try:
+            return get_meta(conn, "mirror:seed") == "1"
+        finally:
+            conn.close()
+    except Exception:  # noqa: BLE001
         return False
 
 
 def ensure_mirror() -> bool:
-    """Build the card mirror if it is missing. Returns False if it failed."""
+    """Make sure there are cards to search. Returns False if there are none.
+
+    Three outcomes, in the order they are tried: what is already there, the
+    starter mirror shipped with the build, and finally a full download. The
+    download only blocks a first run on an install that shipped without a
+    seed.
+    """
     if _mirror_present():
+        return True
+
+    if _plant_seed() and _mirror_present():
         return True
 
     _say()
@@ -177,6 +253,23 @@ def _settle(url: str, opened_tray: bool) -> None:
     """
     if not _await_server(url):
         return
+
+    # A seeded install has a few thousand cards, not the pool. Ask the server
+    # to fetch the rest, through the same endpoint the tray's Rebuild uses --
+    # it builds beside what is there and swaps only when it finishes, so the
+    # app stays usable and a failed download costs the starter set nothing.
+    if mirror_is_seed():
+        tray.set_status("filling in the full card pool")
+        _say("  Starter card data in use; fetching the full pool in the background.")
+        try:
+            import httpx
+
+            httpx.post(f"{url}/api/sync/refresh", timeout=10.0)
+        except Exception as exc:  # noqa: BLE001 - the starter set still works
+            _say(f"  Could not start the background card download: {exc}")
+            tray.set_status("starter cards only - use Rebuild card data")
+        return
+
     tray.set_status("ready")
     if not opened_tray:
         # No icon means no way in, so this is the one case that opens a

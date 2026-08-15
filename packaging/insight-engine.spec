@@ -20,7 +20,18 @@ datas = [
     (str(ROOT / "web" / "dist"), "web/dist"),
     # The sample deck a fresh install is seeded with.
     (str(SERVER / "app" / "seed"), "app/seed"),
+    # A small starter mirror, so the app works the moment it is installed
+    # rather than after a 175MB download -- and does not open on "the card
+    # database did not finish building" when that download fails. Built by
+    # packaging/make-seed.py; the full mirror is fetched in the background.
+    (str(ROOT / "packaging" / "seed-mirror.sqlite3"), "."),
 ]
+
+if not (ROOT / "packaging" / "seed-mirror.sqlite3").exists():
+    raise SystemExit(
+        "packaging/seed-mirror.sqlite3 is missing. Build it with: "
+        r"server\.venv\Scripts\python packaging\make-seed.py"
+    )
 
 if not (ROOT / "web" / "dist" / "index.html").exists():
     raise SystemExit(
