@@ -19,6 +19,7 @@ import threading
 import time
 import webbrowser
 
+from . import tray
 from .config import settings
 
 
@@ -103,22 +104,44 @@ def ensure_mirror() -> bool:
     return True
 
 
-def _open_browser(url: str) -> None:
-    """Open the interface once the server is actually answering.
+def _await_server(url: str, timeout: float = 30.0) -> bool:
+    """Wait until the server answers. False if it never did.
 
-    A fixed sleep races the first run, where the port opens only after the
-    ingest; polling means the browser arrives when there is something to show.
+    Polling rather than a fixed sleep: the port opens only after the ingest on
+    a first run, and anything that waits a fixed time either races that or
+    wastes the wait on every launch afterwards.
     """
     import httpx
 
-    deadline = time.monotonic() + 30
+    deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
             httpx.get(f"{url}/api/health", timeout=1.0)
-            break
+            return True
         except Exception:  # noqa: BLE001 - not up yet is the expected case
             time.sleep(0.4)
-    webbrowser.open(url)
+    return False
+
+
+def _settle(url: str, opened_tray: bool) -> None:
+    """Once the server answers, get out of the way.
+
+    The console has done its two jobs by now -- showing the first run was not
+    hung, and being somewhere to read an error -- and from here it is a black
+    rectangle that cannot be closed without stopping the app. The tray takes
+    over both, so the console goes.
+
+    Nothing is opened automatically. A launch is not a request to be shown
+    something; the icon is there and Open is one click away. Without a tray
+    there would be no way to reach the app at all, so that case still opens a
+    browser rather than leaving a running server nobody can find.
+    """
+    if not _await_server(url):
+        return
+    if opened_tray:
+        tray.hide_console()
+    else:
+        webbrowser.open(url)
 
 
 def main() -> int:
@@ -135,10 +158,7 @@ def main() -> int:
     url = f"http://{settings.host}:{settings.port}"
     _say()
     _say(f"  Serving {url}")
-    _say("  Close this window to stop.")
     _say()
-
-    threading.Thread(target=_open_browser, args=(url,), daemon=True).start()
 
     import uvicorn
 
@@ -147,7 +167,19 @@ def main() -> int:
     # The app object rather than an import string: a frozen build has no
     # module path for uvicorn to re-import, and reload/workers are meaningless
     # here anyway.
-    uvicorn.run(app, host=settings.host, port=settings.port, log_level="warning")
+    #
+    # A Server rather than uvicorn.run(), because Quit has to be able to stop
+    # it: run() owns the signal handlers and returns only when the process is
+    # already on its way out, which is too late to be a menu item.
+    config = uvicorn.Config(app, host=settings.host, port=settings.port, log_level="warning")
+    server = uvicorn.Server(config)
+
+    opened_tray = tray.start(url, on_quit=lambda: setattr(server, "should_exit", True))
+    if opened_tray:
+        _say("  Insight Engine is in the notification area. This window will close.")
+    threading.Thread(target=_settle, args=(url, opened_tray), daemon=True).start()
+
+    server.run()
     return 0
 
 

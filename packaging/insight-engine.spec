@@ -38,6 +38,13 @@ hiddenimports = [
     "uvicorn.lifespan.on",
     # Pulled in through pydantic-settings' dotenv support.
     "dotenv",
+    # The tray. pystray picks its Windows backend at import time, so the
+    # concrete module is invisible to static analysis and the frozen build
+    # would start, find no backend, and quietly run without an icon.
+    "pystray",
+    "pystray._win32",
+    "PIL.Image",
+    "PIL.ImageDraw",
 ]
 
 a = Analysis(                          # noqa: F821

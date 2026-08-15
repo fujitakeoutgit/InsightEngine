@@ -45,15 +45,34 @@ most of the value would have been anyway.
 
 ## Tray and first run
 
-- **T1 — Packaged tray.** The installed build is a console window with no tray
-  icon; the existing tray only supervises the two dev servers and does not
-  apply. Build a small one for the packaged model: Open, Open data folder,
-  Rebuild card data, Quit. *Agreed approach, not started.*
-- **T2 — First-run handling.** If the tray can appear *during* the first-run
-  index and the console can hide itself afterwards, do that and nothing else
-  is needed. Only if it cannot: show a "setting up" state, then close and
-  relaunch so the tray is present from the second launch. Decide by trying the
-  simple version first.
+- ~~**T1 — Packaged tray.**~~ DONE. `app/tray.py`, distinct from
+  `tray/insight_tray.py` — that one supervises the two dev servers and knows
+  about npm and port adoption, none of which applies to one frozen process
+  serving one port. Menu: Open, Open data folder, Rebuild card data, Show
+  console, Quit. Rebuild goes through `POST /api/sync/refresh` rather than
+  calling the ingest here, because the server owns the mirror and its refresh
+  builds beside the old copy and swaps atomically; a second writer in this
+  process would be a half-written database.
+- ~~**T2 — First-run handling.**~~ DONE, and the simple version held. The tray
+  starts *after* the mirror is ready and the console hides only once the server
+  answers `/api/health`, so the first-run download keeps its progress output
+  and any failure keeps its error on screen. No "setting up" state and no
+  relaunch was needed.
+
+  Two guards worth keeping. `hide_console()` refuses while the tray is not
+  running: hiding the only window of a process with no icon anywhere leaves
+  something stoppable only through Task Manager, which is worse than a stray
+  console. And Quit shows the console again before stopping, so a build that
+  fails to exit cleanly leaves something on screen rather than nothing.
+
+  Quitting needs `uvicorn.Server` rather than `uvicorn.run()`: run() owns the
+  signal handlers and returns only when the process is already on its way out,
+  which is too late to be a menu item.
+
+  Nothing is opened automatically any more. A launch is not a request to be
+  shown something. The exception is a tray that failed to start, which still
+  opens a browser -- otherwise there would be a running server with no way to
+  reach it.
 
 ## Data
 
