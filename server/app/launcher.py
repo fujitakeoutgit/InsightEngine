@@ -5,15 +5,20 @@ have already built the mirror. An installed copy cannot expect anything: it is
 one executable, launched from a Start Menu shortcut by somebody who has never
 seen this repository.
 
-So this does the three things that script and that knowledge used to cover --
-make sure there is card data, serve the interface and the API from one port,
-and open a browser at it -- and it says what it is doing while it does them,
-because the first run downloads about 180MB and silence for four minutes reads
-as a hang.
+So this does what that script and that knowledge used to cover: make sure
+there is card data, and serve the interface and the API from one port.
+
+It is windowed, with no console. Everything the console used to carry goes
+somewhere it can still be found -- the running account into a log file beside
+the database, progress onto the tray icon's tooltip, and a fatal error into a
+message box. The first run downloads and indexes for a few minutes, and a
+windowed process doing that silently is indistinguishable from one that has
+died, so the tray comes up first and says what is happening.
 """
 
 from __future__ import annotations
 
+import os
 import sys
 import threading
 import time
@@ -23,24 +28,63 @@ from . import tray
 from .config import settings
 
 
-def _say(line: str = "") -> None:
-    print(line, flush=True)
+#: True when this build was started with a real console, so `_say` can echo
+#: there as well as to the log. Captured before the streams are redirected.
+_CONSOLE = sys.stdout is not None
 
 
-def _hold() -> None:
-    """Keep a failure on screen when there is someone to read it.
+def _attach_streams() -> None:
+    """Give a windowed build the stdout and stderr other libraries assume.
 
-    A shortcut-launched copy owns its console window, and that window closes
-    the instant this returns -- taking the explanation with it. But there is
-    not always a console: redirect the output and `input` raises EOFError,
-    which is a traceback on top of whatever went wrong, and was the first
-    thing the packaged build did.
+    A `--noconsole` executable has `sys.stdout is None`, and anything reaching
+    for it fails. uvicorn is the one that matters: its default logging config
+    declares a StreamHandler on stdout, and configuring that against None
+    raises "Unable to configure formatter 'default'" before the server ever
+    starts. The packaged build died exactly there, in a message box, with the
+    log stopping four lines in.
+
+    Pointing both at the log file fixes every such caller at once, and puts
+    their output somewhere a person can actually read it.
     """
-    _say()
+    if sys.stdout is not None and sys.stderr is not None:
+        return
     try:
-        input("  Press Enter to close. ")
-    except (EOFError, OSError):
+        path = tray.log_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        handle = path.open("a", encoding="utf-8", buffering=1)
+    except Exception:  # noqa: BLE001 - discard rather than die
+        handle = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
+    if sys.stdout is None:
+        sys.stdout = handle
+    if sys.stderr is None:
+        sys.stderr = handle
+
+
+def _say(line: str = "") -> None:
+    """Write to the log, and echo to a console if this build has a real one."""
+    if _CONSOLE:
+        try:
+            print(line, flush=True)
+        except Exception:  # noqa: BLE001
+            pass
+    try:
+        path = tray.log_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(time.strftime("%Y-%m-%d %H:%M:%S") + "  " + line + "\n")
+    except Exception:  # noqa: BLE001 - logging is not worth failing over
         pass
+
+
+def _fail(message: str) -> None:
+    """Report a failure that ends the run.
+
+    A windowed process that exits quietly is indistinguishable from one that
+    never started, so this is a message box rather than a line nobody sees.
+    The log keeps the detail.
+    """
+    _say(f"  {message}")
+    tray.alert("Insight Engine", message + "\n\nThe log is in:\n" + str(tray.log_path()))
 
 
 def _mirror_present() -> bool:
@@ -124,12 +168,7 @@ def _await_server(url: str, timeout: float = 30.0) -> bool:
 
 
 def _settle(url: str, opened_tray: bool) -> None:
-    """Once the server answers, get out of the way.
-
-    The console has done its two jobs by now -- showing the first run was not
-    hung, and being somewhere to read an error -- and from here it is a black
-    rectangle that cannot be closed without stopping the app. The tray takes
-    over both, so the console goes.
+    """Once the server answers, say so on the icon.
 
     Nothing is opened automatically. A launch is not a request to be shown
     something; the icon is there and Open is one click away. Without a tray
@@ -138,46 +177,57 @@ def _settle(url: str, opened_tray: bool) -> None:
     """
     if not _await_server(url):
         return
-    if opened_tray:
-        tray.hide_console()
-    else:
+    tray.set_status("ready")
+    if not opened_tray:
+        # No icon means no way in, so this is the one case that opens a
+        # browser. With a tray, a launch is not a request to be shown
+        # something -- the icon is there and Open is one click away.
         webbrowser.open(url)
 
 
 def main() -> int:
+    # Before anything imports uvicorn.
+    _attach_streams()
     _say()
     _say("  INSIGHT ENGINE")
     _say("  Magic: The Gathering search. Card data from Scryfall.")
-    _say()
     _say(f"  Data folder: {settings.data_dir}")
 
-    if not ensure_mirror():
-        _hold()
-        return 1
-
     url = f"http://{settings.host}:{settings.port}"
-    _say()
-    _say(f"  Serving {url}")
-    _say()
 
     import uvicorn
 
     from .main import app
 
-    # The app object rather than an import string: a frozen build has no
-    # module path for uvicorn to re-import, and reload/workers are meaningless
-    # here anyway.
-    #
-    # A Server rather than uvicorn.run(), because Quit has to be able to stop
-    # it: run() owns the signal handlers and returns only when the process is
-    # already on its way out, which is too late to be a menu item.
     config = uvicorn.Config(app, host=settings.host, port=settings.port, log_level="warning")
     server = uvicorn.Server(config)
 
-    opened_tray = tray.start(url, on_quit=lambda: setattr(server, "should_exit", True))
-    if opened_tray:
-        _say("  Insight Engine is in the notification area. This window will close.")
+    # The icon comes up before the first-run download, not after it. Indexing
+    # takes minutes, and a windowed process doing that with nothing on screen
+    # is a process that looks like it failed to start.
+    opened_tray = tray.start(
+        url,
+        on_quit=lambda: setattr(server, "should_exit", True),
+        status="starting",
+    )
+
+    if not _mirror_present():
+        tray.set_status("downloading card data - this happens once")
+    if not ensure_mirror():
+        _fail("The card database did not finish building. Start Insight Engine again to resume.")
+        return 1
+
+    _say(f"  Serving {url}")
+
+    # The app object rather than an import string: a frozen build has no
+    # module path for uvicorn to re-import, and reload/workers are meaningless
+    # here anyway. A Server rather than uvicorn.run(), because Quit has to be
+    # able to stop it: run() owns the signal handlers and returns only when the
+    # process is already on its way out, which is too late to be a menu item.
     threading.Thread(target=_settle, args=(url, opened_tray), daemon=True).start()
+
+    if not opened_tray:
+        _say("  No tray icon; opening a browser instead.")
 
     server.run()
     return 0
