@@ -1,6 +1,6 @@
 import { api, type Card, type SavedDeck } from './api'
 import { collection } from './collection'
-import { allSleeves, setSleeve } from './sleeves'
+import { allSleeves, clearSleeve, setSleeve } from './sleeves'
 
 /**
  * Backup and restore.
@@ -18,10 +18,16 @@ import { allSleeves, setSleeve } from './sleeves'
  * numbers. Names are what you actually recognise a deck by, and the binder's
  * reserved name is what keeps it singular across a restore too.
  *
- * **Restore merges rather than replaces.** A deck whose name is already here
- * is updated; anything else is created. Nothing is deleted. A restore that
- * wiped first would be the wrong default for the one operation people reach
- * for when they are already worried about losing something.
+ * **Restore replaces.** The file is a snapshot, and restoring one puts this
+ * install back into the state the snapshot was taken in: decks in the file
+ * are written, decks that are not in it are deleted, and the collection is
+ * replaced wholesale. Anything made since the backup is gone.
+ *
+ * That is destructive on purpose, and it is the behaviour a backup file is
+ * expected to have -- a restore that merged left you with a mixture of two
+ * moments in time and no way to get back to either. It is guarded by a
+ * confirmation that says what will be removed, and `restore` reports the
+ * deletions so the page can state them afterwards.
  */
 
 export const BACKUP_KIND = 'insight-engine-backup'
@@ -49,9 +55,36 @@ export interface BackupDeck {
 export interface RestoreReport {
   created: number
   updated: number
+  /** Decks removed because the snapshot does not contain them. */
+  deleted: number
   sleeves: number
   collected: number
   failed: string[]
+}
+
+/** What restoring a given file would destroy, for the confirmation. */
+export interface RestorePreview {
+  /** Names of decks here that the snapshot does not have. */
+  losing: string[]
+  /** Decks in the snapshot that will overwrite one of the same name. */
+  overwriting: number
+  arriving: number
+}
+
+export async function previewRestore(backup: Backup): Promise<RestorePreview> {
+  const { decks: existing } = await api.savedDecks()
+  const wanted = new Map<string, number>()
+  for (const d of backup.decks) wanted.set(d.name, (wanted.get(d.name) ?? 0) + 1)
+
+  const losing: string[] = []
+  const seen = new Map<string, number>()
+  for (const d of existing as SavedDeck[]) {
+    const used = seen.get(d.name) ?? 0
+    if (used < (wanted.get(d.name) ?? 0)) seen.set(d.name, used + 1)
+    else losing.push(d.name)
+  }
+  const overwriting = [...seen.values()].reduce((n, v) => n + v, 0)
+  return { losing, overwriting, arriving: backup.decks.length - overwriting }
 }
 
 export async function exportAll(): Promise<Backup> {
@@ -138,7 +171,9 @@ export async function restore(backup: Backup): Promise<RestoreReport> {
     else available.set(d.name, [d.id])
   }
 
-  const report: RestoreReport = { created: 0, updated: 0, sleeves: 0, collected: 0, failed: [] }
+  const report: RestoreReport = {
+    created: 0, updated: 0, deleted: 0, sleeves: 0, collected: 0, failed: [],
+  }
 
   for (const deck of backup.decks) {
     try {
@@ -164,10 +199,26 @@ export async function restore(backup: Backup): Promise<RestoreReport> {
     }
   }
 
-  /* The collection is merged, not replaced, for the same reason the decks are.
-   * `add` already refuses duplicates by oracle id. */
+  /* Whatever is left unclaimed was not in the snapshot, so it postdates it and
+   * goes. Done after the writes rather than before: if a save fails partway,
+   * the decks it would have replaced are still here. */
+  for (const ids of available.values()) {
+    for (const id of ids) {
+      try {
+        await api.deleteDeck(id)
+        clearSleeve(String(id))
+        report.deleted += 1
+      } catch {
+        report.failed.push(`could not delete deck ${id}`)
+      }
+    }
+  }
+
+  /* The collection is replaced, not merged -- a snapshot of what you had
+   * collected, not an addition to it. */
+  collection.clear()
   for (const card of backup.collection) {
-    if (card?.oracle_id && !collection.has(card.oracle_id)) {
+    if (card?.oracle_id) {
       collection.add(card)
       report.collected += 1
     }

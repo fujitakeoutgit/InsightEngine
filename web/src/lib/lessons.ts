@@ -290,7 +290,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.colour-filter',
-        text: 'Press a pip to remove that colour from the list of cards. The last pip is colourless, for artifacts and lands with no colour of their own.',
+        text: 'Press a pip to remove that colour from the list of cards.',
       },
       {
         target: '.cat-buttons',
@@ -333,7 +333,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '[data-tour="backup"]',
-        text: 'Press **Export** to write your decks, binder, collected cards and sleeves to one file. Press **Restore** to read that file back in. **Restore** only adds; it deletes nothing.',
+        text: 'Press **Export** to create a backup file. **Restore** puts the app back exactly as it was when that file was made — decks not in it are deleted and your collected cards are replaced, so it asks you to confirm first.',
       },
       {
         target: '[data-tour="tabletop"]',

@@ -8,8 +8,10 @@ import {
 } from '../lib/skins'
 import { SkinStage } from '../components/SkinStage'
 import {
-  download, exportAll, parseBackup, restore, type RestoreReport,
+  download, exportAll, parseBackup, previewRestore, restore,
+  type Backup, type RestorePreview, type RestoreReport,
 } from '../lib/backup'
+import { useEscape } from '../lib/usePersisted'
 import { PageHead } from '../components/PageHead'
 
 /**
@@ -60,14 +62,23 @@ export function SettingsPage() {
   const [backupError, setBackupError] = useState<string | null>(null)
   const backupInput = useRef<HTMLInputElement>(null)
 
+  /** A restore that is waiting on its confirmation. */
+  const [pending, setPending] = useState<
+    null | { backup: Backup; preview: RestorePreview }
+  >(null)
+  useEscape(() => setPending(null), Boolean(pending))
+
   const said = (r: RestoreReport) => {
     const bits = [
       r.created && `${r.created} deck${r.created === 1 ? '' : 's'} added`,
       r.updated && `${r.updated} updated`,
+      // Stated even when zero would be tidier, because a deletion is the one
+      // outcome someone will want to see confirmed in words.
+      r.deleted && `${r.deleted} deleted`,
       r.sleeves && `${r.sleeves} sleeved`,
       r.collected && `${r.collected} card${r.collected === 1 ? '' : 's'} collected`,
     ].filter(Boolean)
-    const done = bits.length ? bits.join(', ') : 'nothing new to add'
+    const done = bits.length ? bits.join(', ') : 'nothing to change'
     return r.failed.length ? `${done}. Could not restore: ${r.failed.join(', ')}.` : `${done}.`
   }
   const [tiers, setTiers] = useState<ModelTier[]>([])
@@ -272,7 +283,9 @@ export function SettingsPage() {
               setBackupBusy('import'); setBackupError(null); setBackupNote(null)
               try {
                 const backup = parseBackup(await file.text())
-                setBackupNote(said(await restore(backup)))
+                // Read the file, work out what it would destroy, and ask. The
+                // restore itself does not start until the dialog is answered.
+                setPending({ backup, preview: await previewRestore(backup) })
               } catch (err) {
                 setBackupError(err instanceof Error ? err.message : 'Could not restore.')
               } finally { setBackupBusy(null) }
@@ -286,10 +299,67 @@ export function SettingsPage() {
         {backupError && <p style={{ fontSize: 12.5, marginTop: 10, color: 'var(--danger)' }}>{backupError}</p>}
 
         <p className="faint" style={{ fontSize: 11.5, marginTop: 10 }}>
-          Restoring merges: a deck whose name is already here is updated, anything
-          else is added, and nothing is deleted.
+          A backup is a snapshot. Restoring one puts this install back as it was
+          when the file was made — decks not in the file are deleted, and your
+          collected cards are replaced. You are asked to confirm first.
         </p>
       </div>
+
+      {/* Named for what it destroys rather than for what it does. "Restore
+          this backup?" is a question anyone says yes to; "three decks will be
+          deleted" is the part worth reading. */}
+      {pending && (
+        <div className="modal-backdrop" onClick={() => setPending(null)} role="presentation">
+          <div
+            className="modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal
+            aria-labelledby="restore-title"
+          >
+            <h3 id="restore-title">Restore this snapshot?</h3>
+            <p className="muted" style={{ fontSize: 13 }}>
+              This puts the app back as it was on{' '}
+              {pending.backup.exported_at?.slice(0, 10) || 'the day the file was made'}.
+            </p>
+            <ul className="muted" style={{ fontSize: 13, paddingLeft: 18, margin: '10px 0' }}>
+              {pending.preview.arriving > 0 && (
+                <li>{pending.preview.arriving} deck
+                  {pending.preview.arriving === 1 ? '' : 's'} added</li>
+              )}
+              {pending.preview.overwriting > 0 && (
+                <li>{pending.preview.overwriting} overwritten</li>
+              )}
+              <li style={{ color: pending.preview.losing.length ? 'var(--danger)' : undefined }}>
+                {pending.preview.losing.length
+                  ? `${pending.preview.losing.length} deleted: ${
+                      pending.preview.losing.slice(0, 6).join(', ')}${
+                      pending.preview.losing.length > 6 ? '…' : ''}`
+                  : 'Nothing will be deleted'}
+              </li>
+              <li>Your collected cards are replaced by the file&rsquo;s</li>
+            </ul>
+            <div className="row gap-2" style={{ justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost sm" onClick={() => setPending(null)}>Cancel</button>
+              <button
+                className="btn btn-danger sm"
+                onClick={async () => {
+                  const { backup } = pending
+                  setPending(null)
+                  setBackupBusy('import'); setBackupError(null); setBackupNote(null)
+                  try {
+                    setBackupNote(said(await restore(backup)))
+                  } catch (err) {
+                    setBackupError(err instanceof Error ? err.message : 'Could not restore.')
+                  } finally { setBackupBusy(null) }
+                }}
+              >
+                Restore
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="panel settings-panel" data-tour="tabletop">
         <h3>Tabletop</h3>
