@@ -86,6 +86,8 @@ interface Builder {
   sets: string
   rarities: string[]
   criteria: string[]
+  /** '' | 'true' | 'false' — cards you own, cards you do not, or no filter. */
+  binder: string
   prices: Condition[]
   artist: string
   lore: string
@@ -103,7 +105,7 @@ const INITIAL: Builder = {
   // Nearly every query here is for a Commander deck, and the row was starting
   // on "Choose a format" — which quietly meant no legality filter at all.
   formats: [{ status: 'legal', format: 'commander' }],
-  sets: '', rarities: [], criteria: [],
+  sets: '', rarities: [], criteria: [], binder: '',
   prices: [{ a: 'usd', op: '<=', value: '' }],
   artist: '', lore: '', keyword: '', semantic: '', sort: '', order: 'asc',
 }
@@ -153,6 +155,12 @@ function buildQuery(b: Builder): string {
   }
 
   for (const flag of b.criteria) parts.push(`is:${flag}`)
+
+  // Written as the negation rather than binder:false. Both work, but -binder:
+  // is the form the rest of the syntax uses to exclude, so the generated line
+  // stays a thing you could have typed.
+  if (b.binder === 'true') parts.push('binder:true')
+  else if (b.binder === 'false') parts.push('-binder:true')
   if (b.keyword.trim()) parts.push(`kw:${b.keyword.trim().toLowerCase()}`)
   if (b.artist.trim()) parts.push(`a:"${b.artist.trim().replace(/"/g, '')}"`)
 
@@ -424,6 +432,25 @@ export function AdvancedPage() {
                 {label}
               </Check>
             ))}
+          </div>
+        </Row>
+
+        {/* A fact about this install rather than about the card, which is why
+            it sits in its own row rather than among the `is:` criteria. */}
+        <Row label="Collection" hint="Restrict to what your binder does or does not hold.">
+          <div className="checks">
+            <Check
+              on={b.binder === 'true'}
+              onClick={() => set('binder', b.binder === 'true' ? '' : 'true')}
+            >
+              Only Binder
+            </Check>
+            <Check
+              on={b.binder === 'false'}
+              onClick={() => set('binder', b.binder === 'false' ? '' : 'false')}
+            >
+              Not in Binder
+            </Check>
           </div>
         </Row>
 
