@@ -290,7 +290,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.colour-filter',
-        text: 'Press a pip to remove that colour from the list of cards. Colourless cards are never hidden.',
+        text: 'Press a pip to remove that colour from the list of cards. The last pip is colourless, for artifacts and lands with no colour of their own.',
       },
       {
         target: '.cat-buttons',

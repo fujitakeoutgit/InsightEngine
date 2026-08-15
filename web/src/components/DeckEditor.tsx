@@ -376,7 +376,7 @@ export function DeckEditor({
         {binder && (
           <span className="colour-filter push" role="group" aria-label="Filter by colour">
             <span className="label">Colours</span>
-            {(['W', 'U', 'B', 'R', 'G'] as const).map((letter) => {
+            {(['W', 'U', 'B', 'R', 'G', 'C'] as const).map((letter) => {
               const on = (colours ?? []).includes(letter)
               return (
                 <button
@@ -384,7 +384,8 @@ export function DeckEditor({
                   className={`colour-pip${on ? ' on' : ''}`}
                   data-c={letter}
                   aria-pressed={on}
-                  title={on ? `Hide ${letter}` : `Show ${letter}`}
+                  title={`${on ? 'Hide' : 'Show'} ${
+                    letter === 'C' ? 'colourless cards' : letter}`}
                   onClick={() => onColours?.(
                     on ? (colours ?? []).filter((x) => x !== letter) : [...(colours ?? []), letter],
                   )}

@@ -185,7 +185,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
    * own — so the same four buttons filter the list instead of fetching a
    * table nobody asked for. */
   const [job, setJob] = useState<Category | null>(null)
-  const [colours, setColours] = useState<string[]>(['W', 'U', 'B', 'R', 'G'])
+  const [colours, setColours] = useState<string[]>(['W', 'U', 'B', 'R', 'G', 'C'])
 
   /* Both binder filters, applied in one place.
    *
@@ -198,9 +198,15 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
     if (!binder) return deckCards
     return deckCards.filter((c) => {
       if (job && !doesJob(c.card, job)) return false
-      if (colours.length === 5) return true
+      if (colours.length === 6) return true
       const identity = c.card.color_identity || ''
-      return !identity || [...identity].some((letter) => colours.includes(letter))
+      // Colourless is a colour here, with its own pip. It used to be exempt --
+      // an artifact goes in any deck, so hiding Sol Ring when you asked for
+      // red seemed wrong. But a binder is mostly artifacts and lands, and
+      // being unable to get them out of the way made the pips much less useful
+      // than being unable to keep them in.
+      if (!identity) return colours.includes('C')
+      return [...identity].some((letter) => colours.includes(letter))
     })
   }, [binder, job, colours, deckCards])
   useEscape(() => setConfirmingDelete(false), confirmingDelete)
