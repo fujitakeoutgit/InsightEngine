@@ -12,19 +12,95 @@ plus a local-LLM semantic search that is structurally incapable of inventing a c
 
 ## Install
 
-**Just want to use it:** download the latest `InsightEngine-Setup.exe` from
-[Releases](https://github.com/fujitakeoutgit/InsightEngine/releases) and run
-it. It installs one application that serves itself and sits in the
-notification area. Card data downloads from Scryfall on first run, which takes
-a few minutes and happens once.
+Download the latest `InsightEngine-Setup.exe` from
+[Releases](https://github.com/fujitakeoutgit/InsightEngine/releases) and run it.
+
+**That is the whole requirement.** Python and the web interface are inside the
+installer, so there is nothing to install first and nothing to configure. The
+app runs as one program, serves itself, and sits in the notification area.
+
+On first run it downloads the card database from Scryfall — a few minutes,
+once. The tray icon says what it is doing while it works.
 
 The installer is unsigned, so Windows SmartScreen warns until the download
-builds reputation - **More info -> Run anyway**.
+builds reputation: **More info → Run anyway**.
 
-For `q:` searches you also want [a local model](#the-local-model). Everything
-else works without one.
+> **Optional:** `q:` searches — asking for cards in plain English — need
+> [Ollama and a model](#the-local-model). Nothing else does. Search,
+> deckbuilding, the binder, playtest and simulation all work without it.
 
-**Want to work on it:** see [Setup](#setup) below.
+*Building from source instead? See [Setup](#setup).*
+
+---
+
+## The local model
+
+`q:` searches are answered by a model running on your own machine. Nothing is
+sent anywhere. Ordinary searches, deckbuilding, the binder, playtest and
+simulation never touch it, so you can skip this section entirely and add a
+model later.
+
+### Installing Ollama
+
+1. Download it from [ollama.com](https://ollama.com) and run the installer.
+2. It starts a background service and puts an icon in the notification area.
+   Nothing else is needed — Insight Engine talks to it at
+   `http://localhost:11434`.
+3. Check it is up:
+
+   ```bash
+   ollama list
+   ```
+
+   An empty list is the correct answer before you have pulled anything. An
+   error means the service is not running.
+
+### Choosing a model for your PC
+
+**Match the model to your graphics card's VRAM, not to your system RAM.** A
+model that fits on the card answers in seconds. One that does not still runs —
+Ollama spills the remainder into system memory — but a single search can take
+minutes, which is the difference between a feature you use and one you avoid.
+
+Find your VRAM: Task Manager → Performance → GPU → *Dedicated GPU memory*.
+
+| Your VRAM | Model | Pull |
+|---|---|---|
+| 4 GB, or integrated graphics | Tier 1 — 3B | `ollama pull llama3.2:3b` |
+| 8 GB | Tier 2 — 8B | `ollama pull llama3.1:8b` |
+| 12 GB | Tier 3 — 14B | `ollama pull qwen2.5:14b` |
+| 24 GB | Tier 4 — 32B | `ollama pull qwen2.5:32b` |
+| 48 GB or more | Tier 5 — 70B | `ollama pull llama3.3:70b` |
+
+What the rungs actually buy you:
+
+- **3B** runs on almost anything and is the weakest at turning a vague sentence
+  into good filters.
+- **8B** is the smallest size that reliably plans a multi-part query, and a
+  sensible floor for everyday use.
+- **14B** is noticeably better at oracle-text phrasing than 8B.
+- **32B** gets close to the 70B's reading of intent for a fraction of the wait.
+  On a 24 GB card it is the best trade available.
+- **70B** is the most faithful interpreter of an awkward sentence, and wants
+  48 GB to stay resident.
+
+Pick the largest row your card can hold. If you are between two rows, take the
+smaller one — a fast answer you actually wait for beats a better answer you
+cancel.
+
+> **Two cards, or an unusual amount of VRAM?** Ollama uses one GPU by default.
+> Size against the card it will pick, not the total.
+
+### Selecting it in the app
+
+**Settings → Local model → Model.** The dropdown lists the five tiers with the
+video memory each wants, and shows which are installed. Press **Save**. If the
+model is not on the machine yet, the panel prints the exact `ollama pull`
+command to run first.
+
+A model set by hand in `INSIGHT_OLLAMA_MODEL` is honoured and shown in the
+list rather than silently replaced, so you can point at any Ollama tag —
+including one not listed here.
 
 ---
 
@@ -130,12 +206,16 @@ model cannot free-associate its way out of the response shape.
 
 ## Setup
 
+Everything below is for **working on Insight Engine**. To just use it, see
+[Install](#install) — the released build needs none of this.
+
 ### Prerequisites
 
-- Python 3.11 · Node 18+
+- Python 3.11 · Node 18+ — build-time only. Python is frozen into the
+  installer and the interface ships as static files, so a released copy needs
+  neither.
 - ~2 GB disk for the card mirror
-- [Ollama](https://ollama.com) and a model — **only for `q:` searches**. Every
-  other part of the app works without it.
+- [Ollama](https://ollama.com) and a model, if you want `q:` to work
 
 ### First-time install
 
@@ -215,77 +295,6 @@ instead of binding a second copy.
 .venv/Scripts/python -m app.bulk           # re-downloads only what changed
 .venv/Scripts/python -m app.bulk --reingest  # re-parse cached files, no download
 ```
-
----
-
-## The local model
-
-`q:` searches are answered by a model running on your own machine. Nothing is
-sent anywhere. Ordinary searches, deckbuilding, the binder, playtest and
-simulation never touch it, so you can skip this section entirely and add a
-model later.
-
-### Installing Ollama
-
-1. Download it from [ollama.com](https://ollama.com) and run the installer.
-2. It starts a background service and puts an icon in the notification area.
-   Nothing else is needed — Insight Engine talks to it at
-   `http://localhost:11434`.
-3. Check it is up:
-
-   ```bash
-   ollama list
-   ```
-
-   An empty list is the correct answer before you have pulled anything. An
-   error means the service is not running.
-
-### Choosing a model for your PC
-
-**Match the model to your graphics card's VRAM, not to your system RAM.** A
-model that fits on the card answers in seconds. One that does not still runs —
-Ollama spills the remainder into system memory — but a single search can take
-minutes, which is the difference between a feature you use and one you avoid.
-
-Find your VRAM: Task Manager → Performance → GPU → *Dedicated GPU memory*.
-
-| Your VRAM | Model | Pull |
-|---|---|---|
-| 4 GB, or integrated graphics | Tier 1 — 3B | `ollama pull llama3.2:3b` |
-| 8 GB | Tier 2 — 8B | `ollama pull llama3.1:8b` |
-| 12 GB | Tier 3 — 14B | `ollama pull qwen2.5:14b` |
-| 24 GB | Tier 4 — 32B | `ollama pull qwen2.5:32b` |
-| 48 GB or more | Tier 5 — 70B | `ollama pull llama3.3:70b` |
-
-What the rungs actually buy you:
-
-- **3B** runs on almost anything and is the weakest at turning a vague sentence
-  into good filters.
-- **8B** is the smallest size that reliably plans a multi-part query, and a
-  sensible floor for everyday use.
-- **14B** is noticeably better at oracle-text phrasing than 8B.
-- **32B** gets close to the 70B's reading of intent for a fraction of the wait.
-  On a 24 GB card it is the best trade available.
-- **70B** is the most faithful interpreter of an awkward sentence, and wants
-  48 GB to stay resident.
-
-Pick the largest row your card can hold. If you are between two rows, take the
-smaller one — a fast answer you actually wait for beats a better answer you
-cancel.
-
-> **Two cards, or an unusual amount of VRAM?** Ollama uses one GPU by default.
-> Size against the card it will pick, not the total.
-
-### Selecting it in the app
-
-**Settings → Local model → Model.** The dropdown lists the five tiers with the
-video memory each wants, and shows which are installed. Press **Save**. If the
-model is not on the machine yet, the panel prints the exact `ollama pull`
-command to run first.
-
-A model set by hand in `INSIGHT_OLLAMA_MODEL` is honoured and shown in the
-list rather than silently replaced, so you can point at any Ollama tag —
-including one not listed here.
 
 ---
 
