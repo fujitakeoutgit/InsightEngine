@@ -901,7 +901,11 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         {/* The binder gets Search too. Finding a card you just pulled and
             adding it is the binder's main job, and routing that through the
             Cards tray on another page was the long way round. */}
-        <button className={tab === 'search' ? 'on' : ''} onClick={() => setTab('search')}>
+        <button
+          data-tour="tab-search"
+          className={tab === 'search' ? 'on' : ''}
+          onClick={() => setTab('search')}
+        >
           Search
         </button>
         {/* A binder is a list of what you own, not a deck being tuned, so it

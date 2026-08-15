@@ -301,11 +301,11 @@ export const LESSONS: Lesson[] = [
         text: 'The counts and the mana curve are computed from the filtered list, not the whole binder.',
       },
       {
-        target: '.cat-buttons',
+        target: '[data-tour="bulk-edit"]',
         text: 'Press **Bulk Edit** to file several cards at once. Click a card to tick it, then press **Bulk**, **Trades** or **Fav** to move everything ticked there.',
       },
       {
-        target: '.result-tabs',
+        target: '[data-tour="tab-search"]',
         text: 'Press the **Search** tab to look a card up and add it without leaving the binder.',
       },
       {
@@ -371,17 +371,6 @@ export const LESSONS: Lesson[] = [
       {
         target: '.balance',
         text: 'Each source is split between the colours it makes. A dual counts a half to each, a triome a third, a five-colour land a fifth — or a quarter, if the commander only allows four.',
-      },
-      {
-        target: '.balance',
-        text: 'A fetch land counts as the colours it can go and get, not as nothing. Scryfall says it produces no mana, which is true of the card and false of what it does for your deck.',
-      },
-      {
-        text: 'Bars are scaled against your best-supported colour rather than a pass mark. A healthy deck runs well under one source per pip, so a fixed threshold would fail every colour and tell you nothing.',
-      },
-      {
-        target: '.deck-info',
-        text: 'Press **Show numbers** for the counts behind the bars: pips, cards that can tap for the colour, weighted sources, and the ratio.',
       },
     ],
   },
@@ -461,7 +450,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.pt-tools',
-        text: 'Double-click a die to switch it to counting mode. Each click then steps its number. Throw it to return it to rolling.',
+        text: 'Double-click a die on the board to switch it to counting mode. Each click then steps its number. Throw it to return it to rolling mode.',
       },
       {
         target: '.pt-die-bin',
@@ -472,10 +461,10 @@ export const LESSONS: Lesson[] = [
         text: 'Press **History** to open the log of everything that has happened this game.',
       },
       {
-        text: 'Click a fetch land on the battlefield to crack it. It finds a land, goes to the graveyard, and the fetched land enters tapped if its text says so.',
+        text: 'Click a fetch land on the battlefield to crack it. It tutors a land, goes to the graveyard, and the fetched land enters tapped if its text says so.',
       },
       {
-        text: 'A planeswalker enters with its printed starting loyalty. Press the arrows on its badge to change the counter. It resets when the card leaves the battlefield.',
+        text: 'A planeswalker enters with its printed starting loyalty. Press the arrows on its badge to change the counter.',
       },
       {
         target: '.pt-actions',

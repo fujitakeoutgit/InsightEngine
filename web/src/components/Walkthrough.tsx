@@ -157,7 +157,16 @@ export function Walkthrough() {
            * and the page then slid out from under it — which is why it sat
            * high, and why stepping away and back fixed it: by then no scroll
            * was needed and the first measurement was already correct. */
-          el.scrollIntoView({ block: 'center', behavior: 'auto' })
+          /* Centring is right for a button and wrong for a panel. A target
+             taller than about half the window cannot be centred without its
+             top going off screen, so the reader arrives looking at its middle
+             with no idea what they are being shown. Tall things are brought to
+             the top instead, with room left for the card that talks about
+             them. */
+          const box = el.getBoundingClientRect()
+          const tall = box.height > window.innerHeight * 0.5
+          el.scrollIntoView({ block: tall ? 'start' : 'center', behavior: 'auto' })
+          if (tall) window.scrollBy(0, -MARGIN * 2)
           const after = el.getBoundingClientRect()
           setSpot({ top: after.top, left: after.left, width: after.width, height: after.height })
           settle(el)

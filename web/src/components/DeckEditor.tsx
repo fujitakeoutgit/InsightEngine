@@ -339,6 +339,7 @@ export function DeckEditor({
         {binder && (
           <button
             className={bulkEdit ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
+            data-tour="bulk-edit"
             aria-pressed={bulkEdit}
             onClick={() => {
               // Leaving the mode clears the selection: a set you cannot see is
