@@ -3412,14 +3412,18 @@
   transform: translateY(3px);
 }
 
-/* Counting rather than rolling: the shape itself takes the accent, since
-   there is no longer a box around it to tint. */
-.pt-die.pt-d20.counting .pt-d20-shape .hull { stroke: var(--aether); }
-.pt-die.pt-d20.counting .pt-d20-shape .face {
-  fill: color-mix(in oklab, var(--aether) 26%, var(--bg-hi));
+/* Counting rather than rolling: the outline takes the accent and the faces
+   keep whatever the skin painted them. The d20 has no box around it, so the
+   hull is its border -- widened as well as recoloured, since a stroke on a
+   twenty-sided outline is thin enough to miss. */
+.pt-die.pt-d20.counting .pt-d20-shape .hull {
   stroke: var(--aether);
+  /* The hull already draws at 3; anything less makes counting look like a
+     thinner die rather than an outlined one. */
+  stroke-width: 4.5;
 }
-.pt-die.pt-d20.counting .pt-d20-num { color: var(--aether-hi); }
+
+.pt-die.pt-d20.counting .pt-d20-shape .face { stroke: var(--aether); }
 
 /* The coin. A real two-sided disc so the face it shows is its rotation
    rather than a swapped graphic — there is no instant where it reads one
@@ -3543,15 +3547,18 @@
   box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.55);
 }
 
-/* Counting is a different job, so it looks like one rather than like a die
-   that happens to be sitting still. */
+/* Counting is a different job, and it says so with a border rather than by
+   repainting the die. Tinting the face and the pips overwrote the skin, so a
+   Magma d6 and a Platinum d6 became the same object the moment either started
+   counting -- which is the one time you have two dice out and need to tell
+   them apart. The ring is drawn outside the border so it reads at a glance
+   without eating into the face. */
 .pt-die.counting .pt-die-side {
   border-color: var(--aether);
-  background: linear-gradient(150deg,
-    color-mix(in oklab, var(--aether) 22%, var(--bg-hi)), var(--bg));
+  box-shadow:
+    0 0 0 1px var(--aether),
+    0 0 8px -2px color-mix(in oklab, var(--aether) 55%, transparent);
 }
-
-.pt-die.counting .pt-die-side i.on { background: var(--aether-hi); }
 
 /* Search-your-library. Tall rather than wide: it is a list of names. */
 .pt-tutor { width: min(420px, 100%); }
