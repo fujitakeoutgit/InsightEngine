@@ -589,9 +589,16 @@ export interface DeckStats {
   types: Record<string, number>
   rarity: { main: Record<string, number>; sideboard: Record<string, number> }
   curve: Record<string, Record<string, number>>
-  tokens: {
-    oracle_id: string; name: string; type_line: string | null
-    pt: string | null; color_identity: string | null
-    image: string | null; is_emblem: boolean
-  }[]
+  tokens: DeckToken[]
+}
+
+/** A token or emblem this deck is able to put onto the battlefield. */
+export interface DeckToken {
+  oracle_id: string
+  name: string
+  type_line: string | null
+  pt: string | null
+  color_identity: string | null
+  image: string | null
+  is_emblem: boolean
 }

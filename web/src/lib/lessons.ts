@@ -331,6 +331,10 @@ export const LESSONS: Lesson[] = [
         text: 'Press **Next turn** to untap everything, advance the turn counter and draw a card. Press **Tutor** to search your library and put a card in your hand.',
       },
       {
+        target: '.pt-actions',
+        text: '**Tutor** also lists the tokens this deck can make. Picking one puts it straight onto the battlefield — a token is created rather than drawn, so the library is untouched.',
+      },
+      {
         target: '.pt-deck',
         text: 'Click the deck to draw one card. The deck also shows how many cards are left.',
       },

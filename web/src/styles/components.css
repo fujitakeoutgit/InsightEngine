@@ -4728,3 +4728,11 @@
 }
 
 .bulk-move { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* The token list inside Tutor. Separated from the library rows because
+   picking one creates a card rather than finding one. */
+.pt-tutor-head {
+  margin: 10px 0 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}

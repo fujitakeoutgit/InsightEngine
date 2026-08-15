@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { isBinder } from '../lib/binder'
-import { api, type SavedDeck } from '../lib/api'
+import { api, type DeckToken, type SavedDeck } from '../lib/api'
 import { fromResolutions, type DeckCard } from '../lib/deckModel'
 import { canAnimate, gsap, splitChars } from '../lib/motion'
 import { BackLink } from '../components/PageHead'
@@ -43,6 +43,7 @@ export function PlaytestPage() {
   const navigate = useNavigate()
 
   const [decks, setDecks] = useState<SavedDeck[] | null>(null)
+  const [tokens, setTokens] = useState<DeckToken[]>([])
   const [cards, setCards] = useState<DeckCard[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const titleRef = useRef<HTMLHeadingElement>(null)
@@ -70,7 +71,14 @@ export function PlaytestPage() {
     setCards(null)
     api.loadDeck(Number(deckId))
       .then((r) => api.analyzeDeck(r.deck.text ?? ''))
-      .then((report) => { if (!cancelled) setCards(fromResolutions(report.entries)) })
+      .then((report) => {
+        if (cancelled) return
+        setCards(fromResolutions(report.entries))
+        // What this deck can put onto the battlefield without drawing it.
+        // Already computed for the deck's analysis, so the mat costs nothing
+        // extra to know about them.
+        setTokens(report.stats?.tokens ?? [])
+      })
       .catch(() => { if (!cancelled) setError('Could not open that deck.') })
     return () => { cancelled = true }
   }, [deckId])
@@ -130,6 +138,7 @@ export function PlaytestPage() {
     return (
       <Playtest
         deck={cards}
+        tokens={tokens}
         gameKey={deckId}
         onClose={() => navigate('/playtest')}
       />

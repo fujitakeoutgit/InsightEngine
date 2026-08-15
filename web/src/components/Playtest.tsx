@@ -12,6 +12,7 @@ import { PlayCoin, type CoinFace } from './PlayCoin'
 
 import { PlayDie } from './PlayDie'
 import { canAnimate, gsap } from '../lib/motion'
+import { type DeckToken } from '../lib/api'
 import { type DeckCard } from '../lib/deckModel'
 import {
   deckSignature, makeDie, MAX_DICE, recallGame, rememberGame,
@@ -193,9 +194,12 @@ function build(deck: DeckCard[]): Instance[] {
  * blocker held back, a combo lined up in a corner.
  */
 export function Playtest({
-  deck, gameKey, onClose,
+  deck, tokens = [], gameKey, onClose,
 }: {
   deck: DeckCard[]
+  /** Tokens and emblems this deck can make. Not in the library -- a token is
+   *  created, never drawn -- so Tutor offers them as a separate list. */
+  tokens?: DeckToken[]
   /** Which deck's game this is, so closing and reopening resumes it. */
   gameKey: string
   onClose: () => void
@@ -435,6 +439,40 @@ export function Playtest({
     shuffleLibrary(true)
     note(`${source.card.name}: found ${found?.card.name ?? 'a land'}${
       finds.sacrifices ? ', sacrificed' : ''}, then shuffled`)
+  }
+
+  /**
+   * Put a token onto the battlefield.
+   *
+   * Tokens have no home zone: they are created, not drawn, so this does not
+   * move anything -- it adds an instance that was never in the library. Each
+   * gets its own iid, because a deck that makes six Soldiers wants six cards
+   * on the mat and not one it has to remember is six.
+   *
+   * They land in the middle rather than at a slot, and can be dragged like
+   * anything else. Trashing one removes it for good, which is what a token
+   * leaving the battlefield does.
+   */
+  const makeToken = (token: DeckToken) => {
+    const iid = `token-${token.oracle_id}-${Date.now().toString(36)}-${
+      Math.random().toString(36).slice(2, 7)}`
+    setCards((prev) => [...prev, {
+      iid,
+      card: {
+        oracle_id: token.oracle_id,
+        name: token.name,
+        type_line: token.type_line,
+        image_normal: token.image,
+        image_small: token.image,
+        mana_cost: null,
+        color_identity: token.color_identity,
+      } as unknown as Instance['card'],
+      zone: 'battlefield' as Zone,
+      tapped: false,
+      x: 0.5,
+      y: 0.5,
+    }])
+    note(`Created ${token.name}`)
   }
 
   const tap = (iid: string) => {
@@ -848,8 +886,15 @@ export function Playtest({
       {tutoring && (
         <Tutor
           cards={inZone.library}
+          /* Only when searching the library at large. A fetch land looks for a
+             land in your deck, and no token was ever in there to be found. */
+          tokens={tutoring.fetch ? [] : tokens}
           fetch={tutoring.fetch}
           onClose={() => setTutoring(null)}
+          onMakeToken={(token) => {
+            makeToken(token)
+            setTutoring(null)
+          }}
           onPick={(iid) => {
             const from = tutoring.fetch
             const source = from && cards.find((c) => c.iid === from.iid)
@@ -892,9 +937,12 @@ export function Playtest({
  * what you saw here does not survive the search.
  */
 function Tutor({
-  cards, fetch, onPick, onClose,
+  cards, tokens = [], fetch, onPick, onMakeToken, onClose,
 }: {
   cards: Instance[]
+  /** Tokens this deck can make. Empty when a fetch land opened the dialog. */
+  tokens?: DeckToken[]
+  onMakeToken?: (token: DeckToken) => void
   /** Set when a fetch land opened this: the search is then over what that
    *  land can find rather than over the whole library. */
   fetch?: Fetch & { source: string; iid: string }
@@ -914,6 +962,10 @@ function Tutor({
     .filter((c) => !fetch || canFetch(fetch, c.card))
     .filter((c) => !term || c.card.name.toLowerCase().includes(term))
     .sort((a, b) => a.card.name.localeCompare(b.card.name))
+
+  const shownTokens = tokens
+    .filter((t) => !term || t.name.toLowerCase().includes(term))
+    .sort((a, b) => a.name.localeCompare(b.name))
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
@@ -935,7 +987,29 @@ function Tutor({
               <span className="faint">{c.card.type_line}</span>
             </button>
           ))}
-          {!shown.length && <p className="faint" style={{ fontSize: 12 }}>Nothing matches.</p>}
+          {/* Tokens are not in the library, so they are listed apart from it
+              rather than mixed in. Picking one creates it on the battlefield;
+              picking a card puts it in your hand. Two different verbs, so the
+              heading says which is which. */}
+          {shownTokens.length > 0 && (
+            <>
+              <p className="pt-tutor-head label">Tokens this deck makes</p>
+              {shownTokens.map((t) => (
+                <button
+                  key={t.oracle_id}
+                  className="pt-tutor-row"
+                  onClick={() => onMakeToken?.(t)}
+                >
+                  <span className="nm">{t.name}</span>
+                  {t.pt && <span className="mono faint">{t.pt}</span>}
+                  <span className="faint">{t.type_line}</span>
+                </button>
+              ))}
+            </>
+          )}
+          {!shown.length && !shownTokens.length && (
+            <p className="faint" style={{ fontSize: 12 }}>Nothing matches.</p>
+          )}
         </div>
         <div className="row gap-2" style={{ marginTop: 'var(--gap-2)' }}>
           <button className="btn btn-ghost sm" onClick={onClose}>Cancel</button>
