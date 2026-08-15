@@ -43,6 +43,11 @@ const ORIENT: Record<number, { rx: number; ry: number }> = {
 const SIZE = DIE_PX
 /** Below this release speed a drag is a placement, not a throw. px/ms. */
 const THROW_SPEED = 0.22
+
+/* How far the pointer may wander before a press counts as a drag. Small: a
+   deliberate click barely moves, and a counter that ignores a real click is
+   worse than one that occasionally forgives a shaky one. */
+const DRAG_SLOP = 4
 /** Velocity lost per millisecond in flight. */
 const DRAG = 0.0026
 /** How much speed survives a bounce off the edge of the mat. */
@@ -144,6 +149,8 @@ export function PlayDie({
   const busy = useRef(false)
   /** Set by a throw so the click that follows the release does not also fire. */
   const threw = useRef(false)
+  /** The pointer moved far enough that the release was a drop, not a click. */
+  const dragged = useRef(false)
   const ticker = useRef<((time: number, delta: number) => void) | null>(null)
   const settleTween = useRef<gsap.core.Tween | null>(null)
 
@@ -426,6 +433,7 @@ export function PlayDie({
     stopTicker()
     settleTween.current?.kill()
     threw.current = false
+    dragged.current = false
     busy.current = true
     const el = ref.current
     origin.current = {
@@ -458,6 +466,14 @@ export function PlayDie({
      * between the two gestures. It turns only in flight. */
 
     onDragState?.(true, overBin(event.clientX, event.clientY))
+
+    // Past a few pixels this is a drag, not a press. Carrying a counter across
+    // the mat ends in a click like any other release, and without this that
+    // click counted -- so putting a die down where you wanted it quietly
+    // added one to the number you were keeping.
+    if (Math.hypot(event.clientX - start.pointer.x, event.clientY - start.pointer.y) > DRAG_SLOP) {
+      dragged.current = true
+    }
 
     trail.current.push({ x: event.clientX, y: event.clientY, t: performance.now() })
     // Only the tail is needed, and an unbounded trail on a long drag would
@@ -516,6 +532,8 @@ export function PlayDie({
     // with it. In rolling mode a bare click does nothing at all, which is what
     // leaves the double-click free to mean something.
     if (threw.current) { threw.current = false; return }
+    // Same for a drag that ended in a placement rather than a throw.
+    if (dragged.current) { dragged.current = false; return }
     if (!die.counting) return
     // Cycles at the die's own size rather than at six: a d20 counting to 6 and
     // starting over is a counter that cannot count to the number it is for.
