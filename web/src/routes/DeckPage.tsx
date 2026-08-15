@@ -668,6 +668,16 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
   const visibleRecs = (recs?.recommendations ?? []).filter(
     (rec) => !activeThemes.length || rec.because.some((b) => activeThemes.includes(b)),
   )
+  /* The pipeline exists once a run has started and for as long as its output
+   * is worth reading. Not restored with the rest of the view state: the
+   * console itself is not saved, so a reopened deck has nothing to show. */
+  const showPipeline = !binder && (pipeline.running || pipeline.stages.length > 0)
+
+  useEffect(() => {
+    // Restoring a deck's view can land on a tab that is no longer there.
+    if (tab === 'pipeline' && !showPipeline) setTab('analysis')
+  }, [tab, showPipeline])
+
   const reasonFor = new Map((recs?.recommendations ?? []).map((r) => [r.card.oracle_id, r.because]))
   // Every card in the commander slot. Two is the ceiling any pairing rule
   // allows, and a partner pair is two commanders rather than one commander
@@ -754,7 +764,18 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         </span>
         {/* Nothing to recommend into: the binder is a record of what you own. */}
         {!binder && (busy === 'ai' ? (
-          <button className="btn btn-danger sm" onClick={() => { aiStream.current?.stop(); setBusy(null) }}>
+          <button
+            className="btn btn-danger sm"
+            onClick={() => {
+              aiStream.current?.stop()
+              setBusy(null)
+              /* The console has to be told as well. Closing the stream from
+               * this side does not deliver the cancel event the server would
+               * have sent, so `running` stayed true and the Pipeline tab span
+               * forever after a run was stopped. */
+              setPipeline((p) => (p.running ? { ...p, running: false, cancelled: true } : p))
+            }}
+          >
             Stop AI
           </button>
         ) : (
@@ -885,8 +906,12 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
             Recommendations{recs && <span className="faint"> {recs.recommendations.length}</span>}
           </button>
         )}
-        {!binder && (
-          <button data-tour="tab-pipeline" className={tab === 'pipeline' ? 'on' : ''} disabled={!pipeline.stages.length}
+        {/* Absent until there is a run to watch, rather than present and
+            disabled. A permanently greyed tab is a question the reader has to
+            answer for themselves -- and this one is only ever answered by
+            pressing a button two panels away. */}
+        {showPipeline && (
+          <button data-tour="tab-pipeline" className={tab === 'pipeline' ? 'on' : ''}
             onClick={() => setTab('pipeline')}>
             Pipeline
             {pipeline.running && <span className="spinner" style={{ marginLeft: 6 }} />}

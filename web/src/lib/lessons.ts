@@ -281,16 +281,16 @@ export const LESSONS: Lesson[] = [
   {
     id: 'binder',
     title: 'The Binder',
-    blurb: 'What you own, and the filters that make it usable.',
+    blurb: 'Manage your cards.',
     steps: [
       {
         route: '/binder',
         target: '.section-tabs',
-        text: 'The binder is one list, always present, never shown among your decks. Its sections are **Bulk**, **Trades** and **Fav**. Drag cards between them.',
+        text: 'Binder for your owned cards. Its sections are **Bulk**, **Trades** and **Fav**. Drag cards between them.',
       },
       {
         target: '.colour-filter',
-        text: 'Press a pip to remove that colour from the list. All five start active. Colourless cards are never hidden.',
+        text: 'Press a pip to remove that colour from the list of cards. Colourless cards are never hidden.',
       },
       {
         target: '.cat-buttons',
