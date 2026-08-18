@@ -92,6 +92,17 @@
   background: none;
   outline: none;
   color: var(--ink);
+  /* Undoing the shared rule above, which exists to give the input and its
+     spell-check backdrop identical metrics and reaches too far: it also sets
+     pointer-events and user-select to none, which the backdrop needs and the
+     input very much does not.
+
+     The input was therefore never clickable. It only ever received focus from
+     autoFocus on the splash, the "/" shortcut, or a programmatic call -- so
+     once it lost focus there was no way to get back into it, and on the
+     results page, where autoFocus does not fire, no way to reach it at all. */
+  pointer-events: auto;
+  user-select: text;
 }
 
 .searchbar input::placeholder { color: var(--faint); }
