@@ -18,6 +18,7 @@ _LINE_RE = re.compile(
     (?P<name>.+?)                                                     # card name
     (?:\s+\((?P<set>[A-Za-z0-9_]{2,8})\)(?:\s+(?P<number>[A-Za-z0-9\-★]+))?)?  # (SET) 123
     (?P<flags>(?:\s*\*[^*]*\*)*)                                      # *F* *CMDR*
+    (?P<tags>(?:\s*\[[^\]]*\])*)                                       # [Removal] [Ramp]
     \s*$""",
     re.VERBOSE,
 )
@@ -123,13 +124,27 @@ def parse_decklist(text: str) -> ParsedDeck:
         quantity = int(match.group("qty") or match.group("qty2") or 1)
         flags = (match.group("flags") or "").lower()
 
+        # Bracketed tags, as several deck sites export them:
+        #   1x Aetherize (fdn) 151 [Removal]
+        # They are the exporter's own categories and mean nothing here, so
+        # they are dropped -- but the regex has to know they exist. Without a
+        # group for them the optional "(SET) number" could not reach the end of
+        # the line, so `name` absorbed the lot and every card resolved as
+        # "Aetherize (fdn) 151 [Removal]", which is to say not at all.
+        #
+        # One tag is kept: a deck that says which card is its commander is
+        # telling us something the list cannot otherwise carry, and losing it
+        # costs the color identity, the charts and the simulation.
+        tags = (match.group("tags") or "").lower()
+        is_cmdr = "cmdr" in flags or "[commander" in tags
+
         deck.entries.append(DeckEntry(
             quantity=max(1, quantity),
             raw_name=name,
-            section=forced_section or ("commander" if "cmdr" in flags else section),
+            section=forced_section or ("commander" if is_cmdr else section),
             set_code=(match.group("set") or "").lower() or None,
             collector_number=match.group("number"),
-            is_commander="cmdr" in flags or (forced_section or section) == "commander",
+            is_commander=is_cmdr or (forced_section or section) == "commander",
             line_number=number,
             source_line=line.rstrip(),
         ))
