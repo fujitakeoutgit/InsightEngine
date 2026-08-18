@@ -122,6 +122,119 @@ class QueryCompileError(ValueError):
 # Helpers
 # --------------------------------------------------------------------------
 
+# --------------------------------------------------------------------------
+# Tribes
+# --------------------------------------------------------------------------
+
+#: Cached alternation of every creature subtype, singular and plural.
+_TRIBE_ALTERNATION: str | None = None
+
+
+def _plurals(word: str) -> list[str]:
+    """The forms a tribe name actually appears in.
+
+    Rules text says "Elves have haste" while the subtype is "Elf", so matching
+    the subtype alone finds almost nothing. English is regular enough here to
+    generate the rest: the type list is proper nouns of one word, with no
+    irregulars beyond the -f/-ves group.
+
+    The singular is always kept, which covers the invariant names -- Merfolk,
+    Sheep, Jedi -- without needing to know which they are.
+    """
+    forms = {word}
+    lower = word.lower()
+    if lower.endswith("f"):
+        forms.add(word[:-1] + "ves")
+    elif lower.endswith("fe"):
+        forms.add(word[:-2] + "ves")
+    elif lower.endswith(("s", "x", "z", "ch", "sh")):
+        forms.add(word + "es")
+    elif lower.endswith("y") and len(word) > 1 and word[-2].lower() not in "aeiou":
+        forms.add(word[:-1] + "ies")
+    else:
+        forms.add(word + "s")
+    return sorted(forms)
+
+
+def _tribe_alternation() -> str:
+    """Every creature subtype and plural, as one regex alternation.
+
+    Read from the mirror rather than hard-coded: the list grows with every set,
+    and a fixed one goes stale silently. Cached for the process, because the
+    mirror only changes on a rebuild and this scans every creature.
+    """
+    global _TRIBE_ALTERNATION
+    if _TRIBE_ALTERNATION is not None:
+        return _TRIBE_ALTERNATION
+
+    words: set[str] = set()
+    try:
+        from ..state import state
+
+        conn = state.require_conn()
+        rows = conn.execute(
+            "SELECT DISTINCT type_line FROM cards "
+            "WHERE type_line LIKE '%Creature%' AND digital = 0"
+        )
+        for (type_line,) in rows:
+            if not type_line:
+                continue
+            for face in type_line.split("//"):
+                if "Creature" not in face or "—" not in face:
+                    continue
+                for word in face.split("—")[1].split():
+                    if word.isalpha():
+                        words.update(_plurals(word))
+    except Exception:  # noqa: BLE001 - no mirror yet; `~` simply matches nothing
+        pass
+
+    # Longest first so "Elves" is preferred over "Elf" where both could match
+    # at the same position.
+    ordered = sorted(words, key=lambda w: (-len(w), w))
+    _TRIBE_ALTERNATION = "(?:" + "|".join(re.escape(w) for w in ordered) + ")" if ordered else ""
+    return _TRIBE_ALTERNATION
+
+
+def forget_tribes() -> None:
+    """Drop the cache. Called when the mirror is replaced."""
+    global _TRIBE_ALTERNATION
+    _TRIBE_ALTERNATION = None
+
+
+def tribe_to_regex(value: str) -> str:
+    """Translate a phrase containing ``~`` into a regular expression.
+
+    ``~`` stands for any creature type, in any of the forms rules text uses --
+    "Elf" and "Elves", "Wolf" and "Wolves". It was free to mean this: not one
+    card in 38,626 contains the character.
+
+    It composes with ``_``, and in practice it has to. Magic never writes
+    "Elves have haste"; it writes "Other Dinosaurs *you control* have haste",
+    "Warriors *your team controls* have haste". So `~ have haste` matches
+    nothing real, while `~_have haste` -- any tribe, any run of text, then the
+    verb -- finds all of them.
+
+    Everything that is not `~` or `_` is escaped, so a phrase can never smuggle
+    in regex metacharacters.
+    """
+    alternation = _tribe_alternation()
+    if not alternation:
+        # No mirror to read types from. Matching nothing beats matching all.
+        return r"(?!)"
+    # Split on both placeholders at once, keeping them, so the two can be
+    # combined in one phrase.
+    parts = re.split(r"([~_])", value)
+    out = []
+    for part in parts:
+        if part == "~":
+            out.append(alternation)
+        elif part == "_":
+            out.append(".*?")
+        else:
+            out.append(re.escape(part))
+    return "".join(out)
+
+
 def wildcard_to_regex(value: str) -> str:
     r"""Translate a ``_``-wildcard phrase into a regular expression.
 
@@ -138,6 +251,8 @@ def _contains(column: str, value: str) -> Compiled:
 
 
 def _text_match(column: str, term: Term) -> Compiled:
+    if "~" in term.value:
+        return Compiled(f"{column} REGEXP ?", [tribe_to_regex(term.value)])
     if term.has_wildcard:
         return Compiled(f"{column} REGEXP ?", [wildcard_to_regex(term.value)])
     if term.op == "=":

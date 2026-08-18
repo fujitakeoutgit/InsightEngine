@@ -12,7 +12,7 @@ import {
 import { useCardFace } from '../lib/faces'
 import { attachTilt } from '../lib/motion'
 import { solidDragImage, useQuietDrag } from '../lib/useQuietDrag'
-import { OVERLAY_KEY, usePersisted } from '../lib/usePersisted'
+import { OVERLAY_KEY, SORT_DIR_KEY, SORT_KEY, usePersisted, useSortDir } from '../lib/usePersisted'
 import { CARD_DRAG_TYPE } from './DeckSearch'
 import { FlipButton } from './FlipButton'
 import { PrintingPicker } from './PrintingPicker'
@@ -76,7 +76,10 @@ export function DeckEditor({
    * B4 -- the binder still opens on images, because art is how you recognise a
    * card you own without reading its name. */
   const [groupBy, setGroupBy] = useState<GroupBy>('none')
-  const [sortBy, setSortBy] = useState<SortBy>('name')
+  // Remembered, and the direction is remembered per sort: name wants A-Z,
+  // price wants dearest first, and one shared direction is wrong for one of
+  // them on every switch.
+  const [sortBy, setSortBy] = usePersisted<SortBy>(SORT_KEY, 'name')
   const [pinOverlay, setPinOverlay] = usePersisted<boolean>(OVERLAY_KEY, false)
   /* Bulk edit: a mode, not a gesture.
    *
@@ -106,7 +109,7 @@ export function DeckEditor({
   /** The entry whose printing is being chosen, if any. */
   const [picking, setPicking] = useState<DeckCard | null>(null)
 
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
+  const [sortDir, setSortDir] = useSortDir(SORT_DIR_KEY, sortBy)
   /** Springs a hovered tab open mid-drag. */
   const springTimer = useRef<number | undefined>(undefined)
 
@@ -294,7 +297,7 @@ export function DeckEditor({
         {binder && (
           <button
             className="sort-dir"
-            onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+            onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}
             title={sortDir === 'asc' ? 'Ascending — click for descending' : 'Descending — click for ascending'}
             aria-label={`Sort ${sortDir === 'asc' ? 'ascending' : 'descending'}`}
           >
@@ -460,7 +463,7 @@ export function DeckEditor({
         {!binder && (
           <button
             className="sort-dir push"
-            onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+            onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}
             title={sortDir === 'asc' ? 'Ascending — click for descending' : 'Descending — click for ascending'}
             aria-label={`Sort ${sortDir === 'asc' ? 'ascending' : 'descending'}`}
           >

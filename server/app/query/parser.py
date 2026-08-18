@@ -282,7 +282,10 @@ def extract_semantic(node: Node) -> tuple[list[str], Node]:
 
 def requires_local_engine(node: Node) -> bool:
     """True when the query uses syntax the Scryfall API cannot express."""
-    return any(t.key in LOCAL_ONLY_FIELDS or t.has_wildcard for t in terms(node))
+    return any(
+        t.key in LOCAL_ONLY_FIELDS or t.has_wildcard or "~" in (t.value or "")
+        for t in terms(node)
+    )
 
 
 def is_empty(node: Node) -> bool:

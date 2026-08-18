@@ -74,7 +74,7 @@ interface Condition { a: string; op: string; value: string }
 
 interface Builder {
   name: string
-  oracle: string
+  oracle: OracleTerm[]
   typeLine: string
   typeExclude: string
   colors: string[]
@@ -97,8 +97,14 @@ interface Builder {
   order: string
 }
 
+/** One rules-text row: the phrase, and whether it is excluded. */
+interface OracleTerm {
+  not: boolean
+  text: string
+}
+
 const INITIAL: Builder = {
-  name: '', oracle: '', typeLine: '', typeExclude: '',
+  name: '', oracle: [{ not: false, text: '' }], typeLine: '', typeExclude: '',
   colors: [], colorMode: ':', identity: [], mana: '',
   stats: [{ a: 'mv', op: '<=', value: '' }],
   // Commander by default, matching withCommanderDefault() on the splash page.
@@ -112,13 +118,24 @@ const INITIAL: Builder = {
 
 /** Assemble the query. The generated text is the real interface — users learn
  *  the syntax by watching this line update as they click. */
+/** Keep one trailing empty row, drop any others. */
+function trimTrailing(rows: OracleTerm[]): OracleTerm[] {
+  const filled = rows.filter((r) => r.text.trim() || r.not)
+  return [...filled, { not: false, text: '' }]
+}
+
 function buildQuery(b: Builder): string {
   const parts: string[] = []
 
   // q: must lead so the planner sees the prose before structured filters.
   if (b.semantic.trim()) parts.push(`q:"${b.semantic.trim().replace(/"/g, '')}"`)
   if (b.name.trim()) parts.push(quoteIfNeeded(b.name.trim()))
-  if (b.oracle.trim()) parts.push(`o:"${b.oracle.trim().replace(/"/g, '')}"`)
+  // Always quoted, so a phrase with spaces needs no thought from the reader,
+  // and a leading `-` when the row is negated.
+  for (const term of b.oracle) {
+    const text = term.text.trim().replace(/"/g, '')
+    if (text) parts.push(`${term.not ? '-' : ''}o:"${text}"`)
+  }
   if (b.lore.trim()) parts.push(`fo:"${b.lore.trim().replace(/"/g, '')}"`)
 
   for (const word of b.typeLine.trim().split(/\s+/).filter(Boolean)) {
@@ -210,6 +227,11 @@ export function AdvancedPage() {
   const [copied, flashCopied] = useTransient()
   const navigate = useNavigate()
 
+  /* Always exactly one empty row at the end, and never two. Growing the list
+   * on change rather than on blur means the next box is already there when the
+   * reader looks for it. */
+  const oracleRows = b.oracle.length ? b.oracle : [{ not: false, text: '' }]
+
   const query = useMemo(() => buildQuery(b), [b])
 
   const set = <K extends keyof Builder>(key: K, value: Builder[K]) =>
@@ -289,11 +311,57 @@ export function AdvancedPage() {
           />
         </Row>
 
-        <Row label="Text" hint="Any text, e.g. “draw a card”. Use _ as a wildcard for any run of text.">
-          <input
-            className="fld" value={b.oracle} placeholder="Rules text contains…"
-            onChange={(e) => set('oracle', e.target.value)}
-          />
+        {/* A stack rather than one field. Rules text is the one thing people
+            genuinely want several of -- "draws a card" and "sacrifice", one of
+            them excluded -- and a single box makes that impossible without
+            knowing the syntax. A new empty row appears as soon as the last one
+            has anything in it, so the form grows by being used. */}
+        <Row
+          label="Text"
+          hint={'Any text, e.g. “draw a card”. Use _ for any run of text, '
+            + '~ for any creature type. NOT excludes a row.'}
+        >
+          <div className="stack gap-1">
+            {oracleRows.map((term, i) => (
+              <div className="cond-row" key={i}>
+                <button
+                  className={term.not ? 'btn btn-danger sm' : 'btn btn-ghost sm'}
+                  aria-pressed={term.not}
+                  title={term.not ? 'Excluding this text' : 'Require this text'}
+                  onClick={() => {
+                    const next = [...oracleRows]
+                    next[i] = { ...next[i], not: !next[i].not }
+                    set('oracle', trimTrailing(next))
+                  }}
+                  style={{ flex: 'none', minWidth: 46 }}
+                >
+                  NOT
+                </button>
+                <input
+                  className="fld"
+                  value={term.text}
+                  placeholder={i === 0 ? 'Rules text contains…' : 'and also…'}
+                  onChange={(e) => {
+                    const next = [...oracleRows]
+                    next[i] = { ...next[i], text: e.target.value }
+                    set('oracle', trimTrailing(next))
+                  }}
+                />
+                {oracleRows.length > 1 && (
+                  <button
+                    className="btn btn-ghost sm"
+                    aria-label="Remove this text"
+                    onClick={() => set('oracle', trimTrailing(
+                      oracleRows.filter((_, j) => j !== i),
+                    ))}
+                    style={{ flex: 'none' }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
         </Row>
 
         <Row label="Type Line" hint="Matches as you type. Enter adds it and starts the next.">

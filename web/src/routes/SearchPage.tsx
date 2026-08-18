@@ -8,7 +8,9 @@ import { hasSemantic, withCommanderDefault } from '../lib/query'
 import {
   cacheKey, forgetQuery, fromResponse, readCache, rememberScroll, writeCache,
 } from '../lib/searchCache'
-import { OVERLAY_KEY, SIZE_KEY, usePersisted, VIEW_KEY } from '../lib/usePersisted'
+import {
+  OVERLAY_KEY, SIZE_KEY, SORT_DIR_KEY, SORT_KEY, usePersisted, useSortDir, VIEW_KEY,
+} from '../lib/usePersisted'
 import { useBinderIds } from '../lib/binderIds'
 import { collection } from '../lib/collection'
 import { CardGrid, GridSkeleton } from '../components/CardGrid'
@@ -70,8 +72,8 @@ export function SearchPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [view, setView] = usePersisted<'grid' | 'list'>(VIEW_KEY, 'grid')
-  const [sort, setSort] = useState('name')
-  const [order, setOrder] = useState<'asc' | 'desc'>('asc')
+  const [sort, setSort] = usePersisted<string>(SORT_KEY, 'name')
+  const [order, setOrder] = useSortDir(SORT_DIR_KEY, sort)
   const [cardSize, setCardSize] = usePersisted(SIZE_KEY, 190)
   /* Marking what you already own, off by default. It costs a fetch of the
    * binder and, more to the point, a gold edge on half the grid is noise

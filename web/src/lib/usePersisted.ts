@@ -107,3 +107,27 @@ export const SIZE_KEY = 'insight-enigma:card-size'
    is the same question in all three, and someone who wants it answered wants
    it answered everywhere rather than three times. */
 export const OVERLAY_KEY = 'insight-enigma:pin-overlays'
+
+/* Sorting, remembered.
+ *
+ * Two keys, because they answer different questions. The sort *type* is one
+ * preference. The *direction* is one per type: name reads naturally A-Z and
+ * price reads naturally dearest-first, so a single remembered direction is
+ * wrong for one of them every time you switch.
+ */
+export const SORT_KEY = 'insight-enigma:sort'
+export const SORT_DIR_KEY = 'insight-enigma:sort-dir'
+
+export type SortDir = 'asc' | 'desc'
+
+/** The remembered direction for one sort, and a setter that records it. */
+export function useSortDir(
+  key: string, sort: string, fallback: SortDir = 'asc',
+): [SortDir, (next: SortDir) => void] {
+  const [map, setMap] = usePersisted<Record<string, SortDir>>(key, {})
+  const dir = map[sort] ?? fallback
+  const setDir = useCallback((next: SortDir) => {
+    setMap({ ...map, [sort]: next })
+  }, [map, setMap, sort])
+  return [dir, setDir]
+}

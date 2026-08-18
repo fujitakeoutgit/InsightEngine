@@ -20,7 +20,9 @@ import { DeckInfo } from '../components/DeckInfo'
 import { BinderInfo } from '../components/BinderInfo'
 import { doesJob } from '../lib/cardRoles'
 import { DeckSearch } from '../components/DeckSearch'
-import { useEscape, usePersisted, useTransient, useTransientMessage } from '../lib/usePersisted'
+import {
+  OVERLAY_KEY, useEscape, usePersisted, useTransient, useTransientMessage,
+} from '../lib/usePersisted'
 import { copyText } from '../lib/clipboard'
 import { Playtest } from '../components/Playtest'
 import {
@@ -165,6 +167,9 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
   const [tab, setTab] = useState<'analysis' | 'search' | 'recommendations' | 'pipeline'>('analysis')
   const [pipeline, setPipeline] = useState<ConsoleState>(EMPTY_CONSOLE)
   const [recView, setRecView] = usePersisted<'list' | 'grid'>('insight-enigma:rec-view', 'list')
+  // The same flag the editor's Toggle Overlay sets, read here so the
+  // recommendations grid obeys it too.
+  const [pinOverlay] = usePersisted<boolean>(OVERLAY_KEY, false)
   const [recSize, setRecSize] = usePersisted('insight-enigma:rec-size', 150)
   const [activeThemes, setActiveThemes] = useState<string[]>([])
   const [aiMode, setAiMode] = useState(false)
@@ -1147,10 +1152,14 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
           )}
 
           {recView === 'grid' ? (
-            <CardGrid cards={visibleRecs.map((r) => r.card)} size={recSize}
-              onAdd={addToMaybe}
-              addLabel="Add to maybeboard"
-              captionFor={(card) => reasonFor.get(card.oracle_id)?.join(' · ')} />
+            /* Recommendations are cards you are deciding about, and price is
+               most of that decision, so the pin applies here too. */
+            <div className={pinOverlay ? 'overlay-pinned' : undefined}>
+              <CardGrid cards={visibleRecs.map((r) => r.card)} size={recSize}
+                onAdd={addToMaybe}
+                addLabel="Add to maybeboard"
+                captionFor={(card) => reasonFor.get(card.oracle_id)?.join(' · ')} />
+            </div>
           ) : (
             visibleRecs.map((rec) => (
               <div className="resolution rec-row" key={rec.card.oracle_id}>
