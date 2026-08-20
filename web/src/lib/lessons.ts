@@ -129,7 +129,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.search-input-wrap',
-        text: '`c:` matches a card’s color. `id:` matches its color identity. `id:bg` returns a wider set than `c:bg`, and is the correct filter for a Golgari commander deck.',
+        text: '`c:` matches a card’s color, `id:` its color identity. Both take *these and possibly more*, so `c:wgu` includes five-color cards. Use `<=` for a ceiling: `id<=wgu` is the right filter for a three-color commander deck.',
       },
       {
         target: '.search-input-wrap',

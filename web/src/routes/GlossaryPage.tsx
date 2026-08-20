@@ -23,7 +23,7 @@ interface Tag {
 
 /** Operator reference. Insight Engine-only entries are called out explicitly. */
 const SYNTAX_ROWS: [string, string, boolean][] = [
-  ['c:red  c<=wu  c=rg', 'Card color — includes / at most / exactly', false],
+  ['c:red  c<=wu  c=rg', 'Card color — and possibly more / and no others / exactly', false],
   ['id<=bg', 'Color identity, for Commander', false],
   ['t:creature  -t:artifact', 'Type line, negatable', false],
   ['o:"draw a card"', 'Rules text contains the phrase', false],

@@ -16,11 +16,16 @@ const COLORS: [string, string][] = [
   ['W', 'White'], ['U', 'Blue'], ['B', 'Black'], ['R', 'Red'], ['G', 'Green'], ['C', 'Colorless'],
 ]
 
+/* Worded so the difference is unmissable. ":" is a superset match -- it is
+   Scryfall's meaning and this app keeps it -- so `c:wgu` returns Atogatog and
+   every other five-color card, because a five-color card *is* white, green and
+   blue. Reading "Including these colors" as "only these colors" is the easiest
+   mistake in the whole form, and the labels now say which is which. */
 const COLOR_MODES: [string, string][] = [
-  [':', 'Including these colors'],
+  [':', 'These colors and possibly more'],
+  ['<=', 'These colors and no others'],
   ['=', 'Exactly these colors'],
-  ['<=', 'At most these colors'],
-  ['>=', 'Including all of these'],
+  ['>=', 'These colors and possibly more'],
 ]
 
 const RARITIES: [string, string][] = [

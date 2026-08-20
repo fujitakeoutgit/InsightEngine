@@ -190,8 +190,14 @@ def _tribe_alternation() -> str:
 
     # Longest first so "Elves" is preferred over "Elf" where both could match
     # at the same position.
+    if not words:
+        # No mirror yet, or it could not be read. Returning empty *without*
+        # caching means the next query tries again, rather than a single early
+        # failure making `~` match nothing until the app restarts.
+        return ""
+
     ordered = sorted(words, key=lambda w: (-len(w), w))
-    _TRIBE_ALTERNATION = "(?:" + "|".join(re.escape(w) for w in ordered) + ")" if ordered else ""
+    _TRIBE_ALTERNATION = "(?:" + "|".join(re.escape(w) for w in ordered) + ")"
     return _TRIBE_ALTERNATION
 
 
@@ -250,11 +256,35 @@ def _contains(column: str, value: str) -> Compiled:
     return Compiled(f"{column} LIKE ? ESCAPE '\\'", [f"%{value.translate(_LIKE_ESCAPE)}%"])
 
 
+def _placeholder_match(column: str, value: str, regex: str) -> Compiled:
+    """A REGEXP match, guarded by the literal text it must also contain.
+
+    REGEXP is a Python callback, so SQLite runs it once per row -- all 38,626
+    of them -- and the tribe alternation is a 6KB pattern of 791 branches.
+    Unguarded, `o:"~_have haste"` took 46 seconds and the request timed out
+    before it answered, which read as "the search cannot find these cards".
+
+    Every phrase using `~` or `_` still contains ordinary text between the
+    placeholders, and that text is a plain LIKE the index can answer instantly.
+    Requiring it first leaves the regex a few dozen rows to judge rather than
+    every card ever printed. The regex still decides the result, so nothing
+    changes but the time.
+    """
+    literals = [part for part in re.split(r"[~_]", value) if part.strip()]
+    clauses = [f"{column} REGEXP ?"]
+    params: list[object] = [regex]
+    for literal in literals:
+        clauses.append(f"{column} LIKE ? ESCAPE '\\'")
+        params.append(f"%{literal.translate(_LIKE_ESCAPE)}%")
+    # Cheap tests first: SQLite evaluates AND left to right.
+    return Compiled("(" + " AND ".join(reversed(clauses)) + ")", list(reversed(params)))
+
+
 def _text_match(column: str, term: Term) -> Compiled:
     if "~" in term.value:
-        return Compiled(f"{column} REGEXP ?", [tribe_to_regex(term.value)])
+        return _placeholder_match(column, term.value, tribe_to_regex(term.value))
     if term.has_wildcard:
-        return Compiled(f"{column} REGEXP ?", [wildcard_to_regex(term.value)])
+        return _placeholder_match(column, term.value, wildcard_to_regex(term.value))
     if term.op == "=":
         return Compiled(f"lower({column}) = ?", [term.value.lower()])
     return _contains(column, term.value)
