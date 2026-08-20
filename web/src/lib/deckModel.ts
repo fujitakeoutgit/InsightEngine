@@ -252,8 +252,16 @@ export function countCards(cards: DeckCard[], sections: Section[] = ['commander'
     .reduce((n, c) => n + c.quantity, 0)
 }
 
-export function deckValue(cards: DeckCard[]): number {
-  return cards.reduce((sum, c) => sum + (c.card.usd ?? 0) * c.quantity, 0)
+/** What the deck costs. Same sections `countCards` counts, for the same
+ *  reason: the two are printed next to each other, and a total that includes
+ *  the maybeboard beside a count that does not is a contradiction on one
+ *  line. */
+export function deckValue(
+  cards: DeckCard[], sections: Section[] = ['commander', 'main'],
+): number {
+  return cards
+    .filter((c) => sections.includes(c.section))
+    .reduce((sum, c) => sum + (c.card.usd ?? 0) * c.quantity, 0)
 }
 
 /** Filter by name, type or rules text — the in-deck search box. */

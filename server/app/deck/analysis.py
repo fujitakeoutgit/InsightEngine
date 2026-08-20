@@ -186,7 +186,11 @@ def check_format(
 
     # Per-card status and copy limits.
     copies: dict[str, int] = {}
-    for res in [*counted, *sideboard]:
+    # Deck slots only. The sideboard used to be added in, which made the
+    # "Est. value" disagree with the card count printed beside it and quietly
+    # charged a Commander deck for a maybeboard it will never cast. The
+    # sideboard is still reported separately as `sideboard_cards`.
+    for res in counted:
         card = res.card
         assert card is not None
         name = card["name"]
