@@ -324,7 +324,7 @@ export function AdvancedPage() {
         <Row
           label="Text"
           hint={'Any text, e.g. “draw a card”. Use _ for any run of text, '
-            + '~ for any creature type. NOT excludes a row.'}
+            + '# for any creature type. NOT excludes a row.'}
         >
           <div className="stack gap-1">
             {oracleRows.map((term, i) => (

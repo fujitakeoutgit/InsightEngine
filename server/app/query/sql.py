@@ -185,7 +185,7 @@ def _tribe_alternation() -> str:
                 for word in face.split("—")[1].split():
                     if word.isalpha():
                         words.update(_plurals(word))
-    except Exception:  # noqa: BLE001 - no mirror yet; `~` simply matches nothing
+    except Exception:  # noqa: BLE001 - no mirror yet; `#` simply matches nothing
         pass
 
     # Longest first so "Elves" is preferred over "Elf" where both could match
@@ -193,7 +193,7 @@ def _tribe_alternation() -> str:
     if not words:
         # No mirror yet, or it could not be read. Returning empty *without*
         # caching means the next query tries again, rather than a single early
-        # failure making `~` match nothing until the app restarts.
+        # failure making `#` match nothing until the app restarts.
         return ""
 
     ordered = sorted(words, key=lambda w: (-len(w), w))
@@ -208,19 +208,24 @@ def forget_tribes() -> None:
 
 
 def tribe_to_regex(value: str) -> str:
-    """Translate a phrase containing ``~`` into a regular expression.
+    """Translate a phrase containing ``#`` into a regular expression.
 
-    ``~`` stands for any creature type, in any of the forms rules text uses --
+    ``#`` and not ``~``: Scryfall already gives ``~`` a meaning -- it stands for
+    the card's own name -- so a query pasted from there would have been read
+    two different ways by the two engines. ``#`` appears in the oracle text of
+    exactly one card, a joke card carrying a hashtag, so it was free to take.
+
+    ``#`` stands for any creature type, in any of the forms rules text uses --
     "Elf" and "Elves", "Wolf" and "Wolves". It was free to mean this: not one
     card in 38,626 contains the character.
 
     It composes with ``_``, and in practice it has to. Magic never writes
     "Elves have haste"; it writes "Other Dinosaurs *you control* have haste",
-    "Warriors *your team controls* have haste". So `~ have haste` matches
-    nothing real, while `~_have haste` -- any tribe, any run of text, then the
+    "Warriors *your team controls* have haste". So `# have haste` matches
+    nothing real, while `#_have haste` -- any tribe, any run of text, then the
     verb -- finds all of them.
 
-    Everything that is not `~` or `_` is escaped, so a phrase can never smuggle
+    Everything that is not `#` or `_` is escaped, so a phrase can never smuggle
     in regex metacharacters.
     """
     alternation = _tribe_alternation()
@@ -229,10 +234,10 @@ def tribe_to_regex(value: str) -> str:
         return r"(?!)"
     # Split on both placeholders at once, keeping them, so the two can be
     # combined in one phrase.
-    parts = re.split(r"([~_])", value)
+    parts = re.split(r"([#_])", value)
     out = []
     for part in parts:
-        if part == "~":
+        if part == "#":
             out.append(alternation)
         elif part == "_":
             out.append(".*?")
@@ -261,16 +266,16 @@ def _placeholder_match(column: str, value: str, regex: str) -> Compiled:
 
     REGEXP is a Python callback, so SQLite runs it once per row -- all 38,626
     of them -- and the tribe alternation is a 6KB pattern of 791 branches.
-    Unguarded, `o:"~_have haste"` took 46 seconds and the request timed out
+    Unguarded, `o:"#_have haste"` took 46 seconds and the request timed out
     before it answered, which read as "the search cannot find these cards".
 
-    Every phrase using `~` or `_` still contains ordinary text between the
+    Every phrase using `#` or `_` still contains ordinary text between the
     placeholders, and that text is a plain LIKE the index can answer instantly.
     Requiring it first leaves the regex a few dozen rows to judge rather than
     every card ever printed. The regex still decides the result, so nothing
     changes but the time.
     """
-    literals = [part for part in re.split(r"[~_]", value) if part.strip()]
+    literals = [part for part in re.split(r"[#_]", value) if part.strip()]
     clauses = [f"{column} REGEXP ?"]
     params: list[object] = [regex]
     for literal in literals:
@@ -281,7 +286,7 @@ def _placeholder_match(column: str, value: str, regex: str) -> Compiled:
 
 
 def _text_match(column: str, term: Term) -> Compiled:
-    if "~" in term.value:
+    if "#" in term.value:
         return _placeholder_match(column, term.value, tribe_to_regex(term.value))
     if term.has_wildcard:
         return _placeholder_match(column, term.value, wildcard_to_regex(term.value))

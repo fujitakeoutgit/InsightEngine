@@ -28,6 +28,7 @@ const SYNTAX_ROWS: [string, string, boolean][] = [
   ['t:creature  -t:artifact', 'Type line, negatable', false],
   ['o:"draw a card"', 'Rules text contains the phrase', false],
   ['o:"Elf_creature"', 'Wildcard: _ matches any run of text', true],
+  ['o:"#_have haste"', '# is any creature type — Elves, Slivers, Dinosaurs', true],
   ['q:"sacrifice for value"', 'Ask the local 70B model; put it first', true],
   ['otag:sacrifice-outlet-creature', 'Scryfall Tagger functional tag', true],
   ['binder:true  -binder:true', 'In your binder, or not in it', true],

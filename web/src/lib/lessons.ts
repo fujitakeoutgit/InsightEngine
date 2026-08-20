@@ -141,6 +141,10 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.search-input-wrap',
+        text: 'In rules text, `_` matches any run of text and `#` matches any creature type. Magic writes “Other Dinosaurs you control have haste”, so `o:"#_have haste"` finds every tribe that does it.',
+      },
+      {
+        target: '.search-input-wrap',
         text: 'Prefix a query with `q:` to write it in plain words. `q: cheap green creatures that draw a card` is sent to the local model, which converts it to an operator query and runs that.',
       },
       {
