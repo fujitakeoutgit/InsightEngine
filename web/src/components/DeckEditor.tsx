@@ -30,6 +30,17 @@ const GROUPINGS: [GroupBy, string][] = [
  *  with the same keys under different names: see `BINDER_SECTIONS`. */
 const SECTION_TABS = SECTIONS
 
+/** The three places a dragged card can be thrown. Deck is deliberately absent:
+ *  it is where the card already is, and dropping it back is what letting go
+ *  anywhere else already does. */
+const DOCK_ZONES = [
+  { key: 'sideboard', label: 'Sideboard' },
+  { key: 'maybeboard', label: 'Maybe' },
+  { key: 'trash', label: 'Trash' },
+] as const
+
+type DockZone = (typeof DOCK_ZONES)[number]['key']
+
 const SORTS: [SortBy, string][] = [
   ['name', 'Name'], ['cmc', 'Mana value'], ['price', 'Price'],
   ['rarity', 'Rarity'], ['color', 'Color'],
@@ -103,6 +114,12 @@ export function DeckEditor({
   const [openGroups, setOpenGroups] = useState<Record<string, string>>({})
   const [dragging, setDragging] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<Section | null>(null)
+  /** Which dock zone the card is currently over, if any. */
+  const [dockOver, setDockOver] = useState<DockZone | null>(null)
+  /** The card being hovered in list view, and where to draw it. */
+  const [preview, setPreview] = useState<
+    { src: string; x: number; y: number } | null
+  >(null)
   const [activeSection, setActiveSection] = useState<Section>("main")
   const sectionTabs = binder ? BINDER_SECTIONS : SECTION_TABS
   const [shuffling, setShuffling] = useState(false)
@@ -175,6 +192,42 @@ export function DeckEditor({
   }
 
   const move = (uid: string, section: Section) => patch(uid, { section })
+
+  /** A drop onto one of the three zones at the bottom of the window. */
+  const onDockDrop = (event: React.DragEvent, zone: DockZone) => {
+    // The section beneath is a drop target too, and would take this as well.
+    event.stopPropagation()
+    setDockOver(null)
+    if (zone !== 'trash') {
+      // Sideboard and Maybe are ordinary sections, so this is the same drop
+      // the tabs already take: a row moves, and a card arriving from the tray
+      // or the search panel is added.
+      onDropInto(event, zone)
+      return
+    }
+    event.preventDefault()
+    const uid = event.dataTransfer.getData(DECK_UID_TYPE) || dragging
+    setDragging(null)
+    // A card that was never in the deck has nothing to throw away. Dropping a
+    // search result on Trash means "no", and doing nothing is exactly that.
+    if (uid) remove(uid)
+  }
+
+  /* Placed against the pointer, then pushed back inside the window.
+   *
+   * A panel anchored to the row would be half off-screen for every card in the
+   * right-hand column, and clipped at the top and bottom of the list. Sizes
+   * are the CSS ones; they only need to be right enough to keep the whole card
+   * visible. */
+  const showPreview = (src: string, event: React.MouseEvent) => {
+    const width = 232
+    const height = 324
+    setPreview({
+      src,
+      x: Math.min(event.clientX + 22, window.innerWidth - width - 12),
+      y: Math.min(Math.max(10, event.clientY - height / 2), window.innerHeight - height - 10),
+    })
+  }
 
   const shown = jobFiltered ?? cards
   const visible = useMemo(() => filterCards(shown, query), [shown, query])
@@ -316,7 +369,7 @@ export function DeckEditor({
             />
           </label>
         )}
-        <button className="btn btn-ghost sm" onClick={() => setView(view === 'list' ? 'grid' : 'list')}>
+        <button className="btn btn-primary sm" onClick={() => setView(view === 'list' ? 'grid' : 'list')}>
           {view === 'list' ? 'Images' : 'List'}
         </button>
         {/* Price and quantity normally fade in on hover, so comparing two
@@ -499,11 +552,17 @@ export function DeckEditor({
                 </p>
               ) : (
                 <>
-                  {/* Groups become tabs rather than stacking into one long
-                      scroll. Grouping is how you ask to look at one part of the
-                      deck; printing all the parts underneath each other answers
-                      a question nobody asked. */}
-                  {groupBy !== 'none' && groups.length > 1 && (
+                  {/* Groups become tabs *over images*, where one group already
+                      fills the screen and stacking them all would be a scroll
+                      with no end.
+
+                      A list is the opposite: a row is one line, so the whole
+                      deck fits in two columns and the groups become what they
+                      are on paper -- headed blocks you read down. Tabbing that
+                      hides four fifths of a deck you could simply be looking
+                      at, and makes counting the curve a matter of clicking
+                      through it. */}
+                  {view === 'grid' && groupBy !== 'none' && groups.length > 1 && (
                     <div className="group-tabs">
                       {groups.map((group) => (
                         <button
@@ -518,12 +577,18 @@ export function DeckEditor({
                     </div>
                   )}
 
+                  <div className={view === 'list' ? 'deck-columns' : ''}>
                   {groups
                     .filter((group) =>
-                      groupBy === 'none' || groups.length === 1 ||
+                      view === 'list' || groupBy === 'none' || groups.length === 1 ||
                       openGroup(key, groups) === group.key)
                     .map((group) => (
                   <div className="deck-group" key={group.key}>
+                    {view === 'list' && groupBy !== 'none' && (
+                      <h4 className="group-head">
+                        {group.label} <span className="mono faint">({group.count})</span>
+                      </h4>
+                    )}
                     <div
                       className={view === 'grid' ? 'group-grid' : ''}
                       style={view === 'grid'
@@ -536,8 +601,15 @@ export function DeckEditor({
                           entry={entry}
                           view={view}
                           section={key}
-                          onDragStart={() => setDragging(entry.uid)}
-                          onDragEnd={() => { setDragging(null); setDropTarget(null) }}
+                          // The preview would otherwise hang in the middle of
+                          // the window for the length of the drag, over the
+                          // dock you are aiming at.
+                          onDragStart={() => { setPreview(null); setDragging(entry.uid) }}
+                          onDragEnd={() => {
+                            setDragging(null); setDropTarget(null); setDockOver(null)
+                          }}
+                          onPreview={showPreview}
+                          onPreviewEnd={() => setPreview(null)}
                           onAdjust={adjust}
                           onRemove={remove}
                           onMove={move}
@@ -556,19 +628,67 @@ export function DeckEditor({
                     </div>
                   </div>
                 ))}
+                  </div>
                 </>
               )}
             </section>
           )
         })}
       </div>
+
+      {/* The card under the pointer, shown full size.
+       *
+       * A list is names, and a name is not how anyone recognises a card they
+       * are unsure about -- which is exactly when they are reading the list.
+       * Following the pointer rather than anchoring to the row: the rows are
+       * 24px apart, and a panel that jumps between them is harder to read than
+       * one that travels. */}
+      {preview && (
+        <div className="row-preview" style={{ left: preview.x, top: preview.y }} aria-hidden>
+          <img src={preview.src} alt="" />
+        </div>
+      )}
+
+      {/* Where a dragged card can go, offered only while one is in the air.
+       *
+       * The section tabs are already drop targets, but they are small, they
+       * are at the top of a list you may have scrolled away from, and Trash is
+       * not among them at all -- removing a card meant finding its row again
+       * and hitting the ✕. Three targets the width of the panel, at the edge
+       * the pointer is nearest to when it is dragging something downward. */}
+      {/* Only for a card already in the deck. A card arriving from the Cards
+          tray or the search panel is not being *re-filed* -- it is being added,
+          and the section tabs already say where. */}
+      {!binder && dragging && (
+        <div className="drag-dock">
+          {DOCK_ZONES.map(({ key: zone, label }) => (
+            <div
+              key={zone}
+              className={[
+                'dock-zone',
+                zone === 'trash' ? 'danger' : '',
+                dockOver === zone ? 'over' : '',
+              ].filter(Boolean).join(' ')}
+              onDragOver={(event) => {
+                event.preventDefault()
+                event.dataTransfer.dropEffect = 'move'
+                if (dockOver !== zone) setDockOver(zone)
+              }}
+              onDragLeave={() => setDockOver((z) => (z === zone ? null : z))}
+              onDrop={(event) => onDockDrop(event, zone)}
+            >
+              {label}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
 function EditorRow({
   entry, view, section, onDragStart, onDragEnd, onAdjust, onRemove, onMove,
-  binder, onPickPrinting, bulkEdit, picked, onPick,
+  binder, onPickPrinting, bulkEdit, picked, onPick, onPreview, onPreviewEnd,
 }: {
   entry: DeckCard
   view: 'list' | 'grid'
@@ -585,6 +705,9 @@ function EditorRow({
   bulkEdit?: boolean
   picked?: boolean
   onPick?: () => void
+  /** List view only: draw this card under the pointer. */
+  onPreview?: (src: string, event: React.MouseEvent) => void
+  onPreviewEnd?: () => void
 }) {
   const card: Card = entry.card
   const tiltRef = useRef<HTMLDivElement>(null)
@@ -699,7 +822,17 @@ function EditorRow({
   }
 
   return (
-    <div className="editor-row" {...dragProps}>
+    <div
+      className="editor-row"
+      {...dragProps}
+      /* `mousemove` as well as `enter`: the panel follows the pointer, and a
+         row is wide enough that entering it at one end and reading at the
+         other would leave the card behind. Only when there is an image to
+         show -- a row with no art has nothing to preview. */
+      onMouseEnter={face.src ? (event) => onPreview?.(face.src as string, event) : undefined}
+      onMouseMove={face.src ? (event) => onPreview?.(face.src as string, event) : undefined}
+      onMouseLeave={onPreviewEnd}
+    >
       <span className="grip" aria-hidden>⠿</span>
       <div className="qty">
         <button onClick={() => onAdjust(entry.uid, -1)} aria-label="One fewer">−</button>

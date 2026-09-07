@@ -1,11 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { copyText } from '../lib/clipboard'
 import { quoteIfNeeded } from '../lib/query'
 import { useTransient } from '../lib/usePersisted'
 import { ManaPip } from '../components/ManaSprite'
-import { PageHead } from '../components/PageHead'
 import { TypeAhead } from '../components/TypeAhead'
 
 /* --------------------------------------------------------------------------
@@ -91,6 +90,8 @@ interface Builder {
   sets: string
   rarities: string[]
   criteria: string[]
+  /** Oracle tag slugs, each emitted as `otag:<slug>`. */
+  tags: string[]
   /** '' | 'true' | 'false' — cards you own, cards you do not, or no filter. */
   binder: string
   prices: Condition[]
@@ -116,7 +117,7 @@ const INITIAL: Builder = {
   // Nearly every query here is for a Commander deck, and the row was starting
   // on "Choose a format" — which quietly meant no legality filter at all.
   formats: [{ status: 'legal', format: 'commander' }],
-  sets: '', rarities: [], criteria: [], binder: '',
+  sets: '', rarities: [], criteria: [], tags: [], binder: '',
   prices: [{ a: 'usd', op: '<=', value: '' }],
   artist: '', lore: '', keyword: '', semantic: '', sort: '', order: 'asc',
 }
@@ -177,6 +178,7 @@ function buildQuery(b: Builder): string {
   }
 
   for (const flag of b.criteria) parts.push(`is:${flag}`)
+  for (const tag of b.tags) parts.push(`otag:${tag}`)
 
   // Written as the negation rather than binder:false. Both work, but -binder:
   // is the form the rest of the syntax uses to exclude, so the generated line
@@ -203,6 +205,97 @@ function Row({
         {hint && <span className="hint">{hint}</span>}
       </div>
       <div className="form-row-content">{children}</div>
+    </div>
+  )
+}
+
+/**
+ * Browse the Oracle Tagger vocabulary and toggle tags into the query.
+ *
+ * There are around 4,400 of these and they are slugs, not prose — nobody is
+ * going to guess `repeatable-creature-tokens` from a blank field, which is why
+ * this is a list you read rather than a box you complete. Unfiltered it shows
+ * the ones covering the most cards, because those are the ones worth knowing.
+ *
+ * The chosen tags are pinned above the list and stay there whatever the filter
+ * says. A tag you selected and then filtered out of view would otherwise be
+ * stuck in the query with no way to click it off.
+ */
+function TagPicker({
+  chosen, onToggle,
+}: { chosen: string[]; onToggle: (slug: string) => void }) {
+  const [filter, setFilter] = useState('')
+  const [tags, setTags] = useState<string[]>([])
+  const [total, setTotal] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    // A beat behind the keystrokes, like the type-aheads: this is a query
+    // against 4,400 rows, not a local array.
+    const timer = window.setTimeout(() => {
+      const ask = async (limit: number) => {
+        const resp = await fetch(
+          `/api/catalog/tags?q=${encodeURIComponent(filter.trim())}&limit=${limit}`,
+        )
+        if (!resp.ok) throw new Error(String(resp.status))
+        return resp.json()
+      }
+      /* 120 if the server will give it, 50 if it will not.
+       *
+       * The catalog endpoint capped `limit` at 50 while every caller was a
+       * ten-item type-ahead. This browser wants a page to read, so the cap was
+       * raised — but a server built before that change answers 422, and an
+       * installed copy is only rebuilt when someone gets round to it. Asking
+       * for the better answer and accepting the older one costs one failed
+       * request on old builds and nothing at all on new ones. */
+      ask(120)
+        .catch(() => ask(50))
+        .then((data) => {
+          if (cancelled) return
+          setTags(data.values ?? [])
+          setTotal(data.total ?? 0)
+        })
+        .catch(() => { /* the list stays as it was */ })
+    }, filter ? 180 : 0)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [filter])
+
+  const shown = tags.filter((slug) => !chosen.includes(slug))
+
+  return (
+    <div className="tag-picker">
+      <input
+        className="fld"
+        value={filter}
+        placeholder="Search tags, e.g. “token”, “removal”, “ramp”"
+        onChange={(e) => setFilter(e.target.value)}
+        aria-label="Search oracle tags"
+      />
+
+      {chosen.length > 0 && (
+        <div className="checks chosen-tags">
+          {chosen.map((slug) => (
+            <Check key={slug} on onClick={() => onToggle(slug)}>{slug}</Check>
+          ))}
+        </div>
+      )}
+
+      <div className="checks tag-list">
+        {shown.map((slug) => (
+          <Check key={slug} on={false} onClick={() => onToggle(slug)}>{slug}</Check>
+        ))}
+        {shown.length === 0 && (
+          <span className="faint" style={{ fontSize: 12 }}>
+            {filter.trim() ? 'No tag matches that.' : 'Tags are still loading.'}
+          </span>
+        )}
+      </div>
+
+      <p className="faint" style={{ fontSize: 11.5, margin: '6px 0 0' }}>
+        {filter.trim()
+          ? `${total} matching ${total === 1 ? 'tag' : 'tags'}${total > shown.length + chosen.length ? ', showing the first ' + shown.length : ''}.`
+          : `${total} tags, most-used first. Type to find the rest.`}
+      </p>
     </div>
   )
 }
@@ -242,7 +335,7 @@ export function AdvancedPage() {
   const set = <K extends keyof Builder>(key: K, value: Builder[K]) =>
     setB((s) => ({ ...s, [key]: value }))
 
-  const toggle = (key: 'colors' | 'identity' | 'rarities' | 'criteria', value: string) =>
+  const toggle = (key: 'colors' | 'identity' | 'rarities' | 'criteria' | 'tags', value: string) =>
     setB((s) => ({
       ...s,
       [key]: s[key].includes(value) ? s[key].filter((v) => v !== value) : [...s[key], value],
@@ -301,12 +394,6 @@ export function AdvancedPage() {
         </div>
       </div>
       </div>
-
-      <PageHead
-        eyebrow="Query builder"
-        title="Advanced search"
-        subtitle="Every control writes query syntax. Watch the bar above to learn it."
-      />
 
       <div className="adv-form">
         <Row label="Card Name" hint="Any words in the name, e.g. “Fire”">
@@ -617,6 +704,17 @@ export function AdvancedPage() {
               <option value="desc">Descending</option>
             </select>
           </div>
+        </Row>
+
+        {/* Last, and deliberately so. Everything above is a property of the
+            card as printed; a tag is somebody's judgement about what the card
+            *does*, which is the most powerful filter here and the one you
+            reach for once the obvious ones have not narrowed it enough. */}
+        <Row
+          label="Oracle tags"
+          hint="What a card does, from Scryfall's Tagger. Click to add; all selected tags must match."
+        >
+          <TagPicker chosen={b.tags} onToggle={(slug) => toggle('tags', slug)} />
         </Row>
       </div>
 

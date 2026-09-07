@@ -552,14 +552,44 @@ export function Playtest({
        * one it is vacating, so the land arrives where the fetch stood instead
        * of at the end of the row. Cards are only *dealt* here — drag one
        * anywhere you like once it is down. */
-      const taken = cs.filter((c) => (
-        c.zone === 'battlefield' && c.iid !== iid &&
-        regionFor(c.card.type_line ?? '') === name
-      ))
-      const free = seat ?? {
-        x: region.x + (taken.length % region.cols) * region.dx,
-        y: region.y + Math.floor(taken.length / region.cols) * region.dy,
+      /* Every card on the board, not just this region's.
+       *
+       * A permanent dragged out of the creature rows and parked among the
+       * lands is in the way of the lands now, whatever its type line says. The
+       * regions decide where a card is *dealt*; they do not own the squares. */
+      const taken = cs.filter((c) => c.zone === 'battlefield' && c.iid !== iid)
+
+      const square = (i: number) => ({
+        x: region.x + (i % region.cols) * region.dx,
+        y: region.y + Math.floor(i / region.cols) * region.dy,
+      })
+
+      /* The first square in this region that nothing is sitting on.
+       *
+       * This used to deal to index `taken.length` — the number of cards the
+       * region held — which assumes every one of them is still in the square
+       * it was dealt. Drag a creature out of the front row and that assumption
+       * breaks for the rest of the game: the square stays empty, the count
+       * stays the same, and every later creature is dealt past the gap.
+       *
+       * Occupied means "near enough to collide with", not "was dealt here". A
+       * card claims the square it is nearest to, so nudging one a few pixels
+       * keeps its place, and a card dragged clear across the mat gives up its
+       * old square and takes whichever one it landed on — which is what stops
+       * the next play being dealt on top of it. */
+      const vacant = () => {
+        for (let i = 0; i < region.cols * 6; i += 1) {
+          const at = square(i)
+          const clash = taken.some((c) => (
+            Math.abs(c.x - at.x) < region.dx / 2 && Math.abs(c.y - at.y) < region.dy / 2
+          ))
+          if (!clash) return at
+        }
+        // Nowhere left. Deal past the end rather than refuse to play the card.
+        return square(taken.length)
       }
+
+      const free = seat ?? vacant()
       return cs.map((c) => (
         c.iid === iid ? { ...c, zone: 'battlefield' as Zone, tapped, ...free } : c
       ))

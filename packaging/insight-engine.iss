@@ -17,7 +17,10 @@
 #endif
 #define AppPublisher    "Insight Engine"
 #define AppExe          "InsightEngine.exe"
-#define AppUrl          "https://github.com/fujitakeoutgit/manafold"
+; Where the release actually lives, and so where "support" in Programs &
+; Features should send someone. The old value pointed at the private repo this
+; was developed in, which nobody receiving the installer can open.
+#define AppUrl          "https://github.com/fujitakeoutgit/InsightEngine"
 
 [Setup]
 AppId={{8F3C6A1E-4C7B-4E2A-9E43-2C1D7B5A9E10}

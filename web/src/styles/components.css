@@ -589,6 +589,12 @@
   --my: 50%;
 }
 
+/* Two gestures share this element: a click enlarges it, a drag carries the card
+   into a deck. `zoom-in` stays as the resting cursor because clicking is the
+   commoner intent and the one the title advertises; pressing shows the grab,
+   which is the moment the other gesture becomes available. */
+.detail-tilt:active { cursor: grabbing; }
+
 .detail-tilt img { width: 100%; display: block; border-radius: inherit; }
 
 .detail-tilt::after {
@@ -781,6 +787,25 @@
 }
 
 .check:hover { color: var(--ink); border-color: var(--line); }
+
+.tag-picker { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+
+/* Capped and scrolled, so a hundred-odd tags stay a section of the form rather
+   than becoming the rest of the page. */
+.tag-picker .tag-list {
+  max-height: 196px;
+  overflow-y: auto;
+  align-content: flex-start;
+  padding-right: 4px;
+}
+
+/* The chosen ones live above the scroller and never scroll out of reach: a tag
+   you selected and then filtered away still has to be clickable to remove. */
+.tag-picker .chosen-tags { padding-bottom: 2px; }
+
+/* Slugs, not prose — the mono face makes the hyphenated words scannable and
+   stops them reading as a sentence. */
+.tag-picker .check { font-family: var(--font-m); font-size: 11.5px; padding: 5px 9px; }
 .check input { display: none; }
 
 /* Only the color checks carry data-c. They stack the pip above the label so
@@ -1952,6 +1977,129 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--tile-w, 120px), 1fr));
   gap: 8px;
+}
+
+/* List view: the whole section at once, in columns.
+ *
+ * A row is one line, so a hundred-card deck is two columns of reading rather
+ * than a scroll — which is what makes headed blocks better here than the tabs
+ * images need. Two at most, and only while each can still hold a card name
+ * and its cost without wrapping. */
+.deck-columns { columns: 280px 2; column-gap: 34px; }
+
+/* Keeps a heading with its cards. Without it a column break lands between
+   "Creature" and the creatures, and the heading reads as belonging to
+   whatever follows it at the top of the next column. */
+.deck-columns .deck-group {
+  break-inside: avoid;
+  margin: 0 0 16px;
+}
+
+/* Ungrouped, the whole list is one block — and an unbreakable block cannot
+   fill two columns, so it ran down the left in a single 2900px column with the
+   right one empty. There is no heading to keep with anything here, so let it
+   flow. */
+.deck-columns .deck-group:only-child { break-inside: auto; }
+
+.deck-columns .deck-group + .deck-group { margin-top: 0; }
+
+/* A title for the block beneath it, not a tag on a control — so it drops the
+   uppercase mono of the tab strip it replaces and simply reads as a heading. */
+.deck-columns .group-head {
+  justify-content: flex-start;
+  gap: 7px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+  padding: 2px 2px 5px;
+}
+
+/* The card under the pointer in list view.
+ *
+ * A list is names, and a name is not how anyone recognises a card they are
+ * unsure of — which is exactly when they are reading the list. Positioned in
+ * script against the pointer, so nothing here places it. */
+.row-preview {
+  position: fixed;
+  z-index: 200;
+  width: 232px;
+  pointer-events: none;
+  border-radius: 4.75% / 3.5%;
+  overflow: hidden;
+  box-shadow: 0 26px 60px -18px rgba(0, 0, 0, 0.92);
+}
+
+.row-preview img { display: block; width: 100%; }
+
+/* The three destinations, offered only while a card is in the air. */
+.drag-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 120;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  /* The gap is the point: three separate places to let go rather than one bar
+     with three labels. A target you can miss is what makes the drop a
+     decision instead of an accident. */
+  gap: 18px;
+  padding: 18px;
+  /* The bar itself is not a target — only the three panels are, so the gaps
+     between them fall through to the deck underneath. */
+  pointer-events: none;
+}
+
+.dock-zone {
+  pointer-events: auto;
+  display: grid;
+  place-items: center;
+  min-height: 104px;
+  /* Coloured at rest, not only under the pointer. The three panels are
+     destinations before you reach one, and which of them is the destructive
+     one should be readable at a glance rather than discovered by hovering it.
+     Held back from the full accent so that arriving still has somewhere to
+     go — see `.over`, which takes it to solid at full strength. */
+  border: 1.5px dashed color-mix(in oklab, var(--aether) 62%, transparent);
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--bg) 88%, transparent);
+  backdrop-filter: blur(12px);
+  font-family: var(--font-m);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+  transition: color var(--dur-fast), border-color var(--dur-fast),
+              background-color var(--dur-fast);
+}
+
+/* Trash is red from the moment it appears. It is the one zone you cannot undo
+   your way out of, and finding that out by hovering is finding out too late. */
+.dock-zone.danger {
+  border-color: color-mix(in oklab, var(--danger) 62%, transparent);
+}
+
+/* Solid on approach: a dashed edge says "a thing could go here", a solid one
+   says "let go now". */
+.dock-zone.over {
+  border-style: solid;
+  border-color: var(--aether);
+  color: var(--ink);
+  background: color-mix(in oklab, var(--aether) 18%, var(--bg));
+}
+
+.dock-zone.danger.over {
+  border-color: var(--danger);
+  background: color-mix(in oklab, var(--danger) 18%, var(--bg));
+}
+
+:root.motion-ok .drag-dock { animation: dock-in 0.18s ease-out both; }
+
+@keyframes dock-in {
+  from { opacity: 0; transform: translateY(16px); }
 }
 
 .editor-row {

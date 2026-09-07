@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useCollection } from '../lib/collection'
 import { canAnimate, dissolvePage, gsap } from '../lib/motion'
 import { CardTray } from './CardTray'
@@ -26,7 +26,22 @@ const NAV = [
 export function Layout() {
   const collected = useCollection()
   const navigate = useNavigate()
-  const { pathname } = useLocation()
+  const { pathname, state } = useLocation()
+
+  /* A way out of a game, next to the title.
+   *
+   * Playtest is the one screen that fills the window and has no other exit:
+   * the nav is still there, but every entry in it leaves the game entirely,
+   * and none of them is "the deck I was just looking at". So it goes back the
+   * way you came -- whoever sent you here says where that was -- and falls
+   * back to the deck picker, which is the only route in that exists today and
+   * the safest place to land if the state was lost to a reload or a
+   * pasted link. */
+  const inGame = /^\/playtest\/[^/]+/.test(pathname)
+  const backTo = inGame
+    ? ((state as { from?: string } | null)?.from ?? '/playtest')
+    : null
+  const backLabel = backTo?.startsWith('/deck/') ? 'Back to the deck' : 'Back to decks'
   const [scrolled, setScrolled] = useState(false)
   const [trayOpen, setTrayOpen] = useState(false)
   const mainRef = useRef<HTMLElement>(null)
@@ -166,6 +181,21 @@ export function Layout() {
             <span className="mark" aria-hidden />
             Insight Engine
           </NavLink>
+          {backTo && (
+            <Link to={backTo} className="header-back" title={backLabel} aria-label={backLabel}>
+              <svg viewBox="0 0 16 16" aria-hidden focusable="false">
+                <path
+                  d="M10 3.5 5.5 8l4.5 4.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Back
+            </Link>
+          )}
           <nav className="nav" ref={navRef}>
             {NAV.map((item) => (
               <NavLink

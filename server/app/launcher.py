@@ -224,6 +224,21 @@ def ensure_mirror() -> bool:
     return True
 
 
+def _already_running(url: str) -> bool:
+    """Whether an Insight Engine is already serving on our port.
+
+    Asked of the API rather than of the port. Something else holding 8787 is a
+    different problem with a different answer, and treating a stranger's server
+    as "we are already up" would open a browser onto it.
+    """
+    try:
+        import httpx
+
+        return httpx.get(f"{url}/api/health", timeout=1.5).status_code == 200
+    except Exception:  # noqa: BLE001 - nothing listening is the common case
+        return False
+
+
 def _await_server(url: str, timeout: float = 30.0) -> bool:
     """Wait until the server answers. False if it never did.
 
@@ -288,6 +303,18 @@ def main() -> int:
 
     url = f"http://{settings.host}:{settings.port}"
 
+    # Clicking the shortcut again is a request to see the app, not to start a
+    # second copy of it. Without this the second process gets far enough to
+    # write its banner and claim it is serving, then fails to bind the port and
+    # dies -- from the outside, a window that appears and vanishes, which is
+    # indistinguishable from a crash. The first copy is still running the whole
+    # time, so the obvious next move is to launch it again, and it fails the
+    # same way every time.
+    if _already_running(url):
+        _say("  Already running; opening the copy that is already up.")
+        webbrowser.open(url)
+        return 0
+
     import uvicorn
 
     from .main import app
@@ -323,6 +350,17 @@ def main() -> int:
         _say("  No tray icon; opening a browser instead.")
 
     server.run()
+
+    # `run()` returns for two very different reasons: Quit, and never having
+    # started at all. uvicorn reports a failure to bind by logging it and
+    # returning, so without this a port conflict we did not recognise as our
+    # own exits with status 0 and no visible explanation.
+    if not server.started:
+        _fail(
+            f"Could not serve on {url}.\n\n"
+            f"Something else is using port {settings.port}."
+        )
+        return 1
     return 0
 
 

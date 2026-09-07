@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import sqlite3
 import threading
 import time
 from pathlib import Path
@@ -40,11 +41,37 @@ router = APIRouter(prefix="/api/sync", tags=["sync"])
 # Set while a refresh runs, so a second request joins the first rather than
 # starting a competing download of the same quarter-gigabyte.
 _running = threading.Lock()
-_progress: dict[str, Any] = {"running": False, "started_at": None, "error": None, "log": []}
+_progress: dict[str, Any] = {
+    "running": False, "started_at": None, "error": None, "log": [], "stage": None,
+}
+
+#: The phases a refresh passes through, in order, for the progress rail.
+STAGES = ("copy", "download", "index", "swap", "done")
 
 
 def _note(line: str) -> None:
     _progress["log"] = [*_progress["log"][-40:], line]
+
+
+def _stage(name: str) -> None:
+    _progress["stage"] = name
+
+
+def _from_bulk(line: str) -> None:
+    """Take a line from the ingest, and read the phase back out of it.
+
+    `bulk` reports what it is doing but has no idea it is being watched, and
+    the two phases that take real time -- pulling several hundred megabytes,
+    then indexing them -- are indistinguishable from out here. Rather than
+    thread a stage argument through every call in that module, the phase is
+    inferred from the line it already writes.
+    """
+    _note(line)
+    lowered = line.lower()
+    if "download" in lowered:
+        _stage("download")
+    elif "ingest" in lowered:
+        _stage("index")
 
 
 def _available() -> dict[str, Any]:
@@ -63,6 +90,15 @@ def _status(remote: dict[str, str] | None) -> dict[str, Any]:
     if conn is None:
         return {"ready": False}
 
+    try:
+        return _describe(conn, remote)
+    except sqlite3.Error:
+        # The connection can close underneath a background caller mid-shutdown.
+        # Not knowing is the same answer as not being ready yet.
+        return {"ready": False}
+
+
+def _describe(conn: sqlite3.Connection, remote: dict[str, str] | None) -> dict[str, Any]:
     files = []
     stale = False
     for kind in bulk.WANTED_BULK:
@@ -96,20 +132,29 @@ def check_now() -> dict[str, Any]:
     Scryfall means the answer is unknown, not that anything is wrong with the
     mirror you already have.
     """
+    # Bound once, rather than read again at each use. This runs in a background
+    # thread started at startup, and `state.close()` can land between the guard
+    # and the call it guards -- which is how a plain shutdown raised "Cannot
+    # operate on a closed database" twice: once from the write, then again from
+    # the fallback read that was handling the first one.
+    conn = state.conn
     remote: dict[str, str] | None = None
     try:
         remote = _available()
-        if state.conn is not None:
-            set_meta(state.conn, "sync:checked_at", time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+        if conn is not None:
+            set_meta(conn, "sync:checked_at", time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
             for kind, stamp in remote.items():
-                set_meta(state.conn, f"remote:{kind}", stamp)
+                set_meta(conn, f"remote:{kind}", stamp)
     except Exception:  # noqa: BLE001 - offline is a normal state, not a fault
-        if state.conn is not None:
-            remote = {
-                kind: stamp
-                for kind in bulk.WANTED_BULK
-                if (stamp := get_meta(state.conn, f"remote:{kind}"))
-            }
+        try:
+            if conn is not None:
+                remote = {
+                    kind: stamp
+                    for kind in bulk.WANTED_BULK
+                    if (stamp := get_meta(conn, f"remote:{kind}"))
+                }
+        except sqlite3.Error:
+            remote = None
     return _status(remote)
 
 
@@ -147,8 +192,11 @@ def _replace_with_retry(source: Path, target: Path, attempts: int = 10) -> None:
 
 
 def _run_refresh() -> None:
-    _progress.update({"running": True, "started_at": time.time(), "error": None, "log": []})
+    _progress.update({
+        "running": True, "started_at": time.time(), "error": None, "log": [], "stage": "copy",
+    })
     build = _build_path()
+    bulk.set_log_sink(_from_bulk)
     try:
         _discard(build)
         if settings.mirror_path.exists():
@@ -159,8 +207,10 @@ def _run_refresh() -> None:
             shutil.copy2(settings.mirror_path, build)
 
         _note("building")
+        _stage("download")
         bulk.refresh(db=build)
 
+        _stage("swap")
         _note("swapping in the new mirror")
         conn = connect_mirror(build)
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
@@ -177,9 +227,22 @@ def _run_refresh() -> None:
             _replace_with_retry(build, settings.mirror_path)
         finally:
             state.reattach_after_swap()
+        # Ask Scryfall again before calling it finished. `update_available` is
+        # computed from the remembered `remote:` stamps, and those are only
+        # written by a check -- so without this the page went on saying an
+        # update was available immediately after installing it, and the way to
+        # clear it was to press Check now. One button should not need another
+        # button to make its result true.
+        try:
+            check_now()
+        except Exception:  # noqa: BLE001 - the refresh worked; the recheck is a courtesy
+            pass
+
+        _stage("done")
         _note("done")
     except Exception as exc:  # noqa: BLE001 - reported to the caller, not raised into a thread
         _progress["error"] = str(exc)
+        _stage("failed")
         _note(f"failed: {exc}")
         # A failed build is a file. The mirror you had is still the mirror you
         # have, which is the whole point of building beside it.
@@ -189,6 +252,7 @@ def _run_refresh() -> None:
         except OSError:
             pass
     finally:
+        bulk.set_log_sink(None)
         _progress["running"] = False
         _running.release()
 
@@ -226,6 +290,8 @@ async def progress() -> dict[str, Any]:
     return {
         "running": _progress["running"],
         "error": _progress["error"],
+        "stage": _progress["stage"],
+        "stages": list(STAGES),
         "log": _progress["log"][-12:],
         "data_dir": str(settings.bulk_dir),
     }

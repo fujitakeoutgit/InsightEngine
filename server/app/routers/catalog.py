@@ -118,7 +118,11 @@ def _names(needle: str, limit: int) -> dict:
 async def catalog(
     kind: str,
     q: str = Query("", description="Prefix/substring filter"),
-    limit: int = Query(12, ge=1, le=50),
+    # 50 was enough while every caller was a type-ahead offering ten
+    # suggestions. The Advanced form's tag browser is the other kind of caller:
+    # there are ~4,400 oracle tags and no way to guess the slug you want, so it
+    # shows a page of them to read rather than a shortlist to complete.
+    limit: int = Query(12, ge=1, le=200),
 ):
     if kind not in KINDS:
         raise HTTPException(404, f"Unknown catalog '{kind}'. Try one of {list(KINDS)}.")

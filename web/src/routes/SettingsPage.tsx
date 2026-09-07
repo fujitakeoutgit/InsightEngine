@@ -27,6 +27,43 @@ import { PageHead } from '../components/PageHead'
  * wrong -- picking a model your card cannot hold makes every semantic search
  * take minutes.
  */
+/** The phases a card-pool update passes through, in the order they happen. */
+const SYNC_STAGES: [string, string][] = [
+  ['copy', 'Copy'],
+  ['download', 'Download'],
+  ['index', 'Index'],
+  ['swap', 'Swap in'],
+]
+
+/** An update's progress as a rail — the same one the semantic search draws.
+ *
+ * A refresh takes minutes, and showed nothing for them but a button reading
+ * "Updating…" and a growing wall of log lines. The rail answers the question
+ * anyone waiting actually has: which part is this, and how much is left. It is
+ * the shape this app already uses for a long job with known phases, so it
+ * needs no introduction.
+ */
+function SyncStages({ stage }: { stage: string | null }) {
+  const at = SYNC_STAGES.findIndex(([key]) => key === stage)
+  const finished = stage === 'done'
+  return (
+    <div className="stages" style={{ marginTop: 14 }}>
+      {SYNC_STAGES.map(([key, label], i) => {
+        const done = finished || (at > -1 && i < at)
+        return (
+          <div
+            key={key}
+            className={`stage ${!finished && key === stage ? 'active' : ''} ${done ? 'done' : ''}`}
+          >
+            <span className="dot" />
+            {label}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export function SettingsPage() {
   const [dieSkin, setDieSkin] = useState(readDieSkin)
   const [d20Skin, setD20Skin] = useState(readD20Skin)
@@ -34,6 +71,7 @@ export function SettingsPage() {
   const [sync, setSync] = useState<SyncStatus | null>(null)
   const [syncBusy, setSyncBusy] = useState<'check' | 'refresh' | null>(null)
   const [syncLog, setSyncLog] = useState<string[]>([])
+  const [syncStage, setSyncStage] = useState<string | null>(null)
 
   /* Polled only while a refresh is actually running. A background poll on a
    * settings page nobody is looking at would be a request every few seconds
@@ -48,8 +86,11 @@ export function SettingsPage() {
       try {
         const p = await api.syncProgress()
         setSyncLog(p.log)
+        setSyncStage(p.stage)
         if (!p.running) {
           setSyncBusy(null)
+          // The server rechecks Scryfall before it reports finished, so this
+          // status is the post-update truth rather than the stamps from before.
           setSync(await api.syncStatus())
         }
       } catch { /* the server is busy rebuilding; try again next tick */ }
@@ -213,8 +254,13 @@ export function SettingsPage() {
             data-tour="update-pool"
             disabled={!!syncBusy || !!sync?.running}
             onClick={async () => {
-              setSyncBusy('refresh'); setSyncLog([])
-              try { await api.syncRefresh() } catch { setSyncBusy(null) }
+              // Straight into the work. It used to be reasonable to press
+              // Check now first to find out whether this was worth doing; the
+              // refresh has always asked Scryfall for itself, and now it
+              // rechecks afterwards too, so this is the only button the job
+              // needs.
+              setSyncBusy('refresh'); setSyncLog([]); setSyncStage('copy')
+              try { await api.syncRefresh() } catch { setSyncBusy(null); setSyncStage(null) }
             }}
           >
             {syncBusy === 'refresh' || sync?.running ? 'Updating…' : 'Update Card Pool'}
@@ -222,10 +268,13 @@ export function SettingsPage() {
         </div>
 
         {(syncBusy === 'refresh' || sync?.running) && (
-          <p className="faint" style={{ fontSize: 11.5, marginTop: 10 }}>
-            A few hundred megabytes, and several minutes. Searching keeps working until
-            the new data is written.
-          </p>
+          <>
+            <SyncStages stage={syncStage} />
+            <p className="faint" style={{ fontSize: 11.5, marginTop: 10 }}>
+              A few hundred megabytes, and several minutes. Searching keeps working until
+              the new data is written.
+            </p>
+          </>
         )}
 
         {syncLog.length > 0 && (

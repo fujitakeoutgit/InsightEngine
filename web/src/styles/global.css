@@ -364,6 +364,35 @@ main { flex: 1; padding-bottom: 88px; }
 
 .brand:hover { color: var(--aether-hi); }
 
+/* The way out of a game, set against the title.
+ *
+ * Deliberately not a nav item. The nav is where you might go next; this is
+ * about the page you are already on, and the ink that slides between nav links
+ * must not try to underline it. It pulls back out of the header's 24px gap so
+ * it reads as attached to the title rather than as the first of the links. */
+.header-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: -13px;
+  padding: 4px 10px 4px 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  font-family: var(--font-m);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.header-back svg { width: 12px; height: 12px; }
+
+.header-back:hover {
+  color: var(--ink);
+  border-color: var(--aether);
+}
+
 .brand .mark {
   width: 22px;
   height: 2px;

@@ -252,7 +252,7 @@ export function DeckGalleryPage() {
           <input
             className="fld"
             style={{ maxWidth: 260 }}
-            placeholder="Filter by name, commander or format…"
+            placeholder="Filter by name, commander, etc."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             aria-label="Filter decks"

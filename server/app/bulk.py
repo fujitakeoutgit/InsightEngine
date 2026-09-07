@@ -19,7 +19,7 @@ import sqlite3
 import sys
 import time
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 import httpx
 
@@ -34,8 +34,25 @@ _HEADERS = {"User-Agent": settings.scryfall_user_agent, "Accept": "application/j
 FUNNY_SET_TYPES = {"funny", "memorabilia"}
 
 
+#: Somewhere else to send progress lines, set by whoever is driving a build.
+#: The console is the right place for a build run from a terminal, and useless
+#: for one started from Settings by somebody who will never see stdout.
+_sink: "Callable[[str], None] | None" = None
+
+
+def set_log_sink(fn: "Callable[[str], None] | None") -> None:
+    """Tee progress lines to `fn` as well as the console. None to stop."""
+    global _sink
+    _sink = fn
+
+
 def _log(msg: str) -> None:
     print(f"[bulk] {msg}", flush=True)
+    if _sink is not None:
+        try:
+            _sink(msg)
+        except Exception:  # noqa: BLE001 - a broken listener must not stop a build
+            pass
 
 
 def fetch_manifest(client: httpx.Client) -> dict[str, dict[str, Any]]:

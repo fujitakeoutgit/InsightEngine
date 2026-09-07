@@ -191,12 +191,12 @@ export function PlaytestPage() {
               className="deck-tile"
               onPointerMove={track}
               onPointerLeave={release}
-              onClick={() => navigate(`/playtest/${deck.id}`)}
+              onClick={() => navigate(`/playtest/${deck.id}`, { state: { from: '/playtest' } })}
               role="button"
               tabIndex={0}
               aria-label={`Playtest ${deck.name}`}
               onKeyDown={(e) =>
-                (e.key === 'Enter' || e.key === ' ') && navigate(`/playtest/${deck.id}`)}
+                (e.key === 'Enter' || e.key === ' ') && navigate(`/playtest/${deck.id}`, { state: { from: '/playtest' } })}
             >
               <div className="deck-tile-art">
                 {deck.commander_art

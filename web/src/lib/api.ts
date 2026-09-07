@@ -340,7 +340,14 @@ export const api = {
   syncStatus: () => get<SyncStatus>('/api/sync/status'),
   syncCheck: () => post<SyncStatus>('/api/sync/check', {}),
   syncRefresh: () => post<{ started: boolean; reason?: string }>('/api/sync/refresh', {}),
-  syncProgress: () => get<{ running: boolean; error: string | null; log: string[] }>('/api/sync/progress'),
+  syncProgress: () => get<{
+    running: boolean
+    error: string | null
+    /** Which phase the refresh is in, for the progress rail. */
+    stage: string | null
+    stages: string[]
+    log: string[]
+  }>('/api/sync/progress'),
 
   /* Every edition of a card. Proxied live from Scryfall rather than read from
    * the mirror, which is built from `oracle_cards` and holds one row per card
@@ -394,7 +401,7 @@ export const api = {
    *  original is untouched — the point is to try a rebuild without losing what
    *  the deck was. */
   duplicateDeck: (id: number) =>
-    api.patchDeck(id, (deck) => ({ id: undefined, name: `${deck.name} (copy)` })),
+    api.patchDeck(id, (deck) => ({ id: undefined, name: `${deck.name} - copy` })),
 
   deleteDeck: async (id: number) => {
     const resp = await fetch(`/api/deck/saved/${id}`, { method: 'DELETE' })

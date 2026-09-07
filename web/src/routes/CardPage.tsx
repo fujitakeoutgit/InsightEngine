@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom'
 
 import { api, type CardDetail } from '../lib/api'
 import { collection, useIsCollected } from '../lib/collection'
+import { CARD_DRAG_TYPE } from '../components/DeckSearch'
+import { solidDragImage } from '../lib/useQuietDrag'
 import { attachTilt, riseIn } from '../lib/motion'
 import { useCardFace } from '../lib/faces'
 import { CardMenu } from '../components/CardMenu'
@@ -114,8 +116,19 @@ export function CardPage() {
           <div
             className="detail-tilt"
             ref={artRef}
+            /* The same payload the grid and the tray carry, so the card you
+               came here to read can go straight into a deck without going
+               back. `copy` rather than `move`: this page is not a container
+               the card is leaving. */
+            draggable
+            onDragStart={(event) => {
+              event.dataTransfer.setData(CARD_DRAG_TYPE, JSON.stringify(card))
+              event.dataTransfer.setData('text/plain', `1 ${card.name}`)
+              event.dataTransfer.effectAllowed = 'copy'
+              solidDragImage(event, event.currentTarget as HTMLElement)
+            }}
             onClick={() => { setZoomed(artRef.current?.getBoundingClientRect() ?? null); setIsZoomed(true) }}
-            title="Click to enlarge"
+            title="Click to enlarge, or drag it into a deck"
           >
             <img src={face.src} alt={face.faceName} />
             {face.flippable && <FlipButton onFlip={face.flip} faceName={face.faceName} />}

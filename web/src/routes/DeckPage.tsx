@@ -21,9 +21,8 @@ import { BinderInfo } from '../components/BinderInfo'
 import { doesJob } from '../lib/cardRoles'
 import { DeckSearch } from '../components/DeckSearch'
 import {
-  OVERLAY_KEY, useEscape, usePersisted, useTransient, useTransientMessage,
+  OVERLAY_KEY, useEscape, usePersisted, useTransientMessage,
 } from '../lib/usePersisted'
-import { copyText } from '../lib/clipboard'
 import { Playtest } from '../components/Playtest'
 import {
   DECK_RAIL, EMPTY_CONSOLE, SemanticConsole, type ConsoleState,
@@ -181,7 +180,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useTransientMessage()
   const [showAll, setShowAll] = useState(false)
-  const [copied, flashCopied] = useTransient()
+  const [confirmingCopy, setConfirmingCopy] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   /* Which of the four jobs the binder is filtered to, if any.
    *
@@ -215,6 +214,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
     })
   }, [binder, job, colors, deckCards])
   useEscape(() => setConfirmingDelete(false), confirmingDelete)
+  useEscape(() => setConfirmingCopy(false), confirmingCopy)
 
   const resultRef = useRef<HTMLDivElement>(null)
   const commanderTilt = useRef<HTMLAnchorElement>(null)
@@ -525,9 +525,32 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
     setStatus(`Line ${entry.line_number} is now ${name}`)
   }
 
-  const copyList = async () => {
-    if (await copyText(text)) flashCopied()
-    else setError('The browser refused clipboard access.')
+  /** Copy this deck into a new one of its own, and open that.
+   *
+   * Taken from what is on screen rather than from what is saved. The editor is
+   * the deck as far as anyone reading it is concerned, and a copy that quietly
+   * dropped the last ten minutes of work would be worse than no copy at all —
+   * which is also why the prompt says so when there is unsaved work to lose.
+   *
+   * Nothing is suppressed on the way out: if the original has unsaved changes,
+   * navigating to the copy still asks about them, and that question is worth
+   * asking. The copy already has the work either way. */
+  const copyDeck = async () => {
+    setConfirmingCopy(false)
+    setBusy('save')
+    try {
+      const { deck } = await api.saveDeck({
+        name: `${deckName.trim() || 'Untitled deck'} - copy`,
+        text,
+        format,
+        description,
+      })
+      navigate(`/deck/${deck.id}`)
+    } catch {
+      setError('Could not copy this deck.')
+    } finally {
+      setBusy(null)
+    }
   }
 
   /** Download the decklist as a .txt. Every deckbuilding site reads this
@@ -1281,12 +1304,12 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
               and stayed. */}
           {!binder && (
             <button
-              className={copied ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
-              onClick={copyList}
-              disabled={!text.trim()}
-              title="Copy the decklist to the clipboard"
+              className="btn btn-ghost sm"
+              onClick={() => setConfirmingCopy(true)}
+              disabled={!text.trim() || busy === 'save'}
+              title="Save a second copy of this deck and open it"
             >
-              {copied ? '✓ Copied' : 'Copy'}
+              Copy
             </button>
           )}
           <button
@@ -1322,6 +1345,25 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         </div>
       )}
 
+
+      {confirmingCopy && (
+        <div className="modal-backdrop" onClick={() => setConfirmingCopy(false)} role="presentation">
+          <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal>
+            <h3>Copy “{deckName.trim() || 'Untitled deck'}”?</h3>
+            <p className="muted">
+              A new deck called “{deckName.trim() || 'Untitled deck'} - copy” is saved and
+              opened. This one is left exactly as it is.
+              {dirty && ' Your unsaved changes are included in the copy.'}
+            </p>
+            <div className="row gap-2" style={{ marginTop: 'var(--gap-3)' }}>
+              <button className="btn btn-primary sm" onClick={copyDeck}>Make a copy</button>
+              <button className="btn btn-ghost sm" onClick={() => setConfirmingCopy(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmingDelete && (
         <div className="modal-backdrop" onClick={() => setConfirmingDelete(false)} role="presentation">
