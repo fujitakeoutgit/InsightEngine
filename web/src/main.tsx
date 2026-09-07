@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 
+import { applyStoredAccent } from './lib/accent'
 import { Layout } from './components/Layout'
 import { AdvancedPage } from './routes/AdvancedPage'
 import { CardPage } from './routes/CardPage'
@@ -19,6 +20,10 @@ import { SettingsPage } from './routes/SettingsPage'
 
 import './styles/global.css'
 import './styles/components.css'
+
+// Before the first render, not in an effect: a chosen accent applied after
+// React mounts would show one frame of the default palette on every load.
+applyStoredAccent()
 
 // The app restores its own scroll positions when returning to a cached view;
 // the browser's guess fights that and wins the race often enough to matter.

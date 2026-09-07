@@ -21,7 +21,7 @@ html {
   -webkit-text-size-adjust: 100%;
   /* Firefox scrollbar tint; the WebKit half lives with the other scrollbar
      rules further down. */
-  scrollbar-color: rgba(148, 163, 205, 0.28) transparent;
+  scrollbar-color: color-mix(in srgb, var(--chrome) 28.0%, transparent) transparent;
 }
 
 body {
@@ -90,7 +90,7 @@ a {
 }
 
 ::selection {
-  background: rgba(143, 169, 255, 0.25);
+  background: color-mix(in srgb, var(--aether) 25%, transparent);
 }
 
 :focus-visible {
@@ -105,7 +105,7 @@ a {
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 205, 0.22);
+  background: color-mix(in srgb, var(--chrome) 22%, transparent);
   border-radius: 99px;
   border: 3px solid var(--bg);
 }
@@ -156,7 +156,7 @@ kbd {
   height: 720px;
   left: -220px;
   top: -260px;
-  background: radial-gradient(circle, rgba(95, 124, 232, 0.16), transparent 65%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--aether-deep) 16%, transparent), transparent 65%);
   animation: drift-a 46s ease-in-out infinite alternate;
 }
 
@@ -592,7 +592,7 @@ button.chip.supporting { opacity: 0.6; border-style: dashed; }
 .fld:focus {
   outline: none;
   border-color: var(--aether);
-  box-shadow: 0 0 0 3px rgba(143, 169, 255, 0.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--aether) 12%, transparent);
 }
 .fld::placeholder { color: var(--faint); }
 

@@ -11,10 +11,19 @@
   /* --- surface ------------------------------------------------------- */
   --bg: #07080c;
   --bg-hi: #0d0f16;
-  --glass: rgba(148, 163, 205, 0.05);
-  --glass-hi: rgba(148, 163, 205, 0.09);
-  --line: rgba(148, 163, 205, 0.16);
-  --line-soft: rgba(148, 163, 205, 0.08);
+  /* The blue-grey everything structural is made of — glass fills, hairlines,
+     dividers, dots. A desaturated sibling of the accent rather than a neutral
+     grey, which is what keeps the chrome from reading as dead beside it, and
+     what lets a new accent carry the whole interface with it instead of
+     leaving a blue-grey frame around a differently-coloured app.
+
+     Everything below is this colour at an alpha, so retinting the interface is
+     one substitution rather than four. */
+  --chrome: #94a3cd;
+  --glass: color-mix(in srgb, var(--chrome) 5%, transparent);
+  --glass-hi: color-mix(in srgb, var(--chrome) 9%, transparent);
+  --line: color-mix(in srgb, var(--chrome) 16%, transparent);
+  --line-soft: color-mix(in srgb, var(--chrome) 8%, transparent);
 
   /* --- ink ----------------------------------------------------------- */
   --ink: #e9ecf5;
@@ -22,9 +31,16 @@
   --faint: #575d73;
 
   /* --- accent -------------------------------------------------------- */
+  /* One hue, five jobs. Measured against the base, every member of this family
+     sits within 2 degrees of hue 226 and differs only in how saturated and how
+     light it is — which is why a new accent can be derived from a single
+     colour rather than picked five times. See lib/accent.ts, which holds the
+     transform and rewrites these four at runtime. */
   --aether: #8fa9ff;
   --aether-hi: #b4c6ff;
   --aether-ink: #0a0f1e;
+  /* The ambient blobs drifting behind the page. */
+  --aether-deep: #5f7ce8;
 
   /* --- state --------------------------------------------------------- */
   --ok: #4ed9a4;

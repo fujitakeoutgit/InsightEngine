@@ -124,7 +124,21 @@ def _mount_web() -> None:
         # Otherwise the app itself. Client-side routes like /deck/36 are not
         # files and must still return the shell rather than a 404; `/api/*`
         # never reaches here because the routers claimed it first.
-        return FileResponse(index)
+        #
+        # `no-cache` means "revalidate", not "do not store": the ETag still
+        # earns a 304 for an unchanged page, so this costs a round trip on a
+        # 1KB file and nothing more.
+        #
+        # It has to be said explicitly. Served with only an ETag and a
+        # Last-Modified, this file is heuristically cacheable, and a browser is
+        # entitled to reuse it for a while without asking. Every other file is
+        # content-hashed into its own name and can be cached forever -- but
+        # this is the one that *names* those hashes, so a stale copy of it
+        # pins the whole interface to the version it was built with. That is
+        # exactly what happened after an update: the app was new on disk and
+        # new over the wire, and the browser kept showing the old one from
+        # cache. It looked like the installer had not run.
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
 
 
 _mount_web()

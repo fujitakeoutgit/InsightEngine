@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 
+import {
+  DEFAULT_ACCENT, applyAccent, deriveAccent, hexToHsl, hslToHex, hslToHsv,
+  hsvToHsl, isHex, normalizeHex, readAccent, resetAccent, saveAccent,
+} from '../lib/accent'
 import { api, type ModelTier, type SyncStatus } from '../lib/api'
 import { riseIn } from '../lib/motion'
 import {
@@ -27,6 +31,109 @@ import { PageHead } from '../components/PageHead'
  * wrong -- picking a model your card cannot hold makes every semantic search
  * take minutes.
  */
+/** What each derived colour is for, so the swatches are readable. */
+const FAMILY_ROLES: [string, string][] = [
+  ['--aether', 'Buttons, tab underline, focus'],
+  ['--aether-hi', 'Hover and links'],
+  ['--aether-deep', 'Ambient background'],
+  ['--chrome', 'Glass, hairlines, dividers'],
+  ['--aether-ink', 'Text on the accent'],
+]
+
+/**
+ * Pick the one colour the interface is built from.
+ *
+ * HSV for the sliders because that is what colour pickers speak and what most
+ * people have a feel for; the derivation underneath works in HSL, where the
+ * family's actual relationships live. Hex as well, because half the time you
+ * already have the value you want.
+ *
+ * Applied live rather than behind an Apply button: the swatches below are a
+ * poor substitute for seeing the real thing, and the page you are standing on
+ * is the best preview there is.
+ */
+function AccentPicker() {
+  const [accent, setAccent] = useState(readAccent)
+  const [draft, setDraft] = useState(() => readAccent().replace('#', ''))
+  const hsv = hslToHsv(hexToHsl(accent))
+  const family = deriveAccent(accent)
+
+  const commit = (hex: string) => {
+    setAccent(hex)
+    setDraft(hex.replace('#', ''))
+    applyAccent(hex)
+    saveAccent(hex)
+  }
+
+  const setChannel = (channel: 'h' | 's' | 'v', value: number) =>
+    commit(hslToHex(hsvToHsl({ ...hsv, [channel]: value })))
+
+  const channels: [('h' | 's' | 'v'), string, number][] = [
+    ['h', 'Hue', 360], ['s', 'Saturation', 100], ['v', 'Value', 100],
+  ]
+
+  return (
+    <div className="accent-picker">
+      {channels.map(([key, label, max]) => (
+        <label key={key} className={`accent-slider ${key === 'h' ? 'hue' : ''}`}>
+          <span className="label">{label}</span>
+          <input
+            type="range" min={0} max={max} step={key === 'h' ? 1 : 0.5}
+            value={Math.round(hsv[key] * 10) / 10}
+            onChange={(e) => setChannel(key, Number(e.target.value))}
+            aria-label={label}
+          />
+          <input
+            className="fld num"
+            type="number" min={0} max={max}
+            value={Math.round(hsv[key])}
+            onChange={(e) => setChannel(key, Number(e.target.value))}
+            aria-label={`${label} value`}
+          />
+        </label>
+      ))}
+
+      <label className="accent-hex">
+        <span className="label">Hex</span>
+        <span className="hex-field">
+          <span className="hash">#</span>
+          <input
+            className="fld mono"
+            value={draft}
+            spellCheck={false}
+            maxLength={6}
+            // Typed freely and only applied once it is a colour, so deleting
+            // back to nothing does not repaint the app black on the way.
+            onChange={(e) => {
+              const next = e.target.value.replace(/[^0-9a-fA-F]/g, '')
+              setDraft(next)
+              if (isHex(next)) commit(normalizeHex(next))
+            }}
+            aria-label="Accent colour hex"
+          />
+        </span>
+        <button
+          className="btn btn-ghost sm"
+          onClick={() => { resetAccent(); const d = DEFAULT_ACCENT; setAccent(d); setDraft(d.replace('#', '')) }}
+          title={`Back to ${DEFAULT_ACCENT}`}
+        >
+          Reset
+        </button>
+      </label>
+
+      <div className="accent-family">
+        {FAMILY_ROLES.map(([name, role]) => (
+          <div className="accent-swatch" key={name}>
+            <span className="chip" style={{ background: family[name] }} aria-hidden />
+            <span className="mono">{family[name]}</span>
+            <span className="faint">{role}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /** The phases a card-pool update passes through, in the order they happen. */
 const SYNC_STAGES: [string, string][] = [
   ['copy', 'Copy'],
@@ -203,6 +310,17 @@ export function SettingsPage() {
           {status}
         </p>
       )}
+
+      <div className="panel settings-panel">
+        <h3>Accent colour</h3>
+        <p className="muted" style={{ fontSize: 13, marginBottom: 14 }}>
+          The interface is built from one colour — the buttons, the tab
+          underline, the focus ring, and the glass and hairlines everything is
+          drawn with. Pick a new one and the other four are derived from it,
+          keeping the relationships the design was drawn with.
+        </p>
+        <AccentPicker />
+      </div>
 
       <div className="panel settings-panel" data-tour="card-data">
         <h3>Card data</h3>

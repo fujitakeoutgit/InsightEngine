@@ -53,7 +53,7 @@
 
 .searchbar.focused .searchbar-shell {
   border-color: var(--aether);
-  box-shadow: 0 0 0 3px rgba(143, 169, 255, 0.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--aether) 12%, transparent);
 }
 
 /* The input and its spell-check backdrop must share exact metrics, so both
@@ -395,7 +395,7 @@
   pointer-events: none;
   opacity: 0;
   background: radial-gradient(38% 38% at var(--mx) var(--my),
-    rgba(255, 255, 255, 0.26), rgba(143, 169, 255, 0.1) 40%, transparent 70%);
+    rgba(255, 255, 255, 0.26), color-mix(in srgb, var(--aether) 10%, transparent) 40%, transparent 70%);
   transition: opacity var(--dur) var(--ease-out);
   mix-blend-mode: screen;
 }
@@ -559,7 +559,7 @@
 }
 
 .identity-dots { display: inline-flex; gap: 3px; }
-.identity-dots i { width: 7px; height: 7px; border-radius: 50%; display: block; box-shadow: inset 0 0 0 1px rgba(148, 163, 205, 0.3); }
+.identity-dots i { width: 7px; height: 7px; border-radius: 50%; display: block; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--chrome) 30%, transparent); }
 
 /* --------------------------------------------------------------------------
    Card detail
@@ -604,7 +604,7 @@
   pointer-events: none;
   opacity: 0;
   background: radial-gradient(34% 34% at var(--mx) var(--my),
-    rgba(255, 255, 255, 0.3), rgba(143, 169, 255, 0.12) 42%, transparent 72%);
+    rgba(255, 255, 255, 0.3), color-mix(in srgb, var(--aether) 12%, transparent) 42%, transparent 72%);
   transition: opacity var(--dur) var(--ease-out);
   mix-blend-mode: screen;
 }
@@ -787,6 +787,83 @@
 }
 
 .check:hover { color: var(--ink); border-color: var(--line); }
+
+/* --- accent picker ---------------------------------------------------- */
+
+.accent-picker { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+.accent-slider,
+.accent-hex {
+  display: grid;
+  grid-template-columns: 92px 1fr 76px;
+  align-items: center;
+  gap: 12px;
+}
+
+.accent-slider input[type='range'] { width: 100%; accent-color: var(--aether); }
+
+/* The hue track is the one slider that can show its own answer: every colour
+   it can produce, in order, under the handle that picks it. */
+.accent-slider.hue input[type='range'] {
+  appearance: none;
+  height: 10px;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  background: linear-gradient(90deg,
+    #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%);
+}
+
+.accent-slider.hue input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 2px solid var(--bg);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  cursor: grab;
+}
+
+.accent-picker .num { width: 100%; text-align: right; padding: 5px 8px; }
+
+.hex-field { display: flex; align-items: center; gap: 0; min-width: 0; }
+.hex-field .hash { color: var(--faint); font-family: var(--font-m); padding-right: 4px; }
+.hex-field .fld { text-transform: lowercase; letter-spacing: 0.06em; }
+
+/* The derived family, named. The point of the panel is that these move
+   together, so they are shown together rather than left to be discovered. */
+.accent-family {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px 16px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.accent-swatch {
+  display: grid;
+  grid-template-columns: 18px auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 1px 9px;
+  font-size: 11.5px;
+}
+
+.accent-swatch .chip {
+  grid-row: 1 / 3;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+}
+
+.accent-swatch .faint { font-size: 11px; }
+
+@media (max-width: 620px) {
+  .accent-slider,
+  .accent-hex { grid-template-columns: 76px 1fr 64px; gap: 8px; }
+}
 
 .tag-picker { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 
@@ -1722,7 +1799,7 @@
   pointer-events: none;
   opacity: 0;
   background: radial-gradient(44% 44% at var(--mx) var(--my),
-    rgba(255, 255, 255, 0.16), rgba(143, 169, 255, 0.08) 45%, transparent 72%);
+    rgba(255, 255, 255, 0.16), color-mix(in srgb, var(--aether) 8%, transparent) 45%, transparent 72%);
   mix-blend-mode: screen;
   transition: opacity var(--dur) var(--ease-out);
 }
@@ -1750,7 +1827,7 @@
 .deck-tile-plate p { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
 .deck-tile-plate .meta { font-size: 10.5px; margin-top: 5px; }
 
-.pip-dot { width: 8px; height: 8px; border-radius: 50%; display: block; box-shadow: inset 0 0 0 1px rgba(148, 163, 205, 0.3); }
+.pip-dot { width: 8px; height: 8px; border-radius: 50%; display: block; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--chrome) 30%, transparent); }
 
 /* Rename, copy, delete. Top-right and hover-only: the tile is a picture of a
    deck first, and three glyphs sitting on every commander's face permanently
@@ -2317,7 +2394,7 @@
   gap: 10px;
   padding: 12px 16px 14px;
   background:
-    radial-gradient(120% 80% at 50% 0%, rgba(143, 169, 255, 0.07), transparent 60%),
+    radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--aether) 7.0%, transparent), transparent 60%),
     var(--bg);
   overflow: hidden;
 }
@@ -2362,7 +2439,7 @@
   min-height: 0;
   border-radius: var(--r);
   background:
-    radial-gradient(80% 60% at 50% 45%, rgba(148, 163, 205, 0.05), transparent 70%);
+    radial-gradient(80% 60% at 50% 45%, color-mix(in srgb, var(--chrome) 5%, transparent), transparent 70%);
 }
 
 .pt-mat .pt-card { position: absolute; }
@@ -2634,7 +2711,7 @@
   aspect-ratio: 488 / 680;
   border-radius: 4px;
   background: repeating-linear-gradient(45deg,
-    rgba(143, 169, 255, 0.16) 0 4px, rgba(143, 169, 255, 0.06) 4px 8px);
+    color-mix(in srgb, var(--aether) 16%, transparent) 0 4px, color-mix(in srgb, var(--aether) 6%, transparent) 4px 8px);
   border: 1px solid var(--line-soft);
 }
 
@@ -3127,7 +3204,7 @@
 /* A hairline outline gives every arc a silhouette. Black measures only ~1.5:1
    against the panel, which is below the 3:1 floor -- the outline is the relief
    that makes the segment's extent legible anyway. */
-.donut-arc { stroke: rgba(148, 163, 205, 0.28); stroke-width: 0.75; }
+.donut-arc { stroke: color-mix(in srgb, var(--chrome) 28.0%, transparent); stroke-width: 0.75; }
 
 /* Group tabs inside a deck section. */
 .group-tabs {
@@ -3172,7 +3249,7 @@
 .cc-col { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 3px; height: 100%; }
 .cc-total { font-size: 10px; color: var(--muted); }
 .cc-stack { width: 100%; display: flex; flex-direction: column-reverse; border-radius: 2px 2px 0 0; overflow: hidden; min-height: 2px; gap: 2px; }
-.cc-seg { display: grid; place-items: center; min-height: 3px; box-shadow: inset 0 0 0 1px rgba(148, 163, 205, 0.22); }
+.cc-seg { display: grid; place-items: center; min-height: 3px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--chrome) 22%, transparent); }
 .cc-lab { font-family: var(--font-m); font-size: 9px; font-weight: 600; color: #0b0d12; }
 .cc-lab.on-dark { color: var(--mana-b-ink); }
 .cc-axis { font-size: 10px; color: var(--faint); }
@@ -4333,7 +4410,7 @@
   border: 1px solid var(--line-soft);
   border-radius: var(--r);
   background:
-    radial-gradient(70% 60% at 50% 45%, rgba(148, 163, 205, 0.06), transparent 70%),
+    radial-gradient(70% 60% at 50% 45%, color-mix(in srgb, var(--chrome) 6%, transparent), transparent 70%),
     var(--glass);
   overflow: hidden;
 }
