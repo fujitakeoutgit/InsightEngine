@@ -4,12 +4,16 @@ import { api, type Card } from '../lib/api'
 import { useCardFace } from '../lib/faces'
 import { solidDragImage } from '../lib/useQuietDrag'
 import { attachTilt, dissolveIn } from '../lib/motion'
-import { usePersisted } from '../lib/usePersisted'
+import { OVERLAY_KEY, usePersisted } from '../lib/usePersisted'
 import { FlipButton } from './FlipButton'
 import { ManaCost } from './ManaCost'
 
 /** Dragging a card out of here carries this; the deck sections read it. */
 export const CARD_DRAG_TYPE = 'application/x-insight-card'
+
+function money(value: number | null | undefined) {
+  return value === null || value === undefined ? '—' : `$${value.toFixed(2)}`
+}
 
 /**
  * One result tile.
@@ -45,10 +49,15 @@ function SearchTile({ card }: { card: Card }) {
       }}
       // No tooltip: the name and type are printed on the art itself.
       title={undefined}
+      aria-label={card.name}
     >
       {face.flippable && <FlipButton onFlip={face.flip} faceName={face.faceName} />}
+      {/* `alt=""`: the art is decorative here, because the card's name is
+          printed on it and repeated in the tile's aria-label. An alt is one
+          more place a browser can surface the name as a hint over a tile that
+          is already showing it. */}
       {face.src ? (
-        <SearchTileImage src={face.src} alt={face.faceName} />
+        <SearchTileImage src={face.src} alt="" />
       ) : (
         <div className="fallback">
           <div>
@@ -58,6 +67,11 @@ function SearchTile({ card }: { card: Card }) {
           <div className="tl">{card.type_line}</div>
         </div>
       )}
+      {/* The same corner price the search grid and the editor's tiles carry.
+          These are `.card-tile` like those, so it inherits their fade-in on
+          hover and their pinned state for free — and without it the overlay
+          pin had nothing to pin here, which is a switch that does nothing. */}
+      <span className="price mono">{money(card.usd)}</span>
     </div>
   )
 }
@@ -104,6 +118,8 @@ export function DeckSearch() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [size, setSize] = usePersisted('insight-enigma:deck-search-size', 150)
+  /** Shared with the editor and the recommendations: one pin for the app. */
+  const [pinOverlay, setPinOverlay] = usePersisted<boolean>(OVERLAY_KEY, false)
   const inputRef = useRef<HTMLInputElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
 
@@ -193,7 +209,7 @@ export function DeckSearch() {
   }
 
   return (
-    <div className="deck-search stack gap-3">
+    <div className={`deck-search stack gap-3${pinOverlay ? ' overlay-pinned' : ''}`}>
       <div className="row gap-2 wrap">
         <div className="typeahead" style={{ flex: 1, minWidth: 200 }}>
           <input
@@ -239,6 +255,23 @@ export function DeckSearch() {
             aria-label="Card image size"
           />
         </label>
+
+        {/* The same switch the editor has, on the same stored setting — so
+            pinning the overlay anywhere pins it everywhere, which is what you
+            meant by pinning it. Results are the place it matters most: this is
+            a list you are comparing prices across, and hovering each card in
+            turn to read one is exactly the chore the pin exists to end. */}
+        <button
+          className={pinOverlay ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
+          aria-pressed={pinOverlay}
+          onClick={() => setPinOverlay(!pinOverlay)}
+          // Price only here: a search result has no quantity to show.
+          title={pinOverlay
+            ? 'Show prices only on hover'
+            : 'Always show prices, without hovering'}
+        >
+          Toggle Overlay
+        </button>
       </div>
 
       {error && <div className="notice error"><h3>Search failed</h3><p>{error}</p></div>}

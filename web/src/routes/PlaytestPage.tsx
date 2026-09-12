@@ -4,9 +4,9 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { isBinder } from '../lib/binder'
 import { DECK_GROUPS, api, groupOf, type DeckGroup, type DeckToken, type SavedDeck } from '../lib/api'
 import { fromResolutions, type DeckCard } from '../lib/deckModel'
-import { canAnimate, gsap, splitChars } from '../lib/motion'
+import { canAnimate, gsap } from '../lib/motion'
 import { usePersisted } from '../lib/usePersisted'
-import { BackLink } from '../components/PageHead'
+import { BackLink, Chars } from '../components/PageHead'
 import { Playtest } from '../components/Playtest'
 
 const COLOR_VAR: Record<string, string> = {
@@ -52,7 +52,7 @@ export function PlaytestPage() {
   const [tokens, setTokens] = useState<DeckToken[]>([])
   const [cards, setCards] = useState<DeckCard[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const titleRef = useRef<HTMLHeadingElement>(null)
+  const titleRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -89,9 +89,13 @@ export function PlaytestPage() {
     return () => { cancelled = true }
   }, [deckId])
 
+  /* The letters are rendered by `Chars`, not cut out of the DOM by
+   * splitChars: this page unmounts the titles the moment you pick a deck, and
+   * React cannot remove a text node that something else replaced. */
   useLayoutEffect(() => {
-    if (deckId || !titleRef.current) return
-    const chars = splitChars(titleRef.current)
+    if (deckId) return
+    const chars = titleRef.current?.querySelectorAll<HTMLElement>('.shelf-title .char')
+    if (!chars?.length) return
     if (!canAnimate()) {
       gsap.set(chars, { opacity: 1, yPercent: 0, filter: 'none' })
       return
@@ -165,10 +169,26 @@ export function PlaytestPage() {
   return (
     <section className="shell">
       <div className="page-back"><BackLink /></div>
+      {/* The same masthead-as-selector as the Deck Lab, so a shelf is in the
+          same place and the same shape in both. The page's own name moves up
+          to the eyebrow — the title is answering "which decks", and the lede
+          below still says what you are here to do. */}
       <div className="gallery-head">
-        <span className="eyebrow">Commander</span>
-        <h1 className="display" ref={titleRef}>Playtest</h1>
-        <hr className="manaline" style={{ maxWidth: 300, marginTop: 14 }} />
+        <span className="eyebrow">Playtest</span>
+        <div className="shelf-titles" role="tablist" aria-label="Deck shelf" ref={titleRef}>
+          {DECK_GROUPS.map(({ key, heading }) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={group === key}
+              className={`display shelf-title${group === key ? ' on' : ''}`}
+              onClick={() => setGroup(key)}
+            >
+              <Chars text={heading} />
+            </button>
+          ))}
+        </div>
         <p className="lede" style={{ marginTop: 14 }}>
           Pick your deck - cast your spells and practice your interaction.
         </p>
@@ -179,31 +199,6 @@ export function PlaytestPage() {
       {decks === null && !error && (
         <div className="deck-gallery" aria-hidden>
           {Array.from({ length: 4 }, (_, i) => <div className="deck-tile-skeleton" key={i} />)}
-        </div>
-      )}
-
-      {/* The same two shelves as the Deck Lab, in the same shape, so a deck is
-          in the same place in both. Its own remembered choice, though: the
-          deck you last edited and the deck you last played are different
-          questions. There is no sort here to share the row with, so the
-          toggles are the whole toolbar. */}
-      {decks && decks.length > 0 && (
-        <div className="gallery-tools">
-          <span className="shelf-toggle" role="group" aria-label="Deck shelf">
-            {DECK_GROUPS.map(({ key, label }) => (
-              <button
-                key={key}
-                className={`btn btn-ghost sm${group === key ? ' on' : ''}`}
-                aria-pressed={group === key}
-                onClick={() => setGroup(key)}
-              >
-                {label}
-                <span className="mono faint">
-                  {' '}{decks.filter((d) => groupOf(d) === key).length}
-                </span>
-              </button>
-            ))}
-          </span>
         </div>
       )}
 

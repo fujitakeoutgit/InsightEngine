@@ -165,9 +165,11 @@ export interface SyncStatus {
 /** Which shelf a deck sits on in the gallery and the playtest picker. */
 export type DeckGroup = 'main' | 'prototype'
 
-export const DECK_GROUPS: { key: DeckGroup; label: string }[] = [
-  { key: 'main', label: 'Main' },
-  { key: 'prototype', label: 'Prototype' },
+/** `label` names the shelf in a control; `heading` names it as a masthead,
+ *  where it is the page's title rather than an option in a menu. */
+export const DECK_GROUPS: { key: DeckGroup; label: string; heading: string }[] = [
+  { key: 'main', label: 'Main', heading: 'Decks' },
+  { key: 'prototype', label: 'Prototype', heading: 'Prototypes' },
 ]
 
 /** Older rows predate the column; the server defaults them to main. */

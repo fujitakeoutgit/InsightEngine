@@ -808,41 +808,73 @@
    Butted together so the pair reads as one control with two states rather
    than two unrelated buttons that happen to be adjacent, and separated from
    the filter beside them by a little more than the row's own gap. */
-.shelf-toggle {
-  /* Equal columns, so the two read as one control rather than as two buttons
-     of whatever width their words happened to need. `1fr` in an auto-width
-     grid settles on the wider of them, so nothing here is a magic number and
-     a longer label would still come out even. */
-  display: inline-grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  /* The row's own gap. The pair sits in a line with the filter and the sort,
-     so the space between them should be the space between those. */
-  gap: 10px;
-  /* Matched to the fields beside it by stretching to the row rather than by
-     being given a height: the row is as tall as the filter field, so the pair
-     stays level with it if that field's padding or font ever changes. */
-  align-self: stretch;
-}
-
-.shelf-toggle .btn { height: auto; justify-content: center; }
-
-/* Selected is an outline, not a fill.
+/* The masthead, doubling as the shelf selector.
  *
- * A filled accent button reads as "press me" — it is the shape the Search and
- * Save buttons use, and the two most emphatic things on the page should not be
- * a state indicator sitting in a toolbar. Drawn instead as the same ghost
- * button with its edge and its label brought up to the accent, which says
- * "this one" without asking to be clicked. */
-.shelf-toggle .btn.on {
-  border-color: var(--aether);
-  color: var(--aether-hi);
+ * Two titles side by side, the one you are reading underlined by the manaline
+ * that used to run across the page. A tab strip made of the page's own title
+ * rather than a control beneath it repeating the question. */
+/* The themes disclosure above the recommendations. The caret turns rather
+   than swapping glyph, so the control reads as one thing in two states. */
+.theme-disclosure { gap: 7px; margin-bottom: 4px; }
+
+.theme-disclosure .caret {
+  display: inline-block;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--faint);
+  transition: transform var(--dur-fast);
 }
 
-.shelf-toggle .btn.on:hover {
-  border-color: var(--aether-hi);
-  background: color-mix(in srgb, var(--aether) 10%, transparent);
+.theme-disclosure .caret.open { transform: rotate(90deg); }
+
+.shelf-titles {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 34px;
+  margin-top: 8px;
 }
+
+.shelf-title {
+  position: relative;
+  padding: 0 0 12px;
+  text-transform: uppercase;
+  letter-spacing: -0.015em;
+  color: var(--faint);
+  cursor: pointer;
+  transition: color var(--dur-fast);
+}
+
+/* Dimming is colour, never opacity: the entrance tween lands on opacity 1 and
+   would wipe it out. */
+.shelf-title.on { color: var(--ink); }
+.shelf-title:hover { color: var(--muted); }
+.shelf-title.on:hover { color: var(--ink); }
+
+/* The underline is the manaline, cut to the width of the title it belongs to.
+   Drawn under both so the selected one is a change of opacity rather than
+   something appearing, which keeps the row from twitching as you switch. */
+.shelf-title::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--manaline);
+  opacity: 0;
+  transition: opacity var(--dur-fast);
+}
+
+.shelf-title.on::after { opacity: 0.9; }
+.shelf-title:hover::after { opacity: 0.28; }
+.shelf-title.on:hover::after { opacity: 0.9; }
+
+/* Characters, split out of the titles for the entrance. Inline-block because
+   transforms do not apply to plain inline elements — without it the yPercent
+   half of the reveal silently does nothing. */
+.shelf-title .char { display: inline-block; }
 
 /* --- type line ---------------------------------------------------------- */
 
@@ -2171,7 +2203,29 @@
   border-bottom: 1px solid var(--line-soft);
 }
 
-.sections { display: flex; flex-direction: column; gap: 18px; }
+/* The section is the drop target, so it is stretched to the whole column
+   under the tabs rather than stopping where its cards do.
+ *
+ * A short list — a sideboard with two cards in it, a filter that matched one —
+ * used to leave most of the column as dead space that looked like part of the
+ * section and rejected everything dropped on it. The chain is three links:
+ * the editor fills the flex column it sits in, the sections fill the editor,
+ * and the section fills the sections. `min-height: 0` because a flex child
+ * defaults to min-content and would refuse to shrink below its cards. */
+.editor {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
 
 .deck-section {
   border: 1px solid var(--line-soft);
@@ -2179,6 +2233,8 @@
   background: var(--glass);
   padding: 12px 14px 14px;
   transition: border-color var(--dur-fast), background-color var(--dur-fast);
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* Sections are the drop targets: moving a card between them is the only
@@ -2945,6 +3001,23 @@
 
 .pt-info { top: 4px; font-style: italic; }
 .pt-flip { top: 27px; }
+
+/* Bigger in hand, by about a third.
+ *
+ * A card in hand is one you are still reading — deciding whether to play it is
+ * the whole activity — so the control that lets you read it is used far more
+ * often there than on a permanent already on the table. It is also the corner
+ * of a card in a fanned row, competing with the card overlapping it.
+ *
+ * The flip button moves down to match: it sits directly under the `i`, and
+ * growing one without the other would have them overlap. */
+.pt-hand .pt-info {
+  width: 25px;
+  height: 25px;
+  font-size: 13px;
+}
+
+.pt-hand .pt-flip { top: 33px; }
 
 /* Tapping a nonland, which is no longer what clicking it does. Twice the
    `i` it replaces and in the opposite corner: it is the commonest thing you

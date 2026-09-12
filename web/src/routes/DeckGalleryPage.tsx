@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom'
 
 import { isBinder } from '../lib/binder'
 import { DECK_GROUPS, api, groupOf, type DeckGroup, type SavedDeck } from '../lib/api'
-import { canAnimate, gsap, splitChars } from '../lib/motion'
+import { canAnimate, gsap } from '../lib/motion'
 import { usePersisted, useTransientMessage } from '../lib/usePersisted'
-import { BackLink } from '../components/PageHead'
+import { BackLink, Chars } from '../components/PageHead'
 
 const COLOR_VAR: Record<string, string> = {
   W: 'var(--mana-w)', U: 'var(--mana-u)', B: 'var(--mana-b)',
@@ -78,7 +78,7 @@ export function DeckGalleryPage() {
   const [busy, setBusy] = useState<number | null>(null)
   const [status, setStatus] = useTransientMessage(2600)
   const gridRef = useRef<HTMLDivElement>(null)
-  const titleRef = useRef<HTMLHeadingElement>(null)
+  const titleRef = useRef<HTMLDivElement>(null)
   const renameRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
 
@@ -91,9 +91,12 @@ export function DeckGalleryPage() {
       .catch(() => setError('Could not load your decks.'))
   }, [])
 
+  /* The masthead resolves in a character at a time, as it always has — only
+   * the letters are rendered by `Chars` now rather than cut out of the DOM
+   * afterwards, so nothing here mutates anything React is holding. */
   useLayoutEffect(() => {
-    if (!titleRef.current) return
-    const chars = splitChars(titleRef.current)
+    const chars = titleRef.current?.querySelectorAll<HTMLElement>('.shelf-title .char')
+    if (!chars?.length) return
     if (!canAnimate()) {
       gsap.set(chars, { opacity: 1, yPercent: 0, filter: 'none' })
       return
@@ -237,10 +240,28 @@ export function DeckGalleryPage() {
   return (
     <section className="shell">
       <div className="page-back"><BackLink /></div>
+      {/* The masthead is the shelf selector.
+          Two shelves, and the page is always looking at one of them — which
+          makes "which shelf" the same question as "what is this page", so the
+          title answers it rather than a control underneath repeating it. The
+          manaline stops being a rule across the page and becomes the underline
+          on whichever one you are reading. */}
       <div className="gallery-head">
         <span className="eyebrow">Deck Lab</span>
-        <h1 className="display" ref={titleRef}>Your decks</h1>
-        <hr className="manaline" style={{ maxWidth: 300, marginTop: 14 }} />
+        <div className="shelf-titles" role="tablist" aria-label="Deck shelf" ref={titleRef}>
+          {DECK_GROUPS.map(({ key, heading }) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={group === key}
+              className={`display shelf-title${group === key ? ' on' : ''}`}
+              onClick={() => setGroup(key)}
+            >
+              <Chars text={heading} />
+            </button>
+          ))}
+        </div>
       </div>
 
       {error && (
@@ -256,17 +277,11 @@ export function DeckGalleryPage() {
         </p>
       )}
 
-      {/* The shelves ride the toolbar rather than sitting above it as tabs.
-          Two of them is not a tab strip, it is a choice between two states —
-          and the row that already carries "which of these am I looking at"
-          is the one with the filter and the sort on it.
-
-          The row itself appears as soon as there are decks, even though the
-          filter and sort do not: with one deck there is nothing to sift, but
-          there is still somewhere to put it. */}
-      {decks && (
+      {/* Only once there is enough to sift. Two decks do not need a sort
+          control, and an empty toolbar over an empty gallery is furniture. */}
+      {decks && decks.length > 1 && (
         <div className="gallery-tools">
-          {decks.length > 1 && (
+          {(
             <>
               <input
                 className="fld"
@@ -289,24 +304,6 @@ export function DeckGalleryPage() {
               </select>
             </>
           )}
-
-          {/* Outside the condition above: with one deck there is nothing to
-              sift, but there is still somewhere to put it. */}
-          <span className="shelf-toggle" role="group" aria-label="Deck shelf">
-            {DECK_GROUPS.map(({ key, label }) => (
-              <button
-                key={key}
-                className={`btn btn-ghost sm${group === key ? ' on' : ''}`}
-                // Not a checkbox: exactly one is on, and pressing the one that
-                // is already on does nothing rather than turning it off.
-                aria-pressed={group === key}
-                onClick={() => setGroup(key)}
-              >
-                {label}
-                <span className="mono faint"> {counts[key]}</span>
-              </button>
-            ))}
-          </span>
 
           {decks.length > 1 && (
             <span className="push mono faint" style={{ fontSize: 11 }}>

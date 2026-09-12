@@ -53,3 +53,28 @@ export const PageHead = forwardRef<HTMLDivElement, {
     </div>
   )
 })
+
+/**
+ * A word as one span per letter, for the staggered masthead reveal.
+ *
+ * Rendered rather than split in place. `splitChars` rewrites an element's
+ * contents after the fact, which is fine for an element React never touches
+ * again and fatal for one it does — unmounting a title built that way had
+ * React try to remove a text node something else had already replaced, and
+ * the page came down with "The node to be removed is not a child of this
+ * node". Letting React own the spans costs nothing and cannot desynchronise.
+ *
+ * Spaces stay as text: a span per space would be a character the animation
+ * staggers over and the reader cannot see.
+ */
+export function Chars({ text }: { text: string }) {
+  return (
+    <>
+      {[...text].map((ch, i) => (
+        ch === ' '
+          ? ' '
+          : <span className="char" key={`${ch}-${i}`}>{ch}</span>
+      ))}
+    </>
+  )
+}

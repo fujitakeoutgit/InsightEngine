@@ -12,6 +12,7 @@ import { recallDeckView, rememberDeckView } from '../lib/deckViewCache'
 import { BINDER_NAME, BINDER_SECTIONS } from '../lib/binder'
 import { clearSleeve, readSleeveFile, setSleeve, sleeveFor } from '../lib/sleeves'
 import { attachTilt, dissolveIn, riseIn } from '../lib/motion'
+import { solidDragImage } from '../lib/useQuietDrag'
 import { CardGrid } from '../components/CardGrid'
 import { DeckEditor } from '../components/DeckEditor'
 import { ManaCost } from '../components/ManaCost'
@@ -19,7 +20,8 @@ import { DeckCharts } from '../components/DeckCharts'
 import { DeckInfo } from '../components/DeckInfo'
 import { BinderInfo } from '../components/BinderInfo'
 import { doesJob } from '../lib/cardRoles'
-import { DeckSearch } from '../components/DeckSearch'
+import { DECK_UID_TYPE } from '../lib/cardTransfer'
+import { CARD_DRAG_TYPE, DeckSearch } from '../components/DeckSearch'
 import {
   OVERLAY_KEY, useEscape, usePersisted, useTransientMessage,
 } from '../lib/usePersisted'
@@ -53,6 +55,12 @@ const UNDO_LIMIT = 60
 const CATEGORIES: [Category, string][] = [
   ['ramp', 'Ramp'], ['removal', 'Removal'],
   ['counterspell', 'Counters'], ['draw', 'Draw'],
+]
+
+/** Where a card found in the search or the recommendations can be sent. */
+const ADD_ZONES: { key: Section; label: string }[] = [
+  { key: 'main', label: 'Main' },
+  { key: 'maybeboard', label: 'Maybe' },
 ]
 
 const UNCERTAIN = new Set(['fuzzy', 'ambiguous', 'prefix', 'unresolved'])
@@ -144,6 +152,41 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
   /** Main unless the deck says otherwise — a new deck is a deck you mean. */
   const [group, setGroup] = useState<DeckGroup>('main')
 
+  /* The add-dock: shown while a card from this pane is in the air.
+   *
+   * Scoped to drags that start inside the pane, which is what separates it
+   * from the editor's own dock and from the Cards tray — both of those carry
+   * a card too, and neither is asking "which part of the deck". */
+  const paneRef = useRef<HTMLDivElement | null>(null)
+  const [addDock, setAddDock] = useState(false)
+  const [addOver, setAddOver] = useState<Section | null>(null)
+
+  useEffect(() => {
+    const onStart = (event: DragEvent) => {
+      const types = event.dataTransfer?.types
+      if (!types) return
+      const carried = Array.from(types)
+      // A card, but not one already in the deck: a deck row carries its uid
+      // and belongs to the editor's dock.
+      if (!carried.includes(CARD_DRAG_TYPE) || carried.includes(DECK_UID_TYPE)) return
+      if (!paneRef.current?.contains(event.target as Node)) return
+      setAddDock(true)
+    }
+    const onStop = () => { setAddDock(false); setAddOver(null) }
+    /* Bubble phase, deliberately.
+     *
+     * Capture runs before the element's own dragstart handler, which is the
+     * handler that puts the card on the transfer — so the types are still
+     * empty and every drag looks like it carries nothing. Listening on the
+     * way back up means the payload is there to inspect. */
+    document.addEventListener('dragstart', onStart)
+    document.addEventListener('dragend', onStop, true)
+    return () => {
+      document.removeEventListener('dragstart', onStart)
+      document.removeEventListener('dragend', onStop, true)
+    }
+  }, [])
+
   const [searchParams] = useSearchParams()
   /* The editor opens on Build. A lesson about importing a list has to be
    * looking at the Text tab, so it asks for it in the URL rather than the
@@ -170,9 +213,11 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
   const [recView, setRecView] = usePersisted<'list' | 'grid'>('insight-enigma:rec-view', 'list')
   // The same flag the editor's Toggle Overlay sets, read here so the
   // recommendations grid obeys it too.
-  const [pinOverlay] = usePersisted<boolean>(OVERLAY_KEY, false)
+  const [pinOverlay, setPinOverlay] = usePersisted<boolean>(OVERLAY_KEY, false)
   const [recSize, setRecSize] = usePersisted('insight-enigma:rec-size', 150)
   const [activeThemes, setActiveThemes] = useState<string[]>([])
+  /** The theme chips, collapsed until asked for. */
+  const [themesOpen, setThemesOpen] = useState(false)
   const [aiMode, setAiMode] = useState(false)
   const [aiStrategy, setAiStrategy] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
@@ -218,7 +263,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
   useEscape(() => setConfirmingDelete(false), confirmingDelete)
   useEscape(() => setConfirmingCopy(false), confirmingCopy)
 
-  const resultRef = useRef<HTMLDivElement>(null)
+  const resultRef = useRef<HTMLDivElement | null>(null)
   const commanderTilt = useRef<HTMLAnchorElement>(null)
   /** This deck's sleeve art, if it has been given one. Local to this machine
    *  -- see `lib/sleeves`. */
@@ -475,18 +520,10 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
   }, [undo, redo])
 
   /** A suggestion you want to think about. Already-present cards gain a copy
-   *  rather than a second row, matching how the search tab adds. */
-  const addToMaybe = (card: Card) => {
-    const existing = deckCards.find(
-      (c) => c.card.oracle_id === card.oracle_id && c.section === 'maybeboard',
-    )
-    applyEdits(
-      existing
-        ? deckCards.map((c) => (c.uid === existing.uid ? { ...c, quantity: c.quantity + 1 } : c))
-        : [...deckCards, addedCard(card, 'maybeboard')],
-    )
-    setStatus(`Added ${card.name} to the maybeboard`)
-  }
+   *  rather than a second row, matching how the search tab adds.
+   *
+   *  Gone: `addSearchedCard` below does the same thing for any section, and
+   *  the dock asks which one rather than assuming the maybeboard. */
 
   /** A card dragged from the Search tab onto one of the deck's sections. An
    *  existing copy gains a quantity rather than a second row. */
@@ -938,7 +975,51 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
   )
 
   const analysisPane = (
-    <div ref={resultRef} style={{ minWidth: 0 }}>
+    // Two refs, one element: `resultRef` drives the panel's reveal and
+    // `paneRef` answers "did this drag start over here", which is what tells
+    // the add-dock apart from the editor's own.
+    <div
+      ref={(el) => { resultRef.current = el; paneRef.current = el }}
+      style={{ minWidth: 0 }}
+    >
+      {/* Where a card found over here can go.
+       *
+       * The editor's own dock offers Sideboard, Maybe and Trash, because a
+       * card already in the deck is being re-filed. A card in the search
+       * results or the recommendations is not in the deck at all, so the two
+       * answers that mean anything are "put it in" and "think about it" —
+       * which is also what the per-card + buttons used to say, one card at a
+       * time, in two different shapes on two different views. */}
+      {addDock && (
+        <div className="drag-dock">
+          {ADD_ZONES.map(({ key, label }) => (
+            <div
+              key={key}
+              className={`dock-zone${addOver === key ? ' over' : ''}`}
+              onDragOver={(event) => {
+                event.preventDefault()
+                event.dataTransfer.dropEffect = 'copy'
+                if (addOver !== key) setAddOver(key)
+              }}
+              onDragLeave={() => setAddOver((z) => (z === key ? null : z))}
+              onDrop={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                setAddOver(null)
+                setAddDock(false)
+                const payload = event.dataTransfer.getData(CARD_DRAG_TYPE)
+                if (!payload) return
+                try {
+                  addSearchedCard(JSON.parse(payload) as Card, key)
+                } catch { /* not a card after all */ }
+              }}
+            >
+              {label}
+            </div>
+          ))}
+        </div>
+      )}
+
       {error && <div className="notice error"><h3>Could not continue</h3><p>{error}</p></div>}
 
       {/* Always rendered: Search works before there is anything to analyse,
@@ -980,7 +1061,19 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         )}
       </div>
 
-      {tab === 'search' && <DeckSearch />}
+      {/* Mounted whatever tab is showing, and hidden when it is not this one.
+          The results, the query and the scroll position all live in
+          DeckSearch's own state, so unmounting it threw away a search every
+          time you looked at the analysis and came back — and the reason to
+          look is usually to decide something about the cards you just found.
+
+          Hidden rather than cached: leaving the deck builder unmounts the page
+          and takes the results with it, which is the right lifetime. A cache
+          would have to decide when to forget, and "when you leave" is already
+          what unmounting means. */}
+      <div style={tab === 'search' ? undefined : { display: 'none' }}>
+        <DeckSearch />
+      </div>
 
       {tab === 'analysis' && !report && !error && (
         <div className="notice">
@@ -1160,6 +1253,21 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
                     onChange={(e) => setRecSize(Number(e.target.value))} aria-label="Card image size" />
                 </label>
               )}
+              {/* Only over images — the list prints price in a column already.
+                  Same stored setting as the editor and the search, so the pin
+                  is one decision rather than three. */}
+              {recView === 'grid' && (
+                <button
+                  className={pinOverlay ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
+                  aria-pressed={pinOverlay}
+                  onClick={() => setPinOverlay(!pinOverlay)}
+                  title={pinOverlay
+                    ? 'Show price and quantity only on hover'
+                    : 'Always show price and quantity, without hovering'}
+                >
+                  Toggle Overlay
+                </button>
+              )}
               <button className="btn btn-ghost sm" onClick={() => setRecView(recView === 'list' ? 'grid' : 'list')}>
                 {recView === 'list' ? 'Images' : 'List'}
               </button>
@@ -1170,9 +1278,31 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
 
           {aiStrategy && <p className="muted" style={{ fontSize: 13, marginBottom: 10 }}>{aiStrategy}</p>}
 
+          {/* Collapsed to start.
+              The chips are a filter you reach for occasionally, and there can
+              be dozens of them; open, they push the suggestions — the thing
+              you came for — below the fold. The count comes up to the header
+              so the list still announces itself, and any active filter is
+              named there too: a filter you cannot see is one you will forget
+              you set. */}
           {recs.themes.length > 0 && (
             <>
-              <p className="faint" style={{ fontSize: 11, marginBottom: 8 }}>
+              <button
+                className="btn btn-ghost sm theme-disclosure"
+                aria-expanded={themesOpen}
+                onClick={() => setThemesOpen(!themesOpen)}
+              >
+                <span className={`caret${themesOpen ? ' open' : ''}`} aria-hidden>›</span>
+                Themes
+                <span className="mono faint"> {recs.themes.length}</span>
+                {activeThemes.length > 0 && (
+                  <span className="mono"> · {activeThemes.length} filtering</span>
+                )}
+              </button>
+
+              {themesOpen && (
+                <>
+              <p className="faint" style={{ fontSize: 11, margin: '10px 0 8px' }}>
                 Themes from the tags your cards carry, weighted against how common each tag is.
                 Solid chips are signature themes — a card must hit one to be suggested. ✦ marks
                 themes your description named, which are ranked up. Click to filter.
@@ -1194,6 +1324,8 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
                   <button className="btn btn-ghost sm" onClick={() => setActiveThemes([])}>Clear</button>
                 )}
               </div>
+                </>
+              )}
             </>
           )}
 
@@ -1201,30 +1333,49 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
             /* Recommendations are cards you are deciding about, and price is
                most of that decision, so the pin applies here too. */
             <div className={pinOverlay ? 'overlay-pinned' : undefined}>
+              {/* No per-tile +: dragging a suggestion onto the dock says
+                  both *that* you want it and *where*, which the one button
+                  could only guess at. */}
               <CardGrid cards={visibleRecs.map((r) => r.card)} size={recSize}
-                onAdd={addToMaybe}
-                addLabel="Add to maybeboard"
                 captionFor={(card) => reasonFor.get(card.oracle_id)?.join(' · ')} />
             </div>
           ) : (
             visibleRecs.map((rec) => (
-              <div className="resolution rec-row" key={rec.card.oracle_id}>
+              /* Draggable, like the grid's tiles and the search's.
+                 A recommendation is a card you are deciding about, and the
+                 Cards tray is where cards wait while you decide — but in this
+                 view the only way to keep one was the maybeboard, because a
+                 row carried no payload at all. It carries the same one every
+                 other card in the app does now. */
+              <div
+                className="resolution rec-row"
+                key={rec.card.oracle_id}
+                draggable
+                onDragStart={(event) => {
+                  event.dataTransfer.setData(CARD_DRAG_TYPE, JSON.stringify(rec.card))
+                  event.dataTransfer.setData('text/plain', `1 ${rec.card.name}`)
+                  event.dataTransfer.effectAllowed = 'copy'
+                  solidDragImage(event, event.currentTarget as HTMLElement)
+                }}
+              >
                 <span className="to">
                   {/* The name searches for the card; the `i` opens it.
                       A suggestion is something you want to look into — see the
                       printings, the price history, what else is like it — and
                       the search page is where that happens. Reading the card
                       itself keeps its own control so neither is lost. */}
-                  <Link
-                    to={`/?q=${encodeURIComponent(`!"${rec.card.name}"`)}`}
-                    title={`Search for ${rec.card.name}`}
-                  >
+                  {/* No tooltip naming the card: the link's own text is the
+                      name, so a hint repeating it is a label that follows the
+                      pointer around saying what you are already reading. */}
+                  <Link to={`/?q=${encodeURIComponent(`!"${rec.card.name}"`)}`}>
                     {rec.card.name}
                   </Link>{' '}
                   <Link
                     to={`/card/${rec.card.oracle_id}`}
                     className="rec-info"
-                    title={`Open ${rec.card.name}`}
+                    // `title` says what the control does; the name stays in
+                    // the aria-label, which is read aloud and never drawn.
+                    title="Open this card"
                     aria-label={`Open ${rec.card.name}`}
                   >
                     i
@@ -1239,16 +1390,9 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
                 <span className="mono faint" style={{ fontSize: 11 }}>
                   {rec.card.usd !== null ? `$${rec.card.usd.toFixed(2)}` : '—'}
                 </span>
-                {/* Most suggestions want considering, not committing, so the
-                    plain add goes to the maybeboard of this deck. It used to
-                    go to the Cards collection, which meant a suggestion landed
-                    in a queue on another page and had to be imported back. */}
-                <button className="btn btn-ghost sm" title="Add to the maybeboard"
-                  onClick={() => addToMaybe(rec.card)}>+ maybe</button>
-                <button className="btn btn-ghost sm" title="Add straight to the deck"
-                  onClick={() => applyEdits([...deckCards, addedCard(rec.card, 'main')])}>
-                  ↓ deck
-                </button>
+                {/* The per-row adds are gone: dragging the row onto the dock
+                    says the same two things, in the same place, whichever
+                    view you are in. */}
               </div>
             ))
           )}
