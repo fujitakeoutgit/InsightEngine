@@ -804,11 +804,45 @@
   font-weight: 600;
 }
 
-/* The Main / Prototype shelves, above the deck gallery and the playtest
-   picker. Borrows the editor's section tabs so a tab reads the same wherever
-   it appears; only the spacing differs, because here it sits under a masthead
-   rather than inside a panel. */
-.gallery-shelves { margin: 18px 0 14px; }
+/* The Main / Prototype toggles, riding the gallery toolbar.
+   Butted together so the pair reads as one control with two states rather
+   than two unrelated buttons that happen to be adjacent, and separated from
+   the filter beside them by a little more than the row's own gap. */
+.shelf-toggle {
+  /* Equal columns, so the two read as one control rather than as two buttons
+     of whatever width their words happened to need. `1fr` in an auto-width
+     grid settles on the wider of them, so nothing here is a magic number and
+     a longer label would still come out even. */
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  /* The row's own gap. The pair sits in a line with the filter and the sort,
+     so the space between them should be the space between those. */
+  gap: 10px;
+  /* Matched to the fields beside it by stretching to the row rather than by
+     being given a height: the row is as tall as the filter field, so the pair
+     stays level with it if that field's padding or font ever changes. */
+  align-self: stretch;
+}
+
+.shelf-toggle .btn { height: auto; justify-content: center; }
+
+/* Selected is an outline, not a fill.
+ *
+ * A filled accent button reads as "press me" — it is the shape the Search and
+ * Save buttons use, and the two most emphatic things on the page should not be
+ * a state indicator sitting in a toolbar. Drawn instead as the same ghost
+ * button with its edge and its label brought up to the accent, which says
+ * "this one" without asking to be clicked. */
+.shelf-toggle .btn.on {
+  border-color: var(--aether);
+  color: var(--aether-hi);
+}
+
+.shelf-toggle .btn.on:hover {
+  border-color: var(--aether-hi);
+  background: color-mix(in srgb, var(--aether) 10%, transparent);
+}
 
 /* --- type line ---------------------------------------------------------- */
 

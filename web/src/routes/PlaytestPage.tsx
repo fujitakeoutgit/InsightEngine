@@ -182,22 +182,28 @@ export function PlaytestPage() {
         </div>
       )}
 
-      {/* The same two shelves as the Deck Lab, so a deck is in the same place
-          in both. Its own remembered tab, though: the deck you last edited and
-          the deck you last played are different questions. */}
+      {/* The same two shelves as the Deck Lab, in the same shape, so a deck is
+          in the same place in both. Its own remembered choice, though: the
+          deck you last edited and the deck you last played are different
+          questions. There is no sort here to share the row with, so the
+          toggles are the whole toolbar. */}
       {decks && decks.length > 0 && (
-        <div className="section-tabs gallery-shelves">
-          {DECK_GROUPS.map(({ key, label }) => (
-            <button
-              key={key}
-              className={group === key ? 'on' : ''}
-              onClick={() => setGroup(key)}
-              aria-pressed={group === key}
-            >
-              {label}
-              <span className="mono faint"> {decks.filter((d) => groupOf(d) === key).length}</span>
-            </button>
-          ))}
+        <div className="gallery-tools">
+          <span className="shelf-toggle" role="group" aria-label="Deck shelf">
+            {DECK_GROUPS.map(({ key, label }) => (
+              <button
+                key={key}
+                className={`btn btn-ghost sm${group === key ? ' on' : ''}`}
+                aria-pressed={group === key}
+                onClick={() => setGroup(key)}
+              >
+                {label}
+                <span className="mono faint">
+                  {' '}{decks.filter((d) => groupOf(d) === key).length}
+                </span>
+              </button>
+            ))}
+          </span>
         </div>
       )}
 

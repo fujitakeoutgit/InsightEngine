@@ -256,51 +256,63 @@ export function DeckGalleryPage() {
         </p>
       )}
 
-      {/* The two shelves. Always both, even when one is empty: an empty
-          Prototype tab is how you find out the shelf exists, and a tab that
-          appears only once it has something in it cannot be dragged to. */}
-      {decks && (
-        <div className="section-tabs gallery-shelves">
-          {DECK_GROUPS.map(({ key, label }) => (
-            <button
-              key={key}
-              className={group === key ? 'on' : ''}
-              onClick={() => setGroup(key)}
-              aria-pressed={group === key}
-            >
-              {label}
-              <span className="mono faint"> {counts[key]}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      {/* The shelves ride the toolbar rather than sitting above it as tabs.
+          Two of them is not a tab strip, it is a choice between two states —
+          and the row that already carries "which of these am I looking at"
+          is the one with the filter and the sort on it.
 
-      {/* Only once there is enough to sift. Two decks do not need a sort
-          control, and an empty toolbar over an empty gallery is furniture. */}
-      {decks && decks.length > 1 && (
+          The row itself appears as soon as there are decks, even though the
+          filter and sort do not: with one deck there is nothing to sift, but
+          there is still somewhere to put it. */}
+      {decks && (
         <div className="gallery-tools">
-          <input
-            className="fld"
-            style={{ maxWidth: 260 }}
-            placeholder="Filter by name, commander, etc."
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            aria-label="Filter decks"
-          />
-          <select
-            className="fld"
-            style={{ width: 'auto' }}
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as SortBy)}
-            aria-label="Sort decks"
-          >
-            {SORTS.map(([value, label]) => (
-              <option key={value} value={value}>Sort: {label}</option>
+          {decks.length > 1 && (
+            <>
+              <input
+                className="fld"
+                style={{ maxWidth: 260 }}
+                placeholder="Filter by name, commander, etc."
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                aria-label="Filter decks"
+              />
+              <select
+                className="fld"
+                style={{ width: 'auto' }}
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortBy)}
+                aria-label="Sort decks"
+              >
+                {SORTS.map(([value, label]) => (
+                  <option key={value} value={value}>Sort: {label}</option>
+                ))}
+              </select>
+            </>
+          )}
+
+          {/* Outside the condition above: with one deck there is nothing to
+              sift, but there is still somewhere to put it. */}
+          <span className="shelf-toggle" role="group" aria-label="Deck shelf">
+            {DECK_GROUPS.map(({ key, label }) => (
+              <button
+                key={key}
+                className={`btn btn-ghost sm${group === key ? ' on' : ''}`}
+                // Not a checkbox: exactly one is on, and pressing the one that
+                // is already on does nothing rather than turning it off.
+                aria-pressed={group === key}
+                onClick={() => setGroup(key)}
+              >
+                {label}
+                <span className="mono faint"> {counts[key]}</span>
+              </button>
             ))}
-          </select>
-          <span className="push mono faint" style={{ fontSize: 11 }}>
-            {visible?.length ?? 0} of {counts[group]}
           </span>
+
+          {decks.length > 1 && (
+            <span className="push mono faint" style={{ fontSize: 11 }}>
+              {visible?.length ?? 0} of {counts[group]}
+            </span>
+          )}
         </div>
       )}
 
