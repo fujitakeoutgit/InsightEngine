@@ -139,6 +139,10 @@ const ZONE_LABEL: Record<Zone, string> = {
  *  that it never outlives the moment you pressed it. */
 const RESET_WINDOW_MS = 5000
 
+/** The share of a card in hand, measured from the bottom, that reads it
+ *  instead of playing it. */
+const READ_ZONE = 0.42
+
 const REGIONS = {
   creatures: { x: 0.02, y: 0.03, dx: 0.105, dy: 0.20, cols: 6 },
   lands: { x: 0.02, y: 0.52, dx: 0.105, dy: 0.20, cols: 6 },
@@ -814,7 +818,7 @@ export function Playtest({
         >
           <div className="pt-cards">
             {inZone.hand.map((c) => (
-              <PlayCard key={c.iid} inst={c} drag={drag} onPlay={play} onZoom={setZoomed} />
+              <PlayCard key={c.iid} inst={c} drag={drag} onPlay={play} onZoom={setZoomed} splitRead />
             ))}
             {!inZone.hand.length && <p className="faint" style={{ fontSize: 12 }}>Empty hand.</p>}
           </div>
@@ -1119,7 +1123,7 @@ function Pile({
 }
 
 function PlayCard({
-  inst, drag, onTap, onPlay, onZoom, onLoyalty, placed, style,
+  inst, drag, onTap, onPlay, onZoom, onLoyalty, placed, splitRead, style,
 }: {
   inst: Instance
   drag: DragRef
@@ -1131,6 +1135,8 @@ function PlayCard({
   onLoyalty?: (iid: string, by: number) => void
   /** On the mat, so it is positioned absolutely. */
   placed?: boolean
+  /** In hand: the card is its own two controls. See READ_ZONE. */
+  splitRead?: boolean
   style?: React.CSSProperties
 }) {
   const face = useCardFace(inst.card)
@@ -1159,7 +1165,26 @@ function PlayCard({
   const action = readOnClick ? undefined : onPlay ?? onTap
   const hint = readOnClick
     ? ' — click to look, ⟳ to tap'
-    : onPlay ? ' — click to play' : onTap ? ' — click to tap' : ''
+    : splitRead ? ' — click the top to play, the bottom to read'
+      : onPlay ? ' — click to play' : onTap ? ' — click to tap' : ''
+
+  /* In hand the card is its own two controls: play from the top, read from
+   * the bottom. No `i` to aim at, which in a fanned row is a 25px target
+   * overlapped by the next card.
+   *
+   * The split is low on purpose. Playing is the commoner action and gets the
+   * larger share, and the bottom of a card is the half you can still see when
+   * the hand is fanned — it is also, conveniently, where the rules text is,
+   * so "click the words to read the words" needs no explaining. */
+  const onCardClick = (event: React.MouseEvent) => {
+    if (readOnClick) { zoomFrom(event); return }
+    if (splitRead) {
+      const rect = event.currentTarget.getBoundingClientRect()
+      const down = (event.clientY - rect.top) / rect.height
+      if (down > 1 - READ_ZONE) { zoomFrom(event); return }
+    }
+    action?.(inst.iid)
+  }
 
   return (
     <div
@@ -1180,7 +1205,7 @@ function PlayCard({
           dy: e.clientY - rect.top,
         }
       }}
-      onClick={(event) => (readOnClick ? zoomFrom(event) : action?.(inst.iid))}
+      onClick={onCardClick}
       title={`${inst.card.name}${hint}`}
       style={placed
         ? { ...style, left: `${inst.x * 100}%`, top: `${inst.y * 100}%` }
@@ -1194,7 +1219,8 @@ function PlayCard({
           something you do mid-game; leaving the table to do it would end the
           game you are in the middle of. Absent where the card itself already
           zooms on click — a second way in would be one too many. */}
-      {!readOnClick && (
+      {/* Absent in hand: the bottom of the card is the button now. */}
+      {!readOnClick && !splitRead && (
         <button
           className="pt-info"
           title={`Look at ${inst.card.name}`}

@@ -3002,22 +3002,10 @@
 .pt-info { top: 4px; font-style: italic; }
 .pt-flip { top: 27px; }
 
-/* Bigger in hand, by about a third.
- *
- * A card in hand is one you are still reading — deciding whether to play it is
- * the whole activity — so the control that lets you read it is used far more
- * often there than on a permanent already on the table. It is also the corner
- * of a card in a fanned row, competing with the card overlapping it.
- *
- * The flip button moves down to match: it sits directly under the `i`, and
- * growing one without the other would have them overlap. */
-.pt-hand .pt-info {
-  width: 25px;
-  height: 25px;
-  font-size: 13px;
-}
-
-.pt-hand .pt-flip { top: 33px; }
+/* A card in hand has no `i`: its bottom 42% reads it and the rest plays it,
+   so the whole card is the control. See READ_ZONE in Playtest.
+   The flip button moves back up into the corner the `i` has vacated. */
+.pt-hand .pt-flip { top: 4px; }
 
 /* Tapping a nonland, which is no longer what clicking it does. Twice the
    `i` it replaces and in the opposite corner: it is the commonest thing you

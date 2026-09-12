@@ -32,9 +32,9 @@ SEED_DIR = Path(__file__).resolve().parent / "seed"
 #: worst -- and it is the one deck a new install opens.
 SEED_DECKS = (
     (
-        "Minsc",
+        "Aristocrat",
         "commander",
-        "minsc.txt",
+        "aristocrat.txt",
         "Aristocrat, value in things entering and leaving the graveyard. "
         "Token gen for sacrifice.",
     ),
@@ -58,6 +58,17 @@ def _carry_forward_legacy_marker(conn: sqlite3.Connection) -> None:
     Without this, moving to per-deck markers would offer every existing
     install the original sample again -- including the installs that deleted
     it, which is exactly what the flag existed to prevent.
+
+    "Minsc" is that original sample. It is no longer in SEED_DECKS -- it was
+    reworked and renamed to Aristocrat -- so this marker now only protects a
+    deck nobody is offering. It stays because the protection is about what an
+    install already refused, not about what the list currently holds, and
+    re-adding the name later must not quietly undo someone's deletion.
+
+    The rename does mean an existing install is offered Aristocrat as a new
+    deck, since that name has never been seeded there. That is the intended
+    behaviour for a new sample; the Minsc deck someone already has is theirs
+    and is left alone.
     """
     if not get_meta(conn, SEED_KEY):
         return

@@ -12,7 +12,7 @@ Deck
 1 Brokers Hideout (SNC) 248
 1 Chasm Skulker (MOC) 218
 1 Coiling Oracle (RVR) 172
-1 Command Tower (MSC) 233
+1 Command Tower (PLST) OTC-280
 1 Confounding Conundrum (ZNR) 53
 1 Crash of Rhino Beetles (CMM) 279
 1 Cultivate (ECC) 103
@@ -20,13 +20,13 @@ Deck
 1 Dryad of the Ilysian Grove (CMM) 891
 1 Engulf the Shore (GN2) 21
 1 Eternity Vessel (ZEN) 200
-1 Evolving Wilds (ECL) 264
+1 Evolving Wilds (DSC) 274
 1 Explore (OTC) 192
-1 Explosive Vegetation (ONS) 263
+1 Explosive Vegetation (DSC) 177
 1 Far Wanderings (ZNC) 66
 18 Forest (TRK) 325
 1 Ghost Town (TMP) 318
-1 Growth Spiral (M3C) 265
+1 Growth Spiral (DSC) 88
 1 Harrow (J25) 668
 1 Hedge Shredder (DSK) 183
 1 Horn of Greed (CN2) 211
@@ -42,7 +42,7 @@ Deck
 1 Myriad Landscape (EOC) 169
 1 Nissa, Who Shakes the World (WAR) 169
 1 One with the Multiverse (DSC) 121
-1 Oran-Rief Hydra (BFZ) 181
+1 Oran-Rief Hydra (E01) 69
 1 Parcelbeast (IKO) 199
 1 Prismatic Undercurrents (ECL) 189
 1 Rampaging Baloths (EOC) 104

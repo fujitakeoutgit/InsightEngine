@@ -11,25 +11,25 @@ Deck
 1 Blighted Woodland (CLB) 881
 1 Blisterpod (BFZ) 163
 1 Brindle Shoat (2X2) 139
-1 Cabaretti Ascendancy (SNC) 299
+1 Cabaretti Ascendancy (SNC) 172
 1 Cankerbloom (ONE) 161
 1 Cathar Commando (INR) 15
 1 Cloakwood Hermit (CLB) 221
-1 Command Tower (FDC) 3
+1 Command Tower (MSC) 233
 1 Daxos, Blessed by the Sun (THB) 9
 1 Dusk // Dawn (MKC) 61
 1 Emrakul's Evangel (EMN) 156
-1 Evolving Wilds (DSC) 274
-1 Exotic Orchard (ECC) 148
+1 Evolving Wilds (MSC) 240
+1 Exotic Orchard (EOC) 159
 1 Explore (OTC) 192
-1 Fecundity (BRB) 25
+1 Fecundity (UMA) 165
 1 Flameshadow Conjuring (MOC) 280
 7 Forest (TRK) 325
 1 Foster (C13) 146
 1 Fresh Meat (C19) 166
 1 From Beyond (BFZ) 167
 1 Gerrard, Weatherlight Hero (C19) 41
-1 Gift of Immortality (THS) 14
+1 Gift of Immortality (SOC) 147
 1 Gleaming Barrier (FDN) 252
 1 Graypelt Refuge (C19) 249
 1 Gutter Grime (ISD) 186
@@ -41,15 +41,15 @@ Deck
 1 Jungle Shrine (ECC) 154
 1 Kari Zev's Expertise (AER) 88
 1 Krenko, Tin Street Kingpin (DMC) 124
-1 Krosan Verge (PLST) MOC-412
+1 Krosan Verge (OTC) 304
 1 Lightning Coils (MRD) 198
-1 Mentor of the Meek (MOC) 196
+1 Mentor of the Meek (INR) 345
 1 Might Makes Right (M15) 156
 1 Mimic Vat (NCC) 372
 1 Mistmoon Griffin (VMA) 34
 1 Mitotic Slime (NCC) 302
 1 Mob Rule (VOC) 147
-1 Mogg War Marshal (MMA) 122
+1 Mogg War Marshal (PLST) DMR-131
 3 Mountain (TRK) 323
 1 Myriad Landscape (EOC) 169
 1 Norn's Wellspring (ONE) 24
@@ -60,26 +60,26 @@ Deck
 1 Promise of Bunrei (VOC) 96
 1 Rally the Ancestors (FRF) 22
 1 Rampant Growth (TDC) 265
-1 Relic of Legends (MSC) 209
+1 Relic of Legends (PLST) DMU-236
 1 Renegade Rallier (AER) 133
 1 Requiem Angel (C14) 84
 1 Ruin Grinder (C21) 57
 1 Saffi Eriksdotter (TSR) 260
-1 Sakura-Tribe Elder (CLB) 832
+1 Sakura-Tribe Elder (SOC) 285
 1 Séance (MM3) 22
-1 Search for Tomorrow (PLST) IMA-185
+1 Search for Tomorrow (CMR) 436
 1 Season of Growth (M20) 191
 1 Skullclamp (BLC) 283
 1 Slash the Ranks (CMR) 47
 1 Sol Ring (FDC) 2
 1 Solemn Simulacrum (SOC) 355
-1 Spectator Seating (CMR) 356
+1 Spectator Seating (CMM) 427
 1 Stalking Vengeance (RVR) 126
 1 Temple of Abandon (BLC) 338
 1 Temple of Plenty (TDC) 405
 1 Temple of Triumph (SOC) 417
 1 Terramorphic Expanse (MSC) 273
-1 Thriving Bluff (ECC) 170
+1 Thriving Bluff (J25) 775
 1 Thriving Grove (ECC) 171
 1 Tocasia's Welcome (SOC) 181
 1 Traitorous Greed (M21) 166
@@ -88,3 +88,6 @@ Deck
 1 Vicious Shadows (ALA) 119
 1 Viridian Emissary (CMA) 162
 1 Warstorm Surge (CLB) 815
+
+Maybeboard
+1 Ajani Goldmane (M11) 1
