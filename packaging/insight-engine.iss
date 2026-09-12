@@ -56,6 +56,20 @@ Name: "startup"; Description: "Start Insight Engine when I sign in"; GroupDescri
 ; interface and the seed deck.
 Source: "..\dist\InsightEngine\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+[InstallDelete]
+; Clear the built interface before laying down the new one.
+;
+; [Files] copies what the build produced and never removes what it no longer
+; produces, and every file in here is content-hashed into its own name — so an
+; upgrade left the previous build's bundle sitting beside the new one, still
+; served, still working. A browser tab opened before the update went on
+; loading last version's app from a URL that still resolved, with no error
+; anywhere to say why the update "had not arrived".
+;
+; Only the generated assets: everything else under {app} is overwritten in
+; place by name.
+Type: filesandordirs; Name: "{app}\_internal\web\dist\assets"
+
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"
 Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
