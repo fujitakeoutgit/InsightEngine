@@ -135,6 +135,10 @@ const ZONE_LABEL: Record<Zone, string> = {
  * rarely touched once they are down. Nothing is enforced: this is only where a
  * card *lands*, and dragging it elsewhere is always allowed.
  */
+/** How long an armed Reset stays armed. Long enough to mean it, short enough
+ *  that it never outlives the moment you pressed it. */
+const RESET_WINDOW_MS = 5000
+
 const REGIONS = {
   creatures: { x: 0.02, y: 0.03, dx: 0.105, dy: 0.20, cols: 6 },
   lands: { x: 0.02, y: 0.52, dx: 0.105, dy: 0.20, cols: 6 },
@@ -226,8 +230,42 @@ export function Playtest({
   const [dice, setDice] = useState<DieState[]>(() => [makeDie('d20'), makeDie('d6')])
   const [coin, setCoin] = useState<CoinFace>('heads')
   const [showHistory, setShowHistory] = useState(false)
-  const [confirmingReset, setConfirmingReset] = useState(false)
-  useEscape(() => setConfirmingReset(false), confirmingReset)
+  /* Reset asks twice, in place, rather than opening a dialog.
+   *
+   * A modal for this was the wrong weight: it covers the board you are being
+   * asked about, and it takes a decision that is one button away from Tutor
+   * and makes it a conversation. Arming the button says the same thing in the
+   * same spot — press it again and the game goes.
+   *
+   * Disarmed by a timeout, and by touching anything else at all. Five seconds
+   * is long enough to mean it and short enough that a primed Reset never
+   * outlives the moment you pressed it; and a button that stays armed while
+   * you go back to playing is a trap set for your own next click. */
+  const [resetArmed, setResetArmed] = useState(false)
+  const resetTimer = useRef<number | undefined>(undefined)
+  const resetRef = useRef<HTMLButtonElement>(null)
+
+  const disarmReset = useCallback(() => {
+    window.clearTimeout(resetTimer.current)
+    setResetArmed(false)
+  }, [])
+
+  useEffect(() => {
+    if (!resetArmed) return
+    resetTimer.current = window.setTimeout(() => setResetArmed(false), RESET_WINDOW_MS)
+    // Anything else you do stands the button down. The button's own press is
+    // excluded, or arming it would immediately cancel itself.
+    const elsewhere = (event: Event) => {
+      if (!resetRef.current?.contains(event.target as Node)) disarmReset()
+    }
+    document.addEventListener('pointerdown', elsewhere, true)
+    document.addEventListener('keydown', elsewhere, true)
+    return () => {
+      window.clearTimeout(resetTimer.current)
+      document.removeEventListener('pointerdown', elsewhere, true)
+      document.removeEventListener('keydown', elsewhere, true)
+    }
+  }, [resetArmed, disarmReset])
   const matRef = useRef<HTMLDivElement>(null)
   /** One tray per kind. A die at home is placed from its own tray's measured
    *  box, which is the only way to land exactly inside an outline that
@@ -358,7 +396,7 @@ export function Playtest({
    * Mulligan deliberately does not do the second part -- it is still the same
    * game, and a die you set down to track something is still tracking it. */
   const resetGame = () => {
-    setConfirmingReset(false)
+    disarmReset()
     setDice([makeDie('d20'), makeDie('d6')])
     setCoin('heads')
     newGame(0)
@@ -827,11 +865,18 @@ export function Playtest({
               Tutor
             </button>
             {/* Confirmed, unlike Mulligan: this throws away the whole board,
-                not just the hand, and it sits one button away from Tutor. */}
-            {/* Red, matching the button it opens: it is the one control here
-                that throws the whole board away. */}
-            <button className="btn btn-danger sm" onClick={() => setConfirmingReset(true)}>
-              Reset
+                not just the hand, and it sits one button away from Tutor.
+                Armed in place rather than behind a dialog — see resetArmed. */}
+            <button
+              ref={resetRef}
+              className={`btn btn-danger sm pt-reset${resetArmed ? ' armed' : ''}`}
+              onClick={() => (resetArmed ? resetGame() : setResetArmed(true))}
+              title={resetArmed
+                ? 'Press again to throw the board away'
+                : 'Start the game over'}
+              aria-label={resetArmed ? 'Confirm reset' : 'Reset the game'}
+            >
+              {resetArmed ? 'Confirm' : 'Reset'}
             </button>
           </div>
 
@@ -894,24 +939,6 @@ export function Playtest({
           </div>
         </div>
       </div>
-
-      {confirmingReset && (
-        <div className="modal-backdrop" onClick={() => setConfirmingReset(false)} role="presentation">
-          <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal>
-            <h3>Reset the game?</h3>
-            <p className="muted">
-              The board, your hand, the graveyard and the dice all go back to the start.
-              A new seven is dealt from a fresh shuffle.
-            </p>
-            <div className="row gap-2" style={{ marginTop: 'var(--gap-3)' }}>
-              <button className="btn btn-danger sm" onClick={resetGame}>Reset</button>
-              <button className="btn btn-ghost sm" onClick={() => setConfirmingReset(false)}>
-                Keep playing
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {tutoring && (
         <Tutor

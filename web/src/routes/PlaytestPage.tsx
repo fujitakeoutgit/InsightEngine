@@ -1,10 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { isBinder } from '../lib/binder'
-import { api, type DeckToken, type SavedDeck } from '../lib/api'
+import { DECK_GROUPS, api, groupOf, type DeckGroup, type DeckToken, type SavedDeck } from '../lib/api'
 import { fromResolutions, type DeckCard } from '../lib/deckModel'
 import { canAnimate, gsap, splitChars } from '../lib/motion'
+import { usePersisted } from '../lib/usePersisted'
 import { BackLink } from '../components/PageHead'
 import { Playtest } from '../components/Playtest'
 
@@ -43,6 +44,11 @@ export function PlaytestPage() {
   const navigate = useNavigate()
 
   const [decks, setDecks] = useState<SavedDeck[] | null>(null)
+  const [group, setGroup] = usePersisted<DeckGroup>('insight-engine:playtest-group', 'main')
+  const shelf = useMemo(
+    () => (decks ?? []).filter((d) => groupOf(d) === group),
+    [decks, group],
+  )
   const [tokens, setTokens] = useState<DeckToken[]>([])
   const [cards, setCards] = useState<DeckCard[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -176,6 +182,25 @@ export function PlaytestPage() {
         </div>
       )}
 
+      {/* The same two shelves as the Deck Lab, so a deck is in the same place
+          in both. Its own remembered tab, though: the deck you last edited and
+          the deck you last played are different questions. */}
+      {decks && decks.length > 0 && (
+        <div className="section-tabs gallery-shelves">
+          {DECK_GROUPS.map(({ key, label }) => (
+            <button
+              key={key}
+              className={group === key ? 'on' : ''}
+              onClick={() => setGroup(key)}
+              aria-pressed={group === key}
+            >
+              {label}
+              <span className="mono faint"> {decks.filter((d) => groupOf(d) === key).length}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {decks && decks.length === 0 && (
         <div className="notice">
           <h3>No decks to play</h3>
@@ -183,9 +208,20 @@ export function PlaytestPage() {
         </div>
       )}
 
-      {decks && decks.length > 0 && (
+      {decks && decks.length > 0 && shelf.length === 0 && (
+        <div className="notice">
+          <h3>Nothing on this shelf</h3>
+          <p>
+            {group === 'prototype'
+              ? 'Decks you are still working on appear here. Set a deck’s group to Prototype in its Text tab.'
+              : 'Your finished decks appear here.'}
+          </p>
+        </div>
+      )}
+
+      {decks && shelf.length > 0 && (
         <div className="deck-gallery" ref={gridRef}>
-          {decks.map((deck) => (
+          {shelf.map((deck) => (
             <article
               key={deck.id}
               className="deck-tile"

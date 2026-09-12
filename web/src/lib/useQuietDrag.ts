@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { markAbandoned } from './cardTransfer'
 
 /**
  * Stop the browser painting a "no drop" cursor while a card is being dragged.
@@ -38,6 +39,17 @@ export function useQuietDrag() {
 
     const onDrop = (event: DragEvent) => {
       if (!active || isTextField(event.target)) return
+      /* Whether anyone claimed this before it got here.
+       *
+       * A drop handler accepts a drop by calling `preventDefault`, so by the
+       * time one reaches the document, `defaultPrevented` is the difference
+       * between "a section took this card" and "this was let go over nothing".
+       * Read before we preventDefault it ourselves, obviously.
+       *
+       * The tray needs to know: it destroys a card on the assumption the drag
+       * handed it somewhere, and the dropEffect it used to infer that from is
+       * always 'move' while this hook is mounted. See lib/cardTransfer. */
+      if (!event.defaultPrevented) markAbandoned()
       // A drop that reached the document landed on nothing. Swallow it, or the
       // browser navigates to the dragged text.
       event.preventDefault()

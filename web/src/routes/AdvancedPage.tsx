@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { copyText } from '../lib/clipboard'
@@ -18,13 +18,18 @@ const COLORS: [string, string][] = [
 /* Worded so the difference is unmissable. ":" is a superset match -- it is
    Scryfall's meaning and this app keeps it -- so `c:wgu` returns Atogatog and
    every other five-color card, because a five-color card *is* white, green and
-   blue. Reading "Including these colors" as "only these colors" is the easiest
-   mistake in the whole form, and the labels now say which is which. */
+   blue. Reading it as "only these colors" is the easiest mistake in the whole
+   form, which is why the label says "at least" rather than naming the colors
+   and stopping.
+
+   Three, not four. `>=` was listed as a fourth mode with the same label as
+   `:`, because it *is* the same operator -- Scryfall treats them as synonyms
+   -- so the menu offered the same behaviour twice under one description and
+   left you wondering what you had missed. */
 const COLOR_MODES: [string, string][] = [
-  [':', 'These colors and possibly more'],
+  [':', 'At least these colors'],
   ['<=', 'These colors and no others'],
   ['=', 'Exactly these colors'],
-  ['>=', 'These colors and possibly more'],
 ]
 
 const RARITIES: [string, string][] = [
@@ -79,8 +84,8 @@ interface Condition { a: string; op: string; value: string }
 interface Builder {
   name: string
   oracle: OracleTerm[]
-  typeLine: string
-  typeExclude: string
+  /** One entry per type, each either required or excluded. */
+  types: TypeTerm[]
   colors: string[]
   colorMode: string
   identity: string[]
@@ -109,8 +114,31 @@ interface OracleTerm {
   text: string
 }
 
+/** One type on the type line, and whether the card must or must not have it. */
+interface TypeTerm {
+  not: boolean
+  value: string
+}
+
+/* The dropdown's headings.
+ *
+ * The catalog is one flat frequency-ordered list of every word that appears in
+ * any type line, which runs to hundreds and puts Merfolk next to Legendary
+ * next to Saga. These two lists are closed and short, so naming them costs
+ * nothing and turns the list into something you can scan: the handful of
+ * things a card *is*, the handful of words in front of that, and the several
+ * hundred subtypes after. */
+const SUPERTYPES = ['Basic', 'Legendary', 'Snow', 'World', 'Ongoing', 'Elite', 'Host']
+
+const CARD_TYPES = [
+  'Artifact', 'Battle', 'Conspiracy', 'Creature', 'Dungeon', 'Emblem',
+  'Enchantment', 'Hero', 'Instant', 'Kindred', 'Land', 'Phenomenon', 'Plane',
+  'Planeswalker', 'Scheme', 'Sorcery', 'Sticker', 'Tribal', 'Vanguard',
+  'Attraction', 'Token',
+]
+
 const INITIAL: Builder = {
-  name: '', oracle: [{ not: false, text: '' }], typeLine: '', typeExclude: '',
+  name: '', oracle: [{ not: false, text: '' }], types: [],
   colors: [], colorMode: ':', identity: [], mana: '',
   stats: [{ a: 'mv', op: '<=', value: '' }],
   // Commander by default, matching withCommanderDefault() on the splash page.
@@ -144,11 +172,9 @@ function buildQuery(b: Builder): string {
   }
   if (b.lore.trim()) parts.push(`fo:"${b.lore.trim().replace(/"/g, '')}"`)
 
-  for (const word of b.typeLine.trim().split(/\s+/).filter(Boolean)) {
-    parts.push(`t:${word.toLowerCase()}`)
-  }
-  for (const word of b.typeExclude.trim().split(/\s+/).filter(Boolean)) {
-    parts.push(`-t:${word.toLowerCase()}`)
+  for (const term of b.types) {
+    const word = term.value.trim().toLowerCase()
+    if (word) parts.push(`${term.not ? '-' : ''}t:${word}`)
   }
 
   if (b.colors.length) {
@@ -205,6 +231,173 @@ function Row({
         {hint && <span className="hint">{hint}</span>}
       </div>
       <div className="form-row-content">{children}</div>
+    </div>
+  )
+}
+
+/**
+ * The type line, as a list of chosen types rather than two boxes of words.
+ *
+ * It used to be an include field and an exclude field, both space-separated,
+ * which made `t:creature -t:token` two edits in two places and made a mistake
+ * invisible: a type in the wrong box reads exactly like a type in the right
+ * one. Each type is now its own row carrying its own answer, and changing your
+ * mind about one is a click on that row rather than moving a word between
+ * fields.
+ *
+ * Adding is shift-aware — shift-click, or shift-Enter, adds a type as NOT —
+ * because half the time you already know you are excluding it, and arriving at
+ * that through "add it, then toggle it" is two steps for one decision.
+ */
+function TypeLinePicker({
+  terms, onChange,
+}: { terms: TypeTerm[]; onChange: (next: TypeTerm[]) => void }) {
+  const [draft, setDraft] = useState('')
+  const [options, setOptions] = useState<string[]>([])
+  const [open, setOpen] = useState(false)
+  const [highlight, setHighlight] = useState(0)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      fetch(`/api/catalog/types?q=${encodeURIComponent(draft.trim())}&limit=50`)
+        .then((r) => r.json())
+        .then((data) => { if (!cancelled) { setOptions(data.values ?? []); setHighlight(0) } })
+        .catch(() => { /* offline: typing a type by hand still works */ })
+    }, draft ? 140 : 0)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [draft])
+
+  const has = (value: string) =>
+    terms.some((t) => t.value.toLowerCase() === value.toLowerCase())
+
+  const add = (value: string, not: boolean) => {
+    const word = value.trim()
+    if (!word || has(word)) return
+    onChange([...terms, { not, value: word }])
+    setDraft('')
+    inputRef.current?.focus()
+  }
+
+  const toggle = (index: number) =>
+    onChange(terms.map((t, i) => (i === index ? { ...t, not: !t.not } : t)))
+
+  const remove = (index: number) => onChange(terms.filter((_, i) => i !== index))
+
+  /* The catalog is one flat list; these are the headings it is shown under.
+   * Anything that is not a known card type or supertype is a subtype, which
+   * is the overwhelming majority and so goes last. */
+  const grouped = useMemo(() => {
+    const pool = options.filter((value) => !has(value))
+    const pick = (names: string[]) =>
+      pool.filter((v) => names.some((n) => n.toLowerCase() === v.toLowerCase()))
+    const known = new Set([...SUPERTYPES, ...CARD_TYPES].map((n) => n.toLowerCase()))
+    return [
+      ['Types', pick(CARD_TYPES)],
+      ['Supertypes', pick(SUPERTYPES)],
+      ['Subtypes', pool.filter((v) => !known.has(v.toLowerCase()))],
+    ].filter(([, list]) => (list as string[]).length) as [string, string[]][]
+  }, [options, terms])
+
+  /** The dropdown in one sequence, so the arrow keys cross the headings. */
+  const flat = useMemo(() => grouped.flatMap(([, list]) => list), [grouped])
+
+  const onKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      if (!flat.length) return
+      event.preventDefault()
+      setHighlight((h) => (h + (event.key === 'ArrowDown' ? 1 : -1) + flat.length) % flat.length)
+      return
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      // The highlighted suggestion, or what was typed if there is none: a type
+      // the catalog has never heard of is still a legal thing to ask for.
+      add(flat[highlight] ?? draft, event.shiftKey)
+      return
+    }
+    // Backspace on an empty box takes the last one off, the way every token
+    // field does.
+    if (event.key === 'Backspace' && !draft && terms.length) {
+      event.preventDefault()
+      remove(terms.length - 1)
+      return
+    }
+    if (event.key === 'Escape') setOpen(false)
+  }
+
+  return (
+    <div className="type-line">
+      <div className="type-field" onClick={() => inputRef.current?.focus()} role="presentation">
+        {terms.map((term, i) => (
+          <span className={`type-token${term.not ? ' not' : ''}`} key={`${term.value}-${i}`}>
+            {/* `preventDefault` on mousedown, like the dropdown's own
+                options: without it the press blurs the input, the blur
+                schedules the list to close, and refocusing on the click that
+                follows does not cancel the timer that is already running. So
+                editing a token you can see closes the list you were reading
+                it from. The press never moves focus now. */}
+            <button
+              type="button" className="tt-drop"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => remove(i)}
+              title={`Remove ${term.value}`}
+              aria-label={`Remove ${term.value}`}
+            >
+              ×
+            </button>
+            <button
+              type="button" className="tt-mode"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => toggle(i)}
+              title={term.not
+                ? `Cards without ${term.value} — click for “is”`
+                : `Cards with ${term.value} — click for “not”`}
+              aria-label={`${term.value} is ${term.not ? 'excluded' : 'required'}`}
+            >
+              {term.not ? 'NOT' : 'IS'}
+            </button>
+            <span className="tt-name">{term.value}</span>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          className="tt-input"
+          value={draft}
+          placeholder={terms.length ? '' : 'Add a type, e.g. creature'}
+          spellCheck={false}
+          autoComplete="off"
+          onChange={(e) => { setDraft(e.target.value); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 140)}
+          onKeyDown={onKeyDown}
+          aria-label="Add a type"
+        />
+      </div>
+
+      {open && grouped.length > 0 && (
+        <div className="ta-options type-options">
+          {grouped.map(([heading, list]) => (
+            <div key={heading}>
+              <div className="tt-heading mono">{heading}</div>
+              {list.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={flat[highlight] === value ? 'active' : ''}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onMouseEnter={() => setHighlight(flat.indexOf(value))}
+                  onClick={(e) => add(value, e.shiftKey)}
+                >
+                  {value}
+                </button>
+              ))}
+            </div>
+          ))}
+          <div className="ta-hint mono">Enter adds · Shift adds as NOT</div>
+        </div>
+      )}
     </div>
   )
 }
@@ -456,15 +649,11 @@ export function AdvancedPage() {
           </div>
         </Row>
 
-        <Row label="Type Line" hint="Matches as you type. Enter adds it and starts the next.">
-          <TypeAhead
-            kind="types" value={b.typeLine} onChange={(v) => set('typeLine', v)}
-            placeholder="Enter a type, e.g. legendary creature"
-          />
-          <TypeAhead
-            kind="types" value={b.typeExclude} onChange={(v) => set('typeExclude', v)}
-            placeholder="Exclude types, e.g. token"
-          />
+        <Row
+          label="Type Line"
+          hint="Each type is required or excluded on its own. Click IS to flip it."
+        >
+          <TypeLinePicker terms={b.types} onChange={(next) => set('types', next)} />
         </Row>
 
         <Row label="Colors" hint="The colors in the card’s mana cost">

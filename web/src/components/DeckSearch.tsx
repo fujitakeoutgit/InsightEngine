@@ -132,6 +132,23 @@ export function DeckSearch() {
     inputRef.current?.focus()
   }
 
+  /** Take a suggestion: put it in the box and go and find it.
+   *
+   * Choosing a card from the list is not the same gesture as completing a
+   * word. Tab is there for "finish typing this, I am still deciding"; picking
+   * one deliberately — clicking it, or pressing Enter on the one highlighted —
+   * says which card you meant, and leaving that sitting in the box waiting for
+   * a second Enter is a step that answers nothing.
+   *
+   * The name is passed to `run` rather than read back from state: `setDraft`
+   * has not landed yet at this point, so the search would go out with whatever
+   * was typed before.
+   */
+  const pick = (name: string) => {
+    fill(name)
+    void run(name)
+  }
+
   const run = async (term = draft) => {
     if (!term.trim()) return
     setBusy(true)
@@ -165,7 +182,11 @@ export function DeckSearch() {
     }
     if (event.key === 'Enter') {
       event.preventDefault()
-      run()
+      // The highlighted suggestion if the list is showing one, otherwise
+      // whatever is typed. Escape closes the list, so the raw text is always
+      // reachable when the suggestion is not what you meant.
+      if (open && names.length) pick(names[highlight] ?? draft)
+      else void run()
       return
     }
     if (event.key === 'Escape') { setNames([]); setOpen(false) }
@@ -197,7 +218,7 @@ export function DeckSearch() {
                   className={i === highlight ? 'active' : ''}
                   onMouseDown={(e) => e.preventDefault()}
                   onMouseEnter={() => setHighlight(i)}
-                  onClick={() => fill(name)}
+                  onClick={() => pick(name)}
                 >
                   {name}
                 </button>

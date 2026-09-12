@@ -790,6 +790,136 @@
 
 /* --- accent picker ---------------------------------------------------- */
 
+/* Reset, asked a second time.
+ *
+ * At rest it is the outlined danger button like any other. Armed it fills in:
+ * the same red it was already wearing, now solid, because the difference
+ * between "this is destructive" and "this is about to happen" has to be
+ * visible at a glance in a button 10px tall. */
+.pt-reset.armed,
+.pt-reset.armed:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--aether-ink);
+  font-weight: 600;
+}
+
+/* The Main / Prototype shelves, above the deck gallery and the playtest
+   picker. Borrows the editor's section tabs so a tab reads the same wherever
+   it appears; only the spacing differs, because here it sits under a masthead
+   rather than inside a panel. */
+.gallery-shelves { margin: 18px 0 14px; }
+
+/* --- type line ---------------------------------------------------------- */
+
+.type-line { position: relative; min-width: 0; }
+
+/* One box holding the chosen types and the field that adds the next, so the
+   whole control reads as a single input rather than a list beside a box. */
+/* Stacked, one type per line, rather than wrapped into a row.
+   A column reads as a list of conditions — which is what it is — and it keeps
+   every IS/NOT badge in the same place down the left, so the shape of the
+   filter is legible without reading any of the words. */
+.type-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 38px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--glass);
+  cursor: text;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+
+.type-field:focus-within {
+  border-color: var(--aether);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--aether) 12%, transparent);
+}
+
+.type-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--bg-hi);
+  overflow: hidden;
+}
+
+.type-token .tt-drop {
+  padding: 3px 7px;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--faint);
+  border-right: 1px solid var(--line-soft);
+  transition: color var(--dur-fast), background-color var(--dur-fast);
+}
+
+.type-token .tt-drop:hover {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+/* The whole point of the control: each type carries its own answer, and the
+   answer is a button. Green for required, red for excluded — the two states
+   have to be separable at a glance down a column of them, which is more than
+   a minus sign in front of a word manages.
+
+   Their own colours rather than --ok and --danger: those are signal colours,
+   pitched to be alarming, and a row of them down the form shouts about a
+   choice that is routine. These are the muted red and green the mana pips
+   already use, so the control sits in the page instead of on top of it.
+
+   Fixed, and deliberately outside the accent system. They mean Magic's red
+   and green, the same way the mana symbols do, and a retint that turned
+   "required" orange would be saying something untrue. The ink is fixed for
+   the same reason: it has to stay legible on these two swatches whatever
+   colour the rest of the interface becomes. */
+.type-token .tt-mode {
+  padding: 3px 7px;
+  font-family: var(--font-m);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  line-height: 1.3;
+  color: #101318;
+  background: #a3c095;
+  transition: background-color var(--dur-fast);
+}
+
+.type-token.not .tt-mode { background: #e49977; }
+.type-token .tt-mode:hover { filter: brightness(1.12); }
+
+.type-token .tt-name { padding: 3px 9px 3px 8px; font-size: 13px; }
+
+/* Grows with what is typed, and takes the leftover width when the box is
+   empty so the placeholder is readable. */
+.tt-input {
+  /* Its own row under the stack, full width, so the placeholder has room and
+     the caret is always in the same place however many types are listed. */
+  width: 100%;
+  flex: none;
+  border: 0;
+  background: none;
+  outline: none;
+  padding: 3px 4px;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+.type-options { max-height: 280px; overflow-y: auto; }
+
+.tt-heading {
+  padding: 7px 11px 3px;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
 .accent-picker { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 
 .accent-slider,

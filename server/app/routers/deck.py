@@ -272,6 +272,9 @@ class SaveRequest(BaseModel):
     commander: str | None = None
     format: str | None = None
     description: str | None = None
+    #: 'main' or 'prototype'. Omitted means leave it where it is on an update,
+    #: and Main on a new deck — see storage.save.
+    group: str | None = None
 
 
 @router.get("/saved")
@@ -285,7 +288,7 @@ async def save_deck(request: SaveRequest):
         deck = storage.save(
             state.require_conn(), request.name, request.text,
             deck_id=request.id, commander=request.commander, format_key=request.format,
-            description=request.description,
+            description=request.description, group=request.group,
         )
     except storage.DeckError as exc:
         raise HTTPException(400, str(exc)) from exc

@@ -2,9 +2,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { isBinder } from '../lib/binder'
-import { api, type SavedDeck } from '../lib/api'
+import { DECK_GROUPS, api, groupOf, type DeckGroup, type SavedDeck } from '../lib/api'
 import { canAnimate, gsap, splitChars } from '../lib/motion'
-import { useTransientMessage } from '../lib/usePersisted'
+import { usePersisted, useTransientMessage } from '../lib/usePersisted'
 import { BackLink } from '../components/PageHead'
 
 const COLOR_VAR: Record<string, string> = {
@@ -66,6 +66,10 @@ export function DeckGalleryPage() {
   const [decks, setDecks] = useState<SavedDeck[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
+  /* Which shelf is showing. Remembered, because it is where you work rather
+   * than a filter you set each visit — someone living in Prototype for an
+   * evening should not land on Main every time they come back. */
+  const [group, setGroup] = usePersisted<DeckGroup>('insight-engine:deck-group', 'main')
   const [sortBy, setSortBy] = useState<SortBy>('updated')
   /** The deck being renamed, and the draft name. */
   const [renaming, setRenaming] = useState<{ id: number; value: string } | null>(null)
@@ -101,17 +105,24 @@ export function DeckGalleryPage() {
     )
   }, [])
 
+  /** How many decks sit on each shelf, for the tab counts. */
+  const counts = useMemo(() => ({
+    main: (decks ?? []).filter((d) => groupOf(d) === 'main').length,
+    prototype: (decks ?? []).filter((d) => groupOf(d) === 'prototype').length,
+  }), [decks])
+
   const visible = useMemo(() => {
     if (!decks) return null
+    const shelf = decks.filter((d) => groupOf(d) === group)
     const needle = filter.trim().toLowerCase()
     const matched = needle
-      ? decks.filter((d) =>
+      ? shelf.filter((d) =>
           d.name.toLowerCase().includes(needle)
           || (d.commander ?? '').toLowerCase().includes(needle)
           || (d.format ?? '').toLowerCase().includes(needle))
-      : decks
+      : shelf
     return sortDecks(matched, sortBy)
-  }, [decks, filter, sortBy])
+  }, [decks, filter, sortBy, group])
 
   /* The reveal, on arrival and on a re-sort — but not on filtering.
    *
@@ -245,6 +256,25 @@ export function DeckGalleryPage() {
         </p>
       )}
 
+      {/* The two shelves. Always both, even when one is empty: an empty
+          Prototype tab is how you find out the shelf exists, and a tab that
+          appears only once it has something in it cannot be dragged to. */}
+      {decks && (
+        <div className="section-tabs gallery-shelves">
+          {DECK_GROUPS.map(({ key, label }) => (
+            <button
+              key={key}
+              className={group === key ? 'on' : ''}
+              onClick={() => setGroup(key)}
+              aria-pressed={group === key}
+            >
+              {label}
+              <span className="mono faint"> {counts[key]}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Only once there is enough to sift. Two decks do not need a sort
           control, and an empty toolbar over an empty gallery is furniture. */}
       {decks && decks.length > 1 && (
@@ -269,7 +299,7 @@ export function DeckGalleryPage() {
             ))}
           </select>
           <span className="push mono faint" style={{ fontSize: 11 }}>
-            {visible?.length ?? 0} of {decks.length}
+            {visible?.length ?? 0} of {counts[group]}
           </span>
         </div>
       )}
@@ -403,9 +433,16 @@ export function DeckGalleryPage() {
         </div>
       )}
 
+      {/* Two different empties. A filter that matched nothing is about the
+          filter; a shelf with nothing on it is about the shelf, and saying
+          "no deck matches" when you have not typed anything is a non-answer. */}
       {visible?.length === 0 && decks && decks.length > 0 && (
         <p className="muted" style={{ fontSize: 13, marginTop: 12 }}>
-          No deck matches “{filter}”.
+          {filter.trim()
+            ? `No deck on this shelf matches “${filter}”.`
+            : group === 'prototype'
+              ? 'Nothing in Prototype yet. Copies land here, and any deck can be moved here from its Text tab.'
+              : 'Nothing in Main yet.'}
         </p>
       )}
     </section>

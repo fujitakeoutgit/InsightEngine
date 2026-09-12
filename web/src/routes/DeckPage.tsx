@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import {
-  api, streamDeckRecommendations, type Category,
+  DECK_GROUPS, api, groupOf, streamDeckRecommendations, type Category, type DeckGroup,
   type Card, type DeckReport, type RecommendReport, type Resolution,
 } from '../lib/api'
 import {
@@ -141,6 +141,8 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
   const [savedAt, setSavedAt] = useState<{ created: string; updated: string } | null>(null)
   const [format, setFormat] = useState('commander')
   const [description, setDescription] = useState("")
+  /** Main unless the deck says otherwise — a new deck is a deck you mean. */
+  const [group, setGroup] = useState<DeckGroup>('main')
 
   const [searchParams] = useSearchParams()
   /* The editor opens on Build. A lesson about importing a list has to be
@@ -290,6 +292,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         setSavedId(deck.id)
         setSavedAt({ created: deck.created_at, updated: deck.updated_at })
         setDescription(deck.description ?? "")
+        setGroup(groupOf(deck))
         if (deck.format) setFormat(deck.format)
         const analysed = await analyseText(deck.text ?? '')
         if (!cancelled && analysed) setDeckCards(fromResolutions(analysed.entries))
@@ -544,6 +547,10 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         text,
         format,
         description,
+        // Onto the Prototype shelf whatever the original was. A copy exists to
+        // be pulled apart — that is what copying a deck is for — and it should
+        // not sit in Main beside the finished deck it was made from.
+        group: 'prototype',
       })
       navigate(`/deck/${deck.id}`)
     } catch {
@@ -670,6 +677,8 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         // it singular: saving cannot fork it into a second one.
         name: binder ? BINDER_NAME : (deckName || 'Untitled deck'), text,
         id: savedId ?? undefined, format: format || null, description,
+        // The binder is not on a shelf; it is its own tab.
+        group: binder ? undefined : group,
       })
       setSavedId(deck.id)
       setDeckName(deck.name)
@@ -846,6 +855,20 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
               onChange={(e) => setFormat(e.target.value)} aria-label="Format"
             >
               {REC_FORMATS.map((f) => <option key={f} value={f}>{f || 'Any format'}</option>)}
+            </select>
+          </label>
+          {/* Which shelf the deck lives on in the gallery. Here beside its name
+              and format because that is what this row is — the things the deck
+              *is*, as opposed to the cards it contains. */}
+          <label className="stack gap-1">
+            <span className="label">Group</span>
+            <select
+              className="fld" style={{ width: 'auto' }} value={group}
+              onChange={(e) => setGroup(e.target.value as DeckGroup)} aria-label="Deck group"
+            >
+              {DECK_GROUPS.map(({ key, label }) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
             </select>
           </label>
         </div>
@@ -1351,8 +1374,8 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
           <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal>
             <h3>Copy “{deckName.trim() || 'Untitled deck'}”?</h3>
             <p className="muted">
-              A new deck called “{deckName.trim() || 'Untitled deck'} - copy” is saved and
-              opened. This one is left exactly as it is.
+              A new deck called “{deckName.trim() || 'Untitled deck'} - copy” is saved to
+              Prototype and opened. This one is left exactly as it is.
               {dirty && ' Your unsaved changes are included in the copy.'}
             </p>
             <div className="row gap-2" style={{ marginTop: 'var(--gap-3)' }}>

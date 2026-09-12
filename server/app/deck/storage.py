@@ -14,6 +14,12 @@ from typing import Any
 
 MAX_DECK_BYTES = 200_000
 
+#: Which shelf a deck sits on. Two, deliberately: the point of the split is
+#: that the gallery stops mixing the decks you play with the ones you are
+#: halfway through, and a third would start being a filing system.
+DECK_GROUPS = ("main", "prototype")
+DEFAULT_GROUP = "main"
+
 
 class DeckError(ValueError):
     pass
@@ -31,6 +37,9 @@ def _row(row: sqlite3.Row, *, with_text: bool = True) -> dict[str, Any]:
         "commander": row["commander"],
         "description": row["description"] if "description" in keys else None,
         "format": row["format"],
+        # Guarded like `description`: a row read before the column existed —
+        # or by a query that did not select it — is on the Main shelf.
+        "deck_group": row["deck_group"] if "deck_group" in keys else DEFAULT_GROUP,
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
         # Present when the listing query joined the commander's card row; the
@@ -97,8 +106,10 @@ def save(
     commander: str | None = None,
     format_key: str | None = None,
     description: str | None = None,
+    group: str | None = None,
 ) -> dict[str, Any]:
     name = (name or "").strip() or "Untitled deck"
+    group = group if group in DECK_GROUPS else None
     if len(text.encode("utf-8")) > MAX_DECK_BYTES:
         raise DeckError("Decklist is too large to save.")
 
@@ -107,18 +118,23 @@ def save(
 
     now = _now()
     if deck_id is not None:
+        # COALESCE, so a caller that does not mention the group leaves it
+        # alone. Most saves are the editor writing a decklist back, and they
+        # have no opinion about which shelf the deck is on.
         cursor = conn.execute(
             "UPDATE decks SET name = ?, text = ?, commander = ?, commander_oracle_id = ?, "
-            "format = ?, description = ?, updated_at = ? WHERE id = ?",
-            (name, text, commander, oracle_id, format_key, description, now, deck_id),
+            "format = ?, description = ?, deck_group = COALESCE(?, deck_group), "
+            "updated_at = ? WHERE id = ?",
+            (name, text, commander, oracle_id, format_key, description, group, now, deck_id),
         )
         if cursor.rowcount == 0:
             raise DeckError(f"No saved deck with id {deck_id}.")
     else:
         cursor = conn.execute(
             "INSERT INTO decks(name, text, commander, commander_oracle_id, format, "
-            "description, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?)",
-            (name, text, commander, oracle_id, format_key, description, now, now),
+            "description, deck_group, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+            (name, text, commander, oracle_id, format_key, description,
+             group or DEFAULT_GROUP, now, now),
         )
         deck_id = cursor.lastrowid
     conn.commit()

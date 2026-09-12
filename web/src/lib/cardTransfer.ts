@@ -27,3 +27,31 @@ export function onCardTaken(fn: Listener) {
   listeners.add(fn)
   return () => { listeners.delete(fn) }
 }
+
+/* Whether the drag in flight was thrown away.
+ *
+ * A card leaving the tray is destroyed when the drag ends, on the grounds that
+ * it went somewhere. `dropEffect` used to be the evidence for that — 'none'
+ * meaning abandoned — and it is not evidence at all once `useQuietDrag` is
+ * mounted: that hook preventDefaults `dragover` across the whole document so
+ * the cursor stops showing a prohibition sign over the gaps between drop
+ * targets, and a side effect is that every drop is "allowed" and reports
+ * 'move'. Let go over empty page and the tray concluded it had handed the card
+ * over, and deleted it.
+ *
+ * So the abandonment is recorded where it is actually known. A drop that
+ * reaches the document without anyone having called `preventDefault` on it is
+ * a drop nothing accepted; `useQuietDrag` sees exactly that and says so here.
+ *
+ * A single flag rather than a subscription: one drag is in flight at a time,
+ * and `drop` always precedes `dragend`. */
+let abandoned = false
+
+/** Called by the card leaving, as the drag starts. */
+export function beginTransfer() { abandoned = false }
+
+/** Called when a drop landed on nothing at all. */
+export function markAbandoned() { abandoned = true }
+
+/** Read by the card leaving, as the drag ends. */
+export function wasAbandoned() { return abandoned }

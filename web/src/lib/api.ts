@@ -162,12 +162,25 @@ export interface SyncStatus {
   error?: string | null
 }
 
+/** Which shelf a deck sits on in the gallery and the playtest picker. */
+export type DeckGroup = 'main' | 'prototype'
+
+export const DECK_GROUPS: { key: DeckGroup; label: string }[] = [
+  { key: 'main', label: 'Main' },
+  { key: 'prototype', label: 'Prototype' },
+]
+
+/** Older rows predate the column; the server defaults them to main. */
+export const groupOf = (deck: { deck_group?: string | null }): DeckGroup =>
+  deck.deck_group === 'prototype' ? 'prototype' : 'main'
+
 export interface SavedDeck {
   id: number
   name: string
   description?: string | null
   commander: string | null
   format: string | null
+  deck_group?: string | null
   created_at: string
   updated_at: string
   text?: string
@@ -357,10 +370,15 @@ export const api = {
 
   savedDecks: () => get<{ decks: SavedDeck[] }>('/api/deck/saved'),
 
-  saveDeck: (deck: { name: string; text: string; id?: number; format?: string | null ; description?: string | null }) =>
+  saveDeck: (deck: {
+    name: string; text: string; id?: number; format?: string | null
+    description?: string | null
+    /** Omitted leaves an existing deck where it is, and puts a new one in Main. */
+    group?: DeckGroup
+  }) =>
     post<{ deck: SavedDeck }>('/api/deck/saved', {
       name: deck.name, text: deck.text, id: deck.id ?? null, format: deck.format ?? null,
-      description: deck.description ?? null,
+      description: deck.description ?? null, group: deck.group ?? null,
     }),
 
   loadDeck: (id: number) => get<{ deck: SavedDeck }>(`/api/deck/saved/${id}`),
@@ -388,6 +406,7 @@ export const api = {
     return api.saveDeck({
       id: next.id, name: next.name, text: next.text ?? '',
       format: next.format, description: next.description,
+      group: next.deck_group as DeckGroup | undefined,
     })
   },
 
@@ -401,7 +420,12 @@ export const api = {
    *  original is untouched — the point is to try a rebuild without losing what
    *  the deck was. */
   duplicateDeck: (id: number) =>
-    api.patchDeck(id, (deck) => ({ id: undefined, name: `${deck.name} - copy` })),
+    // Onto the Prototype shelf. A copy exists to be pulled apart — that is
+    // what copying a deck is for — and it should not sit beside the finished
+    // one it was made from.
+    api.patchDeck(id, (deck) => ({
+      id: undefined, name: `${deck.name} - copy`, deck_group: 'prototype',
+    })),
 
   deleteDeck: async (id: number) => {
     const resp = await fetch(`/api/deck/saved/${id}`, { method: 'DELETE' })

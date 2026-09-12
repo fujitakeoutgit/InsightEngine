@@ -361,6 +361,11 @@ def init_db(conn: sqlite3.Connection) -> None:
     # away the only data in this database the user actually created.
     _add_column_if_missing(conn, "decks", "commander_oracle_id", "TEXT")
     _add_column_if_missing(conn, "decks", "description", "TEXT")
+    # Which shelf a deck sits on: 'main' for the ones you play, 'prototype' for
+    # the ones you are still building. Defaulted rather than nullable so every
+    # deck that existed before the split lands somewhere real, and that
+    # somewhere is Main -- a deck you already had is not a draft.
+    _add_column_if_missing(conn, "decks", "deck_group", "TEXT NOT NULL DEFAULT 'main'")
     conn.commit()
 
 

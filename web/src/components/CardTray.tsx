@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { Card } from '../lib/api'
-import { announceTaken, DECK_UID_TYPE } from '../lib/cardTransfer'
+import { announceTaken, beginTransfer, DECK_UID_TYPE, wasAbandoned } from '../lib/cardTransfer'
 import { collection, useCollection } from '../lib/collection'
 import { primaryType } from '../lib/deckModel'
 import { useCardFace } from '../lib/faces'
@@ -63,6 +63,7 @@ function TrayCard({
       onDragStart={(event) => {
         copying.current = event.shiftKey
         landedInside.current = false
+        beginTransfer()
         // Both types: the custom one carries the card, and text/plain means a
         // drop anywhere else pastes a usable decklist line.
         event.dataTransfer.setData(CARD_DRAG_TYPE, JSON.stringify(card))
@@ -81,10 +82,19 @@ function TrayCard({
          * read as a successful hand-off and delete the card. Rearranging
          * inside the tray is not leaving it, and the bin is the only thing in
          * here that removes anything. `dropEffect` of 'none' means the drag
-         * was abandoned entirely. */
+         * was abandoned entirely.
+         *
+         * `wasAbandoned` covers the case dropEffect cannot. With the deck
+         * editor open, `useQuietDrag` makes the whole document accept drops —
+         * that is what stops a prohibition cursor appearing over every gap
+         * between targets — and the cost is that dropEffect reads 'move' even
+         * when the card was let go over nothing at all. Dropping a card
+         * somewhere that could not take it destroyed it. Nothing accepted it,
+         * so the tray keeps it. */
         if (
           !copying.current
           && !landedInside.current
+          && !wasAbandoned()
           && event.dataTransfer.dropEffect !== 'none'
         ) {
           collection.remove(card.oracle_id)
