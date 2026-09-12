@@ -224,6 +224,32 @@ def ensure_mirror() -> bool:
     return True
 
 
+def build_url(url: str) -> str:
+    """The app's address, stamped with which build is installed.
+
+    Opening the app does not reload it. `webbrowser.open` hands a URL to the
+    browser, and a browser given a URL it already has open will generally
+    focus that tab rather than fetch it again — so after an update the tray
+    icon shows you the old interface and nothing about that looks like a
+    cache. This has now confused three separate updates.
+
+    The stamp changes only when a new interface is installed, so the address
+    is stable across ordinary launches — focusing an existing tab is right
+    when the tab is current — and changes exactly once per upgrade, which the
+    browser cannot satisfy from the tab it already has.
+
+    Falls back to the bare URL if the build cannot be dated; a missing stamp
+    is worse than no stamp only in the case this exists to fix.
+    """
+    try:
+        from .main import PROJECT_ROOT
+
+        index = PROJECT_ROOT / "web" / "dist" / "index.html"
+        return f"{url}/?b={int(index.stat().st_mtime)}"
+    except Exception:  # noqa: BLE001 - an address is not worth failing over
+        return url
+
+
 def _already_running(url: str) -> bool:
     """Whether an Insight Engine is already serving on our port.
 
@@ -290,7 +316,7 @@ def _settle(url: str, opened_tray: bool) -> None:
         # No icon means no way in, so this is the one case that opens a
         # browser. With a tray, a launch is not a request to be shown
         # something -- the icon is there and Open is one click away.
-        webbrowser.open(url)
+        webbrowser.open(build_url(url))
 
 
 def main() -> int:
@@ -312,7 +338,7 @@ def main() -> int:
     # same way every time.
     if _already_running(url):
         _say("  Already running; opening the copy that is already up.")
-        webbrowser.open(url)
+        webbrowser.open(build_url(url))
         return 0
 
     import uvicorn

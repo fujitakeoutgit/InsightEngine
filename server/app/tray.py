@@ -135,6 +135,16 @@ def start(url: str, on_quit: Callable[[], None], status: str = "") -> bool:
         on_quit()
 
     try:
+        # Imported here rather than at module scope: the launcher imports the
+        # tray, so the other direction has to wait until it is needed.
+        def _app_url(base: str) -> str:
+            try:
+                from .launcher import build_url
+
+                return build_url(base)
+            except Exception:  # noqa: BLE001 - the bare address still works
+                return base
+
         icon = pystray.Icon(
             "insight-engine",
             icon=make_icon(),
@@ -142,7 +152,13 @@ def start(url: str, on_quit: Callable[[], None], status: str = "") -> bool:
             menu=pystray.Menu(
                 # Default: a plain left-click opens the app, which is what
                 # clicking the icon of a thing you cannot see should do.
-                Item("Open", lambda: webbrowser.open(url), default=True),
+                #
+                # Through `build_url`, so the first open after an update is a
+                # URL the browser has not got a tab for and has to fetch.
+                # Without that, pressing this shows the tab you already had —
+                # which is the old interface, and looks like the update never
+                # installed.
+                Item("Open", lambda: webbrowser.open(_app_url(url)), default=True),
                 Item("Open data folder", lambda: _open_folder(settings.data_dir)),
                 Item("Rebuild card data", lambda: _rebuild_cards(url)),
                 pystray.Menu.SEPARATOR,
