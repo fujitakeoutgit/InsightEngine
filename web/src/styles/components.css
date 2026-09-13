@@ -14,12 +14,14 @@
 .hero.searching { padding-top: 0; }
 .hero.searching .searchbar { margin-top: 0; }
 
-/* The bottom padding is splash spacing too, and once the top tightened it was
-   the odd number out: 32px between the parsed-query chips and the toolbar, in
-   a stack that is otherwise 10px from the field to the chips and 20px from the
-   toolbar to the results. Matched to the toolbar's own margin so the three
-   blocks are evenly spaced rather than one gap being half again as large. */
-.hero.searching { padding-bottom: 20px; }
+/* The bottom padding is splash spacing too, and it was stacking on top of
+   spacing the next row already has: the toolbar carries 14px of its own above
+   the count, so the hero's padding was pure addition on top of that. Measured
+   from the chips to the words "N cards" it came to 44px, which is what reads
+   as a gap — the element-to-element distance was never the number that
+   mattered. Zero here leaves the toolbar's own padding to do the separating,
+   the way it does for every other row on the page. */
+.hero.searching { padding-bottom: 0; }
 
 .hero-title {
   font-family: var(--font-d);

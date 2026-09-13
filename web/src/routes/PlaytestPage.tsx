@@ -54,6 +54,15 @@ export function PlaytestPage() {
   /** Only the sleeve reads this — a seeded deck ships wearing one, keyed by
    *  name. See `lib/sleeves`. */
   const [deckName, setDeckName] = useState('')
+
+  /* The table claims the screen the moment a deck is chosen, not when its
+   * cards arrive — so the page behind goes off here too, and not only in
+   * `Playtest`, which does not exist yet while the decklist is resolving. */
+  useLayoutEffect(() => {
+    if (!deckId) return
+    document.documentElement.classList.add('playtesting')
+    return () => document.documentElement.classList.remove('playtesting')
+  }, [deckId])
   const [error, setError] = useState<string | null>(null)
   const titleRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)

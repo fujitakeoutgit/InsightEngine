@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { useCardFace } from '../lib/faces'
 import { entersTapped } from '../lib/landTiming'
@@ -708,6 +708,16 @@ export function Playtest({
    *  say so. Disarmed while a dialog is open, because Escape belongs to the
    *  dialog then and closing both at once would be one keypress too many. */
   useEscape(onClose, !tutoring && !zoomed)
+
+  /* Switch the page behind off rather than trusting this layer to cover it.
+   *
+   * A layout effect, so it runs after the DOM is built and before the browser
+   * paints: the footer is gone in the very first frame the table is drawn in,
+   * not one frame later. See `:root.playtesting` in global.css. */
+  useLayoutEffect(() => {
+    document.documentElement.classList.add('playtesting')
+    return () => document.documentElement.classList.remove('playtesting')
+  }, [])
 
   return (
     <div className="playtest" style={skin}>

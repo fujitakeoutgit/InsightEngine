@@ -672,6 +672,17 @@ select.fld {
    Footer
    -------------------------------------------------------------------------- */
 
+/* The table is a mode, not a page on top of a page.
+ *
+ * The playtest is a fixed layer over the app, and the footer used to be
+ * hidden only in the sense that something was painted in front of it — which
+ * made "is the footer visible" a question about paint timing and about the
+ * layer's own opacity, and it lost that argument twice. The page it covers is
+ * switched off instead: `Playtest` sets this class in a layout effect, so the
+ * footer is gone in the same commit the table arrives in, before anything is
+ * painted, and stays gone however the layer above it is drawn. */
+:root.playtesting .footer { display: none; }
+
 .footer {
   border-top: 1px solid var(--line-soft);
   padding-block: 26px;
