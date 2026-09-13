@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { isBinder } from '../lib/binder'
@@ -182,7 +183,11 @@ export function PlaytestPage() {
    * The same `.playtest` layer, so it is the same surface arriving early
    * rather than a second thing that looks like it. */
   if (deckId) {
-    return (
+    /* Portalled for the same reason the table is: `<main>` carries a filter
+       for half a second after every route change, and a filtered ancestor
+       makes `inset: 0` mean its own box instead of the screen. See the note
+       in `Playtest`. */
+    return createPortal(
       <div className="playtest pt-waiting">
         {error ? (
           <div className="notice error" style={{ maxWidth: 420 }}>
@@ -197,7 +202,8 @@ export function PlaytestPage() {
         ) : (
           <div className="row gap-2 muted"><span className="spinner" /> Shuffling up…</div>
         )}
-      </div>
+      </div>,
+      document.body,
     )
   }
 

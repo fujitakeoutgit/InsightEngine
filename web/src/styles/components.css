@@ -2673,18 +2673,19 @@
 .playtest {
   position: fixed;
   inset: 0;
+  /* Under the nav, and below it. The nav stays reachable while you play —
+     leaving the table should not be the only thing you can do from it.
+
+     The space for it is reserved rather than overlapped, measured live by the
+     header itself because that height moves with the font and the window: see
+     `--header-h` in Layout. Reserving against a measured value is only safe
+     now that this layer is portalled out of `<main>`; while it was inside, a
+     half-second `filter` on `<main>` made `inset: 0` mean "the size of main"
+     and moved the whole table when it cleared. See the note in `Playtest`. */
   z-index: 60;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  /* Below the header, not under it.
-     This is a fixed layer at `inset: 0` sitting beneath a sticky header, so
-     its first ~62px were always covered. The top bar used to occupy that
-     strip and hide the problem — badly, by flashing its own contents through
-     it on every load. With the bar gone the mat would take the covering
-     instead, so the space is reserved outright. Measured live by the header
-     itself, because the height changes with the font and the window: see
-     `--header-h` in Layout. */
   padding: calc(var(--header-h, 62px) + 12px) 16px 14px;
   background:
     radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--aether) 7.0%, transparent), transparent 60%),

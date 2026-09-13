@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import { useCardFace } from '../lib/faces'
 import { entersTapped } from '../lib/landTiming'
@@ -719,7 +720,22 @@ export function Playtest({
     return () => document.documentElement.classList.remove('playtesting')
   }, [])
 
-  return (
+  /* Portalled to `<body>`, not rendered where the page keeps its content.
+   *
+   * `dissolvePage` resolves every route out of blur by putting a `filter` on
+   * `<main>` for half a second. A filtered element is a containing block for
+   * the fixed-position boxes inside it, so for that half second this layer's
+   * `inset: 0` meant "the size of `<main>`" rather than "the size of the
+   * screen" — which is why the footer showed underneath it — and it is also a
+   * stacking context, so no z-index here could lift the table over the header.
+   * Then the tween cleared the filter, the layer re-resolved against the
+   * viewport, and everything on it moved: the stutter after the table had
+   * already drawn.
+   *
+   * A mode that takes the whole screen has no business living inside the
+   * element the page animates. Out here it is measured against the viewport
+   * and nothing above it can be made to matter. */
+  return createPortal(
     <div className="playtest" style={skin}>
       {/* The mat. No border, no lanes, no labels: cards sit where you put them. */}
       <div
@@ -987,7 +1003,8 @@ export function Playtest({
           onClose={() => setZoomed(null)}
         />
       )}
-    </div>
+    </div>,
+    document.body,
   )
 }
 
