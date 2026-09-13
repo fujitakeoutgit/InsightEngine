@@ -17,12 +17,16 @@ everyone already running had the flag set and skipped the loop entirely.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import sqlite3
 from pathlib import Path
 
 from .db import get_meta, set_meta
 
 SEED_KEY = "seed:decks"
+#: Holds the digest of the printings file that is currently installed.
+PRINTINGS_KEY = "seed:printings"
 SEED_DIR = Path(__file__).resolve().parent / "seed"
 
 #: Name, format, decklist file, and how the deck works.
@@ -50,6 +54,37 @@ SEED_DECKS = (
 def _marker(name: str) -> str:
     """The meta key recording that one seed deck has had its turn."""
     return f"seed:deck:{name}"
+
+
+def install_printings(conn: sqlite3.Connection) -> int:
+    """Put the sample decks' editions in place. Returns how many were added.
+
+    Separate from seeding the decks, and not gated on it: an install that
+    already has the samples still wants their art right, and the printings are
+    shared -- a printing this file carries is just as valid for a deck of your
+    own that happens to name the same edition.
+
+    Keyed on the file's own contents rather than a "done" flag, so revising a
+    sample decklist and re-fetching reinstalls what changed. The digest is the
+    cheapest honest version of "is this the same file as last time".
+    """
+    path = SEED_DIR / "printings.json"
+    if not path.exists():
+        return 0
+    raw = path.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()[:16]
+    if get_meta(conn, PRINTINGS_KEY) == digest:
+        return 0
+
+    from .deck import printings as printing_store
+
+    try:
+        rows = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return 0
+    added = printing_store.install(conn, rows)
+    set_meta(conn, PRINTINGS_KEY, digest)
+    return added
 
 
 def _carry_forward_legacy_marker(conn: sqlite3.Connection) -> None:
@@ -100,6 +135,10 @@ def seed_decks(conn: sqlite3.Connection) -> int:
     # the first start after ingest costs nothing and gets it right.
     if not _mirror_ready(conn):
         return 0
+
+    # Before the decks are saved, so the first analysis of a freshly seeded
+    # deck already resolves to the editions it names.
+    install_printings(conn)
 
     # Imported here rather than at module scope: storage pulls in the deck
     # parser and resolver, and seeding must not be on the import path of

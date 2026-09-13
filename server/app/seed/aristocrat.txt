@@ -15,14 +15,14 @@ Deck
 1 Cankerbloom (ONE) 161
 1 Cathar Commando (INR) 15
 1 Cloakwood Hermit (CLB) 221
-1 Command Tower (MSC) 233
+1 Command Tower (PLST) OTC-280
 1 Daxos, Blessed by the Sun (THB) 9
-1 Dusk // Dawn (MKC) 61
+1 Dusk // Dawn (C19) 63
 1 Emrakul's Evangel (EMN) 156
 1 Evolving Wilds (MSC) 240
 1 Exotic Orchard (EOC) 159
 1 Explore (OTC) 192
-1 Fecundity (UMA) 165
+1 Fecundity (8ED) 247
 1 Flameshadow Conjuring (MOC) 280
 7 Forest (TRK) 325
 1 Foster (C13) 146
@@ -36,20 +36,20 @@ Deck
 1 Haywire Mite (SOC) 349
 1 High Market (SOC) 380
 1 Hofri Ghostforge (SOC) 314
-1 Hornet Queen (DSC) 184
+1 Hornet Queen (MKC) 172
 1 Impact Tremors (FDN) 717
 1 Jungle Shrine (ECC) 154
 1 Kari Zev's Expertise (AER) 88
 1 Krenko, Tin Street Kingpin (DMC) 124
-1 Krosan Verge (OTC) 304
+1 Krosan Verge (PLST) MOC-412
 1 Lightning Coils (MRD) 198
 1 Mentor of the Meek (INR) 345
 1 Might Makes Right (M15) 156
-1 Mimic Vat (NCC) 372
+1 Mimic Vat (C18) 209
 1 Mistmoon Griffin (VMA) 34
 1 Mitotic Slime (NCC) 302
 1 Mob Rule (VOC) 147
-1 Mogg War Marshal (PLST) DMR-131
+1 Mogg War Marshal (TSR) 176
 3 Mountain (TRK) 323
 1 Myriad Landscape (EOC) 169
 1 Norn's Wellspring (ONE) 24

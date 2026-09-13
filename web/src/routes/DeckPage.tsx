@@ -758,7 +758,6 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
     if (tab === 'pipeline' && !showPipeline) setTab('analysis')
   }, [tab, showPipeline])
 
-  const reasonFor = new Map((recs?.recommendations ?? []).map((r) => [r.card.oracle_id, r.because]))
   // Every card in the commander slot. Two is the ceiling any pairing rule
   // allows, and a partner pair is two commanders rather than one commander
   // with an accessory -- so both are drawn, at the same size.
@@ -1333,11 +1332,15 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
             /* Recommendations are cards you are deciding about, and price is
                most of that decision, so the pin applies here too. */
             <div className={pinOverlay ? 'overlay-pinned' : undefined}>
-              {/* No per-tile +: dragging a suggestion onto the dock says
-                  both *that* you want it and *where*, which the one button
-                  could only guess at. */}
+              {/* No per-tile + and no tooltip.
+                  Dropping `onAdd` was not enough — `collectable` defaults to
+                  true, so the button kept rendering and quietly changed from
+                  "add to maybeboard" to "add to Cards". Dragging onto the
+                  dock says both that you want the card and where it goes.
+                  The reasons still show in the list view, where they have a
+                  column of their own instead of a label chasing the pointer. */}
               <CardGrid cards={visibleRecs.map((r) => r.card)} size={recSize}
-                captionFor={(card) => reasonFor.get(card.oracle_id)?.join(' · ')} />
+                collectable={false} />
             </div>
           ) : (
             visibleRecs.map((rec) => (

@@ -93,6 +93,43 @@ def keep(conn: sqlite3.Connection, card: dict[str, Any]) -> dict[str, Any] | Non
     return row
 
 
+def install(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> int:
+    """Store printings that shipped with the build. Returns how many landed.
+
+    Rows arrive already in this table's shape -- see
+    packaging/fetch-seed-printings.py, which fetches them from Scryfall when a
+    sample decklist changes -- so nothing here has to know Scryfall's schema.
+
+    The sample decks name specific editions, and without these the mirror's
+    one-row-per-card answer decides the art instead: 23 of 88 cards in the
+    Aristocrat sample showed a printing nobody asked for. Fetching them on
+    first run would mean a hundred and fifty round trips before the deck could
+    be drawn, and would not work offline at all.
+
+    `usd` is refreshed on conflict and the rest is not: a printing's art and
+    edition are fixed, its price is the only part that goes stale, and a
+    printing the user has since fetched themselves is newer than this one.
+    """
+    if not rows:
+        return 0
+    stamped = [{**row, "fetched_at": time.time()} for row in rows]
+    conn.executemany(
+        """
+        INSERT INTO printings (
+            scryfall_id, oracle_id, name, set_code, set_name, collector_number,
+            image_small, image_normal, usd, artist, released_at, fetched_at
+        ) VALUES (
+            :scryfall_id, :oracle_id, :name, :set_code, :set_name, :collector_number,
+            :image_small, :image_normal, :usd, :artist, :released_at, :fetched_at
+        )
+        ON CONFLICT(scryfall_id) DO UPDATE SET usd = excluded.usd
+        """,
+        stamped,
+    )
+    conn.commit()
+    return len(stamped)
+
+
 def lookup(
     conn: sqlite3.Connection, set_code: str, collector_number: str,
 ) -> dict[str, Any] | None:
