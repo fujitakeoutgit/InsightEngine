@@ -189,10 +189,13 @@ export async function restore(backup: Backup): Promise<RestoreReport> {
       else report.created += 1
 
       // The sleeve goes onto whatever id this install just used.
+      /* `!== undefined` rather than truthy: an empty string is the record of
+         a sleeve deliberately taken off, which matters for a seeded deck that
+         would otherwise put its default one back on. */
       const art = backup.sleeves[deck.name]
-      if (art) {
+      if (art !== undefined) {
         setSleeve(String(saved.deck.id), art)
-        report.sleeves += 1
+        if (art) report.sleeves += 1
       }
     } catch {
       report.failed.push(deck.name)

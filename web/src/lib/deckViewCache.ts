@@ -10,9 +10,15 @@ import type { RecommendReport } from './api'
  * full report is large and only useful while the tab is open.
  */
 export interface DeckView {
-  tab: 'analysis' | 'search' | 'recommendations' | 'pipeline'
+  tab: 'analysis' | 'search' | 'recommendations' | 'pipeline' | 'ai'
+  /** What the Recommendations tab is showing. */
   recs: RecommendReport | null
-  aiMode: boolean
+  /* What the AI tab is showing, held separately rather than in `recs` under a
+     flag. The two answer different questions and take very different amounts
+     of work to produce -- minutes against a second -- so one overwriting the
+     other was a real loss: asking the cheap one threw away the expensive one,
+     and there was no way back to it but another run. */
+  aiRecs: RecommendReport | null
   aiStrategy: string | null
   activeThemes: string[]
 }

@@ -1,11 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { api, type Card } from '../lib/api'
 import { useCardFace } from '../lib/faces'
+import { groupBareCards, sortCards } from '../lib/deckModel'
+import type { GroupBy, Section, SortBy } from '../lib/deckModel'
 import { solidDragImage } from '../lib/useQuietDrag'
 import { attachTilt, dissolveIn } from '../lib/motion'
-import { OVERLAY_KEY, usePersisted } from '../lib/usePersisted'
+import {
+  GROUP_KEY, OVERLAY_KEY, SORT_DIR_KEY, SORT_KEY,
+  usePersisted, useShared, useSortDir,
+} from '../lib/usePersisted'
 import { FlipButton } from './FlipButton'
+import { GroupTabs, useOpenGroup } from './GroupTabs'
 import { ManaCost } from './ManaCost'
 
 /** Dragging a card out of here carries this; the deck sections read it. */
@@ -15,6 +21,12 @@ function money(value: number | null | undefined) {
   return value === null || value === undefined ? '—' : `$${value.toFixed(2)}`
 }
 
+/** The two places a freshly found card can go. */
+const ADD_SECTIONS: { key: Section; label: string }[] = [
+  { key: 'main', label: 'Main' },
+  { key: 'maybeboard', label: 'Maybe' },
+]
+
 /**
  * One result tile.
  *
@@ -22,7 +34,13 @@ function money(value: number | null | undefined) {
  * needs -- these are the same `.card-tile` as the search page, and were the one
  * place rendering them without the tilt and sheen driving `--mx`/`--my`.
  */
-function SearchTile({ card }: { card: Card }) {
+function SearchTile({
+  card, onAdd,
+}: {
+  card: Card
+  /** Put this card in the deck. Absent means the tile is drag-only. */
+  onAdd?: (card: Card, section: Section) => void
+}) {
   const ref = useRef<HTMLDivElement>(null)
   const face = useCardFace(card)
 
@@ -72,6 +90,26 @@ function SearchTile({ card }: { card: Card }) {
           hover and their pinned state for free — and without it the overlay
           pin had nothing to pin here, which is a switch that does nothing. */}
       <span className="price mono">{money(card.usd)}</span>
+
+      {/* The same two destinations the recommendations offer, in the same
+          place on the same tile, so finding a card is one gesture wherever
+          you found it. Dragging still works and still reaches the sideboard,
+          which these two deliberately do not: a card you have only just
+          looked up is not something you sideboard. */}
+      {onAdd && (
+        <div className="tile-sections">
+          {ADD_SECTIONS.map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              title={`Add ${card.name} to the ${label.toLowerCase()}`}
+              onClick={(event) => { event.stopPropagation(); onAdd(card, key) }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -109,7 +147,14 @@ function SearchTileImage({ src, alt }: { src: string; alt: string }) {
  * box, and only Enter or the button commits. Typing a name and having results
  * churn under you on every keystroke is the behaviour this avoids.
  */
-export function DeckSearch() {
+export function DeckSearch({
+  onAdd,
+}: {
+  /** Put a result straight into the deck. The deck page passes the same
+   *  function its own drop targets use, so a card added by button and one
+   *  added by drag land identically. */
+  onAdd?: (card: Card, section: Section) => void
+} = {}) {
   const [draft, setDraft] = useState('')
   const [names, setNames] = useState<string[]>([])
   const [highlight, setHighlight] = useState(0)
@@ -120,6 +165,15 @@ export function DeckSearch() {
   const [size, setSize] = usePersisted('insight-enigma:deck-search-size', 150)
   /** Shared with the editor and the recommendations: one pin for the app. */
   const [pinOverlay, setPinOverlay] = usePersisted<boolean>(OVERLAY_KEY, false)
+  /* The editor's grouping and sort, read rather than offered.
+   *
+   * Results you are about to pull into a deck want reading the way that deck
+   * reads — creatures together, cheapest first — and a second pair of menus
+   * saying the same two words a panel away would only raise the question of
+   * which one won. The deck editor's menus set these; this follows. */
+  const [groupBy] = useShared<GroupBy>(GROUP_KEY, 'none')
+  const [sortBy] = usePersisted<SortBy>(SORT_KEY, 'name')
+  const [sortDir] = useSortDir(SORT_DIR_KEY, sortBy)
   const inputRef = useRef<HTMLInputElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
 
@@ -137,9 +191,16 @@ export function DeckSearch() {
     return () => { cancelled = true; clearTimeout(timer) }
   }, [draft])
 
+  const ordered = useMemo(() => sortCards(cards ?? [], sortBy, sortDir), [cards, sortBy, sortDir])
+  const groups = useMemo(() => groupBareCards(ordered, groupBy), [ordered, groupBy])
+  /** One bucket is not a grouping, it is the whole list wearing a tab. */
+  const tabbed = groupBy !== 'none' && groups.length > 1
+  const [openGroup, setOpenGroup] = useOpenGroup(groups)
+  const shown = tabbed ? openGroup?.cards ?? [] : ordered
+
   useEffect(() => {
     if (gridRef.current) dissolveIn(gridRef.current.querySelectorAll('.card-tile'), { stagger: 0.02 })
-  }, [cards])
+  }, [cards, groupBy, sortBy, sortDir, openGroup?.key])
 
   const fill = (name: string) => {
     setDraft(name)
@@ -289,10 +350,24 @@ export function DeckSearch() {
       {cards && cards.length > 0 && (
         <>
           <span className="label">{cards.length} result{cards.length === 1 ? '' : 's'} · drag to add</span>
-          <div className="card-grid" ref={gridRef} style={{ ['--card-w' as string]: `${size}px` }}>
-            {cards.map((card) => (
-              <SearchTile key={card.oracle_id} card={card} />
-            ))}
+          {/* Grouped, the results become tabs — the same shape the deck
+              editor's own grid takes, driven by the same menu. */}
+          <div ref={gridRef}>
+            {tabbed && (
+              <GroupTabs
+                label="Result groups"
+                tabs={groups.map((group) => ({
+                  key: group.key, label: group.label, count: group.cards.length,
+                }))}
+                open={openGroup?.key}
+                onOpen={setOpenGroup}
+              />
+            )}
+            <div className="card-grid" style={{ ['--card-w' as string]: `${size}px` }}>
+              {shown.map((card) => (
+                <SearchTile key={card.oracle_id} card={card} onAdd={onAdd} />
+              ))}
+            </div>
           </div>
         </>
       )}

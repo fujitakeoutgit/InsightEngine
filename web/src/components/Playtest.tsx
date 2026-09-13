@@ -202,9 +202,12 @@ function build(deck: DeckCard[]): Instance[] {
  * blocker held back, a combo lined up in a corner.
  */
 export function Playtest({
-  deck, tokens = [], gameKey, onClose,
+  deck, deckName, tokens = [], gameKey, onClose,
 }: {
   deck: DeckCard[]
+  /** As saved. Only the sleeve reads it, to find the one a seeded deck ships
+   *  wearing — see `lib/sleeves`. */
+  deckName?: string
   /** Tokens and emblems this deck can make. Not in the library -- a token is
    *  created, never drawn -- so Tutor offers them as a separate list. */
   tokens?: DeckToken[]
@@ -215,7 +218,7 @@ export function Playtest({
   const signature = useMemo(() => deckSignature(deck), [deck])
   /** The deck's sleeves, if it has been given any. Read once: sleeves are
    *  changed in the Deck Lab, not mid-game. */
-  const [sleeve] = useState(() => sleeveFor(gameKey))
+  const [sleeve] = useState(() => sleeveFor(gameKey, deckName))
   /** The chosen dice and coin finishes, as custom properties on this mat.
    *  Read once: skins are changed in Settings, not mid-game. */
   const [skin] = useState(() => skinVars(readDieSkin(), readD20Skin(), readCoinSkin()))
@@ -226,7 +229,6 @@ export function Playtest({
   const [cards, setCards] = useState<Instance[]>(resumed?.cards ?? [])
   const [turn, setTurn] = useState(resumed?.turn ?? 1)
   const [life, setLife] = useState(resumed?.life ?? 40)
-  const [mulligans, setMulligans] = useState(resumed?.mulligans ?? 0)
   const [log, setLog] = useState<string[]>(resumed?.log ?? [])
   /* Dice and the coin start fresh every time the mat is opened. They are what
    * is on the table right now rather than what the game is, so they are not
@@ -301,7 +303,7 @@ export function Playtest({
 
   const note = useCallback((line: string) => setLog((l) => [line, ...l].slice(0, 40)), [])
 
-  const newGame = useCallback((mull = 0) => {
+  const newGame = useCallback(() => {
     const pool = shuffle(build(deck))
     const library = pool.filter((c) => c.zone === 'library')
     const command = pool.filter((c) => c.zone === 'command')
@@ -310,9 +312,8 @@ export function Playtest({
     setCards([...command, ...hand, ...rest])
     setTurn(1)
     setLife(40)
-    setMulligans(mull)
     setEntering(hand.map((c) => c.iid))
-    setLog([mull ? `Mulligan to ${7 - mull}` : 'New game — drew 7'])
+    setLog(['New game — drew 7'])
   }, [deck])
 
   // Only when there is nothing to come back to. Editing the deck changes its
@@ -320,15 +321,15 @@ export function Playtest({
   // still described the deck.
   useEffect(() => {
     if (resumed) return
-    newGame(0)
+    newGame()
   }, [resumed, newGame])
 
   // Written on every change rather than on the way out: unmount is too late to
   // read state in an effect cleanup that has closed over an older render, and
   // this is cheap -- a Map assignment against state React has already built.
   useEffect(() => {
-    rememberGame(gameKey, { cards, turn, life, mulligans, log, signature })
-  }, [gameKey, signature, cards, turn, life, mulligans, log])
+    rememberGame(gameKey, { cards, turn, life, log, signature })
+  }, [gameKey, signature, cards, turn, life, log])
 
   const inZone = useMemo(() => {
     const map: Record<Zone, Instance[]> = {
@@ -397,13 +398,15 @@ export function Playtest({
    * only tidying gesture needed because the replacement is already there. */
   /** Start over: a fresh deal *and* the dice swept back into their trays.
    *
-   * Mulligan deliberately does not do the second part -- it is still the same
-   * game, and a die you set down to track something is still tracking it. */
+   * The only way back to a new opening hand now that Mulligan is gone, which
+   * is why it also sweeps the table — it is a new game, not the same one
+   * re-dealt, so a die still tracking something from the last one would be
+   * tracking nothing. */
   const resetGame = () => {
     disarmReset()
     setDice([makeDie('d20'), makeDie('d6')])
     setCoin('heads')
-    newGame(0)
+    newGame()
   }
 
   const updateDie = (id: string, next: Partial<DieState>, backInTray = false) => {
@@ -685,40 +688,29 @@ export function Playtest({
     drag.current = null
   }
 
-  const lands = inZone.battlefield.filter((c) => /\bLand\b/.test(c.card.type_line ?? ''))
-  const untappedLands = lands.filter((c) => !c.tapped).length
+  /* The top bar is gone, and with it the last of its contents.
+   *
+   * It held a back button, a board reading, and once a Mulligan — all three
+   * laid across a strip that runs *underneath* the app header, so everything
+   * in it was visible for exactly the frame before the header painted over
+   * it. That flash, and the reflow behind it, was the stutter on load.
+   *
+   * Nothing in it is rebuilt elsewhere. The readings it carried are already
+   * on the board: the library count is printed on the deck pile you are
+   * looking at, and how many lands are untapped is what untapped lands look
+   * like. Leaving the mat is Escape, or the nav above.
+   *
+   * The mat now starts below the header rather than under it — see the
+   * `--header-h` padding on `.playtest`.
+   */
+
+  /** Escape leaves the table, standing in for the back button that used to
+   *  say so. Disarmed while a dialog is open, because Escape belongs to the
+   *  dialog then and closing both at once would be one keypress too many. */
+  useEscape(onClose, !tutoring && !zoomed)
 
   return (
     <div className="playtest" style={skin}>
-      <div className="pt-bar">
-        <button className="back-link" onClick={onClose}>← Back to deck</button>
-        {/* The turn lives under the deck now, beside Next turn — the control
-            that changes it. Two of them disagreed about which was the real
-            one. What is left here is the board reading you glance at rather
-            than act on. */}
-        <span className="mono faint">
-          {inZone.library.length} in library · {untappedLands}/{lands.length} lands untapped
-        </span>
-
-        {/* Next turn and Reset live in the corner beside the deck, with
-            Shuffle and Tutor. Only Mulligan stays here.
-
-            Draw and Untap all are deliberately absent. Drawing is a click on
-            the deck, which is where a player already looks for it, and a
-            button doing the same thing twice is just a second place to check.
-            Untapping is what Next turn is for; a standalone untap button is
-            not a step anyone takes on its own. */}
-        <div className="push row gap-2 wrap">
-          <button
-            className="btn btn-ghost sm"
-            onClick={() => newGame(Math.min(6, mulligans + 1))}
-            title="London mulligan: draw 7, put N on the bottom"
-          >
-            Mulligan {mulligans > 0 && `(${7 - mulligans})`}
-          </button>
-        </div>
-      </div>
-
       {/* The mat. No border, no lanes, no labels: cards sit where you put them. */}
       <div
         className="pt-mat"
@@ -868,8 +860,8 @@ export function Playtest({
             >
               Tutor
             </button>
-            {/* Confirmed, unlike Mulligan: this throws away the whole board,
-                not just the hand, and it sits one button away from Tutor.
+            {/* Confirmed: this throws away the whole board and deals again,
+                and it sits one button away from Tutor.
                 Armed in place rather than behind a dialog — see resetArmed. */}
             <button
               ref={resetRef}

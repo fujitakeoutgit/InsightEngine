@@ -51,6 +51,9 @@ export function PlaytestPage() {
   )
   const [tokens, setTokens] = useState<DeckToken[]>([])
   const [cards, setCards] = useState<DeckCard[] | null>(null)
+  /** Only the sleeve reads this — a seeded deck ships wearing one, keyed by
+   *  name. See `lib/sleeves`. */
+  const [deckName, setDeckName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const titleRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
@@ -76,7 +79,10 @@ export function PlaytestPage() {
     setError(null)
     setCards(null)
     api.loadDeck(Number(deckId))
-      .then((r) => api.analyzeDeck(r.deck.text ?? ''))
+      .then((r) => {
+        if (!cancelled) setDeckName(r.deck.name)
+        return api.analyzeDeck(r.deck.text ?? '')
+      })
       .then((report) => {
         if (cancelled) return
         setCards(fromResolutions(report.entries))
@@ -148,6 +154,7 @@ export function PlaytestPage() {
     return (
       <Playtest
         deck={cards}
+        deckName={deckName}
         tokens={tokens}
         gameKey={deckId}
         onClose={() => navigate('/playtest')}

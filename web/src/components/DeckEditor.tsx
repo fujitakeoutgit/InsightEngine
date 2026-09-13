@@ -12,7 +12,10 @@ import {
 import { useCardFace } from '../lib/faces'
 import { attachTilt } from '../lib/motion'
 import { solidDragImage, useQuietDrag } from '../lib/useQuietDrag'
-import { OVERLAY_KEY, SORT_DIR_KEY, SORT_KEY, usePersisted, useSortDir } from '../lib/usePersisted'
+import {
+  GROUP_KEY, OVERLAY_KEY, SORT_DIR_KEY, SORT_KEY,
+  usePersisted, useShared, useSortDir,
+} from '../lib/usePersisted'
 import { CARD_DRAG_TYPE } from './DeckSearch'
 import { FlipButton } from './FlipButton'
 import { PrintingPicker } from './PrintingPicker'
@@ -85,8 +88,11 @@ export function DeckEditor({
    * there is what opening either one is for. Type grouping is a click away.
    *
    * B4 -- the binder still opens on images, because art is how you recognise a
-   * card you own without reading its name. */
-  const [groupBy, setGroupBy] = useState<GroupBy>('none')
+   * card you own without reading its name.
+   *
+   * Shared rather than local: this menu is also what groups the search results
+   * and the recommendations sitting beside it, so the three read one value. */
+  const [groupBy, setGroupBy] = useShared<GroupBy>(GROUP_KEY, 'none')
   // Remembered, and the direction is remembered per sort: name wants A-Z,
   // price wants dearest first, and one shared direction is wrong for one of
   // them on every switch.

@@ -650,6 +650,13 @@ select.fld {
 }
 
 .spinner {
+  /* Explicit, because a `<span>` is inline by default and an inline box
+     ignores width and height — leaving a 3px-wide sliver of its own left and
+     right borders, 17px tall, spinning. Inside a `.btn` that never showed:
+     `.btn` is inline-flex, which blockifies its children. The Pipeline tab is
+     a plain block button, so the same markup there was the artifact. Flex
+     parents blockify this anyway, so nothing that already worked changes. */
+  display: inline-block;
   width: 12px;
   height: 12px;
   border-radius: 50%;

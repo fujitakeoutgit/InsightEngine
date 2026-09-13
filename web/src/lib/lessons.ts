@@ -242,7 +242,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '[data-tour="tab-pipeline"]',
-        text: 'The **Pipeline** tab show the AI model at work.',
+        text: 'The **Pipeline** tab shows the AI model at work. When the run finishes it becomes **AI Recommendations**, holding that run\'s cards — separate from the **Recommendations** tab, so asking for either one never throws the other away.',
       },
       {
         target: '.commander-card',
@@ -472,7 +472,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.pt-actions',
-        text: 'Press **Reset** to clear the board and return the dice to their slots; it asks for confirmation first. Press **Mulligan** to redraw your opening hand only.',
+        text: 'Press **Reset** to clear the board, deal a fresh opening hand and return the dice to their slots; it asks for confirmation first.',
       },
     ],
   },

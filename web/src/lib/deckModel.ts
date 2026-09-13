@@ -175,6 +175,97 @@ export interface Group {
   count: number
 }
 
+const RARITY_ORDER = ['common', 'uncommon', 'rare', 'mythic', 'special', 'bonus']
+
+/* The grouping and sorting rules, stated once against a bare card.
+ *
+ * A deck entry is a card plus a quantity, and neither rule has ever consulted
+ * the quantity — so the same rules serve the search results and the
+ * recommendations, which are cards with no quantity at all. Keeping one copy
+ * is what makes "group by type" mean the same thing in all three places,
+ * rather than three lists that drift apart a release at a time. */
+
+/** Which bucket a card falls in. */
+export function cardGroupKey(card: Card, by: GroupBy): string {
+  switch (by) {
+    case 'type': return primaryType(card)
+    case 'cmc': return card.cmc === null || card.cmc === undefined
+      ? '—' : String(Math.min(7, card.cmc))
+    case 'color': return colorGroup(card)
+    case 'rarity': return card.rarity ?? 'unknown'
+    default: return 'All'
+  }
+}
+
+/** What that bucket is called on screen. */
+export function groupLabel(key: string, by: GroupBy): string {
+  if (by !== 'cmc') return key
+  if (key === '7') return '7+ mana'
+  if (key === '—') return 'No cost'
+  return `${key} mana`
+}
+
+/** Where that bucket sits among the others. */
+export function groupRank(key: string, by: GroupBy): number {
+  if (by === 'type') {
+    const i = TYPE_ORDER.indexOf(key)
+    return i === -1 ? TYPE_ORDER.length : i
+  }
+  if (by === 'cmc') return key === '—' ? 99 : Number(key)
+  if (by === 'rarity') return RARITY_ORDER.indexOf(key)
+  return 0
+}
+
+/** What a card is worth under a given sort. */
+export function cardSortValue(card: Card, by: SortBy): string | number {
+  switch (by) {
+    case 'cmc': return card.cmc ?? 0
+    case 'price': return card.usd ?? Number.POSITIVE_INFINITY
+    case 'rarity': return RARITY_ORDER.indexOf(card.rarity ?? 'common')
+    case 'color': return card.color_identity || 'ZZZ'
+    default: return card.name.toLowerCase()
+  }
+}
+
+/** Sort bare cards — search results, recommendations — the way the deck sorts. */
+export function sortCards(
+  cards: Card[], by: SortBy, direction: 'asc' | 'desc' = 'asc',
+): Card[] {
+  const sign = direction === 'desc' ? -1 : 1
+  return [...cards].sort((a, b) => {
+    const av = cardSortValue(a, by)
+    const bv = cardSortValue(b, by)
+    if (av === bv) return a.name.localeCompare(b.name)
+    return (av < bv ? -1 : 1) * sign
+  })
+}
+
+/** One bucket of bare cards. */
+export interface CardGroup {
+  key: string
+  label: string
+  cards: Card[]
+}
+
+/** Group bare cards the way the deck groups. One bucket when grouping is off,
+ *  so callers render the same shape either way. */
+export function groupBareCards(cards: Card[], by: GroupBy): CardGroup[] {
+  if (by === 'none') return [{ key: 'all', label: 'All', cards }]
+
+  const buckets = new Map<string, Card[]>()
+  for (const card of cards) {
+    const key = cardGroupKey(card, by)
+    const bucket = buckets.get(key)
+    if (bucket) bucket.push(card)
+    else buckets.set(key, [card])
+  }
+
+  return [...buckets.entries()]
+    .map(([key, list]) => ({ key, label: groupLabel(key, by), cards: list }))
+    .sort((a, b) => groupRank(a.key, by) - groupRank(b.key, by)
+      || a.label.localeCompare(b.label))
+}
+
 export function groupCards(cards: DeckCard[], by: GroupBy): Group[] {
   if (by === 'none') {
     return [{
@@ -185,39 +276,21 @@ export function groupCards(cards: DeckCard[], by: GroupBy): Group[] {
 
   const buckets = new Map<string, DeckCard[]>()
   for (const entry of cards) {
-    let key: string
-    switch (by) {
-      case 'type': key = primaryType(entry.card); break
-      case 'cmc': key = entry.card.cmc === null ? '—' : String(Math.min(7, entry.card.cmc)); break
-      case 'color': key = colorGroup(entry.card); break
-      case 'rarity': key = entry.card.rarity ?? 'unknown'; break
-      default: key = 'All'
-    }
+    const key = cardGroupKey(entry.card, by)
     const bucket = buckets.get(key)
     if (bucket) bucket.push(entry)
     else buckets.set(key, [entry])
   }
 
-  const order = (key: string): number => {
-    if (by === 'type') {
-      const i = TYPE_ORDER.indexOf(key)
-      return i === -1 ? TYPE_ORDER.length : i
-    }
-    if (by === 'cmc') return key === '—' ? 99 : Number(key)
-    if (by === 'rarity') {
-      return ['common', 'uncommon', 'rare', 'mythic', 'special', 'bonus'].indexOf(key)
-    }
-    return 0
-  }
-
   return [...buckets.entries()]
     .map(([key, list]) => ({
       key,
-      label: by === 'cmc' ? (key === '7' ? '7+ mana' : key === '—' ? 'No cost' : `${key} mana`) : key,
+      label: groupLabel(key, by),
       cards: list,
       count: list.reduce((n, c) => n + c.quantity, 0),
     }))
-    .sort((a, b) => order(a.key) - order(b.key) || a.label.localeCompare(b.label))
+    .sort((a, b) => groupRank(a.key, by) - groupRank(b.key, by)
+      || a.label.localeCompare(b.label))
 }
 
 export function sortDeckCards(

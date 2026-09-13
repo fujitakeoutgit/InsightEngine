@@ -2570,6 +2570,52 @@
 .tile-acts button:hover { color: var(--aether-hi); border-color: var(--aether); }
 .tile-acts button.danger:hover { color: var(--danger); border-color: var(--danger); }
 
+/* Main / Maybe, on a card found outside the deck.
+ *
+ * Bottom-left pills, the same size and place as the editor's own `.tile-acts`
+ * — because they are the same gesture on the same card, and a tile in the
+ * search results sitting beside a tile in the deck should not be wearing a
+ * different shape of the same control. Stretching them across the full width
+ * made them the loudest thing on a grid of art, and pushed the price out of
+ * the corner it shares with them; at this size both fit, as they do in the
+ * editor, and neither has to hide.
+ *
+ * Hidden until the pointer arrives, like every other overlay on a card —
+ * fifty tiles each showing two buttons is a wall of buttons, not a grid of
+ * cards. `focus-within` as well, or they would be unreachable by keyboard. */
+.tile-sections {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+
+.card-tile:hover .tile-sections,
+.card-tile:focus-within .tile-sections { opacity: 1; transform: translateY(0); }
+
+.tile-sections button {
+  padding: 3px 7px;
+  border-radius: 3px;
+  border: 1px solid var(--line-soft);
+  background: rgba(7, 8, 12, 0.86);
+  backdrop-filter: blur(6px);
+  font-family: var(--font-m);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.tile-sections button:hover { color: var(--aether-hi); border-color: var(--aether); }
+
 .editor-tile .price {
   position: absolute;
   right: 6px;
@@ -2612,7 +2658,15 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px 16px 14px;
+  /* Below the header, not under it.
+     This is a fixed layer at `inset: 0` sitting beneath a sticky header, so
+     its first ~62px were always covered. The top bar used to occupy that
+     strip and hide the problem — badly, by flashing its own contents through
+     it on every load. With the bar gone the mat would take the covering
+     instead, so the space is reserved outright. Measured live by the header
+     itself, because the height changes with the font and the window: see
+     `--header-h` in Layout. */
+  padding: calc(var(--header-h, 62px) + 12px) 16px 14px;
   background:
     radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--aether) 7.0%, transparent), transparent 60%),
     var(--bg);
@@ -2630,26 +2684,8 @@
   to { opacity: 1; filter: blur(0px); }
 }
 
-/* The bar carries a back link, three readouts and six buttons, so it has to be
-   allowed to wrap onto a second line rather than clipping its own contents. */
-.pt-bar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  row-gap: 8px;
-  flex-wrap: wrap;
-  flex: none;
-  overflow: visible;
-  min-height: 0;
-  font-size: 12px;
-}
-
-.pt-bar .push { margin-left: auto; }
-.pt-bar > span { white-space: nowrap; }
-.pt-bar .back-link { padding: 0; }
-.pt-bar .row-act { display: inline-grid; width: 18px; height: 18px; }
-
-.pt-hint { font-size: 11px; color: var(--warn); flex: none; }
+/* `.pt-bar` and `.pt-hint` are gone with the bar itself — it lived under the
+   app header, so nothing in it was ever reachable. See the note in Playtest. */
 
 /* The mat itself. No border and no lanes: a real table has no lines on it,
    and where you put a permanent carries meaning a layout cannot guess. */
@@ -4355,10 +4391,18 @@
 .lessons {
   display: grid;
   /* The artwork carries more of the block than the list does: it is what says
-     "this is somewhere to learn" before a word is read. */
-  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr);
+     "this is somewhere to learn" before a word is read.
+
+     The art's share is the larger of the two, and deliberately larger than it
+     was: the picture was fitting its column on width and then leaving the
+     bottom of the row empty, so it read as a thumbnail parked beside the list
+     rather than the half of the block it is meant to be. The list keeps enough
+     width for a title and its one-line blurb, which is all it ever holds. */
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.45fr);
   gap: 26px;
-  align-items: center;
+  /* Stretch, not centre: the art cell takes the whole row so the picture has
+     the height to grow into as well as the width. */
+  align-items: stretch;
   margin-bottom: 26px;
 }
 
@@ -4442,7 +4486,11 @@
 .lessons-art img {
   width: 100%;
   max-width: 1520px;
-  height: auto;
+  /* Fills the cell both ways and keeps its aspect: whichever of the two runs
+     out first is what bounds it, so the picture is always as large as the
+     block can hold rather than as large as one dimension allows. */
+  height: 100%;
+  object-fit: contain;
   /* The drift is a transform, so it must not be able to smear the edges of
      the layout it sits in. */
   will-change: transform;

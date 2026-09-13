@@ -91,7 +91,6 @@ export interface SavedGame {
   cards: Instance[]
   turn: number
   life: number
-  mulligans: number
   log: string[]
   /* The dice and the coin are deliberately absent.
    *

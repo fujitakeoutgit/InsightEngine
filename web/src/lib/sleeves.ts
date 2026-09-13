@@ -22,6 +22,30 @@ const KEY = 'insight-enigma:sleeves'
  * lot, and the failure would surface somewhere else entirely. */
 export const MAX_SLEEVE_BYTES = 1_500_000
 
+/**
+ * Sleeves the seeded decks arrive wearing, by deck name.
+ *
+ * A path rather than a data URL: these ship with the app, so there is no
+ * reason to spend a megabyte of localStorage on something already on disk —
+ * and no reason for a deck you never touched to occupy the store at all.
+ *
+ * Keyed by name because the id is assigned when the deck is seeded and
+ * differs between installs, while the name is what the seed actually fixes.
+ * Rename the deck and it keeps whatever sleeve you have set but loses the
+ * default, which is the right answer: it is not that deck any more.
+ */
+const DEFAULT_SLEEVES: Record<string, string> = {
+  'Land & Draw': '/sleeves/land-and-draw.png',
+}
+
+/* An explicit "no sleeve", as opposed to "never set one".
+ *
+ * Removing the sleeve from a deck that has a default cannot just delete the
+ * entry: the default would answer the next read and the sleeve would come
+ * back, which is a Remove button that does not remove. A stored empty string
+ * is the record of that decision. */
+const NONE = ''
+
 type Store = Record<string, string>
 
 function read(): Store {
@@ -41,20 +65,29 @@ function write(store: Store) {
  *  onto whatever ids a restore hands out. */
 export const allSleeves = (): Record<string, string> => read()
 
-/** The sleeve for a deck, as a data URL, or null. */
-export function sleeveFor(deckId: string | null | undefined): string | null {
+/**
+ * The sleeve for a deck — a data URL you chose, a bundled path, or null.
+ *
+ * Pass the deck's name to let a seeded deck fall back to the sleeve it ships
+ * with. What you set always wins over that, including setting it to nothing.
+ */
+export function sleeveFor(
+  deckId: string | null | undefined, deckName?: string | null,
+): string | null {
   if (!deckId) return null
-  return read()[deckId] ?? null
+  const stored = read()[deckId]
+  if (stored !== undefined) return stored === NONE ? null : stored
+  return (deckName && DEFAULT_SLEEVES[deckName]) ?? null
 }
 
 export function setSleeve(deckId: string, dataUrl: string) {
   write({ ...read(), [deckId]: dataUrl })
 }
 
+/** Take the sleeve off — including a default one, which is why this records
+ *  the removal rather than forgetting the deck. */
 export function clearSleeve(deckId: string) {
-  const store = read()
-  delete store[deckId]
-  write(store)
+  write({ ...read(), [deckId]: NONE })
 }
 
 /**

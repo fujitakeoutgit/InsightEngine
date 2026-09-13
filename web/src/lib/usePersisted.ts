@@ -65,6 +65,74 @@ export function useTransientMessage(ms = 3000): [string | null, (text: string) =
   return [message, say]
 }
 
+/* One key, one value, everywhere it is read.
+ *
+ * These hooks used to hold a private copy each, which is fine while only one
+ * component names a key and wrong the moment two do. The overlay pin is read
+ * by the editor, the search results and the recommendations at the same time,
+ * on screen together: toggling it in one left the other two unchanged until
+ * something happened to remount them — one setting showing two answers. The
+ * same is true of the grouping and sort now that they reach past the deck.
+ *
+ * So a key has one value and a set of listeners, and a write reaches every
+ * hook that named it. Whether it also reaches localStorage is a separate
+ * question, and the only difference between the two hooks below. */
+const shared = new Map<string, unknown>()
+const listeners = new Map<string, Set<(value: unknown) => void>>()
+
+function subscribe(key: string, fn: (value: unknown) => void) {
+  let set = listeners.get(key)
+  if (!set) { set = new Set(); listeners.set(key, set) }
+  set.add(fn)
+  return () => { set!.delete(fn) }
+}
+
+/** Whatever this key holds now: the live value, else the stored one, else the
+ *  caller's default — seeded into the store so later readers agree. */
+function current<T>(key: string, initial: T, persist: boolean): T {
+  if (shared.has(key)) return shared.get(key) as T
+  let value = initial
+  if (persist) {
+    try {
+      const raw = localStorage.getItem(key)
+      if (raw !== null) value = JSON.parse(raw) as T
+    } catch {
+      // Private mode or corrupt entry: the default is a fine answer.
+    }
+  }
+  shared.set(key, value)
+  return value
+}
+
+function useKeyed<T>(key: string, initial: T, persist: boolean): [T, (next: T) => void] {
+  const [value, setValue] = useState<T>(() => current(key, initial, persist))
+
+  // The default is read through a ref so a caller passing a fresh object or
+  // array literal does not resubscribe on every render.
+  const fallback = useRef(initial)
+  fallback.current = initial
+
+  useEffect(() => {
+    // Re-key (the editor swaps keys between deck and binder): adopt what the
+    // new key holds before listening for changes to it.
+    setValue(current(key, fallback.current, persist))
+    return subscribe(key, (next) => setValue(next as T))
+  }, [key, persist])
+
+  const set = useCallback((next: T) => {
+    shared.set(key, next)
+    listeners.get(key)?.forEach((fn) => fn(next))
+    if (!persist) return
+    try {
+      localStorage.setItem(key, JSON.stringify(next))
+    } catch {
+      // Quota or private mode: keep it in memory for this session.
+    }
+  }, [key, persist])
+
+  return [value, set]
+}
+
 /**
  * State that survives a reload, keyed in localStorage.
  *
@@ -73,24 +141,19 @@ export function useTransientMessage(ms = 3000): [string | null, (text: string) =
  * a tool feel disposable.
  */
 export function usePersisted<T>(key: string, initial: T): [T, (next: T) => void] {
-  const [value, setValue] = useState<T>(() => {
-    try {
-      const raw = localStorage.getItem(key)
-      return raw === null ? initial : (JSON.parse(raw) as T)
-    } catch {
-      return initial
-    }
-  })
+  return useKeyed(key, initial, true)
+}
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(key, JSON.stringify(value))
-    } catch {
-      // Quota or private mode: keep it in memory for this session.
-    }
-  }, [key, value])
-
-  return [value, setValue]
+/**
+ * State shared across components for as long as the tab is open, and no longer.
+ *
+ * For settings that should agree with each other while you work but start from
+ * their default each visit — the deck's grouping, which fragments a list into
+ * headed blocks and so is something you turn on for a question rather than
+ * something you want waiting for you next time.
+ */
+export function useShared<T>(key: string, initial: T): [T, (next: T) => void] {
+  return useKeyed(key, initial, false)
 }
 
 /* Shared preference keys. The search grid and the Cards grid are the same
@@ -117,6 +180,13 @@ export const OVERLAY_KEY = 'insight-enigma:pin-overlays'
  */
 export const SORT_KEY = 'insight-enigma:sort'
 export const SORT_DIR_KEY = 'insight-enigma:sort-dir'
+
+/* Grouping, shared but not remembered — `useShared`, not `usePersisted`.
+   The deck editor's menu is the only place it is set, and the search results
+   and the recommendations follow it, because "group by type" answering
+   differently in two panels side by side is not two settings, it is one
+   setting that looks broken. */
+export const GROUP_KEY = 'insight-enigma:group'
 
 export type SortDir = 'asc' | 'desc'
 

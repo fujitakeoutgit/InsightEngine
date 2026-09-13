@@ -1,17 +1,28 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { Card } from '../lib/api'
 import { collection, useIsCollected } from '../lib/collection'
 import { attachTilt, dissolveIn } from '../lib/motion'
 import { useCardFace } from '../lib/faces'
+import { groupBareCards, sortCards } from '../lib/deckModel'
+import type { GroupBy, Section, SortBy } from '../lib/deckModel'
 import { solidDragImage } from '../lib/useQuietDrag'
 import { CARD_DRAG_TYPE } from './DeckSearch'
 import { FlipButton } from './FlipButton'
+import { GroupTabs, useOpenGroup } from './GroupTabs'
 import { IdentityDots, ManaCost } from './ManaCost'
 
 function money(value: number | null) {
   return value === null || value === undefined ? '—' : `$${value.toFixed(2)}`
 }
+
+/** The two places a card found outside the deck can be put. Trash and
+ *  Sideboard are absent on purpose: neither is a thing you do to a card that
+ *  is not in the deck yet. */
+const ADD_SECTIONS: { key: Section; label: string }[] = [
+  { key: 'main', label: 'Main' },
+  { key: 'maybeboard', label: 'Maybe' },
+]
 
 /** Opens a per-card menu at the click point instead of navigating. */
 export type CardPick = (card: Card, at: { x: number; y: number }) => void
@@ -80,7 +91,7 @@ function MenuButton({
 }
 
 function CardTile({
-  card, collectable, caption, onPick, onMenu, onAdd, addLabel, owned,
+  card, collectable, caption, onPick, onMenu, onAdd, addLabel, owned, onAddTo,
 }: {
   card: Card
   collectable: boolean
@@ -91,6 +102,9 @@ function CardTile({
   addLabel?: string
   /** Already in your binder. */
   owned?: boolean
+  /** Put this card somewhere in the deck being edited. Absent everywhere
+   *  there is no deck to put it in, which is most places this grid appears. */
+  onAddTo?: (card: Card, section: Section) => void
 }) {
   const ref = useRef<HTMLAnchorElement>(null)
   const [loaded, setLoaded] = useState(false)
@@ -152,6 +166,34 @@ function CardTile({
         </div>
       )}
       <span className="price mono">{money(card.usd)}</span>
+
+      {/* Where this card can go, on the card itself.
+          One `+` could only ever mean one destination, and the destination is
+          half the decision: a suggestion you are sure about and one you want
+          to think about are different answers. Both are on the tile you are
+          already looking at, rather than a menu away.
+
+          The tile is a link, so each button has to stop the click travelling
+          up to it -- otherwise adding a card also navigates away from the
+          list you were adding from. */}
+      {onAddTo && (
+        <div className="tile-sections">
+          {ADD_SECTIONS.map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              title={`Add ${card.name} to the ${label.toLowerCase()}`}
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                onAddTo(card, key)
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
     </Link>
   )
 }
@@ -215,6 +257,10 @@ export function CardGrid({
   onAdd,
   addLabel,
   ownedIds,
+  onAddTo,
+  groupBy = 'none',
+  sortBy,
+  sortDir = 'asc',
 }: {
   cards: Card[]
   view?: 'grid' | 'list'
@@ -234,8 +280,31 @@ export function CardGrid({
   /** Overrides where the corner + sends the card. */
   onAdd?: (card: Card) => void
   addLabel?: string
+  /** Put a card into the deck being edited, from the tile itself. Only the
+   *  deck builder passes this; everywhere else has no deck to add to. */
+  onAddTo?: (card: Card, section: Section) => void
+  /** Split the grid into headed blocks, the way the deck editor does. Callers
+   *  that leave this alone get one flat grid in the order they handed over —
+   *  the search page's order comes from the server and is not ours to shuffle. */
+  groupBy?: GroupBy
+  /** Reorder before grouping. Omitted means "keep the given order". */
+  sortBy?: SortBy
+  sortDir?: 'asc' | 'desc'
 }) {
   const container = useRef<HTMLDivElement>(null)
+
+  /* Sort first, then group: grouping keeps each bucket in the order it was
+     handed, so sorting afterwards would have to be done per bucket to mean
+     the same thing. */
+  const ordered = useMemo(
+    () => (sortBy ? sortCards(cards, sortBy, sortDir) : cards),
+    [cards, sortBy, sortDir],
+  )
+  const groups = useMemo(() => groupBareCards(ordered, groupBy), [ordered, groupBy])
+  /** One bucket is not a grouping, it is the whole list wearing a tab. */
+  const tabbed = groupBy !== 'none' && groups.length > 1
+  const [openGroup, setOpenGroup] = useOpenGroup(groups)
+  const shown = tabbed ? openGroup?.cards ?? [] : ordered
 
   // Layout effect so the reveal starts from the pre-animation state and the
   // grid is never briefly visible at full opacity first.
@@ -245,53 +314,82 @@ export function CardGrid({
       view === 'grid' ? '.card-tile' : 'tbody tr',
     )
     dissolveIn(items, { stagger: view === 'grid' ? 0.026 : 0.012 })
-  }, [cards, view])
+  }, [cards, view, groupBy, sortBy, sortDir, openGroup?.key])
+
+  const tabs = tabbed && (
+    <GroupTabs
+      tabs={groups.map((group) => ({
+        key: group.key, label: group.label, count: group.cards.length,
+      }))}
+      open={openGroup?.key}
+      onOpen={setOpenGroup}
+    />
+  )
 
   if (view === 'list') {
     return (
-      <div className="scroll-x" ref={container}>
-        <table className="card-list">
-          <thead>
-            <tr>
-              <th />
-              <th>Name</th>
-              <th>Cost</th>
-              <th>Type</th>
-              <th>ID</th>
-              <th>Set</th>
-              <th style={{ textAlign: 'right' }}>USD</th>
-              {onMenu && <th />}
-            </tr>
-          </thead>
-          <tbody>
-            {cards.map((card) => (
-              <CardRow key={card.oracle_id} card={card} onPick={onPick} onMenu={onMenu} />
-            ))}
-          </tbody>
-        </table>
+      <div ref={container}>
+        {tabs}
+        <div className="scroll-x">
+          <table className="card-list">
+            <thead>
+              <tr>
+                <th />
+                <th>Name</th>
+                <th>Cost</th>
+                <th>Type</th>
+                <th>ID</th>
+                <th>Set</th>
+                <th style={{ textAlign: 'right' }}>USD</th>
+                {onMenu && <th />}
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((card) => (
+                <CardRow key={card.oracle_id} card={card} onPick={onPick} onMenu={onMenu} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
+
+  const tiles = shown.map((card) => (
+    <CardTile
+      key={card.oracle_id}
+      card={card}
+      collectable={collectable}
+      caption={captionFor?.(card)}
+      onPick={onPick}
+      onMenu={onMenu}
+      onAdd={onAdd}
+      addLabel={addLabel}
+      owned={ownedIds?.has(card.oracle_id)}
+      onAddTo={onAddTo}
+    />
+  ))
+
+  // Ungrouped, the grid *is* the container — the shape every caller that never
+  // asked for grouping already lays out against, left exactly as it was.
+  if (!tabbed) {
+    return (
+      <div
+        className="card-grid"
+        ref={container}
+        style={{ ['--card-w' as string]: `${size}px` }}
+      >
+        {tiles}
       </div>
     )
   }
 
   return (
-    <div
-      className="card-grid"
-      ref={container}
-      style={{ ['--card-w' as string]: `${size}px` }}
-    >
-      {cards.map((card) => (
-        <CardTile
-          key={card.oracle_id}
-          card={card}
-          collectable={collectable}
-          caption={captionFor?.(card)}
-          onPick={onPick}
-          onMenu={onMenu}
-          onAdd={onAdd}
-          addLabel={addLabel}
-          owned={ownedIds?.has(card.oracle_id)}
-        />
-      ))}
+    <div ref={container}>
+      {tabs}
+      <div className="card-grid" style={{ ['--card-w' as string]: `${size}px` }}>
+        {tiles}
+      </div>
     </div>
   )
 }

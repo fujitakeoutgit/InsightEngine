@@ -6,7 +6,8 @@ import {
   type Card, type DeckReport, type RecommendReport, type Resolution,
 } from '../lib/api'
 import {
-  addedCard, fromResolutions, serialize, type DeckCard, type Section,
+  addedCard, cardGroupKey, fromResolutions, groupLabel, groupRank, serialize,
+  sortCards, type DeckCard, type GroupBy, type Section, type SortBy,
 } from '../lib/deckModel'
 import { recallDeckView, rememberDeckView } from '../lib/deckViewCache'
 import { BINDER_NAME, BINDER_SECTIONS } from '../lib/binder'
@@ -15,6 +16,7 @@ import { attachTilt, dissolveIn, riseIn } from '../lib/motion'
 import { solidDragImage } from '../lib/useQuietDrag'
 import { CardGrid } from '../components/CardGrid'
 import { DeckEditor } from '../components/DeckEditor'
+import { GroupTabs, useOpenGroup } from '../components/GroupTabs'
 import { ManaCost } from '../components/ManaCost'
 import { DeckCharts } from '../components/DeckCharts'
 import { DeckInfo } from '../components/DeckInfo'
@@ -23,7 +25,8 @@ import { doesJob } from '../lib/cardRoles'
 import { DECK_UID_TYPE } from '../lib/cardTransfer'
 import { CARD_DRAG_TYPE, DeckSearch } from '../components/DeckSearch'
 import {
-  OVERLAY_KEY, useEscape, usePersisted, useTransientMessage,
+  GROUP_KEY, OVERLAY_KEY, SORT_DIR_KEY, SORT_KEY,
+  useEscape, usePersisted, useShared, useSortDir, useTransientMessage,
 } from '../lib/usePersisted'
 import { Playtest } from '../components/Playtest'
 import {
@@ -145,6 +148,11 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
    *  touches the deck. */
   const [savedText, setSavedText] = useState('')
   const [deckName, setDeckName] = useState('')
+  /** The name as the server has it, which is not what is in the name field
+   *  while you are typing in it. The seeded sleeves key off this: a deck
+   *  should not shed its sleeve on the first keystroke of a rename, only once
+   *  the rename is actually saved. */
+  const [savedName, setSavedName] = useState('')
   const [savedId, setSavedId] = useState<number | null>(null)
   const [savedAt, setSavedAt] = useState<{ created: string; updated: string } | null>(null)
   const [format, setFormat] = useState('commander')
@@ -207,18 +215,32 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
   const [deckCards, setDeckCards] = useState<DeckCard[]>([])
   const [report, setReport] = useState<DeckReport | null>(null)
   const [recs, setRecs] = useState<RecommendReport | null>(null)
+  /* The AI run's output, kept apart from `recs`.
+   *
+   * They used to share one slot under an `aiMode` flag, which meant the two
+   * could not coexist: a run that took minutes was thrown away by pressing
+   * Recommendations, and there was no way back to it but running it again.
+   * Two slots, two tabs, and each survives the other being asked. */
+  const [aiRecs, setAiRecs] = useState<RecommendReport | null>(null)
 
-  const [tab, setTab] = useState<'analysis' | 'search' | 'recommendations' | 'pipeline'>('analysis')
+  const [tab, setTab] = useState<
+    'analysis' | 'search' | 'recommendations' | 'pipeline' | 'ai'
+  >('analysis')
   const [pipeline, setPipeline] = useState<ConsoleState>(EMPTY_CONSOLE)
   const [recView, setRecView] = usePersisted<'list' | 'grid'>('insight-enigma:rec-view', 'list')
   // The same flag the editor's Toggle Overlay sets, read here so the
   // recommendations grid obeys it too.
   const [pinOverlay, setPinOverlay] = usePersisted<boolean>(OVERLAY_KEY, false)
+  /* The deck editor's grouping and sort, applied to the suggestions too. Set
+   * in one place — the editor's two menus — and read here, so a deck read by
+   * type has its suggestions read by type beside it. */
+  const [recGroup] = useShared<GroupBy>(GROUP_KEY, 'none')
+  const [recSort] = usePersisted<SortBy>(SORT_KEY, 'name')
+  const [recDir] = useSortDir(SORT_DIR_KEY, recSort)
   const [recSize, setRecSize] = usePersisted('insight-enigma:rec-size', 150)
   const [activeThemes, setActiveThemes] = useState<string[]>([])
   /** The theme chips, collapsed until asked for. */
   const [themesOpen, setThemesOpen] = useState(false)
-  const [aiMode, setAiMode] = useState(false)
   const [aiStrategy, setAiStrategy] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
   const [busy, setBusy] = useState<
@@ -267,10 +289,16 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
   const commanderTilt = useRef<HTMLAnchorElement>(null)
   /** This deck's sleeve art, if it has been given one. Local to this machine
    *  -- see `lib/sleeves`. */
-  const [sleeve, setSleeveArt] = useState<string | null>(() => sleeveFor(deckId))
+  const [sleeve, setSleeveArt] = useState<string | null>(() => sleeveFor(deckId, savedName))
   const [sleeveError, setSleeveError] = useState<string | null>(null)
   const sleeveInput = useRef<HTMLInputElement>(null)
-  useEffect(() => { setSleeveArt(sleeveFor(deckId)); setSleeveError(null) }, [deckId])
+  /* The name as well as the id: a seeded deck ships wearing a sleeve, and the
+     name is what identifies it as that deck across installs. The name arrives
+     with the deck rather than with the route, so this re-reads when it lands. */
+  useEffect(() => {
+    setSleeveArt(sleeveFor(deckId, savedName))
+    setSleeveError(null)
+  }, [deckId, savedName])
   const recRef = useRef<HTMLDivElement>(null)
   const aiStream = useRef<{ stop: () => void } | null>(null)
 
@@ -334,6 +362,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         setText(deck.text ?? '')
         setSavedText(deck.text ?? '')
         setDeckName(deck.name)
+        setSavedName(deck.name)
         setSavedId(deck.id)
         setSavedAt({ created: deck.created_at, updated: deck.updated_at })
         setDescription(deck.description ?? "")
@@ -426,7 +455,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
     if (!saved) return
     restoring.current = viewKey
     setRecs(saved.recs)
-    setAiMode(saved.aiMode)
+    setAiRecs(saved.aiRecs)
     setAiStrategy(saved.aiStrategy)
     setActiveThemes(saved.activeThemes)
     // The router leaves the page wherever the last one was, so the top has to
@@ -445,8 +474,8 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
       restoring.current = null
       return
     }
-    rememberDeckView(viewKey, { tab, recs, aiMode, aiStrategy, activeThemes })
-  }, [viewKey, tab, recs, aiMode, aiStrategy, activeThemes])
+    rememberDeckView(viewKey, { tab, recs, aiRecs, aiStrategy, activeThemes })
+  }, [viewKey, tab, recs, aiRecs, aiStrategy, activeThemes])
 
   /* Undo history.
    *
@@ -638,7 +667,9 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
   const getRecommendations = async () => {
     if (!text.trim()) return
     setBusy('recommend'); setError(null); setTab('recommendations')
-    setAiMode(false); setAiStrategy(null); setActiveThemes([])
+    // The AI run is left alone: it lives on its own tab now, and asking the
+    // cheap question should not throw away the expensive answer.
+    setActiveThemes([])
     try {
       setRecs(await api.recommendDeck(text, format || null, description))
     } catch (err) {
@@ -650,7 +681,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
   const getCategory = async (category: Category) => {
     if (!text.trim()) return
     setBusy(category); setError(null); setTab('recommendations')
-    setAiMode(false); setAiStrategy(null); setActiveThemes([])
+    setActiveThemes([])
     try {
       setRecs(await api.recommendCategory(text, category, format || null))
     } catch (err) {
@@ -664,7 +695,10 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
     // Opens on the pipeline tab: for a multi-minute run, watching the stages
     // is the useful view until there is something to show.
     setBusy('ai'); setError(null); setTab('pipeline')
-    setAiMode(true); setAiStrategy(null); setActiveThemes([]); setRecs(null)
+    /* Clearing `aiRecs` is what puts the Pipeline tab back: the tab slot shows
+       the console while there is nothing to show yet, and the results once
+       there are. A re-run starts again from the console. */
+    setAiStrategy(null); setAiRecs(null)
     setPipeline((p) => ({ ...EMPTY_CONSOLE, model: p.model, running: true }))
     try {
       const { run_id } = await api.prepareAiRecommendations(text, format || null, description)
@@ -680,14 +714,14 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
           setPipeline((p) => ({
             ...p, stages: [...p.stages, stage], current: 'complete', running: false,
           }))
-          setRecs({
+          setAiRecs({
             themes: [], color_identity: undefined, format: format || null,
             recommendations: detail.recommendations ?? [],
             note: (detail.recommendations ?? []).length ? null : 'The model found nothing worth adding.',
           })
           if (detail.strategy) setAiStrategy(detail.strategy)
           setBusy(null)
-          setTab('recommendations')
+          setTab('ai')
         },
         onCancelled: () => {
           setPipeline((p) => ({ ...p, running: false, cancelled: true }))
@@ -719,6 +753,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
       })
       setSavedId(deck.id)
       setDeckName(deck.name)
+      setSavedName(deck.name)
       setSavedText(text)
       setStatus(binder ? 'Binder saved' : `Saved “${deck.name}”`)
       // The deck is saved; the redirect onto its own URL is not a departure.
@@ -735,28 +770,77 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
     if (resultRef.current) dissolveIn(resultRef.current.querySelectorAll('.verdict'), { stagger: 0.02 })
   }, [report])
 
+  // Either list landing, and switching between their two tabs: the panel is
+  // the same element showing different content, so it reveals each time.
   useEffect(() => {
-    if (recs && recRef.current) {
+    if ((tab === 'ai' ? aiRecs : recs) && recRef.current) {
       riseIn(recRef.current)
       dissolveIn(recRef.current.querySelectorAll('.rec-row'), { stagger: 0.015 })
     }
-  }, [recs])
+  }, [recs, aiRecs, tab])
 
   const toggleTheme = (slug: string) =>
     setActiveThemes((c) => (c.includes(slug) ? c.filter((s) => s !== slug) : [...c, slug]))
 
-  const visibleRecs = (recs?.recommendations ?? []).filter(
-    (rec) => !activeThemes.length || rec.because.some((b) => activeThemes.includes(b)),
+  /* One panel, two sources. Which tab you are on decides which list it draws,
+     so everything below — the filter, the sort, the grouping, the tabs — is
+     written once and serves both. */
+  const onAiTab = tab === 'ai'
+  const shownReport = onAiTab ? aiRecs : recs
+
+  /* The theme chips belong to the classic list: they come out of its own
+     `themes`, and an AI run reports none. Applying a filter set over there to
+     this list could only ever empty it, silently, for a reason not on screen. */
+  const visibleRecs = (shownReport?.recommendations ?? []).filter(
+    (rec) => onAiTab || !activeThemes.length
+      || rec.because.some((b) => activeThemes.includes(b)),
   )
+
+  /* Suggestions read the way the deck reads.
+   *
+   * Worth knowing: these arrive best-first, and choosing a sort replaces that
+   * ranking with yours. That is what asking for a sort means, but it does mean
+   * the top of the list stops being "the one it thinks you most want" — the
+   * reasons under each name are where that judgement still shows.
+   *
+   * The sort is expressed over cards, like everywhere else, and the reasons
+   * are carried back afterwards by id; a recommendation list holds each card
+   * once, so nothing collides. */
+  type Rec = (typeof visibleRecs)[number]
+  const recById = new Map(visibleRecs.map((rec) => [rec.card.oracle_id, rec]))
+  const orderedRecs = sortCards(visibleRecs.map((rec) => rec.card), recSort, recDir)
+    .map((card) => recById.get(card.oracle_id) as Rec)
+  const recBuckets = new Map<string, Rec[]>()
+  for (const rec of orderedRecs) {
+    const key = cardGroupKey(rec.card, recGroup)
+    const bucket = recBuckets.get(key)
+    if (bucket) bucket.push(rec)
+    else recBuckets.set(key, [rec])
+  }
+  const recGroups = [...recBuckets.entries()]
+    .map(([key, list]) => ({ key, label: groupLabel(key, recGroup), recs: list }))
+    .sort((a, b) => groupRank(a.key, recGroup) - groupRank(b.key, recGroup)
+      || a.label.localeCompare(b.label))
+  /** One bucket is not a grouping, it is the whole list wearing a tab. */
+  const recTabbed = recGroup !== 'none' && recGroups.length > 1
+  const [openRecGroup, setOpenRecGroup] = useOpenGroup(recGroups)
+  const shownRecs = recTabbed ? openRecGroup?.recs ?? [] : orderedRecs
   /* The pipeline exists once a run has started and for as long as its output
    * is worth reading. Not restored with the rest of the view state: the
    * console itself is not saved, so a reopened deck has nothing to show. */
-  const showPipeline = !binder && (pipeline.running || pipeline.stages.length > 0)
+  /* The console and the AI results share one slot in the tab row, because they
+   * are two views of one run: the console is what there is to look at while it
+   * works, and the moment it produces something the results are. So Pipeline
+   * shows only until the results land, and is replaced by them. */
+  const showAi = !binder && !!aiRecs
+  const showPipeline = !binder && !showAi
+    && (pipeline.running || pipeline.stages.length > 0)
 
   useEffect(() => {
     // Restoring a deck's view can land on a tab that is no longer there.
-    if (tab === 'pipeline' && !showPipeline) setTab('analysis')
-  }, [tab, showPipeline])
+    if (tab === 'pipeline' && !showPipeline) setTab(showAi ? 'ai' : 'analysis')
+    else if (tab === 'ai' && !showAi) setTab('analysis')
+  }, [tab, showPipeline, showAi])
 
   // Every card in the commander slot. Two is the ceiling any pairing rule
   // allows, and a partner pair is two commanders rather than one commander
@@ -787,6 +871,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
     return (
       <Playtest
         deck={deckCards}
+        deckName={savedName}
         gameKey={viewKey}
         onClose={() => setPlaying(false)}
       />
@@ -1058,6 +1143,18 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
             {pipeline.running && <span className="spinner" style={{ marginLeft: 6 }} />}
           </button>
         )}
+        {/* What Pipeline turns into once the run has produced something. Its
+            own tab rather than the Recommendations one: an AI run and the
+            built-in suggestions are different answers, and having the slow one
+            overwrite the fast one meant a minutes-long run could be lost by
+            pressing a button next to it. */}
+        {showAi && (
+          <button data-tour="tab-ai" className={tab === 'ai' ? 'on' : ''}
+            onClick={() => setTab('ai')}>
+            AI Recommendations
+            <span className="faint"> {aiRecs.recommendations.length}</span>
+          </button>
+        )}
       </div>
 
       {/* Mounted whatever tab is showing, and hidden when it is not this one.
@@ -1071,7 +1168,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
           would have to decide when to forget, and "when you leave" is already
           what unmounting means. */}
       <div style={tab === 'search' ? undefined : { display: 'none' }}>
-        <DeckSearch />
+        <DeckSearch onAdd={addSearchedCard} />
       </div>
 
       {tab === 'analysis' && !report && !error && (
@@ -1222,27 +1319,35 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         </div>
       )}
 
-      {tab === 'recommendations' && recs && (
+      {(tab === 'recommendations' || tab === 'ai') && shownReport && (
         <div className="panel" ref={recRef}>
           <div className="row wrap gap-2" style={{ justifyContent: 'space-between', marginBottom: 10 }}>
             <h3 style={{ margin: 0 }}>
-              {recs.category
-                ? CATEGORIES.find(([k]) => k === recs.category)?.[1] ?? 'Recommendations'
-                : aiMode ? 'AI recommendations' : 'Recommendations'}
+              {onAiTab
+                ? 'AI recommendations'
+                : shownReport.category
+                  ? CATEGORIES.find(([k]) => k === shownReport.category)?.[1] ?? 'Recommendations'
+                  : 'Recommendations'}
               <span className="faint">
-                {' · '}{visibleRecs.length} of {recs.recommendations.length}
-                {recs.color_identity ? ` · within ${recs.color_identity}` : ''}
+                {' · '}{visibleRecs.length} of {shownReport.recommendations.length}
+                {shownReport.color_identity ? ` · within ${shownReport.color_identity}` : ''}
               </span>
             </h3>
             <div className="row gap-2">
               {/* Throws the current list away and asks again from scratch —
-                  the way out of a category, a stale run or a filtered view. */}
+                  the way out of a category, a stale run or a filtered view.
+                  On the AI tab it re-runs the model, which also puts the
+                  console back: that is where a fresh run is worth watching. */}
               <button
                 className="btn btn-ghost sm rec-reset"
-                onClick={() => { setActiveThemes([]); setAiMode(false); getRecommendations() }}
+                onClick={() => {
+                  setActiveThemes([])
+                  if (onAiTab) void getAiRecommendations()
+                  else void getRecommendations()
+                }}
                 disabled={!!busy}
-                title="Recalculate recommendations"
-                aria-label="Recalculate recommendations"
+                title={onAiTab ? 'Run the model again' : 'Recalculate recommendations'}
+                aria-label={onAiTab ? 'Run the model again' : 'Recalculate recommendations'}
               >
                 ↻
               </button>
@@ -1273,9 +1378,16 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
             </div>
           </div>
 
-          {recs.note && <p className="muted" style={{ fontSize: 13 }}>{recs.note}</p>}
+          {shownReport.note && (
+            <p className="muted" style={{ fontSize: 13 }}>{shownReport.note}</p>
+          )}
 
-          {aiStrategy && <p className="muted" style={{ fontSize: 13, marginBottom: 10 }}>{aiStrategy}</p>}
+          {/* The model's account of what it was going for. Only on its own
+              tab: it describes the AI run, and printing it over the built-in
+              list would be captioning one answer with another's reasoning. */}
+          {onAiTab && aiStrategy && (
+            <p className="muted" style={{ fontSize: 13, marginBottom: 10 }}>{aiStrategy}</p>
+          )}
 
           {/* Collapsed to start.
               The chips are a filter you reach for occasionally, and there can
@@ -1284,7 +1396,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
               so the list still announces itself, and any active filter is
               named there too: a filter you cannot see is one you will forget
               you set. */}
-          {recs.themes.length > 0 && (
+          {shownReport.themes.length > 0 && (
             <>
               <button
                 className="btn btn-ghost sm theme-disclosure"
@@ -1293,7 +1405,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
               >
                 <span className={`caret${themesOpen ? ' open' : ''}`} aria-hidden>›</span>
                 Themes
-                <span className="mono faint"> {recs.themes.length}</span>
+                <span className="mono faint"> {shownReport.themes.length}</span>
                 {activeThemes.length > 0 && (
                   <span className="mono"> · {activeThemes.length} filtering</span>
                 )}
@@ -1307,7 +1419,7 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
                 themes your description named, which are ranked up. Click to filter.
               </p>
               <div className="row wrap gap-1" style={{ marginBottom: 14 }}>
-                {recs.themes.map((t) => (
+                {shownReport.themes.map((t) => (
                   <button key={t.slug}
                     className={`chip ${activeThemes.includes(t.slug) ? 'on' : ''} ${t.signature ? '' : 'supporting'}`}
                     title={
@@ -1339,11 +1451,27 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
                   dock says both that you want the card and where it goes.
                   The reasons still show in the list view, where they have a
                   column of their own instead of a label chasing the pointer. */}
+              {/* Grouped and sorted by the editor's own two menus, so the
+                  suggestions arrange themselves the way the deck does. */}
               <CardGrid cards={visibleRecs.map((r) => r.card)} size={recSize}
-                collectable={false} />
+                collectable={false} onAddTo={addSearchedCard}
+                groupBy={recGroup} sortBy={recSort} sortDir={recDir} />
             </div>
           ) : (
-            visibleRecs.map((rec) => (
+            <>
+              {/* Grouped, the rows become tabs — the same shape the image
+                  view takes, driven by the same menu in the editor. */}
+              {recTabbed && (
+                <GroupTabs
+                  label="Recommendation groups"
+                  tabs={recGroups.map((group) => ({
+                    key: group.key, label: group.label, count: group.recs.length,
+                  }))}
+                  open={openRecGroup?.key}
+                  onOpen={setOpenRecGroup}
+                />
+              )}
+              {shownRecs.map((rec) => (
               /* Draggable, like the grid's tiles and the search's.
                  A recommendation is a card you are deciding about, and the
                  Cards tray is where cards wait while you decide — but in this
@@ -1397,7 +1525,8 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
                     says the same two things, in the same place, whichever
                     view you are in. */}
               </div>
-            ))
+              ))}
+            </>
           )}
         </div>
       )}
