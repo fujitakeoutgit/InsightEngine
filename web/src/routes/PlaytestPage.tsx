@@ -162,14 +162,33 @@ export function PlaytestPage() {
     )
   }
 
+  /* Waiting for the deck wears the table, not the page.
+   *
+   * Picking a deck used to leave you on an ordinary page — page chrome, and
+   * the footer along the bottom — for the seconds the analysis round trip
+   * takes, and the mat only covered them once the cards had resolved. But the
+   * mode change belongs to the click, not to the response: the surface
+   * switches the instant you choose a deck, and fills in when it is ready.
+   *
+   * The same `.playtest` layer, so it is the same surface arriving early
+   * rather than a second thing that looks like it. */
   if (deckId) {
     return (
-      <section className="shell">
-        <div className="page-back"><BackLink fallback="/playtest" /></div>
-        {error
-          ? <div className="notice error"><h3>Unavailable</h3><p>{error}</p></div>
-          : <div className="row gap-2 muted"><span className="spinner" /> Shuffling up…</div>}
-      </section>
+      <div className="playtest pt-waiting">
+        {error ? (
+          <div className="notice error" style={{ maxWidth: 420 }}>
+            <h3>Unavailable</h3>
+            <p>{error}</p>
+            {/* The way out has to be in here: this layer covers the page the
+                back link used to sit on. */}
+            <button className="btn btn-ghost sm" onClick={() => navigate('/playtest')}>
+              ← Back to decks
+            </button>
+          </div>
+        ) : (
+          <div className="row gap-2 muted"><span className="spinner" /> Shuffling up…</div>
+        )}
+      </div>
     )
   }
 

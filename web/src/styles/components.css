@@ -4,6 +4,23 @@
 
 .hero { padding: clamp(40px, 7vw, 80px) 0 32px; }
 
+/* Searching: the splash is gone, and its spacing goes with it.
+   That top padding and the bar's own margin are both there to hold the search
+   bar clear of the title, the manaline and the lede stacked above it. With a
+   query there is nothing above it but the back link, and the two together left
+   124px of empty page between them at a wide window. The back link's own
+   bottom padding is what separates them now, the same as on every other page
+   that has one. */
+.hero.searching { padding-top: 0; }
+.hero.searching .searchbar { margin-top: 0; }
+
+/* The bottom padding is splash spacing too, and once the top tightened it was
+   the odd number out: 32px between the parsed-query chips and the toolbar, in
+   a stack that is otherwise 10px from the field to the chips and 20px from the
+   toolbar to the results. Matched to the toolbar's own margin so the three
+   blocks are evenly spaced rather than one gap being half again as large. */
+.hero.searching { padding-bottom: 20px; }
+
 .hero-title {
   font-family: var(--font-d);
   font-weight: 800;
@@ -2673,11 +2690,30 @@
   overflow: hidden;
 }
 
-/* Entering the table is a mode change, so the whole surface resolves out of
-   blur once. The keyframe has no fill, so after 0.4s it stops applying and
-   cannot leave a filter behind to become a containing block for the
-   fixed-position Lightbox inside. */
-:root.motion-ok .playtest { animation: mode-in 0.4s var(--ease-out); }
+/* Entering the table is a mode change, so the surface resolves out of blur
+   once. The keyframe has no fill, so after 0.4s it stops applying and cannot
+   leave a filter behind to become a containing block for the fixed-position
+   Lightbox inside.
+
+   It plays on the contents rather than on the layer. `mode-in` starts at
+   opacity 0, and running it on `.playtest` itself faded the layer's own
+   background along with everything else — so for the length of the animation
+   the page behind showed straight through the table, footer and all. The
+   background is the thing hiding that page, so it has to be opaque from the
+   first frame; what resolves out of blur is everything sitting on it. */
+:root.motion-ok .playtest > * { animation: mode-in 0.4s var(--ease-out); }
+
+/* The table before the cards arrive: centred, and deliberately not animated.
+   Taking the screen is meant to feel like the click landed, so it is instant;
+   the blur-in belongs to the mat itself, which plays it once when the deck
+   finishes resolving. Animating both would resolve out of blur twice for one
+   gesture. */
+.pt-waiting {
+  align-items: center;
+  justify-content: center;
+}
+
+:root.motion-ok .pt-waiting > * { animation: none; }
 
 @keyframes mode-in {
   from { opacity: 0; filter: blur(12px); }

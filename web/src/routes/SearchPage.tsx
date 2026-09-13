@@ -66,7 +66,10 @@ export function SearchPage() {
   const [draft, setDraft] = useState(query)
   const [cards, setCards] = useState<Card[]>([])
   const [total, setTotal] = useState(0)
-  const [engine, setEngine] = useState<string>('none')
+  /* No `engine` state. It existed only to label the toolbar, and with that
+     badge gone it would be written on every search and read by nobody. The
+     two places the engine still matters take it from the response directly:
+     the search cache stores it, and the recent-searches list records it. */
   const [console_, setConsole] = useState<ConsoleState>(EMPTY_CONSOLE)
   const [collapsed, setCollapsed] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -223,7 +226,6 @@ export function SearchPage() {
         const found = stage.detail.cards ?? []
         setCards(found)
         setTotal(found.length)
-        setEngine('semantic')
         setLoading(false)
         history.record(q, found.length, 'semantic')
         // The log has served its purpose once cards are on screen.
@@ -248,7 +250,6 @@ export function SearchPage() {
       const response = await api.search({ q, sort: s, order: o, page: p, per_page: PER_PAGE })
       setCards(response.cards)
       setTotal(response.total)
-      setEngine(response.engine)
       writeCache(cacheKey(q, s, o, p), fromResponse(response))
       history.record(q, response.total, response.engine)
     } catch (err) {
@@ -263,7 +264,6 @@ export function SearchPage() {
     if (!query) {
       setCards([])
       setTotal(0)
-      setEngine('none')
       setConsole(EMPTY_CONSOLE)
       return
     }
@@ -274,7 +274,6 @@ export function SearchPage() {
     if (cached) {
       setCards(cached.cards)
       setTotal(cached.total)
-      setEngine(cached.engine)
       if (cached.stages) {
         setConsole((c) => ({
           ...EMPTY_CONSOLE, model: c.model, stages: cached.stages!, current: 'complete',
@@ -357,7 +356,9 @@ export function SearchPage() {
           <BackLink />
         </div>
       )}
-      <section className="shell hero">
+      {/* `searching` once there is a query: the splash content above the bar
+          is gone, and so is the room that was holding it apart from it. */}
+      <section className={`shell hero${query ? ' searching' : ''}`}>
         {!query && (
           <>
             {/* "Scry" is wrapped so the split characters stay inside one flex
@@ -511,7 +512,12 @@ export function SearchPage() {
                 <b ref={countRef}>{total.toLocaleString()}</b> {total === 1 ? 'card' : 'cards'}
                 {totalPages > 1 && ` · page ${page} of ${totalPages}`}
               </span>
-              <span className={`engine-badge ${engine}`}>{engine}</span>
+              {/* No engine badge beside the count. Which index answered is a
+                  detail of how the result was found, not a fact about the
+                  result, and it sat in the one place the eye goes to read how
+                  many cards there are. The recent-searches list still labels
+                  each past query with its engine, which is where the
+                  distinction actually earns its space. */}
 
               <div className="push row gap-2 wrap">
                 <button
