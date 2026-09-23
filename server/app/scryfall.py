@@ -197,6 +197,66 @@ class ScryfallClient:
     async def card_by_id(self, scryfall_id: str) -> dict:
         return await self.get(f"/cards/{scryfall_id}")
 
+    async def collection(
+        self, identifiers: list[dict[str, str]], *, attempts: int = 3,
+    ) -> dict:
+        """Up to 75 cards in one request, by whatever coordinates name them.
+
+        The only batched endpoint Scryfall offers, and the reason a decklist's
+        printings can be fetched in two requests rather than ninety-four. Each
+        identifier is a dict Scryfall understands -- `{"set", "collector_number"}`
+        for a decklist line, `{"id"}` for a chosen printing.
+
+        Deliberately uncached: the cache is keyed by request, and a batch is
+        only ever identical to itself, so a hit would be an accident. What is
+        worth keeping from the answer gets kept in `printings` by the caller.
+
+        Returns Scryfall's shape: `data` for what was found, `not_found` for
+        the identifiers that matched nothing.
+
+        `attempts` is the retry budget. Callers fetching something the user is
+        waiting on want the default; a caller improving a page that is already
+        correct enough should pass 1, so being offline costs one refused
+        connection rather than the full budget.
+        """
+        if not identifiers:
+            return {"data": [], "not_found": []}
+        if len(identifiers) > 75:
+            raise ScryfallError(400, "Scryfall takes at most 75 identifiers per request")
+
+        if self._client is None:
+            await self.start()
+        assert self._client is not None
+
+        last_error: ScryfallError | None = None
+        for attempt in range(max(1, attempts)):
+            async with self._semaphore:
+                async with self._limiter:
+                    try:
+                        resp = await self._client.post(
+                            "/cards/collection", json={"identifiers": identifiers},
+                        )
+                    except httpx.RequestError as exc:
+                        last_error = ScryfallError(502, f"Scryfall unreachable: {exc}")
+                        continue
+
+            if resp.status_code == 200:
+                return resp.json()
+
+            if resp.status_code == 429:
+                await asyncio.sleep(2 ** attempt)
+                last_error = ScryfallError(429, "Rate limited by Scryfall")
+                continue
+
+            detail = "Scryfall error"
+            try:
+                detail = resp.json().get("details", detail)
+            except Exception:  # noqa: BLE001 - error bodies are not guaranteed JSON
+                pass
+            raise ScryfallError(resp.status_code, detail)
+
+        raise last_error or ScryfallError(502, "Scryfall request failed")
+
     async def printings(self, card_name: str) -> list[dict]:
         """Every printing of a card, for the versions/prices table."""
         try:

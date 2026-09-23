@@ -5,7 +5,7 @@ import { useCardFace } from '../lib/faces'
 import { entersTapped } from '../lib/landTiming'
 import { useEscape } from '../lib/usePersisted'
 import { sleeveFor } from '../lib/sleeves'
-import { readCoinSkin, readD20Skin, readDieSkin, skinVars } from '../lib/skins'
+import { readCoinSkin, readD20Skin, readDieSkin, readMatSkin, skinVars } from '../lib/skins'
 import { solidDragImage } from '../lib/useQuietDrag'
 import { Lightbox } from './Lightbox'
 import { ManaCost } from './ManaCost'
@@ -222,7 +222,7 @@ export function Playtest({
   const [sleeve] = useState(() => sleeveFor(gameKey, deckName))
   /** The chosen dice and coin finishes, as custom properties on this mat.
    *  Read once: skins are changed in Settings, not mid-game. */
-  const [skin] = useState(() => skinVars(readDieSkin(), readD20Skin(), readCoinSkin()))
+  const [skin] = useState(() => skinVars(readDieSkin(), readD20Skin(), readCoinSkin(), readMatSkin()))
   // Read once, at mount. An effect would re-read under StrictMode's double
   // invocation and could observe what this component had itself just written.
   const [resumed] = useState(() => recallGame(gameKey, signature))
@@ -282,6 +282,8 @@ export function Playtest({
     d20: useRef<HTMLDivElement>(null),
   }
   const handRef = useRef<HTMLDivElement>(null)
+  /** The hand's scrolling strip, which the wheel drives — see below. */
+  const handCardsRef = useRef<HTMLDivElement>(null)
   /** The bin, and whether a die is over it. It exists only while one is being
    *  carried: a permanent trash icon beside the dice invites a misclick and
    *  answers a question nobody is asking until a die is already in hand. */
@@ -374,6 +376,45 @@ export function Playtest({
     setEntering(drawn)
     note(count === 1 ? 'Drew a card' : `Drew ${count} cards`)
   }
+
+  /* The wheel scrolls the hand.
+   *
+   * The hand overflows sideways, and a wheel reports only vertical movement
+   * unless Shift is held — so on a hand wider than the strip the wheel did
+   * nothing at all, and the only ways along were the scrollbar and dragging.
+   * Vertical wheel movement is spent on horizontal distance here, which is
+   * what every sideways strip on the web has taught people to expect.
+   *
+   * A native listener rather than `onWheel`: React registers wheel passively
+   * at the root, so `preventDefault` from a React handler is ignored.
+   */
+  useEffect(() => {
+    const strip = handCardsRef.current
+    if (!strip) return
+
+    const onWheel = (event: WheelEvent) => {
+      // Ctrl+wheel is the browser's zoom, not ours to take.
+      if (event.ctrlKey) return
+      const overflow = strip.scrollWidth - strip.clientWidth
+      if (overflow <= 0) return
+      // A trackpad's sideways swipe already scrolls this; only stand in when
+      // the gesture is mostly vertical, or there is nothing vertical about it
+      // and the browser is reporting a plain wheel notch.
+      if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return
+      // Firefox reports lines, not pixels, and a full page for deltaMode 2.
+      const step = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? strip.clientWidth : 1
+      const delta = event.deltaY * step
+      if (!delta) return
+      const before = strip.scrollLeft
+      strip.scrollLeft = Math.max(0, Math.min(overflow, before + delta))
+      // Only claim the gesture if it moved something. At either end the wheel
+      // belongs to whatever is behind this again.
+      if (strip.scrollLeft !== before) event.preventDefault()
+    }
+
+    strip.addEventListener('wheel', onWheel, { passive: false })
+    return () => strip.removeEventListener('wheel', onWheel)
+  }, [])
 
   useEffect(() => {
     if (!handRef.current || !entering.length || !canAnimate()) return
@@ -834,7 +875,7 @@ export function Playtest({
             drag.current = null
           }}
         >
-          <div className="pt-cards">
+          <div className="pt-cards" ref={handCardsRef}>
             {inZone.hand.map((c) => (
               <PlayCard key={c.iid} inst={c} drag={drag} onPlay={play} onZoom={setZoomed} splitRead />
             ))}

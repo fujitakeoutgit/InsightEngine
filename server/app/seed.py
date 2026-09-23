@@ -48,6 +48,13 @@ SEED_DECKS = (
         "land-and-draw.txt",
         "Land and draw focused.",
     ),
+    (
+        "Abzan Armor",
+        "commander",
+        "abzan-armor.txt",
+        "Defenders that attack. Toughness matters, walls hold the board, "
+        "and Felothar turns the survivors into value.",
+    ),
 )
 
 

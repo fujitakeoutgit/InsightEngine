@@ -782,11 +782,34 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
   const toggleTheme = (slug: string) =>
     setActiveThemes((c) => (c.includes(slug) ? c.filter((s) => s !== slug) : [...c, slug]))
 
+
   /* One panel, two sources. Which tab you are on decides which list it draws,
      so everything below — the filter, the sort, the grouping, the tabs — is
      written once and serves both. */
   const onAiTab = tab === 'ai'
   const shownReport = onAiTab ? aiRecs : recs
+
+  /* How many suggestions each theme would actually show.
+   *
+   * A chip is a filter, and the number on it was `in_deck` — how many cards in
+   * *your deck* carry that tag. Those are different questions with different
+   * answers: on one deck `drawback ×18` showed 147 suggestions while
+   * `synergy-commander ×4` showed none at all, because the themes are drawn
+   * from the deck's own tags and nothing guarantees a suggestion was made for
+   * any one of them. Reading "×4" and getting an empty list is the panel
+   * lying about what a click will do.
+   *
+   * Counted over the whole list rather than over what is on screen, so a
+   * chip's number does not shift as other chips are picked. */
+  const themeMatches = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const rec of shownReport?.recommendations ?? []) {
+      for (const slug of new Set(rec.because ?? [])) {
+        counts.set(slug, (counts.get(slug) ?? 0) + 1)
+      }
+    }
+    return counts
+  }, [shownReport])
 
   /* The theme chips belong to the classic list: they come out of its own
      `themes`, and an AI run reports none. Applying a filter set over there to
@@ -878,6 +901,72 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
     )
   }
 
+  /* Ramp, removal, counterspells and draw never qualify on theme alone, which
+   * makes them invisible rather than unwanted. This is how you ask for them.
+   *
+   * Extracted because it is now two controls wearing one implementation: in a
+   * deck these ask the recommender a narrower question and live with the
+   * answer, down in the recommendations panel; in the binder they filter the
+   * cards you own and stay up with the editor's other actions. */
+  const categoryButtons = (
+    <span className="cat-buttons" hidden={binder && mode === 'text'}>
+      {CATEGORIES.map(([key, label]) => {
+        const on = binder ? job === key : recs?.category === key
+        return (
+          <button
+            key={key}
+            className={on ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
+            aria-pressed={on}
+            // Pressing the active one puts the theme recommendations back,
+            // so the button is a toggle rather than a one-way trip.
+            onClick={() => {
+              if (binder) { setJob(on ? null : key); return }
+              if (on) getRecommendations()
+              else getCategory(key)
+            }}
+            disabled={binder ? false : (!!busy || !text.trim())}
+            title={binder
+              ? (on ? `Showing ${label.toLowerCase()} — click to show everything`
+                    : `Show only the ${label.toLowerCase()} you own`)
+              : (on ? `Showing ${label.toLowerCase()} — click to go back to themes`
+                    : `Most-played ${label.toLowerCase()} in this deck's colors`)}
+          >
+            {busy === key && <span className="spinner" />}
+            {label}
+          </button>
+        )
+      })}
+    </span>
+  )
+
+  /** Start a run, or stop the one going. Nothing to recommend into in the
+   *  binder: it is a record of what you own, not a deck being tuned. */
+  const aiButton = binder ? null : busy === 'ai' ? (
+    <button
+      className="btn btn-danger sm"
+      onClick={() => {
+        aiStream.current?.stop()
+        setBusy(null)
+        /* The console has to be told as well. Closing the stream from
+         * this side does not deliver the cancel event the server would
+         * have sent, so `running` stayed true and the Pipeline tab span
+         * forever after a run was stopped. */
+        setPipeline((p) => (p.running ? { ...p, running: false, cancelled: true } : p))
+      }}
+    >
+      Stop AI
+    </button>
+  ) : (
+    <button
+      className="btn btn-primary sm"
+      data-tour="ai-recommend"
+      onClick={getAiRecommendations}
+      disabled={!!busy || !text.trim()}
+    >
+      AI recommend
+    </button>
+  )
+
   const editorPane = (
     <div className="stack gap-3" style={{ minWidth: 0 }}>
       <div className="result-tabs">
@@ -893,65 +982,17 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
         {/* Analyse and Recommend are gone: opening their tab runs them. A
             button whose only job is "produce the thing this tab exists to
             show" is a step between you and the answer. */}
-        {/* Ramp, removal, counterspells and draw never qualify on theme alone,
-            which makes them invisible rather than unwanted. This is how you ask
-            for them. */}
-        {/* Hidden in the binder's Text mode: they filter a list, and in Text
+        {/* Only the binder's copy. In a deck these ask the recommender for a
+            category, so they sit with the recommendations they change, under
+            the panel's own controls — an action belongs beside the thing it
+            acts on, and up here it was a row of buttons whose effect appeared
+            two panels away. `AI recommend` moved to that panel's header for
+            the same reason. In the binder they filter the cards on screen
+            right here, so here is where they stay.
+
+            Hidden in the binder's Text mode: they filter a list, and in Text
             mode there is no list to filter — only the raw decklist. */}
-        <span className="cat-buttons" hidden={binder && mode === 'text'}>
-          {CATEGORIES.map(([key, label]) => {
-            const on = binder ? job === key : recs?.category === key
-            return (
-              <button
-                key={key}
-                className={on ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
-                aria-pressed={on}
-                // Pressing the active one puts the theme recommendations back,
-                // so the button is a toggle rather than a one-way trip.
-                onClick={() => {
-                  if (binder) { setJob(on ? null : key); return }
-                  if (on) getRecommendations()
-                  else getCategory(key)
-                }}
-                disabled={binder ? false : (!!busy || !text.trim())}
-                title={binder
-                  ? (on ? `Showing ${label.toLowerCase()} — click to show everything`
-                        : `Show only the ${label.toLowerCase()} you own`)
-                  : (on ? `Showing ${label.toLowerCase()} — click to go back to themes`
-                        : `Most-played ${label.toLowerCase()} in this deck's colors`)}
-              >
-                {busy === key && <span className="spinner" />}
-                {label}
-              </button>
-            )
-          })}
-        </span>
-        {/* Nothing to recommend into: the binder is a record of what you own. */}
-        {!binder && (busy === 'ai' ? (
-          <button
-            className="btn btn-danger sm"
-            onClick={() => {
-              aiStream.current?.stop()
-              setBusy(null)
-              /* The console has to be told as well. Closing the stream from
-               * this side does not deliver the cancel event the server would
-               * have sent, so `running` stayed true and the Pipeline tab span
-               * forever after a run was stopped. */
-              setPipeline((p) => (p.running ? { ...p, running: false, cancelled: true } : p))
-            }}
-          >
-            Stop AI
-          </button>
-        ) : (
-          <button
-            className="btn btn-primary sm"
-            data-tour="ai-recommend"
-            onClick={getAiRecommendations}
-            disabled={!!busy || !text.trim()}
-          >
-            AI recommend
-          </button>
-        ))}
+        {binder && categoryButtons}
         {!text && (
           <button className="btn btn-ghost sm push" onClick={() => setText(SAMPLE)}>Sample</button>
         )}
@@ -1321,19 +1362,42 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
 
       {(tab === 'recommendations' || tab === 'ai') && shownReport && (
         <div className="panel" ref={recRef}>
-          <div className="row wrap gap-2" style={{ justifyContent: 'space-between', marginBottom: 10 }}>
-            <h3 style={{ margin: 0 }}>
-              {onAiTab
-                ? 'AI recommendations'
-                : shownReport.category
-                  ? CATEGORIES.find(([k]) => k === shownReport.category)?.[1] ?? 'Recommendations'
-                  : 'Recommendations'}
-              <span className="faint">
-                {' · '}{visibleRecs.length} of {shownReport.recommendations.length}
-                {shownReport.color_identity ? ` · within ${shownReport.color_identity}` : ''}
-              </span>
-            </h3>
-            <div className="row gap-2">
+          {/* Four rows, each answering one thing, rather than one row that
+              wrapped wherever the column happened to run out:
+
+                what this list is, and how to get another one
+                how it is drawn
+                what it is a list of
+                which themes to narrow it to
+
+              Letting a single row wrap made the order arbitrary — the slider
+              landed beside `AI recommend` in image view and beside nothing in
+              list view, and the two lines it broke into were whatever fitted
+              rather than anything meant. */}
+
+          {/* Row one. The count and ↻ read together: how many, and ask again.
+              `AI recommend` is pushed to the far edge because it is the one
+              control here that starts something expensive. */}
+          <div className="rec-head-row">
+            <div className="row gap-2" style={{ alignItems: 'center' }}>
+              {/* The count, and nothing else.
+                  The heading used to spell out which list this was, how much
+                  of it was showing and which colors it stayed inside — all of
+                  it already answered by the tab you are on, the chips you set
+                  and the deck itself. What is left is the one number that
+                  changes as you filter. The sentence survives as the heading's
+                  label, so a screen reader still gets it. */}
+              <h3
+                className="rec-count mono"
+                style={{ margin: 0 }}
+                aria-label={
+                  `${visibleRecs.length} of ${shownReport.recommendations.length} `
+                  + `${onAiTab ? 'AI ' : ''}recommendations shown`
+                  + (shownReport.color_identity ? `, within ${shownReport.color_identity}` : '')
+                }
+              >
+                {visibleRecs.length}/{shownReport.recommendations.length}
+              </h3>
               {/* Throws the current list away and asks again from scratch —
                   the way out of a category, a stale run or a filtered view.
                   On the AI tab it re-runs the model, which also puts the
@@ -1351,32 +1415,41 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
               >
                 ↻
               </button>
-              {recView === 'grid' && (
-                <label className="size-slider" title="Card size">
-                  <input type="range" min={110} max={300} step={10} value={recSize}
-                    onChange={(e) => setRecSize(Number(e.target.value))} aria-label="Card image size" />
-                </label>
-              )}
-              {/* Only over images — the list prints price in a column already.
-                  Same stored setting as the editor and the search, so the pin
-                  is one decision rather than three. */}
-              {recView === 'grid' && (
-                <button
-                  className={pinOverlay ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
-                  aria-pressed={pinOverlay}
-                  onClick={() => setPinOverlay(!pinOverlay)}
-                  title={pinOverlay
-                    ? 'Show price and quantity only on hover'
-                    : 'Always show price and quantity, without hovering'}
-                >
-                  Toggle Overlay
-                </button>
-              )}
-              <button className="btn btn-ghost sm" onClick={() => setRecView(recView === 'list' ? 'grid' : 'list')}>
-                {recView === 'list' ? 'Images' : 'List'}
-              </button>
             </div>
+            {aiButton}
           </div>
+
+          {/* Row two: how the list is drawn. Nothing here changes what is in
+              it, which is why they are together and apart from row one. */}
+          <div className="rec-view-row">
+            <button className="btn btn-ghost sm" onClick={() => setRecView(recView === 'list' ? 'grid' : 'list')}>
+              {recView === 'list' ? 'Images' : 'List'}
+            </button>
+            {recView === 'grid' && (
+              <label className="size-slider" title="Card size">
+                <input type="range" min={110} max={300} step={10} value={recSize}
+                  onChange={(e) => setRecSize(Number(e.target.value))} aria-label="Card image size" />
+              </label>
+            )}
+            {/* Only over images — the list prints price in a column already.
+                Same stored setting as the editor and the search, so the pin
+                is one decision rather than three. */}
+            {recView === 'grid' && (
+              <button
+                className={pinOverlay ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
+                aria-pressed={pinOverlay}
+                onClick={() => setPinOverlay(!pinOverlay)}
+                title={pinOverlay
+                  ? 'Show price and quantity only on hover'
+                  : 'Always show price and quantity, without hovering'}
+              >
+                Toggle Overlay
+              </button>
+            )}
+          </div>
+
+          {/* Row three: what the list is a list of. */}
+          {!binder && <div className="rec-categories">{categoryButtons}</div>}
 
           {shownReport.note && (
             <p className="muted" style={{ fontSize: 13 }}>{shownReport.note}</p>
@@ -1416,21 +1489,38 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
               <p className="faint" style={{ fontSize: 11, margin: '10px 0 8px' }}>
                 Themes from the tags your cards carry, weighted against how common each tag is.
                 Solid chips are signature themes — a card must hit one to be suggested. ✦ marks
-                themes your description named, which are ranked up. Click to filter.
+                themes your description named, which are ranked up. Click to filter; the number
+                is how many suggestions that theme leaves.
               </p>
               <div className="row wrap gap-1" style={{ marginBottom: 14 }}>
-                {shownReport.themes.map((t) => (
+                {shownReport.themes.map((t) => {
+                  const matches = themeMatches.get(t.slug) ?? 0
+                  return (
                   <button key={t.slug}
-                    className={`chip ${activeThemes.includes(t.slug) ? 'on' : ''} ${t.signature ? '' : 'supporting'}`}
+                    className={[
+                      'chip',
+                      activeThemes.includes(t.slug) ? 'on' : '',
+                      t.signature ? '' : 'supporting',
+                      matches ? '' : 'empty',
+                    ].filter(Boolean).join(' ')}
+                    /* A theme nothing was suggested for filters to an empty
+                       list, every time, whatever else is picked. Left
+                       clickable it is a button whose whole effect is to blank
+                       the panel. */
+                    disabled={matches === 0}
                     title={
-                      `${t.in_deck} here, ${t.corpus} in the corpus`
+                      (matches
+                        ? `${matches} suggestion${matches === 1 ? '' : 's'} cite this`
+                        : 'No suggestion cites this theme')
+                      + ` · ${t.in_deck} in this deck, ${t.corpus} in the corpus`
                       + (t.described ? ' · named in your description, so ranked up' : '')
                     }
                     onClick={() => toggleTheme(t.slug)}>
                     {t.described && <span className="described" aria-hidden>✦ </span>}
-                    {t.slug} <span className="faint">×{t.in_deck}</span>
+                    {t.slug} <span className="faint">×{matches}</span>
                   </button>
-                ))}
+                  )
+                })}
                 {activeThemes.length > 0 && (
                   <button className="btn btn-ghost sm" onClick={() => setActiveThemes([])}>Clear</button>
                 )}

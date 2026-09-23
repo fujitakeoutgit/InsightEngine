@@ -1945,6 +1945,13 @@
   border-bottom: 1px solid var(--line-soft);
 }
 
+/* A saved deck holds nothing here any more — the category buttons went down
+   to the recommendations they change, `AI recommend` with them, and `Sample`
+   only exists while there is no decklist. Left alone the row still drew its
+   padding and its rule, so the editor sat under an empty band and a line
+   separating nothing from everything. */
+.deck-actions:empty { display: none; }
+
 /* --------------------------------------------------------------------------
    Deck gallery
    -------------------------------------------------------------------------- */
@@ -2358,9 +2365,13 @@
   bottom: 0;
   z-index: 120;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  /* The gap is the point: three separate places to let go rather than one bar
-     with three labels. A target you can miss is what makes the drop a
+  /* However many zones there are. The set depends on where the card is being
+     dragged from — the section it already sits in is never offered — so this
+     is three from Deck, Sideboard or Maybeboard, and four from Commander. */
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  /* The gap is the point: separate places to let go rather than one bar with
+     several labels. A target you can miss is what makes the drop a
      decision instead of an accident. */
   gap: 18px;
   padding: 18px;
@@ -2685,7 +2696,12 @@
   z-index: 60;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  /* No gap between the mat and the tray. The tray draws the line the hand sits
+     under, and a gap above that line left a strip of page showing between the
+     table and its own edge — invisible while the mat was a faint tint of the
+     background, obvious the moment a mat had a colour of its own. The tray
+     carries its own `padding-top`, so the hand still has its room. */
+  gap: 0;
   padding: calc(var(--header-h, 62px) + 12px) 16px 14px;
   background:
     radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--aether) 7.0%, transparent), transparent 60%),
@@ -2732,9 +2748,21 @@
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
-  border-radius: var(--r);
-  background:
-    radial-gradient(80% 60% at 50% 45%, color-mix(in srgb, var(--chrome) 5%, transparent), transparent 70%);
+  /* Square along the bottom, where it now meets the tray's line: a rounded
+     corner against a straight rule leaves a notch of page at each end. */
+  border-radius: var(--r) var(--r) 0 0;
+  /* The surface is a setting — see `MAT_SKINS`. Split into a colour and the
+     layers painted over it rather than one `background`, because the shorthand
+     only allows a colour in its final layer and a skin should be free to give
+     both. The fallbacks are the original table, so a mat with no skin applied
+     is the table this had before the setting existed. */
+  background-color: var(--mat-base, transparent);
+  background-image: var(--mat-image,
+    radial-gradient(80% 60% at 50% 45%, color-mix(in srgb, var(--chrome) 5%, transparent), transparent 70%));
+  /* Per layer, which is the point: a photographic mat is a wash over a tile,
+     and the wash wants to cover while the tile wants to repeat at its own
+     size. Gradient-only mats leave this `auto` and are unaffected. */
+  background-size: var(--mat-size, auto);
 }
 
 .pt-mat .pt-card { position: absolute; }
@@ -2746,6 +2774,17 @@
   place-items: center;
   font-size: 12.5px;
   pointer-events: none;
+  /* Printed on the mat, so the mat says what colour it is. `.faint` is on this
+     element too and would otherwise hold a colour chosen for the app's own
+     dark background — unreadable on Parchment, and washed out on Felt. */
+  color: var(--mat-ink, var(--faint));
+  /* And outlined, on the mats that are photographs. See `--mat-ink-halo`:
+     a flat wash holds the text up over most of a picture and then loses it on
+     the few brightest pixels. Absent on the drawn mats, where the surface has
+     no range to speak of and a halo would only thicken the letters. */
+  text-shadow:
+    0 1px 2px var(--mat-ink-halo, transparent),
+    0 0 7px var(--mat-ink-halo, transparent);
 }
 
 /* Graveyard, exile and command, immediately left of the deck — the way they
@@ -3166,10 +3205,32 @@
   padding-bottom: 4px;
 }
 
-.pt-hand .pt-card { flex: none; }
+/* Bigger in hand than anywhere else, to fill the band the tray already has.
+ *
+ * The tray is as tall as the pile column beside it, and a 117px card left the
+ * hand 64px short of that — a wide strip of empty table above the cards. 155px
+ * is that gap closed: at the card aspect ratio it stands 216px tall, which
+ * with the strip's own padding is exactly the pile column's height.
+ *
+ * A number rather than `height: 100%` on a stretched hand, which is the
+ * obvious move and does not work: the tray takes its height from its contents,
+ * so a hand measuring itself against the tray is measuring itself against
+ * itself. There is no definite height to resolve against and the cards fall
+ * back to their intrinsic 488x680. */
+.pt-hand .pt-card {
+  flex: none;
+  width: 155px;
+}
 
 @media (max-width: 720px) {
   .pt-card { width: 88px; }
+  /* The hand needs saying again here, and only because it is more specific
+     than the rule above: without it the hand would keep its full-size cards
+     while every other card on the table shrank. Scaled by the same ratio it
+     has at full width, not reset — the hand is still the row you read from.
+     There is no gap to fill at this width anyway: the tray wraps below, so
+     the hand is on its own line rather than beside the pile column. */
+  .pt-hand .pt-card { width: 116px; }
   /* The tray breaks onto two lines rather than squeezing: the piles are drop
      targets, so hiding them to save width would take a zone out of the game.
      The history is the one part that can go, being a record rather than a
@@ -3196,6 +3257,14 @@
   overflow-y: hidden;
   scrollbar-width: thin;
 }
+
+/* Inside a `.stack`, the parent already owns the spacing.
+   The margin above is for the analysis pane, whose tabs sit in a plain block
+   that supplies none. The editor's sit in a `.stack gap-3`, where the two were
+   adding up to 32px of empty column between the Text/Build tabs and the
+   toolbar under them. A stack's whole job is to space its children, so its
+   children should not be spacing themselves as well. */
+.stack > .result-tabs { margin-bottom: 0; }
 
 /* No shrinking. A tab that fits by losing its own letters is not a fix. */
 .result-tabs button { flex: none; white-space: nowrap; }
@@ -3678,6 +3747,33 @@
 /* The four category requests sit together so they read as one control rather
    than four more buttons in the action row. */
 .cat-buttons { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+
+/* The recommendations panel's four header rows, in the order the questions
+   come in: what this list is, how it is drawn, what it is a list of, which
+   themes narrow it. Each is its own row so the order is fixed rather than
+   decided by where a single wrapping row happened to break. */
+.rec-head-row,
+.rec-view-row,
+.rec-categories {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* Row one alone is split: the count and ↻ at one edge, `AI recommend` at the
+   other. The rest read left to right from the same margin. */
+.rec-head-row { justify-content: space-between; }
+
+/* The count that replaced the panel's title. Tabular figures so the number
+   does not shuffle its own width as the theme filter changes it. */
+.rec-count {
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
 
 /* Turn a double-faced card over. Upper right, or a row lower when an info
    control already owns that corner. */
@@ -4689,6 +4785,23 @@
 .skin-die i:nth-child(2) { grid-area: 2 / 2; }
 .skin-die i:nth-child(3) { grid-area: 3 / 3; }
 
+/* A piece of the mat, not a colour standing in for it: the patterned mats are
+   mostly pattern, and a flat swatch of Blueprint or Felt would be a blue
+   square and a green one. Wider than it is tall for the same reason the mat
+   is — a scrap of a surface reads as a surface. */
+.skin-mat-swatch {
+  width: 46px;
+  height: 30px;
+  border-radius: 4px;
+  border: 1px solid var(--mat-edge, var(--line-soft));
+  background-color: var(--mat-base, var(--glass));
+  background-image: var(--mat-image,
+    radial-gradient(70% 60% at 50% 45%, color-mix(in srgb, var(--chrome) 6%, transparent), transparent 70%));
+  /* A quarter the tile size the table uses. At full size a 46px swatch would
+     show one corner of one tile, which says nothing about the pattern. */
+  background-size: var(--mat-swatch-size, var(--mat-size, auto));
+}
+
 .skin-coin {
   width: 32px;
   height: 32px;
@@ -4719,11 +4832,15 @@
      is a fixed panel of a settings page, so it must refuse to grow. */
   flex: none;
   height: 210px;
-  border: 1px solid var(--line-soft);
+  border: 1px solid var(--mat-edge, var(--line-soft));
   border-radius: var(--r);
-  background:
-    radial-gradient(70% 60% at 50% 45%, color-mix(in srgb, var(--chrome) 6%, transparent), transparent 70%),
-    var(--glass);
+  /* The same two properties the board's mat uses, so a playmat is judged on
+     the surface itself rather than on a swatch of it. The fallbacks are this
+     panel's own original background, which is what the Default mat shows. */
+  background-color: var(--mat-base, var(--glass));
+  background-image: var(--mat-image,
+    radial-gradient(70% 60% at 50% 45%, color-mix(in srgb, var(--chrome) 6%, transparent), transparent 70%));
+  background-size: var(--mat-size, auto);
   overflow: hidden;
 }
 
@@ -5073,7 +5190,12 @@
   padding: 0 56px 0 12px;
   text-align: center;
   font-size: 12px;
-  color: var(--muted);
+  /* The mat's own ink, for the same reason the board's hint uses it: this text
+     sits on the chosen surface, not on the page. */
+  color: var(--mat-ink, var(--muted));
+  text-shadow:
+    0 1px 2px var(--mat-ink-halo, transparent),
+    0 0 7px var(--mat-ink-halo, transparent);
   pointer-events: none;
 }
 

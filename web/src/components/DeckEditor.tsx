@@ -33,16 +33,34 @@ const GROUPINGS: [GroupBy, string][] = [
  *  with the same keys under different names: see `BINDER_SECTIONS`. */
 const SECTION_TABS = SECTIONS
 
-/** The three places a dragged card can be thrown. Deck is deliberately absent:
- *  it is where the card already is, and dropping it back is what letting go
- *  anywhere else already does. */
-const DOCK_ZONES = [
+/** The sections a card can be re-filed into, in the order the tabs use. */
+const FILING: { key: Section; label: string }[] = [
+  { key: 'main', label: 'Main' },
   { key: 'sideboard', label: 'Sideboard' },
   { key: 'maybeboard', label: 'Maybe' },
-  { key: 'trash', label: 'Trash' },
-] as const
+]
 
-type DockZone = (typeof DOCK_ZONES)[number]['key']
+type DockZone = Section | 'trash'
+
+/**
+ * Where a dragged card can be thrown, given the section it is being dragged
+ * out of.
+ *
+ * Never that section. Dropping a card back where it started is what letting
+ * go anywhere else already does, so offering it spends a zone on a no-op.
+ *
+ * This used to be a fixed list — Sideboard, Maybe, Trash — which was only
+ * right while you were looking at the deck. In the Maybeboard tab it offered
+ * Maybe, the one place the card already was, and withheld Main, the one move
+ * anybody drags a maybeboard card to make. Deriving it from the open tab is
+ * the same rule the fixed list was an instance of.
+ */
+function dockZones(from: Section): { key: DockZone; label: string }[] {
+  return [
+    ...FILING.filter((zone) => zone.key !== from),
+    { key: 'trash', label: 'Trash' },
+  ]
+}
 
 const SORTS: [SortBy, string][] = [
   ['name', 'Name'], ['cmc', 'Mana value'], ['price', 'Price'],
@@ -199,13 +217,13 @@ export function DeckEditor({
 
   const move = (uid: string, section: Section) => patch(uid, { section })
 
-  /** A drop onto one of the three zones at the bottom of the window. */
+  /** A drop onto one of the zones at the bottom of the window. */
   const onDockDrop = (event: React.DragEvent, zone: DockZone) => {
     // The section beneath is a drop target too, and would take this as well.
     event.stopPropagation()
     setDockOver(null)
     if (zone !== 'trash') {
-      // Sideboard and Maybe are ordinary sections, so this is the same drop
+      // Every zone but Trash is an ordinary section, so this is the same drop
       // the tabs already take: a row moves, and a card arriving from the tray
       // or the search panel is added.
       onDropInto(event, zone)
@@ -660,14 +678,15 @@ export function DeckEditor({
        * The section tabs are already drop targets, but they are small, they
        * are at the top of a list you may have scrolled away from, and Trash is
        * not among them at all -- removing a card meant finding its row again
-       * and hitting the ✕. Three targets the width of the panel, at the edge
-       * the pointer is nearest to when it is dragging something downward. */}
+       * and hitting the ✕. Wide targets at the edge the pointer is nearest to
+       * when it is dragging something downward, and only the moves that mean
+       * something from where this card is: see `dockZones`. */}
       {/* Only for a card already in the deck. A card arriving from the Cards
           tray or the search panel is not being *re-filed* -- it is being added,
           and the section tabs already say where. */}
       {!binder && dragging && (
         <div className="drag-dock">
-          {DOCK_ZONES.map(({ key: zone, label }) => (
+          {dockZones(activeSection).map(({ key: zone, label }) => (
             <div
               key={zone}
               className={[

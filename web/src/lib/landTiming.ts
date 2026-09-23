@@ -92,15 +92,29 @@ export function entersTapped(
 
   const unless = clause.slice(clause.indexOf('unless'))
 
-  /* Fast and slow lands: "unless you control two or fewer other lands",
-   * "unless you control two or more other lands". */
-  const count = unless.match(/(\w+) or (fewer|less|more) other lands/)
+  /* Lands that count other lands you control:
+   *
+   *   fast    "unless you control two or fewer other lands"
+   *   slow    "unless you control three or more other lands"
+   *   battle  "unless you control two or more basic lands"
+   *
+   * The battle lands were the reason this stopped saying "other". Matching
+   * that word alone sent "two or more basic lands" down to the check-land
+   * branch below, which reads an "unless you control ..." clause as a list of
+   * land types — so it went looking for a permanent whose type line contained
+   * "two", failed, and brought Sunken Hollow in tapped next to two basics. */
+  const count = unless.match(/(\w+) or (fewer|less|more) (other|basic) lands/)
   if (count) {
     const n = NUMBERS[count[1]] ?? Number(count[1])
-    const others = board.filter((c) => (c.type_line ?? '').toLowerCase().includes('land')).length
+    const basicsOnly = count[3] === 'basic'
+    const tally = board.filter((c) => {
+      const line = (c.type_line ?? '').toLowerCase()
+      return line.includes('land') && (!basicsOnly || line.includes('basic'))
+    }).length
     if (!Number.isNaN(n)) {
-      const met = count[2] === 'more' ? others >= n : others <= n
-      const why = `${others} other land${others === 1 ? '' : 's'}`
+      const met = count[2] === 'more' ? tally >= n : tally <= n
+      const noun = basicsOnly ? 'basic' : 'other'
+      const why = `${tally} ${noun} land${tally === 1 ? '' : 's'}`
       return met ? { tapped: false, why } : { tapped: true, why }
     }
   }

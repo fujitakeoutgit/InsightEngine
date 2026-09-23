@@ -7,8 +7,8 @@ import {
 import { api, type ModelTier, type SyncStatus } from '../lib/api'
 import { riseIn } from '../lib/motion'
 import {
-  COIN_SKINS, DICE_SKINS, readCoinSkin, readD20Skin, readDieSkin,
-  skinVars, writeCoinSkin, writeD20Skin, writeDieSkin,
+  COIN_SKINS, DICE_SKINS, MAT_SKINS, readCoinSkin, readD20Skin, readDieSkin, readMatSkin,
+  skinVars, writeCoinSkin, writeD20Skin, writeDieSkin, writeMatSkin,
 } from '../lib/skins'
 import { SkinStage } from '../components/SkinStage'
 import {
@@ -175,6 +175,7 @@ export function SettingsPage() {
   const [dieSkin, setDieSkin] = useState(readDieSkin)
   const [d20Skin, setD20Skin] = useState(readD20Skin)
   const [coinSkin, setCoinSkin] = useState(readCoinSkin)
+  const [matSkin, setMatSkin] = useState(readMatSkin)
   const [sync, setSync] = useState<SyncStatus | null>(null)
   const [syncBusy, setSyncBusy] = useState<'check' | 'refresh' | null>(null)
   const [syncLog, setSyncLog] = useState<string[]>([])
@@ -531,8 +532,8 @@ export function SettingsPage() {
       <div className="panel settings-panel" data-tour="tabletop">
         <h3>Tabletop</h3>
         <p className="muted" style={{ fontSize: 13, marginBottom: 14 }}>
-          What the dice and the coin are made of. Nothing is downloaded — both are
-          drawn in CSS, so a finish is only a change of color.
+          What the table, the dice and the coin are made of. Nothing is downloaded —
+          all of it is drawn in CSS, so a finish is only a change of color.
         </p>
 
         <div className="skin-layout">
@@ -603,12 +604,36 @@ export function SettingsPage() {
           </div>
         </div>
 
+        <div className="skin-group">
+          <span className="label">Playmat</span>
+          <div className="skin-row">
+            {MAT_SKINS.map((s) => (
+              <button
+                key={s.id}
+                className={`skin${matSkin === s.id ? ' on' : ''}`}
+                /* The swatch wears the mat's own properties, so it is a piece
+                   of the surface rather than a colour chosen to stand for it —
+                   and the label sits on that surface in the mat's own ink,
+                   which is the quickest way to see whether text will read on
+                   it before you pick it. */
+                style={s.vars as React.CSSProperties}
+                title={s.label}
+                aria-pressed={matSkin === s.id}
+                onClick={() => { setMatSkin(s.id); writeMatSkin(s.id) }}
+              >
+                <span className="skin-mat-swatch" aria-hidden />
+                <span className="skin-name">{s.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         </div>
 
         {/* The real objects, beside the swatches rather than under them: a
             finish is judged on a die that turns, and the comparison only works
             if the choice and the thing it changes are in view at once. */}
-        <div className="skin-preview" style={skinVars(dieSkin, d20Skin, coinSkin)}>
+        <div className="skin-preview" style={skinVars(dieSkin, d20Skin, coinSkin, matSkin)}>
           <SkinStage />
         </div>
         </div>

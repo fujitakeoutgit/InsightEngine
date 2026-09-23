@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 import uuid
 
 from fastapi import APIRouter, HTTPException, Query
@@ -30,6 +31,100 @@ MAX_PREPARED = 8
 
 # Decks staged between /recommend/prepare and /recommend/stream.
 _PREPARED: dict[str, tuple[list[Resolution], str | None, str | None]] = {}
+
+
+#: Coordinates Scryfall has already told us it has never heard of. Remembering
+#: them stops a typo'd collector number costing a request on every keystroke's
+#: worth of re-analysis, for the life of the process.
+_NO_SUCH_PRINTING: set[tuple[str, str]] = set()
+
+#: How long to stop asking after a fetch fails for a reason that is not about
+#: the cards -- no network, Scryfall down.
+#:
+#: Measured, not guessed: with Scryfall unreachable an analysis went from about
+#: 100ms to 6.4 seconds, and paid it again on every re-analysis, because a
+#: failed fetch keeps nothing and so never stops being retried. Editing a deck
+#: offline would have become unusable. One refused connection every few minutes
+#: is the most this is allowed to cost.
+_OFFLINE_BACKOFF_SECONDS = 300.0
+_quiet_until = 0.0
+
+
+async def _ensure_printings(text: str) -> None:
+    """Fetch the printings this decklist names but this install has never seen.
+
+    The mirror is one row per *oracle card*, not per printing, so a line saying
+    "(TDC) 343" comes back wearing whichever edition that row happens to hold.
+    Typing a set and number therefore did nothing on its own: only the printing
+    picker ever fetched anything, so a list retyped edition-by-edition showed
+    the right art for the cards the mirror happened to agree with and the wrong
+    art for the rest -- 20 of 94 lines on the deck that reported this.
+
+    Fetched in batches of 75, the most Scryfall's one batched endpoint takes,
+    and kept for good. So this is a cost the first time a deck names an edition
+    nobody here has seen, not a cost per analysis.
+
+    Best effort throughout. Being offline, or Scryfall having a bad day, must
+    not stop a deck from being read -- anything not fetched simply keeps the
+    art the mirror already had, which is exactly today's behaviour.
+    """
+    global _quiet_until
+
+    if time.monotonic() < _quiet_until:
+        return
+
+    try:
+        entries = parse_decklist(text).entries
+    except Exception:  # noqa: BLE001 - a list too broken to parse needs no printings
+        return
+
+    conn = state.require_conn()
+    wanted: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for entry in entries:
+        if not (entry.set_code and entry.collector_number):
+            continue
+        key = (entry.set_code.lower(), str(entry.collector_number))
+        if key in seen or key in _NO_SUCH_PRINTING:
+            continue
+        seen.add(key)
+        if printing_store.lookup(conn, *key) is None:
+            wanted.append(key)
+
+    if not wanted:
+        return
+
+    for start in range(0, len(wanted), 75):
+        chunk = wanted[start:start + 75]
+        try:
+            # One attempt: the page is already correct enough to show, so a
+            # retry budget spent while offline buys nothing and costs seconds.
+            payload = await scryfall.collection(
+                [
+                    {"set": set_code, "collector_number": number}
+                    for set_code, number in chunk
+                ],
+                attempts=1,
+            )
+        except ScryfallError:
+            _quiet_until = time.monotonic() + _OFFLINE_BACKOFF_SECONDS
+            return
+        except Exception:  # noqa: BLE001 - never fail an analysis over art
+            _quiet_until = time.monotonic() + _OFFLINE_BACKOFF_SECONDS
+            return
+
+        for card in payload.get("data") or []:
+            try:
+                printing_store.keep(conn, card)
+            except Exception:  # noqa: BLE001 - one bad row must not lose the rest
+                continue
+
+        # What Scryfall says does not exist is not worth asking about again.
+        for missing in payload.get("not_found") or []:
+            code = (missing.get("set") or "").lower()
+            number = str(missing.get("collector_number") or "")
+            if code and number:
+                _NO_SUCH_PRINTING.add((code, number))
 
 
 def _resolve(text: str, commander: str | None) -> list[Resolution]:
@@ -76,6 +171,10 @@ class DecklistRequest(BaseModel):
 
 @router.post("/analyze")
 async def analyze(request: DecklistRequest):
+    # Only here. Analysis is what the editor and the mat draw their cards
+    # from, so this is where the art has to be right; simulation and the
+    # recommender read types and costs, which every printing shares.
+    await _ensure_printings(request.text)
     resolutions = _resolve(request.text, request.commander)
     parsed = parse_decklist(request.text)
 

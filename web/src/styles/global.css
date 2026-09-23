@@ -575,6 +575,22 @@ button.chip:hover { border-color: var(--aether); color: var(--ink); transform: t
 button.chip:active { transform: translateY(0) scale(0.96); }
 button.chip.supporting { opacity: 0.6; border-style: dashed; }
 
+/* A theme no suggestion cites. Still listed — it is a real theme of the deck,
+   and its absence from the suggestions is itself worth seeing — but not a
+   filter, because the only list it can produce is an empty one. */
+button.chip.empty {
+  opacity: 0.32;
+  cursor: default;
+}
+
+button.chip.empty:hover {
+  border-color: var(--line-soft);
+  color: var(--muted);
+  transform: none;
+}
+
+button.chip.empty:active { transform: none; }
+
 .fld {
   width: 100%;
   padding: 9px 11px;

@@ -11,7 +11,7 @@ Deck
 1 Blighted Woodland (CLB) 881
 1 Blisterpod (BFZ) 163
 1 Brindle Shoat (2X2) 139
-1 Cabaretti Ascendancy (SNC) 172
+1 Cabaretti Ascendancy (SNC) 299
 1 Cankerbloom (ONE) 161
 1 Cathar Commando (INR) 15
 1 Cloakwood Hermit (CLB) 221
@@ -19,7 +19,7 @@ Deck
 1 Daxos, Blessed by the Sun (THB) 9
 1 Dusk // Dawn (C19) 63
 1 Emrakul's Evangel (EMN) 156
-1 Evolving Wilds (MSC) 240
+1 Evolving Wilds (DSC) 274
 1 Exotic Orchard (EOC) 159
 1 Explore (OTC) 192
 1 Fecundity (8ED) 247
@@ -65,7 +65,7 @@ Deck
 1 Requiem Angel (C14) 84
 1 Ruin Grinder (C21) 57
 1 Saffi Eriksdotter (TSR) 260
-1 Sakura-Tribe Elder (SOC) 285
+1 Sakura-Tribe Elder (CLB) 832
 1 Séance (MM3) 22
 1 Search for Tomorrow (CMR) 436
 1 Season of Growth (M20) 191
