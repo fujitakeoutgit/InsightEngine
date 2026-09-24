@@ -78,19 +78,6 @@
   "released_at": "2025-04-11"
  },
  {
-  "scryfall_id": "40452217-9d8c-48e7-b5b4-2740b97bea2a",
-  "oracle_id": "4d6d3e6d-f958-4c17-b117-960fb8033601",
-  "name": "Assault Formation",
-  "set_code": "tdc",
-  "set_name": "Tarkir: Dragonstorm Commander",
-  "collector_number": "246",
-  "image_small": "https://cards.scryfall.io/small/front/4/0/40452217-9d8c-48e7-b5b4-2740b97bea2a.jpg?1783907051",
-  "image_normal": "https://cards.scryfall.io/normal/front/4/0/40452217-9d8c-48e7-b5b4-2740b97bea2a.jpg?1783907051",
-  "usd": 0.35,
-  "artist": "Kieran Yanner",
-  "released_at": "2025-04-11"
- },
- {
   "scryfall_id": "f0282af2-9b3f-4335-92ea-9db9267e8cd2",
   "oracle_id": "060e0378-e335-4b3d-82aa-ae36639339f6",
   "name": "Axebane Guardian",
@@ -845,19 +832,6 @@
   "released_at": "2025-04-11"
  },
  {
-  "scryfall_id": "33e94caa-30cb-4f38-b240-7893dd2dc94d",
-  "oracle_id": "8ad0d89b-beef-40f7-8ce8-65589e3970be",
-  "name": "Walking Bulwark",
-  "set_code": "tdc",
-  "set_name": "Tarkir: Dragonstorm Commander",
-  "collector_number": "334",
-  "image_small": "https://cards.scryfall.io/small/front/3/3/33e94caa-30cb-4f38-b240-7893dd2dc94d.jpg?1783907005",
-  "image_normal": "https://cards.scryfall.io/normal/front/3/3/33e94caa-30cb-4f38-b240-7893dd2dc94d.jpg?1783907005",
-  "usd": 0.28,
-  "artist": "Jonas De Ro",
-  "released_at": "2025-04-11"
- },
- {
   "scryfall_id": "df901113-e273-4fe0-a264-8e9e26e70905",
   "oracle_id": "ef4d5fb3-70a3-433d-a9d3-18b2beb8d79f",
   "name": "Wall of Blossoms",
@@ -988,6 +962,32 @@
   "released_at": "2025-04-11"
  },
  {
+  "scryfall_id": "40452217-9d8c-48e7-b5b4-2740b97bea2a",
+  "oracle_id": "4d6d3e6d-f958-4c17-b117-960fb8033601",
+  "name": "Assault Formation",
+  "set_code": "tdc",
+  "set_name": "Tarkir: Dragonstorm Commander",
+  "collector_number": "246",
+  "image_small": "https://cards.scryfall.io/small/front/4/0/40452217-9d8c-48e7-b5b4-2740b97bea2a.jpg?1783907051",
+  "image_normal": "https://cards.scryfall.io/normal/front/4/0/40452217-9d8c-48e7-b5b4-2740b97bea2a.jpg?1783907051",
+  "usd": 0.35,
+  "artist": "Kieran Yanner",
+  "released_at": "2025-04-11"
+ },
+ {
+  "scryfall_id": "33e94caa-30cb-4f38-b240-7893dd2dc94d",
+  "oracle_id": "8ad0d89b-beef-40f7-8ce8-65589e3970be",
+  "name": "Walking Bulwark",
+  "set_code": "tdc",
+  "set_name": "Tarkir: Dragonstorm Commander",
+  "collector_number": "334",
+  "image_small": "https://cards.scryfall.io/small/front/3/3/33e94caa-30cb-4f38-b240-7893dd2dc94d.jpg?1783907005",
+  "image_normal": "https://cards.scryfall.io/normal/front/3/3/33e94caa-30cb-4f38-b240-7893dd2dc94d.jpg?1783907005",
+  "usd": 0.28,
+  "artist": "Jonas De Ro",
+  "released_at": "2025-04-11"
+ },
+ {
   "scryfall_id": "95a87b4e-f0ea-457c-9517-4acf313c4ca6",
   "oracle_id": "695eea46-1535-48c5-bbb6-0b8379e77bfc",
   "name": "Arasta of the Endless Web",
@@ -1105,19 +1105,6 @@
   "released_at": "2025-04-11"
  },
  {
-  "scryfall_id": "d67be074-cdd4-41d9-ac89-0a0456c4e4b2",
-  "oracle_id": "34f34409-326d-4994-a0ea-1a69aa278f03",
-  "name": "Sheoldred, the Apocalypse",
-  "set_code": "dmu",
-  "set_name": "Dominaria United",
-  "collector_number": "107",
-  "image_small": "https://cards.scryfall.io/small/front/d/6/d67be074-cdd4-41d9-ac89-0a0456c4e4b2.jpg?1783921327",
-  "image_normal": "https://cards.scryfall.io/normal/front/d/6/d67be074-cdd4-41d9-ac89-0a0456c4e4b2.jpg?1783921327",
-  "usd": 101.09,
-  "artist": "Chris Rahn",
-  "released_at": "2022-09-09"
- },
- {
   "scryfall_id": "bc1f42a2-fe11-45da-9552-069803b4068a",
   "oracle_id": "5d27c63e-d1ef-48af-b51d-01ebc6daeac9",
   "name": "Mikaeus, the Unhallowed",
@@ -1170,19 +1157,6 @@
   "released_at": "2025-04-11"
  },
  {
-  "scryfall_id": "ae2da18f-0d7d-446c-b463-8bf170ed95da",
-  "oracle_id": "9228f04c-506f-4453-a335-e66876b8ce8d",
-  "name": "Smile at Death",
-  "set_code": "tdm",
-  "set_name": "Tarkir: Dragonstorm",
-  "collector_number": "24",
-  "image_small": "https://cards.scryfall.io/small/front/a/e/ae2da18f-0d7d-446c-b463-8bf170ed95da.jpg?1783907405",
-  "image_normal": "https://cards.scryfall.io/normal/front/a/e/ae2da18f-0d7d-446c-b463-8bf170ed95da.jpg?1783907405",
-  "usd": 3.06,
-  "artist": "Olivier Bernard",
-  "released_at": "2025-04-11"
- },
- {
   "scryfall_id": "7cd58bb6-dba2-4ab6-a03e-150aa7f5c216",
   "oracle_id": "6f4ac4a4-53ec-4bc9-8f5c-d4b801d867b2",
   "name": "Grave Pact",
@@ -1194,6 +1168,110 @@
   "usd": 31.06,
   "artist": "Puddnhead",
   "released_at": "2009-09-04"
+ },
+ {
+  "scryfall_id": "83057af6-cb88-4401-92ef-5b5d10463140",
+  "oracle_id": "535e2af0-7b08-4026-b1bf-87626407dd42",
+  "name": "Archfiend of Ifnir",
+  "set_code": "ecc",
+  "set_name": "Lorwyn Eclipsed Commander",
+  "collector_number": "70",
+  "image_small": "https://cards.scryfall.io/small/front/8/3/83057af6-cb88-4401-92ef-5b5d10463140.jpg?1788460948",
+  "image_normal": "https://cards.scryfall.io/normal/front/8/3/83057af6-cb88-4401-92ef-5b5d10463140.jpg?1788460948",
+  "usd": 0.36,
+  "artist": "Seb McKinnon",
+  "released_at": "2026-01-23"
+ },
+ {
+  "scryfall_id": "7b696878-bf6c-4323-baa5-93c44dde075e",
+  "oracle_id": "119d9671-61ba-4629-89b1-f94bdec5cb74",
+  "name": "Chimil, the Inner Sun",
+  "set_code": "ecc",
+  "set_name": "Lorwyn Eclipsed Commander",
+  "collector_number": "137",
+  "image_small": "https://cards.scryfall.io/small/front/7/b/7b696878-bf6c-4323-baa5-93c44dde075e.jpg?1783904531",
+  "image_normal": "https://cards.scryfall.io/normal/front/7/b/7b696878-bf6c-4323-baa5-93c44dde075e.jpg?1783904531",
+  "usd": 8.26,
+  "artist": "Adam Paquette",
+  "released_at": "2026-01-23"
+ },
+ {
+  "scryfall_id": "b64b1fae-6e5a-46b4-8966-7e39c777604e",
+  "oracle_id": "62674cfd-f400-44d9-bfff-15bdfbd243fe",
+  "name": "Marble Titan",
+  "set_code": "9ed",
+  "set_name": "Ninth Edition",
+  "collector_number": "26★",
+  "image_small": "https://cards.scryfall.io/small/front/b/6/b64b1fae-6e5a-46b4-8966-7e39c777604e.jpg?1783944102",
+  "image_normal": "https://cards.scryfall.io/normal/front/b/6/b64b1fae-6e5a-46b4-8966-7e39c777604e.jpg?1783944102",
+  "usd": null,
+  "artist": "Brom",
+  "released_at": "2005-07-29"
+ },
+ {
+  "scryfall_id": "558c1fcc-cb01-4031-ada5-4e39d65aee27",
+  "oracle_id": "53d58401-c318-47e0-aab0-60001c071dbb",
+  "name": "Rammas Echor, Ancient Shield",
+  "set_code": "ltc",
+  "set_name": "Tales of Middle-earth Commander",
+  "collector_number": "505",
+  "image_small": "https://cards.scryfall.io/small/front/5/5/558c1fcc-cb01-4031-ada5-4e39d65aee27.jpg?1783914195",
+  "image_normal": "https://cards.scryfall.io/normal/front/5/5/558c1fcc-cb01-4031-ada5-4e39d65aee27.jpg?1783914195",
+  "usd": 8.64,
+  "artist": "Matt Stewart",
+  "released_at": "2023-11-03"
+ },
+ {
+  "scryfall_id": "7e57e1d7-da1d-4a2b-867f-85b8331b7bbc",
+  "oracle_id": "4976f08c-6f8e-42e4-9584-f04793518ddb",
+  "name": "Shield-Wall Sentinel",
+  "set_code": "dmu",
+  "set_name": "Dominaria United",
+  "collector_number": "238",
+  "image_small": "https://cards.scryfall.io/small/front/7/e/7e57e1d7-da1d-4a2b-867f-85b8331b7bbc.jpg?1783921266",
+  "image_normal": "https://cards.scryfall.io/normal/front/7/e/7e57e1d7-da1d-4a2b-867f-85b8331b7bbc.jpg?1783921266",
+  "usd": 0.4,
+  "artist": "Titus Lunter",
+  "released_at": "2022-09-09"
+ },
+ {
+  "scryfall_id": "24a14ac5-0b7e-4441-9963-782a7cda3f4a",
+  "oracle_id": "af7d7da5-aff5-48e1-901a-f81257a85f71",
+  "name": "The Walls of Ba Sing Se",
+  "set_code": "tla",
+  "set_name": "Avatar: The Last Airbender",
+  "collector_number": "261",
+  "image_small": "https://cards.scryfall.io/small/front/2/4/24a14ac5-0b7e-4441-9963-782a7cda3f4a.jpg?1783904915",
+  "image_normal": "https://cards.scryfall.io/normal/front/2/4/24a14ac5-0b7e-4441-9963-782a7cda3f4a.jpg?1783904915",
+  "usd": 24.13,
+  "artist": "Arthur Yuan",
+  "released_at": "2025-11-21"
+ },
+ {
+  "scryfall_id": "d67be074-cdd4-41d9-ac89-0a0456c4e4b2",
+  "oracle_id": "34f34409-326d-4994-a0ea-1a69aa278f03",
+  "name": "Sheoldred, the Apocalypse",
+  "set_code": "dmu",
+  "set_name": "Dominaria United",
+  "collector_number": "107",
+  "image_small": "https://cards.scryfall.io/small/front/d/6/d67be074-cdd4-41d9-ac89-0a0456c4e4b2.jpg?1783921327",
+  "image_normal": "https://cards.scryfall.io/normal/front/d/6/d67be074-cdd4-41d9-ac89-0a0456c4e4b2.jpg?1783921327",
+  "usd": 101.09,
+  "artist": "Chris Rahn",
+  "released_at": "2022-09-09"
+ },
+ {
+  "scryfall_id": "568aa70a-6765-486a-bd37-5d38b16c46de",
+  "oracle_id": "dd35a377-0865-4b25-bd0f-aaead29a9f0e",
+  "name": "Doran, Besieged by Time",
+  "set_code": "ecl",
+  "set_name": "Lorwyn Eclipsed",
+  "collector_number": "215",
+  "image_small": "https://cards.scryfall.io/small/front/5/6/568aa70a-6765-486a-bd37-5d38b16c46de.jpg?1783904413",
+  "image_normal": "https://cards.scryfall.io/normal/front/5/6/568aa70a-6765-486a-bd37-5d38b16c46de.jpg?1783904413",
+  "usd": 0.63,
+  "artist": "Carl Critchlow",
+  "released_at": "2026-01-23"
  },
  {
   "scryfall_id": "9f06db70-95f9-41eb-8e5f-8bc56fd34c09",
@@ -1209,17 +1287,17 @@
   "released_at": "2014-05-02"
  },
  {
-  "scryfall_id": "83057af6-cb88-4401-92ef-5b5d10463140",
-  "oracle_id": "535e2af0-7b08-4026-b1bf-87626407dd42",
-  "name": "Archfiend of Ifnir",
-  "set_code": "ecc",
-  "set_name": "Lorwyn Eclipsed Commander",
-  "collector_number": "70",
-  "image_small": "https://cards.scryfall.io/small/front/8/3/83057af6-cb88-4401-92ef-5b5d10463140.jpg?1788460948",
-  "image_normal": "https://cards.scryfall.io/normal/front/8/3/83057af6-cb88-4401-92ef-5b5d10463140.jpg?1788460948",
-  "usd": 0.36,
-  "artist": "Seb McKinnon",
-  "released_at": "2026-01-23"
+  "scryfall_id": "ae2da18f-0d7d-446c-b463-8bf170ed95da",
+  "oracle_id": "9228f04c-506f-4453-a335-e66876b8ce8d",
+  "name": "Smile at Death",
+  "set_code": "tdm",
+  "set_name": "Tarkir: Dragonstorm",
+  "collector_number": "24",
+  "image_small": "https://cards.scryfall.io/small/front/a/e/ae2da18f-0d7d-446c-b463-8bf170ed95da.jpg?1783907405",
+  "image_normal": "https://cards.scryfall.io/normal/front/a/e/ae2da18f-0d7d-446c-b463-8bf170ed95da.jpg?1783907405",
+  "usd": 3.06,
+  "artist": "Olivier Bernard",
+  "released_at": "2025-04-11"
  },
  {
   "scryfall_id": "72405607-a60e-42af-b523-64008d3f89b9",
@@ -1464,7 +1542,7 @@
   "collector_number": "274",
   "image_small": "https://cards.scryfall.io/small/front/e/5/e524216c-ed35-49a3-868f-7ad0a0027a80.jpg?1783909576",
   "image_normal": "https://cards.scryfall.io/normal/front/e/5/e524216c-ed35-49a3-868f-7ad0a0027a80.jpg?1783909576",
-  "usd": 0.31,
+  "usd": 0.28,
   "artist": "Steven Belledin",
   "released_at": "2024-09-27"
  },
@@ -1659,7 +1737,7 @@
   "collector_number": "380",
   "image_small": "https://cards.scryfall.io/small/front/8/9/894aa6b6-0d08-4c43-8734-9cb7b31359c6.jpg?1783903727",
   "image_normal": "https://cards.scryfall.io/normal/front/8/9/894aa6b6-0d08-4c43-8734-9cb7b31359c6.jpg?1783903727",
-  "usd": 0.45,
+  "usd": 0.47,
   "artist": "Carl Critchlow",
   "released_at": "2026-04-24"
  },
@@ -2127,7 +2205,7 @@
   "collector_number": "47",
   "image_small": "https://cards.scryfall.io/small/front/0/9/0913a5e8-7f77-44f2-a7cf-c8c0d6270a86.jpg?1783928872",
   "image_normal": "https://cards.scryfall.io/normal/front/0/9/0913a5e8-7f77-44f2-a7cf-c8c0d6270a86.jpg?1783928872",
-  "usd": 1.11,
+  "usd": 1.04,
   "artist": "Svetlin Velinov",
   "released_at": "2020-11-20"
  },
@@ -2153,7 +2231,7 @@
   "collector_number": "355",
   "image_small": "https://cards.scryfall.io/small/front/2/9/29fae212-b757-4e5f-ad9b-06cd09782f9f.jpg?1783903737",
   "image_normal": "https://cards.scryfall.io/normal/front/2/9/29fae212-b757-4e5f-ad9b-06cd09782f9f.jpg?1783903737",
-  "usd": 0.33,
+  "usd": 0.34,
   "artist": "Donato Giancola",
   "released_at": "2026-04-24"
  },
@@ -2790,7 +2868,7 @@
   "collector_number": "169",
   "image_small": "https://cards.scryfall.io/small/front/f/8/f857bbe4-5619-4733-a0c7-69700f2ef4f3.jpg?1783933410",
   "image_normal": "https://cards.scryfall.io/normal/front/f/8/f857bbe4-5619-4733-a0c7-69700f2ef4f3.jpg?1783933410",
-  "usd": 3.39,
+  "usd": 3.4,
   "artist": "Chris Rallis",
   "released_at": "2019-05-03"
  },

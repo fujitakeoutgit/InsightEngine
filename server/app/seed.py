@@ -52,8 +52,10 @@ SEED_DECKS = (
         "Abzan Armor",
         "commander",
         "abzan-armor.txt",
-        "Defenders that attack. Toughness matters, walls hold the board, "
-        "and Felothar turns the survivors into value.",
+        "High toughness creatures, +1/+1 counters, toughness matters effects, "
+        "toughness as power for combat damage, counter distribution across your "
+        "creatures, defensive creatures that become offensive threats, efficient "
+        "blocking and board control, creature durability and survivability.",
     ),
 )
 

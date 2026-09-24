@@ -7,7 +7,6 @@ Deck
 1 Arbor Adherent (TDC) 42
 1 Arboreal Grazer (TDC) 245
 1 Arcane Signet (TDC) 105
-1 Assault Formation (TDC) 246
 1 Axebane Guardian (TDC) 248
 1 Baldin, Century Herdmaster (TDC) 110
 1 Behind the Scenes (TDC) 172
@@ -66,7 +65,6 @@ Deck
 1 Tower Defense (TDC) 275
 1 Towering Titan (TDC) 276
 1 Twilight Mire (TDC) 409
-1 Walking Bulwark (TDC) 334
 1 Wall of Blossoms (TDC) 277
 1 Wall of Limbs (TDC) 200
 1 Wall of Omens (TDC) 138
@@ -79,6 +77,8 @@ Deck
 1 Zetalpa, Primal Dawn (TDC) 142
 
 Sideboard
+1 Assault Formation (TDC) 246
+1 Walking Bulwark (TDC) 334
 1 Arasta of the Endless Web (TDC) 244
 1 Indulging Patrician (TDC) 292
 1 Protector of the Wastes (TDC) 14
@@ -90,12 +90,18 @@ Sideboard
 1 Staff of Compleation (TDC) 326
 
 Maybeboard
-1 Sheoldred, the Apocalypse (DMU) 107
 1 Mikaeus, the Unhallowed (CMM) 173
 1 Abstruse Appropriation (MH3) 342
 1 Brave the Sands (CM2) 19
 1 Barrensteppe Siege (TDM) 171
-1 Smile at Death (TDM) 24
 1 Grave Pact (HOP) 28
-1 Dictate of Erebos (JOU) 65
 1 Archfiend of Ifnir (ECC) 70
+1 Chimil, the Inner Sun (ECC) 137
+1 Marble Titan (9ED) 26★
+1 Rammas Echor, Ancient Shield (LTC) 505
+1 Shield-Wall Sentinel (DMU) 238
+1 The Walls of Ba Sing Se (TLA) 261
+1 Sheoldred, the Apocalypse (DMU) 107
+1 Doran, Besieged by Time (ECL) 215
+1 Dictate of Erebos (JOU) 65
+1 Smile at Death (TDM) 24
