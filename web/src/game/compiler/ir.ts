@@ -39,6 +39,8 @@ export interface Filter {
   attacking?: boolean
   /** Untapped, or tapped. */
   tapped?: boolean
+  /** The only attacker: "that's attacking alone". */
+  alone?: boolean
   /** "Of the chosen type": the creature type chosen for the permanent whose
    *  ability this is, as it entered. */
   chosenType?: boolean
@@ -225,13 +227,14 @@ export type Effect = (
   | { op: 'token'; count: Count; token: TokenSpec; tapped: boolean; size?: Count; fleeting?: boolean }
   /** Tokens that are copies of a card. `fleeting` ones are exiled as the
    *  end step begins. */
-  | { op: 'copy'; of: Aim; count: Count; change: CopyChange; tapped: boolean; fleeting: boolean }
+  | { op: 'copy'; of: Aim; count: Count; change: CopyChange; tapped: boolean; fleeting: boolean; attacking?: boolean }
   /** A permanent arrives — as a copy of what was chosen, if anything was. */
   | { op: 'enterAs'; change: CopyChange }
   | { op: 'counters'; to: Aim; count: Count; counter: string }
   /** Connive: draw a card, then discard a card; if it was not a land, a
-   *  +1/+1 counter on the creature that connived. */
-  | { op: 'connive'; who: Aim }
+   *  +1/+1 counter on the creature that connived. "Connives X" is that many
+   *  of each. */
+  | { op: 'connive'; who: Aim; count?: Count }
   /** One more of each kind of counter already there, on everything of yours
    *  that has any — and a poison counter for an opponent who has one. */
   | { op: 'proliferate' }
@@ -295,6 +298,9 @@ export type Effect = (
     to: 'hand' | 'battlefield'
     all?: boolean
     until?: 'upkeep'
+    /** "The top creature card of your graveyard": the one most lately put
+     *  there, with nothing to choose. */
+    top?: boolean
   }
   /** A Class gains its next level. */
   | { op: 'levelUp' }
@@ -307,7 +313,7 @@ export type Effect = (
   | { op: 'extraLand'; count: number }
   | { op: 'addMana'; makes: ManaType[][] }
   /** "Gets +3/+3 and gains trample until end of turn." */
-  | { op: 'boost'; to: Aim; power: Signed; toughness: Signed; keywords: string[] }
+  | { op: 'boost'; to: Aim; power: Signed; toughness: Signed; keywords: string[]; types?: string[] }
   /** Attach the source — an Equipment, an Aura — to what was chosen. */
   | { op: 'attach' }
   /** Discard from your hand: your choice of which. */
@@ -317,7 +323,18 @@ export type Effect = (
   | { op: 'pay'; cost: string }
   /** "Choose one —": the modes, each its own little ability. "Choose one
    *  or more" and "choose up to one" set how few and how many. */
-  | { op: 'mode'; modes: Ability[]; min: number; max: number; more?: { test: Test; max: number } }
+  | {
+    op: 'mode'
+    modes: Ability[]
+    min: number
+    max: number
+    /** More may be taken while this holds: both, with a commander. */
+    more?: { test: Test; max: number }
+    /** "Choose one that hasn't been chosen this turn." */
+    fresh?: boolean
+    /** "Choose one at random" — unless this holds, and then it is yours. */
+    random?: { unless: Test }
+  }
   /** One outcome or another: "If that land is a Forest, put two counters on
    *  it instead." */
   | { op: 'if'; test: Test; then: Effect[]; otherwise: Effect[] }
@@ -357,7 +374,7 @@ export type TriggerEvent =
   /** "Whenever you attack": once, however many attack. */
   | { on: 'attack' }
   /** "Whenever ~ deals combat damage to a player". */
-  | { on: 'combatDamage'; who: 'self' | Filter }
+  | { on: 'combatDamage'; who: 'self' | 'attached' | Filter }
   | { on: 'cast'; filter: Filter }
   /** "Whenever you gain life". */
   | { on: 'lifeGain' }
@@ -383,6 +400,9 @@ export interface TriggeredAbility extends Ability {
   when: TriggerEvent
   /** "…, if you control five or more lands, …": checked as it triggers. */
   condition?: Test
+  /** It works from the graveyard: "return ~ from your graveyard to your
+   *  hand" is no use to a card anywhere else. */
+  from?: 'graveyard'
   /** "This ability triggers only once each turn." */
   oncePerTurn?: boolean
   /** "Whenever one or more …": once, however many did it together. */
@@ -437,7 +457,10 @@ export type Static =
   }
   /** "Whenever you tap a Forest for mana, add an additional {G}": more mana
    *  from the same tap. `of` narrows it to taps that make only that kind. */
-  | { kind: 'extraMana'; tapped: Filter; of?: ManaType; adds: ManaType }
+  | { kind: 'extraMana'; tapped: Filter | 'attached'; of?: ManaType; adds: ManaType; per?: Filter }
+  /** "If a creature you control would connive, instead you draw a card,
+   *  then that creature connives." */
+  | { kind: 'conniveDraw' }
   /** "Lands you control are every basic land type in addition to their
    *  other types." */
   | { kind: 'everyLandType' }

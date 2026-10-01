@@ -61,6 +61,8 @@ export function readAmount(phrase: string, who: Speaking = NOBODY): Count | null
     return of && { total: total[1] as 'power' | 'toughness', of }
   }
 
+  // What the trigger is about: the damage that set it off.
+  if (/^the amount of damage (?:it|~) dealt to that player$/.test(p)) return 'thatMany'
   const life = /^the amount of life you (gained|lost) this turn$/.exec(p)
   if (life) return { tally: life[1] as 'gained' | 'lost' }
 
@@ -131,6 +133,11 @@ export function readTest(phrase: string, who: Speaking = NOBODY): Test | null {
   if (counters) {
     const atLeast = readNumber(counters[1])
     return atLeast === null ? null : { counters: counters[2], of: 'self', atLeast }
+  }
+  const was = /^(?:that creature|it) was an? (.+)$/.exec(p)
+  if (was) {
+    const filter = readFilter(was[1])
+    return filter && { is: filter, of: who.it }
   }
   // What has happened this turn.
   if (/^a permanent left the battlefield under your control this turn$/.test(p)) return { tally: 'left', atLeast: 1 }
@@ -203,6 +210,10 @@ export function readFilter(phrase: string): Filter | null {
   if (take(/ nontoken\b/)) filter.nontoken = true
   if (take(/ basic\b/)) filter.basic = true
   if (take(/ of the chosen type\b/)) filter.chosenType = true
+  if (take(/ that's attacking alone\b/)) {
+    filter.attacking = true
+    filter.alone = true
+  }
   if (take(/ attacking\b/)) filter.attacking = true
   if (take(/ untapped\b/)) filter.tapped = false
   else if (take(/ tapped\b/)) filter.tapped = true

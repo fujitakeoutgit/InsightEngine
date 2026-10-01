@@ -16,9 +16,15 @@ const word = (line: string, w: string) => new RegExp(`\\b${w}\\b`, 'i').test(lin
 /** What the board makes true of whole kinds of card at once: every
  *  creature every creature type (Maskwood Nexus), every land every basic
  *  land type (Dryad of the Ilysian Grove). */
-export interface Sweeping { creatures: boolean; lands: boolean }
+export interface Sweeping {
+  creatures: boolean
+  lands: boolean
+  /** Types given to particular permanents for the turn: "until end of turn,
+   *  it becomes a Villain in addition to its other types". */
+  granted: Record<string, string[]>
+}
 
-const NOTHING: Sweeping = { creatures: false, lands: false }
+const NOTHING: Sweeping = { creatures: false, lands: false, granted: {} }
 
 const BASIC_LAND_TYPES = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest']
 
@@ -31,6 +37,7 @@ const BASIC_LAND_TYPES = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest']
 export function hasSubtype(inst: Instance, subtype: string, sweep: Sweeping = NOTHING): boolean {
   const line = inst.card.type_line ?? ''
   if (word(line, subtype)) return true
+  if (sweep.granted[inst.iid]?.includes(subtype)) return true
   if (sweep.lands && BASIC_LAND_TYPES.includes(subtype) && word(line, 'Land')) return true
   if (!isCreatureType(subtype)) return false
   if (inst.chosenType === subtype && compile(inst.card).statics.some((fixed) => fixed.kind === 'isChosenType')) {
@@ -50,7 +57,11 @@ export function sweeping(state: GameState): Sweeping {
   const has = (kind: 'everyCreatureType' | 'everyLandType') => state.cards.some((c) => (
     c.zone === 'battlefield' && compile(c.card).statics.some((fixed) => fixed.kind === kind)
   ))
-  const sweep = { creatures: has('everyCreatureType'), lands: has('everyLandType') }
+  const granted: Record<string, string[]> = {}
+  for (const boost of state.boosts) {
+    for (const iid of boost.types ? boost.iids : []) granted[iid] = [...(granted[iid] ?? []), ...boost.types!]
+  }
+  const sweep = { creatures: has('everyCreatureType'), lands: has('everyLandType'), granted }
   sweeps.set(state, sweep)
   return sweep
 }

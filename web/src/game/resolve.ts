@@ -83,7 +83,9 @@ const sentenceCase = (text: string) =>
   `${text.charAt(0).toUpperCase()}${text.slice(1)}${/[.!?"]$/.test(text) ? '' : '.'}`
 
 /** A token that is a copy of a card, seated where its type belongs. */
-function makeCopy(state: GameState, of: Card, change: CopyChange, tapped: boolean, fleeting: boolean): GameState {
+function makeCopy(
+  state: GameState, of: Card, change: CopyChange, tapped: boolean, fleeting: boolean, attacking = false,
+): GameState {
   const card = copyOf(of, change)
   const slug = card.name.toLowerCase().replace(/\W+/g, '-')
   const [iid, minted] = mint(state, `token-${slug}-`)
@@ -94,7 +96,13 @@ function makeCopy(state: GameState, of: Card, change: CopyChange, tapped: boolea
     ...(loyalty !== null ? { loyalty } : {}),
   }
   const seat = seatFor(minted.cards, made)
-  return { ...minted, cards: [...minted.cards, { ...made, ...seat, sick: isCreature(made) }] }
+  return {
+    ...minted,
+    cards: [...minted.cards, { ...made, ...seat, sick: isCreature(made) }],
+    // "Tapped and attacking": it joins an attack that is under way, without
+    // having been declared — so nothing that watches for attacks sees it.
+    attacking: attacking && minted.attacking.length ? [...minted.attacking, iid] : minted.attacking,
+  }
 }
 
 /** A token, made and seated where its type belongs. `size` is what an X/X
@@ -284,7 +292,9 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       if (!of.length || times <= 0) return { state: noted(state, `${r.name}: nothing to copy`) }
       let next = state
       for (const source of of) {
-        for (let i = 0; i < times; i += 1) next = makeCopy(next, source.card, effect.change, effect.tapped, effect.fleeting)
+        for (let i = 0; i < times; i += 1) {
+          next = makeCopy(next, source.card, effect.change, effect.tapped, effect.fleeting, effect.attacking)
+        }
       }
       const many = of.length * times
       return { state: noted(next, `Created ${many > 1 ? `${many} tokens, copies` : 'a token, a copy'} of ${names(of)}`) }
@@ -340,16 +350,23 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
     }
 
     case 'connive': {
-      // Draw first; what to discard is asked once the card is in hand.
-      const drawn = draw(state, 1)
+      const times = effect.count === undefined ? 1 : amount(state, r, effect.count)
+      if (times <= 0) return { state }
+      // Leader, Super-Genius: a card first, for each of him.
+      const before = inZone(state, 'battlefield').filter((c) => (
+        compile(c.card).statics.some((fixed) => fixed.kind === 'conniveDraw')
+      )).length
+      // Draw first; what to discard is asked once the cards are in hand.
+      const drawn = draw(before ? draw(state, before) : state, times)
       const hand = inZone(drawn, 'hand').map((c) => c.iid)
       const who = aimed(state, r, effect.who)[0]
-      if (!hand.length) return { state: who ? happen(drawn, { on: 'connives', iid: who.iid }) : drawn }
+      const owed = Math.min(times, hand.length)
+      if (!owed) return { state: who ? happen(drawn, { on: 'connives', iid: who.iid }) : drawn }
       return {
         state: drawn,
         wait: {
-          kind: 'pick', zone: 'hand', options: hand, min: 1, max: 1,
-          prompt: `${who?.card.name ?? r.name} connives: discard a card — a nonland card puts a +1/+1 counter on it`,
+          kind: 'pick', zone: 'hand', options: hand, min: owed, max: owed,
+          prompt: `${who?.card.name ?? r.name} connives: discard ${plural(owed, 'card')} — each nonland card puts a +1/+1 counter on it`,
         },
       }
     }
@@ -489,6 +506,13 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       if (!options.length) return { state: noted(state, `${r.name}: nothing in your graveyard to return`) }
       // Every one of them: nothing to ask.
       if (effect.all) return { state: applyPick(state, r, effect, options) }
+      // The top one: the last to have been put there.
+      if (effect.top) {
+        const top = options.reduce((best, iid) => (
+          (find(state, iid)!.buried ?? 0) >= (find(state, best)!.buried ?? 0) ? iid : best
+        ))
+        return { state: applyPick(state, r, effect, [top]) }
+      }
       return {
         state,
         wait: {
@@ -523,10 +547,14 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
         .filter((c) => c.zone === 'battlefield')
       if (!on.length) return { state }
       const [power, toughness] = [signed(state, r, effect.power), signed(state, r, effect.toughness)]
-      const boosts = [...state.boosts, { iids: on.map((c) => c.iid), power, toughness, keywords: effect.keywords }]
+      const boosts = [...state.boosts, {
+        iids: on.map((c) => c.iid), power, toughness, keywords: effect.keywords,
+        ...(effect.types ? { types: effect.types } : {}),
+      }]
       const what = [
         power || toughness ? `${power >= 0 ? '+' : ''}${power}/${toughness >= 0 ? '+' : ''}${toughness}` : '',
         effect.keywords.join(', ').toLowerCase(),
+        effect.types ? `${effect.types.join(' ')} as well` : '',
       ].filter(Boolean).join(' and ')
       return { state: noted({ ...state, boosts }, `${names(on)}: ${what} until end of turn`) }
     }
@@ -574,6 +602,20 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
     }
 
     case 'mode': {
+      // Modes already chosen this turn, where each may be only once.
+      const used = effect.fresh
+        ? effect.modes.map((_, i) => i).filter((i) => state.triggered.includes(`mode:${r.source}#${i}`))
+        : []
+      if (used.length === effect.modes.length) return { state: noted(state, `${r.name}: every mode has been chosen this turn`) }
+      // Chosen for you, at random — unless the card says the choice is yours.
+      if (effect.random && !holds(state, r, effect.random.unless)) {
+        const [[index], seed] = shuffle(effect.modes.map((_, i) => i), state.seed)
+        const mode = effect.modes[index]
+        const text = mode.text.split('~').join(r.name)
+        const effects = [...r.effects.slice(0, r.at + 1), ...mode.effects, ...r.effects.slice(r.at + 1)]
+        const leftover = mode.complete ? r.leftover : [r.leftover, text].filter(Boolean).join('\n')
+        return { state: noted({ ...state, seed, resolving: { ...r, effects, leftover } }, `${r.name}, at random: ${text}`) }
+      }
       const max = modeLimit(state, r, effect)
       const said = max <= 1 ? (effect.min ? 'choose one' : 'choose up to one')
         : effect.min === max ? `choose ${max}`
@@ -585,7 +627,7 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
           kind: 'mode',
           prompt: `${r.name}: ${said}`,
           modes: effect.modes.map((m) => m.text.split('~').join(r.name)),
-          taken: r.modes,
+          taken: [...used, ...r.modes],
           canStop: r.modes.length >= effect.min,
         },
       }
@@ -778,7 +820,8 @@ export function answer(state: GameState, action: Action): GameState {
 
   if (pending.kind === 'mode' && action.type === 'mode' && effect.op === 'mode') {
     const stop = action.index === -1
-    if (stop ? r.modes.length < effect.min : !effect.modes[action.index] || r.modes.includes(action.index)) return state
+    // `taken` holds what was chosen earlier this turn as well as just now.
+    if (stop ? r.modes.length < effect.min : !effect.modes[action.index] || pending.taken.includes(action.index)) return state
     const taken = stop ? r.modes : [...r.modes, action.index]
     // More may be chosen: ask again, with this one taken.
     if (!stop && taken.length < modeLimit(answered, r, effect) && taken.length < effect.modes.length) {
@@ -790,7 +833,12 @@ export function answer(state: GameState, action: Action): GameState {
       .map((mode) => ({ ...mode, text: mode.text.split('~').join(r.name) }))
     const effects = [...r.effects.slice(0, r.at + 1), ...chosen.flatMap((m) => m.effects), ...r.effects.slice(r.at + 1)]
     const leftover = [r.leftover, ...chosen.filter((m) => !m.complete).map((m) => m.text)].filter(Boolean).join('\n') || null
-    let said: GameState = { ...answered, resolving: { ...r, effects, leftover, modes: [] } }
+    let said: GameState = {
+      ...answered,
+      resolving: { ...r, effects, leftover, modes: [] },
+      // Each mode once a turn: remember which.
+      triggered: effect.fresh ? [...answered.triggered, ...taken.map((i) => `mode:${r.source}#${i}`)] : answered.triggered,
+    }
     for (const mode of chosen) said = noted(said, `${r.name}: ${mode.text}`)
     return carryOn(advance(said))
   }
@@ -843,14 +891,17 @@ function applyPick(state: GameState, r: Resolution, effect: Effect, picked: stri
       return finishDig(state, r, effect, picked)
 
     case 'connive': {
-      const [discarded] = cards
       const who = aimed(state, r, effect.who)[0]
-      let next: GameState = { ...state, cards: relocate(state.cards, discarded.iid, 'graveyard') }
-      const grows = who?.zone === 'battlefield' && !/\bLand\b/.test(discarded.card.type_line ?? '')
-      if (grows) {
-        next = change(next, [who.iid], (c) => ({ ...c, counters: { ...c.counters, '+1/+1': (c.counters?.['+1/+1'] ?? 0) + 1 } }))
+      let next: GameState = state
+      for (const discarded of cards) next = { ...next, cards: relocate(next.cards, discarded.iid, 'graveyard') }
+      const grows = who?.zone === 'battlefield'
+        ? cards.filter((c) => !/\bLand\b/.test(c.card.type_line ?? '')).length
+        : 0
+      if (who && grows) {
+        next = change(next, [who.iid], (c) => ({ ...c, counters: { ...c.counters, '+1/+1': (c.counters?.['+1/+1'] ?? 0) + grows } }))
       }
-      next = noted(next, `${who?.card.name ?? r.name} connived: discarded ${discarded.card.name}${grows ? ', and a +1/+1 counter' : ''}`)
+      next = noted(next, `${who?.card.name ?? r.name} connived: discarded ${names(cards)}${
+        grows ? `, and ${grows === 1 ? 'a +1/+1 counter' : `${grows} +1/+1 counters`}` : ''}`)
       return who ? happen(next, { on: 'connives', iid: who.iid }) : next
     }
 

@@ -108,7 +108,7 @@ exports[`coverage of the sample decks > grades each card as it did 1`] = `
   "Might Makes Right": "auto",
   "Mimic Vat": "partial",
   "Minsc, Beloved Ranger": "partial",
-  "Mistmoon Griffin": "partial",
+  "Mistmoon Griffin": "auto",
   "Mitotic Slime": "auto",
   "Mob Rule": "auto",
   "Mogg War Marshal": "auto",

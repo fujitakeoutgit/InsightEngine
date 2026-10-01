@@ -80,6 +80,14 @@ function readTrigger(condition: string): TriggerEvent[] | null {
   if (/^~ enters or attacks$/.test(condition.trim())) {
     return [{ on: 'enters', who: 'self' }, { on: 'attacks', who: 'self' }]
   }
+  const commander = /^your commander (enters|attacks|enters or attacks)$/.exec(condition.trim())
+  if (commander) {
+    const who = { commander: true, controller: 'you' as const }
+    return [
+      ...(/enters/.test(commander[1]) ? [{ on: 'enters' as const, who }] : []),
+      ...(/attacks/.test(commander[1]) ? [{ on: 'attacks' as const, who }] : []),
+    ]
+  }
   // "When ~ enters and at the beginning of your upkeep".
   const also = /^(.+?) and at (the beginning of .+)$/.exec(condition.trim())
   if (also) {
@@ -113,6 +121,9 @@ function readOneTrigger(condition: string): TriggerEvent | null {
   if (/^~ attacks$/.test(c)) return { on: 'attacks', who: 'self' }
   if (/^(equipped|enchanted) creature dies$/.test(c)) return { on: 'dies', who: 'attached' }
   if (/^(equipped|enchanted) creature attacks$/.test(c)) return { on: 'attacks', who: 'attached' }
+  if (/^(equipped|enchanted) creature deals combat damage to (a player|an opponent)$/.test(c)) {
+    return { on: 'combatDamage', who: 'attached' }
+  }
   if (/^you attack$/.test(c)) return { on: 'attack' }
   if (/^~ deals combat damage to (a player|an opponent)$/.test(c)) return { on: 'combatDamage', who: 'self' }
   if (/^you draw a card$/.test(c)) return { on: 'draw' }
@@ -203,7 +214,14 @@ const NOT_OFFERED = [
 /** A Class's "{2}{G}: Level 2". */
 const LEVEL = /^(?:\{[^}]+\})+: level \d+$/
 
-interface Choice { head: string; min: number; max: number; more?: { test: Test; max: number } }
+interface Choice {
+  head: string
+  min: number
+  max: number
+  more?: { test: Test; max: number }
+  fresh?: boolean
+  random?: { unless: Test }
+}
 
 /** "Choose one —", "choose up to one —", "choose one or more —": how few and
  *  how many of the bullets under it, or null if the line does not end so. */
@@ -215,6 +233,13 @@ function readChoice(line: string, modes: number): Choice | null {
       more: { test: { control: { commander: true, controller: 'you' }, atLeast: 1 }, max: 2 },
     }
   }
+  // Typhoid Mary: one at random, unless something lets you choose.
+  const random = /^(.*?)\bchoose one at random\. if (.+?), you choose one instead\.$/i.exec(line)
+  const unless = random && readTest(random[2])
+  if (random) return unless ? { head: random[1], min: 1, max: 1, random: { unless } } : null
+  // Monument to Endurance: each mode once a turn.
+  const fresh = /^(.*?)\bchoose one that hasn't been chosen this turn —$/i.exec(line)
+  if (fresh) return { head: fresh[1], min: 1, max: 1, fresh: true }
   const m = /^(.*?)\bchoose (one|two|up to one|up to two|one or more|one or both) —$/i.exec(line)
   if (!m) return null
   const [min, max] = {
@@ -277,6 +302,15 @@ export function compile(card: Card): Compiled {
       grades.push(1)
       continue
     }
+    // Melee: +1/+1 for each opponent attacked — and there is one.
+    if (lower === 'melee') {
+      triggers.push({
+        text: printed, when: { on: 'attacks', who: 'self' }, complete: true,
+        effects: [{ op: 'boost', to: { kind: 'self' }, power: 1, toughness: 1, keywords: [] }],
+      })
+      grades.push(1)
+      continue
+    }
     if (LEVEL.test(lower)) {
       // The next level is an ability, gained as a sorcery; the ones after it
       // wait their turn.
@@ -307,7 +341,12 @@ export function compile(card: Card): Compiled {
       modal = {
         text: [line, ...modes.map((m) => `• ${m.text}`)].join('\n'),
         effects: read
-          ? [{ op: 'mode', modes, min: choice.min, max: choice.max, ...(choice.more ? { more: choice.more } : {}) }]
+          ? [{
+              op: 'mode', modes, min: choice.min, max: choice.max,
+              ...(choice.more ? { more: choice.more } : {}),
+              ...(choice.fresh ? { fresh: true } : {}),
+              ...(choice.random ? { random: choice.random } : {}),
+            }]
           : [],
         complete: modes.every((m) => m.complete),
       }
@@ -334,7 +373,7 @@ export function compile(card: Card): Compiled {
     }
 
     // A static that is worded like a trigger.
-    const early = /^(at the beginning of each player's draw step|whenever you tap an? .+ for (mana|\{c\}), add)\b/.test(lower)
+    const early = /^(at the beginning of each player's draw step|whenever you tap an? .+ for (mana|\{c\}), add|whenever enchanted land is tapped for mana)\b/.test(lower)
       ? readStatic(lower)
       : null
     if (early) {
@@ -362,6 +401,8 @@ export function compile(card: Card): Compiled {
             ...(conditions.length ? { condition: conditions.length > 1 ? { all: conditions } : conditions[0] } : {}),
             ...(once ? { oncePerTurn: true } : {}),
             ...(/\bone or more\b/.test(trig[2]) ? { batch: true } : {}),
+            // What returns itself from the graveyard works from there.
+            ...(/\breturn ~ from your graveyard\b/.test(body) ? { from: 'graveyard' as const } : {}),
           })
         }
         grades.push(complete ? 1 : effects.length ? 0.5 : 0)

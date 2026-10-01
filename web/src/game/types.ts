@@ -47,6 +47,9 @@ export interface Instance {
   damage?: number
   /** The permanent this Equipment or Aura is attached to. */
   attachedTo?: string
+  /** When it was put into the graveyard, counted up from one: the highest
+   *  is the top card there. */
+  buried?: number
   /** The creature type chosen for it as it entered. */
   chosenType?: string
   /** Here for a while only: exiled as the end step begins, or as your next
@@ -66,6 +69,8 @@ export interface TurnBoost {
   power: number
   toughness: number
   keywords: string[]
+  /** Creature types they are as well, for the turn. */
+  types?: string[]
 }
 
 /** Power and toughness as they stood, for an effect that asks after the

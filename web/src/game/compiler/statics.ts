@@ -94,6 +94,18 @@ export function readStatic(line: string): Static | null {
   const echo = /^echo ((?:\{[^}]+\})+)$/.exec(l)
   if (echo) return { kind: 'echo', cost: echo[1].toUpperCase() }
 
+  if (/^if a creature you control would connive, instead you draw a card, then that creature connives$/.test(l)) {
+    return { kind: 'conniveDraw' }
+  }
+  // Elvish Guidance: more from the land it is on, for each Elf.
+  const guided = /^whenever enchanted land is tapped for mana, its controller adds an additional \{([wubrgc])\}(?: for each (.+?)(?: on the battlefield)?)?$/.exec(l)
+  if (guided) {
+    const per = guided[2] ? readFilter(guided[2]) : undefined
+    return per === null ? null : {
+      kind: 'extraMana', tapped: 'attached', adds: guided[1].toUpperCase() as ManaType, ...(per ? { per } : {}),
+    }
+  }
+
   // "Whenever you tap a Forest for mana, add an additional {G}."
   const more = /^whenever you tap an? (.+?) for (mana|\{c\}), add an additional \{([wubrgc])\}$/.exec(l)
   if (more) {

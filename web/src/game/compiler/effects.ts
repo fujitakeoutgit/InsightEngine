@@ -84,6 +84,8 @@ function withX(effect: Effect, n: Count): Effect {
       return { ...effect, count: swap(effect.count), ...(effect.size ? { size: swap(effect.size) } : {}) }
     case 'boost':
       return { ...effect, power: change(effect.power), toughness: change(effect.toughness) }
+    case 'connive':
+      return effect.count === undefined ? effect : { ...effect, count: swap(effect.count) }
     default:
       return effect
   }
@@ -265,11 +267,22 @@ const PATTERNS: Pattern[] = [
   // On the only creatures there are, its controller is you.
   [/^(?:its controller|that creature's controller|that permanent's controller|target player) creates (.+)$/, (m) => readSentence(`create ${m[1]}`)],
   // A token that is a copy of something, with what is different about it.
-  [/^create (an?|\w+) (tapped )?tokens? that(?:'s| are) (?:a copy|copies) of (.+?)(?:, except (.+))?$/, (m) => {
+  [/^create (an?|\w+) (tapped (?:and attacking )?)?tokens? that(?:'s| are) (?:a copy|copies) of (.+?)(?:, except (.+))?$/, (m) => {
     const count = readCount(m[1])
     const change = m[4] ? readExcept(m[4]) : {}
     if (count === null || !change) return null
-    return onPermanents(m[3], (of) => [{ op: 'copy', of, count, change, tapped: Boolean(m[2]), fleeting: false }])
+    return onPermanents(m[3], (of) => [{
+      op: 'copy', of, count, change, tapped: Boolean(m[2]), fleeting: false,
+      ...(/attacking/.test(m[2] ?? '') ? { attacking: true } : {}),
+    }])
+  }],
+  // "For each card you've discarded this turn, create a token…": one of
+  // them, that many times.
+  [/^for each (?!opponent\b)(.+?), create (an? .+)$/, (m) => {
+    const filter = readFilter(m[1])
+    const count: Count | null = filter ? { per: filter } : readEach(m[1])
+    const made = count === null ? null : readSentence(`create ${m[2]}`)
+    return made && made.map((effect) => (effect.op === 'token' || effect.op === 'copy' ? { ...effect, count: count! } : effect))
   }],
   // The token's own abilities, in quotes. It is made; using them is yours.
   [/^(?:it has|they have|it gains|they gain) ".+"$/, () => []],
@@ -282,6 +295,12 @@ const PATTERNS: Pattern[] = [
     return onPermanents(m[3], (to) => [{ op: 'counters', to, count, counter }])
   }],
   [/^remove all (?:of them|[a-z+/\d-]+ counters) from (~|it)$/, () => [{ op: 'removeCounters', from: { kind: 'self' } }]],
+  [/^(.+?) connives (\w+)$/, (m) => {
+    const count = readCount(m[2])
+    return count === null ? null : onPermanents(m[1], (who) => [{ op: 'connive', who, count }])
+  }],
+  // Convoke is not offered, so nothing convoked it.
+  [/^each creature that convoked ~ connives$/, () => []],
   [/^(.+?) connives?$/, (m) => onPermanents(m[1], (who) => [{ op: 'connive', who }])],
   [/^have (it|~|that creature) connive$/, (m) => onPermanents(m[1], (who) => [{ op: 'connive', who }])],
   [/^double the number of ([+-]\d\/[+-]\d|[a-z]+) counters on ~$/, (m) => (
@@ -384,6 +403,15 @@ const PATTERNS: Pattern[] = [
     }
     return onPermanents(m[1], (what) => [{ op: 'move', what, to: 'hand' }])
   }],
+  // Itself, from the graveyard: the ability works from there.
+  [/^return ~ from your graveyard to your hand$/, () => [{ op: 'move', what: { kind: 'self' }, to: 'hand' }]],
+  // The one most lately buried, with nothing to choose.
+  [/^return the top (.+?) card of your graveyard to (your hand|the battlefield)$/, (m) => {
+    const filter = readFilter(m[1])
+    return filter && [{
+      op: 'reanimate', filter, count: 1, upTo: false, top: true, to: m[2] === 'your hand' ? 'hand' : 'battlefield',
+    }]
+  }],
   // Every one of them, with no choosing: Rally the Ancestors.
   [/^return each (.+?)(?: cards?)? from your graveyard to (your hand|the battlefield)$/, (m) => {
     const filter = readFilter(m[1])
@@ -415,6 +443,20 @@ const PATTERNS: Pattern[] = [
   [/^(.+?) gets? ([+-](?:\d+|x))\/([+-](?:\d+|x))(?: and gains? (.+?))? until end of turn$/, (m) => (
     onPermanents(m[1], (to) => [{
       op: 'boost', to, power: readSigned(m[2]), toughness: readSigned(m[3]), keywords: readKeywords(m[4] ?? ''),
+    }])
+  )],
+  [/^(.+?) gains? your choice of ([a-z ]+?) or ([a-z ]+?) until end of turn$/, (m) => (
+    onPermanents(m[1], (to) => [{
+      op: 'mode', min: 1, max: 1,
+      modes: readKeywords(`${m[2]}, ${m[3]}`).map((keyword) => ({
+        text: keyword, complete: true, effects: [{ op: 'boost', to, power: 0, toughness: 0, keywords: [keyword] }],
+      })),
+    }])
+  )],
+  [/^until end of turn, (.+?) becomes? an? ([a-z ]+?) in addition to its other types(?: and gains? (.+))?$/, (m) => (
+    onPermanents(m[1], (to) => [{
+      op: 'boost', to, power: 0, toughness: 0, keywords: readKeywords(m[3] ?? ''),
+      types: m[2].split(/\s+/).map((type) => type[0].toUpperCase() + type.slice(1)),
     }])
   )],
   [/^(.+?) gains? (.+?) until end of turn$/, (m) => (
@@ -452,6 +494,7 @@ const PATTERNS: Pattern[] = [
   [/^gain control of target (?!.*until end of turn)[^.]+$/, () => nothing('Everything here is already yours')],
   [/^(?:that player|each opponent|target opponent|each other player|defending player) sacrifices (?!.* and you )[^.]+$/, () => nothing('Nothing on the other side to sacrifice')],
   [/^(?:it|that creature|they) can't be regenerated$/, () => []],
+  [/^return target spell you don't control to its owner's hand$/, () => nothing('No spell on the other side to return')],
   // Picked rather than targeted: "choose an artifact or creature you control".
   [/^choose an? (.+ you control)$/, (m) => {
     const filter = readFilter(m[1])
@@ -772,6 +815,10 @@ export function readAbility(
       }
       if (/^(?:exile|sacrifice) (?:it|them|that token|those tokens|the tokens?) at the beginning of the next end step$/.test(s)) {
         effects[effects.length - 1] = { ...made, fleeting: true }
+        continue
+      }
+      if (made.op === 'copy' && /^(?:the tokens?|it|they) enters? tapped and attacking$/.test(s)) {
+        effects[effects.length - 1] = { ...made, tapped: true, attacking: true }
         continue
       }
     }

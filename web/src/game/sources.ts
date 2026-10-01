@@ -189,9 +189,16 @@ function additional(inst: Instance, state: GameState, makes: readonly ManaType[]
   for (const source of state.cards) {
     if (source.zone !== 'battlefield') continue
     for (const fixed of compile(source.card).statics) {
-      if (fixed.kind !== 'extraMana' || !isKind(inst, fixed.tapped, source.iid, sweep)) continue
+      if (fixed.kind !== 'extraMana') continue
+      // The land an Aura is on, or whatever answers to the filter.
+      const mine = fixed.tapped === 'attached' ? source.attachedTo === inst.iid : isKind(inst, fixed.tapped, source.iid, sweep)
+      if (!mine) continue
       if (fixed.of && !makes.every((unit) => unit.length === 1 && unit[0] === fixed.of)) continue
-      more.push([fixed.adds])
+      const { per } = fixed
+      const times = per
+        ? state.cards.filter((c) => c.zone === 'battlefield' && isKind(c, per, source.iid, sweep)).length
+        : 1
+      for (let i = 0; i < times; i += 1) more.push([fixed.adds])
     }
   }
   return more

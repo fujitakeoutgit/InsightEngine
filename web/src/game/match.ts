@@ -17,6 +17,7 @@ export function matches(inst: Instance, asked: Filter, source?: string, state?: 
     : asked
   if (!isKind(inst, filter, source, state ? sweeping(state) : undefined)) return false
   if (filter.attacking && !state?.attacking.includes(inst.iid)) return false
+  if (filter.alone && state?.attacking.length !== 1) return false
   if (filter.keyword && !hasKeyword(inst, filter.keyword, state)) return false
   if (filter.compare) {
     const { stat, op, value } = filter.compare

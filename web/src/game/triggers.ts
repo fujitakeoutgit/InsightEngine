@@ -17,6 +17,7 @@
  */
 
 import { remind } from './cast'
+import { combatDamage } from './combat'
 import { compile } from './compiler/compile'
 import type { TriggeredAbility, TriggerEvent } from './compiler/ir'
 import { holds } from './holds'
@@ -187,10 +188,16 @@ export function collectTriggers(before: GameState, after: GameState): GameState 
   const answered = new Set<string>()
   for (const event of events) {
     // A death is seen by what was on the battlefield as it happened, the dead
-    // included: creatures that leave together each see the others go.
-    const watching = event.on === 'dies' ? inZone(before, 'battlefield') : inZone(next, 'battlefield')
+    // included: creatures that leave together each see the others go. A card
+    // in the graveyard watches too, for the abilities that work from there.
+    const watching = [
+      ...(event.on === 'dies' ? inZone(before, 'battlefield') : inZone(next, 'battlefield')),
+      ...inZone(next, 'graveyard').filter((c) => compile(c.card).triggers.some((ability) => ability.from === 'graveyard')),
+    ]
     for (const source of watching) {
       compile(source.card).triggers.forEach((ability, index) => {
+        // Each ability works from one place: the battlefield, unless it says.
+        if ((ability.from ?? 'battlefield') !== (source.zone === 'graveyard' && event.on !== 'dies' ? 'graveyard' : 'battlefield')) return
         if (!sees(ability.when, event, source, next)) return
         const key = `${source.iid}#${index}`
         if (ability.batch && answered.has(key)) return
@@ -198,7 +205,10 @@ export function collectTriggers(before: GameState, after: GameState): GameState 
         // What it was as it left, for a death; what it is, for the rest.
         const about = 'card' in event ? event.card : null
         const known = about ? snapshot(about, event.on === 'dies' ? before : next) : null
-        next = fire(next, source, index, ability, about, known, event.on === 'damaged' ? event.amount : undefined)
+        // How much, for the abilities that ask: damage taken, or dealt.
+        const amount = event.on === 'damaged' ? event.amount
+          : event.on === 'combatDamage' ? combatDamage(next, event.card) : undefined
+        next = fire(next, source, index, ability, about, known, amount)
       })
     }
   }

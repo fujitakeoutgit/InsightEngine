@@ -46,6 +46,8 @@ export function mint(state: GameState, prefix: string): [string, GameState] {
 export function relocate(
   cards: readonly Instance[], iid: string, zone: Zone, at?: Spot, tapped?: boolean,
 ): Instance[] {
+  // The top of the graveyard is whatever went there last.
+  const buried = zone === 'graveyard' ? Math.max(0, ...cards.map((c) => c.buried ?? 0)) + 1 : undefined
   return cards.map((c) => {
     if (c.iid !== iid) return c
     /* Leaving the battlefield resets a planeswalker's loyalty to its printed
@@ -71,6 +73,7 @@ export function relocate(
       ...left,
       ...(loyalty !== null ? { loyalty } : {}),
       ...(at ?? {}),
+      buried: c.zone === 'graveyard' && zone === 'graveyard' ? c.buried : buried,
     }
   })
 }
