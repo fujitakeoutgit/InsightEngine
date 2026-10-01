@@ -4,7 +4,9 @@
  * the sacrificed creature's toughness, the cards in your hand.
  */
 
+import { compile } from './compiler/compile'
 import type { Count, Filter, Signed } from './compiler/ir'
+import { isCreatureType } from './compiler/subtypes'
 import { matches, onBattlefield } from './match'
 import { find, inZone } from './state'
 import { colorsOnBoard, snapshot, stats } from './stats'
@@ -28,7 +30,7 @@ export function amount(state: GameState, r: Asking, count: Count): number {
   if (count === 'life') return state.life
   if (count === 'thatMany') return r.last
   if ('tally' in count) return state.tally[count.tally]
-  if ('per' in count) return onBattlefield(state, count.per, r.source).length
+  if ('per' in count) return onBattlefield(state, settled(state, r, count.per), r.source).length
   if ('zone' in count) {
     const { filter } = count
     return inZone(state, count.zone).filter((c) => !filter || matches(c, filter, r.source)).length
@@ -58,10 +60,28 @@ export function amount(state: GameState, r: Asking, count: Count): number {
 
 /** A filter with any amount in it worked out: "mana value less than or
  *  equal to the number of lands you control" becomes "…3 or less". */
-export function settled(state: GameState, r: Asking, filter: Filter): Filter {
+export function settled(state: GameState, r: Asking, asked: Filter): Filter {
+  const filter = asked.sharesType ? sharing(state, r, asked) : asked
   const { compare } = filter
   if (!compare || typeof compare.value === 'number') return filter
   return { ...filter, compare: { ...compare, value: amount(state, r, compare.value) } }
+}
+
+/** "That shares a creature type with it", as the types that would do. A
+ *  changeling shares one with every creature, so it asks for nothing more
+ *  than a creature; something with no creature type shares with none. */
+function sharing(state: GameState, r: Asking, filter: Filter): Filter {
+  const { sharesType, ...rest } = filter
+  const source = find(state, r.source)
+  const iid = sharesType === 'host' ? source?.attachedTo ?? r.event
+    : sharesType === 'it' ? r.event ?? r.source : r.source
+  const with_ = iid ? find(state, iid) : undefined
+  if (!with_) return { ...rest, subtypes: ['—'] }
+  if ((with_.card.keywords ?? []).some((k) => k.toLowerCase() === 'changeling')) return { ...rest, types: rest.types ?? ['creature'] }
+  const types = (with_.card.type_line ?? '').split(/\s+—\s+/)[1]?.split(/\s+/).filter(isCreatureType) ?? []
+  // What it "is in addition to its other types" counts too.
+  if (with_.chosenType && compile(with_.card).statics.some((fixed) => fixed.kind === 'isChosenType')) types.push(with_.chosenType)
+  return { ...rest, subtypes: types.length ? types : ['—'] }
 }
 
 /** A change to power or toughness, as a number. */

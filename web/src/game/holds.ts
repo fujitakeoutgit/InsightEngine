@@ -6,12 +6,26 @@
 
 import { amount, type Asking } from './amount'
 import type { Test } from './compiler/ir'
+import { isCreatureType } from './compiler/subtypes'
+import { hasSubtype, sweeping } from './kinds'
 import { matches, onBattlefield } from './match'
 import { find, inZone } from './state'
 import type { GameState } from './types'
 
 export function holds(state: GameState, r: Asking, test: Test): boolean {
   if ('all' in test) return test.all.every((part) => holds(state, r, part))
+  if ('not' in test) return !holds(state, r, test.not)
+  if ('sharedType' in test) {
+    // The most creatures of yours that have any one type in common.
+    const creatures = inZone(state, 'battlefield').filter((c) => /\bCreature\b/.test(c.card.type_line ?? ''))
+    const types = new Set(creatures.flatMap((c) => (
+      (c.card.type_line ?? '').split(/\s+—\s+/)[1]?.split(/\s+/).filter(isCreatureType) ?? []
+    )))
+    // Changelings are every type, so with no type named they still share.
+    if (!types.size) types.add('Shapeshifter')
+    const sweep = sweeping(state)
+    return [...types].some((type) => creatures.filter((c) => hasSubtype(c, type, sweep)).length >= test.sharedType)
+  }
   if ('tally' in test) return state.tally[test.tally] >= test.atLeast
   if ('control' in test) return onBattlefield(state, test.control, r.source).length >= test.atLeast
   if ('graveyard' in test) {

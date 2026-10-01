@@ -30,7 +30,8 @@ import type { GameState, Instance, Known, Tally } from './types'
 type About = 'enters' | 'dies' | 'cast' | 'attacks' | 'combatDamage' | 'discard' | 'tapped' | 'untapped' | 'connives'
 
 type Happened =
-  | { on: About; card: Instance }
+  | { on: About; card: Instance; from?: string }
+  | { on: 'leavesGraveyard' }
   /** Damage marked on a creature: how much more than it had. */
   | { on: 'damaged'; card: Instance; amount: number }
   /** A Class has become this level. */
@@ -47,7 +48,7 @@ function happened(before: GameState, after: GameState): { events: Happened[]; ta
 
   for (const now of after.cards) {
     const prev = was.get(now.iid)
-    if (now.zone === 'battlefield' && prev?.zone !== 'battlefield') out.push({ on: 'enters', card: now })
+    if (now.zone === 'battlefield' && prev?.zone !== 'battlefield') out.push({ on: 'enters', card: now, from: prev?.zone })
     // Dying is going to the graveyard from the battlefield, and only
     // creatures do it. The card is taken as it was, counters and all.
     if (prev?.zone === 'battlefield' && now.zone === 'graveyard' && isCreature(prev)) {
@@ -70,6 +71,9 @@ function happened(before: GameState, after: GameState): { events: Happened[]; ta
   // soon nowhere at all.
   for (const prev of before.cards) {
     if (prev.zone === 'battlefield' && is.get(prev.iid)?.zone !== 'battlefield') tally.left += 1
+  }
+  if (before.cards.some((prev) => prev.zone === 'graveyard' && is.get(prev.iid)?.zone !== 'graveyard')) {
+    out.push({ on: 'leavesGraveyard' })
   }
 
   const stacked = new Set(before.stack.map((item) => item.id))
@@ -109,7 +113,10 @@ function happened(before: GameState, after: GameState): { events: Happened[]; ta
     }
     const card = is.get(event.iid)
     if (!card) continue
-    out.push(event.on === 'level' ? { on: 'level', card, level: event.level } : { on: 'connives', card })
+    out.push(event.on === 'level' ? { on: 'level', card, level: event.level }
+      // Flickered: out to exile and back.
+      : event.on === 'enters' ? { on: 'enters', card, from: 'exile' }
+        : { on: 'connives', card })
   }
   return { events: out, tally }
 }
@@ -123,6 +130,7 @@ function sees(when: TriggerEvent, event: Happened, source: Instance, state: Game
   }
   if (!('card' in event)) return true
   const { card } = event
+  if (when.on === 'enters' && when.from && when.from !== (event as { from?: string }).from) return false
   if (when.on === 'cast') return matches(card, when.filter, source.iid, state)
   if (when.on === 'discard') return !when.filter || matches(card, when.filter, source.iid, state)
   if ('who' in when) {

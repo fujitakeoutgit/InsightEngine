@@ -14,7 +14,7 @@ import type { AbilityCost, ActivatedAbility, Effect, Filter } from './ir'
 import { readFilter, readNumber } from './read'
 
 const FREE: AbilityCost = {
-  mana: null, tap: false, life: 0, sacrificeSelf: false, sacrifice: null,
+  mana: null, tap: false, life: 0, sacrificeSelf: false, sacrifice: null, sacrificeAny: null,
   discardSelf: false, remove: null, add: null, tapOther: null, loyalty: null,
 }
 
@@ -34,6 +34,12 @@ export function readCost(text: string): AbilityCost | null {
       // X in an ability's cost wants asking for; not yet.
       if (/\{x\}/.test(p)) return null
       cost.mana = (cost.mana ?? '') + p.toUpperCase()
+    } else if (/^sacrifice ~ and any number of /.test(p)) {
+      // Emrakul's Evangel: itself, and as many others as you like.
+      const filter = readFilter(p.replace(/^sacrifice ~ and any number of /, ''))
+      if (!filter) return null
+      cost.sacrificeSelf = true
+      cost.sacrificeAny = { ...filter, controller: 'you' }
     } else if (/^sacrifice (~|it)$/.test(p)) cost.sacrificeSelf = true
     else if (/^sacrifice (an?|another) /.test(p)) {
       const filter = readFilter(p.replace(/^sacrifice an? /, '').replace(/^sacrifice another /, 'another '))

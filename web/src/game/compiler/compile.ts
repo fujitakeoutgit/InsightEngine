@@ -80,6 +80,13 @@ function readTrigger(condition: string): TriggerEvent[] | null {
   if (/^~ enters or attacks$/.test(condition.trim())) {
     return [{ on: 'enters', who: 'self' }, { on: 'attacks', who: 'self' }]
   }
+  // "…enters from a graveyard": the same arrivals, from there only.
+  const buried = /^(.+ enters?) from (?:a|your) graveyard$/.exec(condition.trim())
+  if (buried) {
+    const events = readTrigger(buried[1])
+    return events && events.map((when) => (when.on === 'enters' ? { ...when, from: 'graveyard' as const } : when))
+  }
+  if (/^one or more cards leave your graveyard$/.test(condition.trim())) return [{ on: 'leavesGraveyard' }]
   const commander = /^your commander (enters|attacks|enters or attacks)$/.exec(condition.trim())
   if (commander) {
     const who = { commander: true, controller: 'you' as const }
@@ -299,6 +306,17 @@ export function compile(card: Card): Compiled {
     }
     if (NOT_OFFERED.some((pattern) => pattern.test(lower))) {
       skipped.push(printed)
+      grades.push(1)
+      continue
+    }
+    // Persist and undying: back once, with a counter that says it has been.
+    if (lower === 'persist' || lower === 'undying') {
+      const counter = lower === 'persist' ? '-1/-1' : '+1/+1'
+      triggers.push({
+        text: printed, when: { on: 'dies', who: 'self' }, complete: true,
+        condition: { not: { counters: counter, of: 'self', atLeast: 1 } },
+        effects: [{ op: 'revive', counter }],
+      })
       grades.push(1)
       continue
     }

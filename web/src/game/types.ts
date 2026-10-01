@@ -57,6 +57,8 @@ export interface Instance {
   fleeting?: 'end' | 'upkeep'
   /** Echo is still owed: asked for at your next upkeep. */
   echo?: boolean
+  /** It stays tapped through your next untap step. */
+  frozen?: boolean
   /** The card this is, while it is on the battlefield as a copy of another.
    *  `card` is then what it copies. */
   original?: Card
@@ -91,6 +93,9 @@ export type GameEvent =
   | { on: 'connives'; iid: string }
   | { on: 'scry' }
   | { on: 'level'; iid: string; level: number }
+  /** A permanent that left and came straight back: it has entered, though
+   *  it is on the battlefield before and after. */
+  | { on: 'enters'; iid: string }
 
 /** Counts kept over a turn, for the cards that ask what has happened in it. */
 export type Tally = Record<TallyKey, number>
@@ -198,7 +203,11 @@ export type Decision =
     /** Cards looked at with the options that cannot be taken: the rest of
      *  the top five, shown so the choice is made knowing them. */
     seen?: string[]
+    /** What the picked may add up to: each option's cost, and the most. */
+    budget?: { max: number; cost: Record<string, number>; of: string }
   }
+  /** "Choose a number between 0 and 10." */
+  | { kind: 'number'; prompt: string; min: number; max: number }
   /** Scry or surveil: which of these stay on top. */
   | { kind: 'arrange'; mode: 'scry' | 'surveil'; cards: string[] }
   /** Declare attackers: which of these attack. */
@@ -334,6 +343,8 @@ export type Action =
   | { type: 'mode'; index: number }
   /** The creature type chosen for the permanent that is asking. */
   | { type: 'pickType'; subtype: string }
+  /** The number chosen, for "choose a number". */
+  | { type: 'number'; value: number }
   /** The order abilities that triggered together resolve in, first first. */
   | { type: 'order'; ids: string[] }
   /** Whether turn 1 has a draw step: it does in a multiplayer game. */

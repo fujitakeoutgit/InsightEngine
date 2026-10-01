@@ -51,6 +51,8 @@ const INERT = [
   /^~ can attack players who attacked you during their last turn as though it didn't have defender\.?$/,
   /: [^:]*\bactivate only if it's not your turn\.?$/,
   /^a deck can have any number of cards named ~\.?$/,
+  // Casting from the graveyard is not offered, so nobody does.
+  /^whenever (?:a player|you) casts? a spell from (?:a|your) graveyard, /,
   /^~ can't be countered\.?$/,
   /^your opponents can't cast spells during your turn\.?$/,
   /^you(, [^.]+)? have (hexproof|shroud)\.?$/,
@@ -180,14 +182,30 @@ export function readStatic(line: string): Static | null {
 
   // "Creatures you control get +1/+1", "Spirits you control get +1/+1 and
   // have trample and haste", "Creatures you control have haste".
-  const anthem = /^(.+?) you control( of the chosen type)? (?:get ([+-]\d+)\/([+-]\d+)(?: and have (.+))?|have (.+))$/.exec(l)
+  // "Creatures you control that are Zombies and/or tokens get +1/+1 and
+  // have flying."
+  const mixed = /^creatures you control that are (.+?) get ([+-]\d+)\/([+-]\d+)(?: and have (.+))?$/.exec(l)
+  if (mixed) {
+    const kinds = mixed[1].split(/ and\/or | or /).map((kind) => (kind === 'tokens' ? { token: true } : readFilter(kind)))
+    if (kinds.every(Boolean)) {
+      return {
+        kind: 'boost',
+        to: { types: ['creature'], controller: 'you', either: kinds as Filter[] },
+        boost: { power: Number(mixed[2]), toughness: Number(mixed[3]), keywords: readKeywords(mixed[4] ?? '') },
+      }
+    }
+  }
+
+  const anthem = /^(.+?) you control( of the chosen type)? (?:get ([+-]\d+)\/([+-]\d+)(?: and have (.+?))?|have (.+?))(?: for each (.+))?$/.exec(l)
   if (anthem) {
     const filter = readFilter(anthem[1])
-    if (filter) {
+    const per = anthem[7] ? readPer(anthem[7]) : undefined
+    if (filter && per !== null) {
       const boost: Boost = {
         power: Number(anthem[3] ?? 0),
         toughness: Number(anthem[4] ?? 0),
         keywords: readKeywords(anthem[5] ?? anthem[6] ?? ''),
+        ...(per ? { per } : {}),
       }
       return { kind: 'boost', to: { ...filter, controller: 'you', ...(anthem[2] ? { chosenType: true } : {}) }, boost }
     }

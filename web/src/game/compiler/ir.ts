@@ -32,6 +32,12 @@ export interface Filter {
   /** Subtypes it must not have: "non-Spirit". */
   notSubtypes?: string[]
   basic?: boolean
+  /** A token. */
+  token?: boolean
+  /** "That shares a creature type with it": with the card the ability is
+   *  about, what this is attached to, or this card itself. Worked out into
+   *  `subtypes` as it is asked. */
+  sharesType?: 'it' | 'host' | 'self'
   /** Color letters, any of: "blue" is `['U']`. */
   colors?: string[]
   colorless?: boolean
@@ -139,6 +145,9 @@ export type Aim =
   | { kind: 'each'; filter: Filter }
   /** What the source is attached to: "enchanted creature". */
   | { kind: 'host' }
+  /** Every permanent matching that was not chosen: "sacrifices all other
+   *  creatures". */
+  | { kind: 'others'; filter: Filter }
 
 /** How a copy differs from what it copies: "except it's a Spirit in addition
  *  to its other types and it isn't legendary". */
@@ -176,6 +185,13 @@ export type Test =
   | { tally: TallyKey; atLeast: number }
   /** Every one of these. */
   | { all: Test[] }
+  /** That this is not so. */
+  | { not: Test }
+  /** "You control three or more creatures that share a creature type." */
+  | { sharedType: number }
+
+/** A limit on a pick, by what the picked add up to. */
+export interface Budget { stat: 'power' | 'toughness'; max: number }
 
 /** A token, as described where it is created. */
 export interface TokenSpec {
@@ -215,7 +231,28 @@ export type Effect = (
   /** Pick permanents for the effects after it. A target may be declined —
    *  nobody has to aim removal at their own board — but `must` is a cost or
    *  an instruction, like sacrificing a land, and is not optional. */
-  | { op: 'choose'; filter: Filter; count: number; upTo: boolean; must?: boolean; zone?: 'graveyard' }
+  | {
+    op: 'choose'
+    filter: Filter
+    count: number
+    upTo: boolean
+    must?: boolean
+    zone?: 'graveyard'
+    /** "With total power 4 or less": what the ones picked may add up to. */
+    budget?: Budget
+  }
+  /** "Choose a number between 0 and 10": it is X for the rest. */
+  | { op: 'number'; min: number; max: number }
+  /** Exile, and return at once: it arrives as a new permanent. */
+  | { op: 'flicker'; what: Aim }
+  /** "It doesn't untap during its controller's next untap step." */
+  | { op: 'freeze'; what: Aim }
+  /** A card at random from your library that matches, into your hand —
+   *  `prevalent`, of the commonest creature type there. No shuffle. */
+  | { op: 'seek'; filter: Filter; prevalent?: boolean }
+  /** The source returns from your graveyard to the battlefield: persist,
+   *  with a -1/-1 counter. */
+  | { op: 'revive'; counter?: string }
   | { op: 'draw'; count: Count }
   | { op: 'life'; who: 'you' | 'opponent'; sign: 1 | -1; count: Count }
   | { op: 'damage'; to: Aim; count: Count }
@@ -301,6 +338,7 @@ export type Effect = (
     /** "The top creature card of your graveyard": the one most lately put
      *  there, with nothing to choose. */
     top?: boolean
+    budget?: Budget
   }
   /** A Class gains its next level. */
   | { op: 'levelUp' }
@@ -361,8 +399,12 @@ export interface Ability {
 }
 
 export type TriggerEvent =
-  | { on: 'enters'; who: 'self' }
-  | { on: 'enters'; who: Filter }
+  /** `from` narrows it to arrivals from one place: "enters from a
+   *  graveyard". */
+  | { on: 'enters'; who: 'self'; from?: 'graveyard' }
+  | { on: 'enters'; who: Filter; from?: 'graveyard' }
+  /** "Whenever one or more cards leave your graveyard." */
+  | { on: 'leavesGraveyard' }
   | { on: 'dies'; who: 'self' }
   /** "Whenever equipped creature dies": what this is attached to. */
   | { on: 'dies'; who: 'attached' }
@@ -487,6 +529,8 @@ export interface AbilityCost {
   sacrificeSelf: boolean
   /** Sacrifice something else: "a creature", "another creature". */
   sacrifice: Filter | null
+  /** Sacrifice as many of these as you like, none included. */
+  sacrificeAny: Filter | null
   /** Discard this card — cycling, from hand. */
   discardSelf: boolean
   /** Counters taken off the permanent. */

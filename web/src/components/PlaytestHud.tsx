@@ -259,10 +259,12 @@ export function Reminders({ items, onDone }: { items: Reminder[]; onDone: (id: s
  *  from the board or the hand, which sits low, out of the way of the cards
  *  it is asking about. Searches and scrying have dialogs of their own. */
 export function DecisionPrompt({
-  decision, chosen, damage = 0, name = '', firstDraw = false, onFirstDraw,
+  decision, chosen, damage = 0, spent = 0, name = '', firstDraw = false, onFirstDraw,
   onKeep, onMulligan, onConfirm, onAnswer, onMode, onType, onAll,
 }: {
   decision: Decision
+  /** What the cards picked so far add up to, where the pick has a limit. */
+  spent?: number
   /** Whether turn 1 draws a card, and the switch for it on the opening
    *  hand. */
   firstDraw?: boolean
@@ -341,11 +343,17 @@ export function DecisionPrompt({
       <div className="pt-decision low" role="dialog" aria-label="Choose">
         <p className="pt-decision-text">{decision.prompt}</p>
         <div className="row gap-2">
-          <span className="mono faint">{chosen} of {decision.max}</span>
+          {decision.budget ? (
+            <span className={`mono ${spent > decision.budget.max ? 'pt-over' : 'faint'}`}>
+              total {decision.budget.of} {spent} of {decision.budget.max}
+            </span>
+          ) : (
+            <span className="mono faint">{chosen} of {decision.max}</span>
+          )}
           <button
             className="btn btn-primary sm"
             onClick={onConfirm}
-            disabled={chosen < decision.min || chosen > decision.max}
+            disabled={chosen < decision.min || chosen > decision.max || (decision.budget ? spent > decision.budget.max : false)}
           >
             {chosen === 0 && decision.min === 0 ? 'None' : 'Choose'}
           </button>
@@ -353,8 +361,9 @@ export function DecisionPrompt({
       </div>
     )
   }
-  // Scrying and ordering triggers have panels of their own.
-  if (decision.kind === 'arrange' || decision.kind === 'order') return null
+  // Scrying, ordering triggers and choosing a number have panels of their
+  // own.
+  if (decision.kind === 'arrange' || decision.kind === 'order' || decision.kind === 'number') return null
   if (decision.kind === 'attack') {
     return (
       <div className="pt-decision low" role="dialog" aria-label="Declare attackers">
@@ -415,6 +424,25 @@ export function DecisionPrompt({
       <button className="btn btn-primary sm" onClick={onConfirm} disabled={chosen !== decision.count}>
         {verb}
       </button>
+    </div>
+  )
+}
+
+/** "Choose a number between 0 and 10." */
+export function NumberPrompt({
+  prompt, min, max, onChoose,
+}: { prompt: string; min: number; max: number; onChoose: (value: number) => void }) {
+  const [value, setValue] = useState(min)
+  return (
+    <div className="pt-decision" role="dialog" aria-label="Choose a number">
+      <h3>{prompt}</h3>
+      <p className="faint">Between {min} and {max}.</p>
+      <div className="row gap-2 pt-x">
+        <button className="btn btn-ghost sm" onClick={() => setValue((v) => Math.max(min, v - 1))} disabled={value <= min} aria-label="Less">−</button>
+        <span className="mono pt-x-value">{value}</span>
+        <button className="btn btn-ghost sm" onClick={() => setValue((v) => Math.min(max, v + 1))} disabled={value >= max} aria-label="More">+</button>
+      </div>
+      <button className="btn btn-primary sm" onClick={() => onChoose(value)}>Choose</button>
     </div>
   )
 }
@@ -549,9 +577,11 @@ export interface Offered {
  * of a card are one row with a count: thirteen Forests are one decision.
  */
 export function PickDialog({
-  prompt, cards, seen = [], min, max, onChoose,
+  prompt, cards, seen = [], min, max, budget, onChoose,
 }: {
   prompt: string
+  /** A limit on what the cards taken may add up to, and what each costs. */
+  budget?: { max: number; cost: Record<string, number>; of: string }
   cards: Offered[]
   /** Cards looked at along with these that cannot be taken — the rest of
    *  the top five. Shown, so the choice is made knowing them. */
@@ -570,6 +600,12 @@ export function PickDialog({
   }, [cards])
   const total = picks.length
   const count = (name: string) => picks.filter((p) => p === name).length
+  /** What the taken cards add up to, against the limit. Copies of a card
+   *  cost the same, so the first of its row stands for each. */
+  const spent = budget
+    ? picks.reduce((sum, name) => sum + (budget.cost[groups.find((group) => group[0].name === name)?.[0].iid ?? ''] ?? 0), 0)
+    : 0
+  const over = Boolean(budget && spent > budget.max)
 
   const take = (name: string, available: number) => setPicks((now) => {
     const mine = now.filter((p) => p === name).length
@@ -608,7 +644,7 @@ export function PickDialog({
                   {c.name}
                   {group.length > 1 && <span className="mono faint"> ×{group.length}</span>}
                 </span>
-                <span className="mono faint">{c.cost ?? ''}</span>
+                <span className="mono faint">{budget ? `${budget.of} ${budget.cost[c.iid] ?? 0}` : c.cost ?? ''}</span>
                 <span className="faint">{mine ? `taking ${mine}` : c.type}</span>
               </button>
             )
@@ -625,11 +661,17 @@ export function PickDialog({
           <button
             className="btn btn-primary sm"
             onClick={() => onChoose(chosen())}
-            disabled={total < min}
+            disabled={total < min || over}
           >
             {total ? `Take ${total}` : 'Take nothing'}
           </button>
-          <span className="faint" style={{ fontSize: 11 }}>{total} of {max}</span>
+          {budget ? (
+            <span className={over ? 'pt-over' : 'faint'} style={{ fontSize: 11 }}>
+              total {budget.of} {spent} of {budget.max}
+            </span>
+          ) : (
+            <span className="faint" style={{ fontSize: 11 }}>{total} of {max}</span>
+          )}
         </div>
       </div>
     </div>

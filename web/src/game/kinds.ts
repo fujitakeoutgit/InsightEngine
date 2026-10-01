@@ -99,6 +99,9 @@ export function isKind(inst: Instance, filter: Filter, source?: string, sweep: S
   if (filter.commander !== undefined && Boolean(inst.commander) !== filter.commander) return false
   if (filter.tapped !== undefined && inst.tapped !== filter.tapped) return false
   if (filter.nontoken && inst.token) return false
+  if (filter.token && !inst.token) return false
+  // With what? See `settled` in amount.ts, which has to have answered first.
+  if (filter.sharesType) return false
   if (filter.other && inst.iid === source) return false
   return true
 }

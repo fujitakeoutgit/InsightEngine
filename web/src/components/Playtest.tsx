@@ -27,8 +27,8 @@ import { PlayCoin, type CoinFace } from './PlayCoin'
 
 import { PlayDie } from './PlayDie'
 import {
-  AbilityMenu, ArrangeDialog, CoverageDialog, DecisionPrompt, ManaPicker, OrderPrompt, PhaseBar, PickDialog,
-  Reminders,
+  AbilityMenu, ArrangeDialog, CoverageDialog, DecisionPrompt, ManaPicker, NumberPrompt, OrderPrompt, PhaseBar,
+  PickDialog, Reminders,
   StackPanel, XPrompt, type Offered,
 } from './PlaytestHud'
 import { canAnimate, gsap } from '../lib/motion'
@@ -739,6 +739,9 @@ export function Playtest({
             onKeep={() => dispatch({ type: 'keep' })}
             onMulligan={() => dispatch({ type: 'mulligan' })}
             damage={pending.kind === 'attack' ? expectedDamage(game, selected) : 0}
+            spent={pending.kind === 'pick' && pending.budget
+              ? selected.reduce((sum, iid) => sum + (pending.budget!.cost[iid] ?? 0), 0)
+              : 0}
             onAll={pending.kind === 'attack' ? () => setSelected(pending.options) : undefined}
             onConfirm={() => dispatch(pending.kind === 'attack'
               ? { type: 'attack', iids: selected }
@@ -749,6 +752,15 @@ export function Playtest({
             onType={(subtype) => dispatch({ type: 'pickType', subtype })}
             firstDraw={game.firstDraw}
             onFirstDraw={(on) => { setFirstDraw(on); dispatch({ type: 'firstDraw', on }) }}
+          />
+        )}
+
+        {pending?.kind === 'number' && (
+          <NumberPrompt
+            prompt={pending.prompt}
+            min={pending.min}
+            max={pending.max}
+            onChoose={(value) => dispatch({ type: 'number', value })}
           />
         )}
 
@@ -1083,6 +1095,7 @@ export function Playtest({
           prompt={pending.prompt}
           cards={offered(pending.options)}
           seen={offered(pending.seen ?? [])}
+          budget={pending.budget}
           min={pending.min}
           max={pending.max}
           onChoose={(iids) => dispatch({ type: 'choose', iids })}

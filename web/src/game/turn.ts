@@ -49,8 +49,12 @@ function enter(state: GameState): GameState {
       // Everything untaps, and a creature you have had since this turn began
       // is no longer summoning sick — which, at the start of your turn, is
       // every creature you have.
+      // …but for what was told it "doesn't untap during your next untap
+      // step": that stays as it is, this once.
       const cards = state.cards.map((c) => (
-        c.zone === 'battlefield' && (c.tapped || c.sick) ? { ...c, tapped: false, sick: false } : c
+        c.zone !== 'battlefield' ? c
+          : c.frozen ? { ...c, sick: false, frozen: undefined }
+            : c.tapped || c.sick ? { ...c, tapped: false, sick: false } : c
       ))
       return noted({
         ...state, cards, landsPlayed: 0, extraLands: 0, triggered: [], attacking: [], dealt: [],

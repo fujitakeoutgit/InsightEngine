@@ -350,6 +350,7 @@ function apply(state: GameState, action: Action): GameState {
     case 'confirm':
     case 'arrange':
     case 'mode':
+    case 'number':
       return answer(state, action)
 
     case 'order': {

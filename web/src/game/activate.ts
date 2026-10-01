@@ -32,6 +32,7 @@ export function costLabel(ability: ActivatedAbility): string {
     cost.life ? `${cost.life} life` : '',
     cost.sacrificeSelf ? 'sacrifice' : '',
     cost.sacrifice ? 'sacrifice another' : '',
+    cost.sacrificeAny ? 'sacrifice any number' : '',
     cost.tapOther ? 'tap another' : '',
     cost.discardSelf ? 'discard' : '',
     cost.remove ? `−${cost.remove.count} ${cost.remove.counter}` : '',
@@ -45,6 +46,7 @@ export function costLabel(ability: ActivatedAbility): string {
 function payable(state: GameState, inst: Instance, ability: ActivatedAbility): Instance[] {
   const { cost } = ability
   if (cost.tapOther) return onBattlefield(state, cost.tapOther, inst.iid)
+  if (cost.sacrificeAny) return onBattlefield(state, cost.sacrificeAny, inst.iid).filter((c) => c.iid !== inst.iid)
   if (!cost.sacrifice) return []
   return onBattlefield(state, cost.sacrifice, inst.iid)
     // "Sacrifice ~" and "a creature" in one cost are two different things.
@@ -171,6 +173,9 @@ function complete(state: GameState, iid: string, index: number, picked: string[]
         // creature's toughness".
         event: sacrificed[0] ?? null,
         known,
+        // …and how many, itself included: "for each creature sacrificed
+        // this way".
+        amount: sacrificed.length + (cost.sacrificeSelf ? 1 : 0),
       },
     }],
   }, `Activated ${inst.card.name} — ${costLabel(ability)}`)
@@ -181,6 +186,23 @@ export function activate(state: GameState, iid: string, index: number): GameStat
   const inst = find(state, iid)!
   const ability = abilitiesOf(inst)[index]
   const options = payable(state, inst, ability)
+  // Any number of them: asked whenever there is one to give up, since none
+  // is an answer too.
+  if (ability.cost.sacrificeAny) {
+    if (!options.length) return complete(state, iid, index, [])
+    return {
+      ...state,
+      paying: { iid, index },
+      pending: {
+        kind: 'pick',
+        zone: 'battlefield',
+        prompt: `${inst.card.name}: sacrifice any number of these as well`,
+        options: options.map((c) => c.iid),
+        min: 0,
+        max: options.length,
+      },
+    }
+  }
   if (options.length > 1) {
     return {
       ...state,
@@ -201,7 +223,10 @@ export function activate(state: GameState, iid: string, index: number): GameStat
 /** What to sacrifice, or to tap, is chosen: now pay, and activate. */
 export function paid(state: GameState, picked: string[]): GameState {
   const { paying, pending } = state
-  if (!paying || pending?.kind !== 'pick' || picked.length !== 1 || !pending.options.includes(picked[0])) return state
-  return complete(state, paying.iid, paying.index, picked)
+  if (!paying || pending?.kind !== 'pick') return state
+  const chosen = [...new Set(picked)]
+  if (chosen.length < pending.min || chosen.length > pending.max) return state
+  if (!chosen.every((iid) => pending.options.includes(iid))) return state
+  return complete(state, paying.iid, paying.index, chosen)
 }
 

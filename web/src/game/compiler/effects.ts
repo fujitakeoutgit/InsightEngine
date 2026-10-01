@@ -348,7 +348,7 @@ const PATTERNS: Pattern[] = [
   // Looking at the top few: the sentences that say what is taken and where
   // the rest goes were joined to this one with semicolons by `readAbility`.
   [/^(?:look at|reveal) the top (\w+) cards of your library; (.+)$/, (m) => readDig(m[1], m[2])],
-  [/^reveal cards from the top of your library until you reveal an? (.+?) card, put that card (into your hand|onto the battlefield) and the rest (.+)$/, (m) => {
+  [/^reveal cards from the top of your library until you reveal an? (.+?), put that card (into your hand|onto the battlefield) and the rest (.+)$/, (m) => {
     const filter = readFilter(m[1])
     const rest = readRest(m[3])
     return filter && rest && rest !== 'top'
@@ -361,6 +361,28 @@ const PATTERNS: Pattern[] = [
   }],
 
   // --- permanents ----------------------------------------------------------
+  // Out and straight back: it arrives as a new permanent.
+  [/^exile (.+?), then return (?:it|them|that card|those cards) to the battlefield under (?:your|its owner's|their owners') control$/, (m) => (
+    onPermanents(m[1], (what) => [{ op: 'flicker', what }])
+  )],
+  // Keep these, lose the rest: Slaughter the Strong.
+  [/^each player chooses any number of (.+?) they control with total (power|toughness) (\d+) or less, then sacrifices all other (.+?) they control$/, (m) => {
+    const keep = readFilter(m[1])
+    const rest = readFilter(m[4])
+    return keep && rest && [
+      {
+        op: 'choose', filter: { ...keep, controller: 'you' }, count: 99, upTo: true,
+        budget: { stat: m[2] as 'power' | 'toughness', max: Number(m[3]) },
+      },
+      { op: 'move', what: { kind: 'others', filter: { ...rest, controller: 'you' } }, to: 'graveyard' },
+    ]
+  }],
+  [/^choose a number between (\d+) and (\d+)$/, (m) => [{ op: 'number', min: Number(m[1]), max: Number(m[2]) }]],
+  [/^(.+?) doesn't untap during (?:its controller's|your) next untap step$/, (m) => onPermanents(m[1], (what) => [{ op: 'freeze', what }])],
+  [/^seek an? (.+?) card( of the most prevalent creature type in your library)?$/, (m) => {
+    const filter = readFilter(m[1])
+    return filter && [{ op: 'seek', filter, ...(m[2] ? { prevalent: true } : {}) }]
+  }],
   // A card in your graveyard, exiled: targeted, or simply picked.
   [/^exile (target |an? )(.+?) cards? from your graveyard$/, (m) => {
     const filter = readFilter(m[2])
@@ -402,6 +424,14 @@ const PATTERNS: Pattern[] = [
         : null
     }
     return onPermanents(m[1], (what) => [{ op: 'move', what, to: 'hand' }])
+  }],
+  // As many as you like, so long as they add up to no more than this.
+  [/^return any number of target (.+?) cards? with total (power|toughness) (\d+) or less from your graveyard to (your hand|the battlefield)$/, (m) => {
+    const filter = readFilter(m[1])
+    return filter && [{
+      op: 'reanimate', filter, count: 99, upTo: true, to: m[4] === 'your hand' ? 'hand' : 'battlefield',
+      budget: { stat: m[2] as 'power' | 'toughness', max: Number(m[3]) },
+    }]
   }],
   // Itself, from the graveyard: the ability works from there.
   [/^return ~ from your graveyard to your hand$/, () => [{ op: 'move', what: { kind: 'self' }, to: 'hand' }]],
@@ -590,6 +620,8 @@ function readEach(phrase: string): Count | null {
   if (/^creature that died this turn$/.test(phrase)) return { tally: 'died' }
   if (/^card you've discarded this turn$/.test(phrase)) return { tally: 'discarded' }
   if (/^card you've drawn this turn$/.test(phrase)) return { tally: 'drawn' }
+  // What paid the cost: itself, and whatever went with it.
+  if (/^creature sacrificed this way$/.test(phrase)) return 'thatMany'
   return null
 }
 
@@ -626,8 +658,12 @@ function readDig(howMany: string, tail: string): Effect[] | null {
   for (const part of tail.split('; ')) {
     // Kicker is not offered: the unkicked half is what happens.
     if (/^if ~ was kicked, .+ instead$/.test(part)) continue
-    const leftover = /^(.+?) and the rest (.+)$/.exec(part)
-    const body = leftover ? leftover[1] : part
+    // Call to the Kindred: "if you do, you may put …, then you put the rest
+    // of those cards on the bottom". The looking was what was optional.
+    const said = part.replace(/^if you do, /, '')
+    const leftover = /^(.+?) and the rest (.+)$/.exec(said)
+      ?? /^(.+?), then (?:you )?put the rest(?: of those cards)? (.+)$/.exec(said)
+    const body = leftover ? leftover[1] : said
     if (leftover) rest = readRest(leftover[2])
     if (leftover && !rest) return null
 
@@ -750,13 +786,13 @@ export function readAbility(
   let countered = false
   // …and so is "reveal cards until you reveal a creature card. Put that
   // card into your hand and the rest into your graveyard."
-  text = text.replace(/(until you reveal an? [^.]+? card)\. (put that card )/i, '$1, $2')
+  text = text.replace(/(until you reveal an? [^.]+?)\. (put that card )/i, '$1, $2')
   // Looking at the top few cards runs on for as long as the sentences are
   // about them: those are joined to it, to be read as one instruction.
   const parts: string[] = []
   for (const sentence of sentences(text)) {
     const before = parts[parts.length - 1] ?? ''
-    const looking = /^(?:[^.;]*, )?(?:look at|reveal) the top \w+ cards of your library\b/i.test(before.split('; ')[0])
+    const looking = /^(?:[^.;]*, |you may )?(?:look at|reveal) the top \w+ cards of your library\b/i.test(before.split('; ')[0])
     if (looking && /\b(from among them|of them|of those cards|the rest|was kicked)\b/i.test(sentence)) {
       parts[parts.length - 1] = `${before.replace(/\.$/, '')}; ${sentence}`
     } else parts.push(sentence)

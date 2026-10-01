@@ -46,6 +46,8 @@ export function readAmount(phrase: string, who: Speaking = NOBODY): Count | null
   const plain = readCount(p)
   if (plain !== null) return plain
   if (p === 'your life total') return 'life'
+  // "Choose a number": it is X from then on.
+  if (p === 'the chosen number') return 'X'
 
   const stat = /^(~'s|its|that creature's|that permanent's|that card's|the sacrificed creature's) (power|toughness|mana value)$/.exec(p)
   if (stat) {
@@ -93,6 +95,11 @@ export function readAmount(phrase: string, who: Speaking = NOBODY): Count | null
 export function readTest(phrase: string, who: Speaking = NOBODY): Test | null {
   const p = phrase.trim().toLowerCase()
 
+  const shared = /^you control (\w+) or more creatures that share a creature type$/.exec(p)
+  if (shared) {
+    const n = readNumber(shared[1])
+    return n === null ? null : { sharedType: n }
+  }
   const control = /^you control (an?|(\w+) or more) (.+)$/.exec(p)
   if (control) {
     const atLeast = control[2] ? readNumber(control[2]) : 1
@@ -207,6 +214,8 @@ export function readFilter(phrase: string): Filter | null {
   if (take(/ (you control|under your control|target player controls)\b/)) filter.controller = 'you'
   else if (take(/ (an opponent controls|your opponents control|you don't control|that player controls|defending player controls)\b/)) filter.controller = 'opponent'
   if (take(/ (another|other)\b/)) filter.other = true
+  const shares = take(/ that shares? a creature type with (it|~|enchanted creature|equipped creature)\b/)
+  if (shares) filter.sharesType = shares[1] === 'it' ? 'it' : shares[1] === '~' ? 'self' : 'host'
   if (take(/ nontoken\b/)) filter.nontoken = true
   if (take(/ basic\b/)) filter.basic = true
   if (take(/ of the chosen type\b/)) filter.chosenType = true
@@ -273,6 +282,12 @@ export function readFilter(phrase: string): Filter | null {
   // both — so "creature or Vehicle" is said as either of two filters, or it
   // would come out as a creature that is also a Vehicle.
   if (either && types.length && subtypes.length) return { ...filter, either: [{ types }, { subtypes }] }
+  // "Artifact creatures and Heroes": two kinds of thing, each read on its
+  // own.
+  if (/ and /.test(rest) && types.length && subtypes.length) {
+    const halves = rest.split(' and ').map((half) => readFilter(half))
+    return halves.every(Boolean) ? { ...filter, either: halves as Filter[] } : null
+  }
   // Two types with nothing between them are both wanted: an "artifact
   // creature" is not any artifact or any creature.
   if (types.length > 1 && !several) {

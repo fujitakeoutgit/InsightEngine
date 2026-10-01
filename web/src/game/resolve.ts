@@ -18,7 +18,8 @@ import { amount, settled, signed } from './amount'
 import { enterBattlefield, isPermanentSpell, remind, remindUnread, rulesText } from './cast'
 import { lifeGainFactor } from './combat'
 import { compile } from './compiler/compile'
-import type { Aim, CopyChange, Effect, Filter, TokenSpec } from './compiler/ir'
+import type { Aim, Budget, CopyChange, Effect, Filter, TokenSpec } from './compiler/ir'
+import { isCreatureType } from './compiler/subtypes'
 import { copyOf } from './copy'
 import { holds } from './holds'
 import { leveled } from './classes'
@@ -46,6 +47,9 @@ function aimed(state: GameState, r: Resolution, aim: Aim): Instance[] {
     case 'each': return onBattlefield(state, settled(state, r, aim.filter), r.source)
     // What it is on — or, once that has gone, the card the ability is about.
     case 'host': return one(find(state, r.source)?.attachedTo ?? r.event)
+    // The ones that were not kept.
+    case 'others':
+      return onBattlefield(state, settled(state, r, aim.filter), r.source).filter((c) => !r.chosen.includes(c.iid))
     default: return []
   }
 }
@@ -164,6 +168,13 @@ function asked(filter: Filter, count: number, upTo: boolean, noun: 'card' | 'per
 
 type Outcome = { state: GameState; wait?: Decision }
 
+/** A budget as the question carries it: what each option costs. */
+function priced(state: GameState, budget: Budget | undefined, options: readonly string[]) {
+  if (!budget) return {}
+  const cost = Object.fromEntries(options.map((iid) => [iid, Math.max(0, snapshot(find(state, iid)!, state)[budget.stat])]))
+  return { budget: { max: budget.max, cost, of: budget.stat } }
+}
+
 /** Carry out one effect, or stop on the question it has to ask first. */
 function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
   const n = effect.op === 'draw' || effect.op === 'life' || effect.op === 'damage'
@@ -199,8 +210,67 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
           options,
           min: effect.must ? Math.min(effect.count, options.length) : 0,
           max: Math.min(effect.count, options.length),
+          ...priced(state, effect.budget, options),
         },
       }
+    }
+
+    case 'number':
+      return {
+        state,
+        wait: { kind: 'number', prompt: `${r.name}: choose a number`, min: effect.min, max: effect.max },
+      }
+
+    case 'flicker': {
+      const what = aimed(state, r, effect.what).filter((c) => c.zone === 'battlefield')
+      if (!what.length) return { state }
+      // Out, and back in: a new permanent each, which the abilities that
+      // watch for arrivals are told about — the board looks the same before
+      // and after.
+      let next = state
+      for (const c of what) {
+        next = { ...next, cards: relocate(next.cards, c.iid, 'exile') }
+        next = happen(enterBattlefield(next, c.iid).state, { on: 'enters', iid: c.iid })
+      }
+      return { state: noted(next, `${names(what)} exiled, and returned`) }
+    }
+
+    case 'freeze': {
+      const what = aimed(state, r, effect.what).filter((c) => c.zone === 'battlefield')
+      return { state: change(state, what.map((c) => c.iid), (c) => ({ ...c, frozen: true })) }
+    }
+
+    case 'seek': {
+      const wanted = settled(state, r, effect.filter)
+      let pool = inZone(state, 'library').filter((c) => matches(c, wanted, r.source))
+      if (effect.prevalent) {
+        // The creature type most cards in the library have.
+        const counts = new Map<string, number>()
+        for (const c of inZone(state, 'library')) {
+          if (!/\bCreature\b/.test(c.card.type_line ?? '')) continue
+          for (const type of (c.card.type_line ?? '').split(/\s+—\s+/)[1]?.split(/\s+/).filter(isCreatureType) ?? []) {
+            counts.set(type, (counts.get(type) ?? 0) + 1)
+          }
+        }
+        const [most] = [...counts].sort((a, b) => b[1] - a[1])
+        pool = most ? pool.filter((c) => new RegExp(`\\b${most[0]}\\b`).test(c.card.type_line ?? '')) : []
+      }
+      if (!pool.length) return { state: noted(state, `${r.name}: nothing to seek`) }
+      const [[found], seed] = shuffle(pool, state.seed)
+      return {
+        state: noted({ ...state, seed, cards: relocate(state.cards, found.iid, 'hand'), drawn: [found.iid] }, `${r.name}: sought ${found.card.name}`),
+      }
+    }
+
+    case 'revive': {
+      const inst = find(state, r.source)
+      if (inst?.zone !== 'graveyard') return { state }
+      const entered = enterBattlefield(state, inst.iid).state
+      const { counter } = effect
+      const back = counter
+        ? change(entered, [inst.iid], (c) => ({ ...c, counters: { ...c.counters, [counter]: (c.counters?.[counter] ?? 0) + 1 } }))
+        : entered
+      return { state: noted(back, `${r.name} returns${counter ? ` with a ${counter} counter` : ''}`) }
     }
 
     case 'draw':
@@ -444,7 +514,8 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
 
     case 'digUntil': {
       const library = inZone(state, 'library')
-      const at = library.findIndex((c) => matches(c, effect.filter, r.source, state))
+      const wanted = settled(state, r, effect.filter)
+      const at = library.findIndex((c) => matches(c, wanted, r.source, state))
       const revealed = at < 0 ? library : library.slice(0, at)
       const found = at < 0 ? null : library[at]
       let next = state
@@ -518,10 +589,13 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
         wait: {
           kind: 'pick',
           zone: 'graveyard',
-          prompt: `${r.name}: return ${asked(effect.filter, effect.count, effect.upTo, 'card')} from your graveyard`,
+          prompt: effect.budget
+            ? `${r.name}: return any number of cards with total ${effect.budget.stat} ${effect.budget.max} or less`
+            : `${r.name}: return ${asked(effect.filter, effect.count, effect.upTo, 'card')} from your graveyard`,
           options,
           min: 0,
           max: Math.min(effect.count, options.length),
+          ...priced(state, effect.budget, options),
         },
       }
     }
@@ -801,7 +875,16 @@ export function answer(state: GameState, action: Action): GameState {
     const picked = [...new Set(action.iids)]
     if (picked.length < pending.min || picked.length > pending.max) return state
     if (!picked.every((iid) => pending.options.includes(iid))) return state
+    // More than the card allows the picked to add up to.
+    const { budget } = pending
+    if (budget && picked.reduce((total, iid) => total + (budget.cost[iid] ?? 0), 0) > budget.max) return state
     return carryOn(advance(applyPick(answered, r, effect, picked)))
+  }
+
+  if (pending.kind === 'number' && action.type === 'number') {
+    if (!Number.isInteger(action.value) || action.value < pending.min || action.value > pending.max) return state
+    // The number is X for the rest of the spell.
+    return carryOn(advance(noted({ ...answered, resolving: { ...r, x: action.value } }, `${r.name}: chose ${action.value}`)))
   }
 
   if (pending.kind === 'arrange' && action.type === 'arrange') {

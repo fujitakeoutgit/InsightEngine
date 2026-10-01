@@ -5779,6 +5779,9 @@
 .pt-modes { display: flex; flex-direction: column; gap: 6px; }
 .pt-modes .btn { white-space: normal; text-align: left; height: auto; padding: 8px 10px; line-height: 1.4; text-transform: none; letter-spacing: 0; font-size: 12px; }
 
+/* A pick that has gone over what it may add up to. */
+.pt-over { color: var(--danger); font-weight: 600; }
+
 /* Abilities that triggered together, in the order they will resolve. */
 .pt-order { max-width: 420px; }
 .pt-order-list { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
