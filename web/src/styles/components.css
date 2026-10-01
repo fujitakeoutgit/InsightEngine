@@ -5799,11 +5799,17 @@
 .pt-lost.won strong { color: var(--ok); }
 
 /* What the game is asking you to pick from. */
+/* Thin while it is only on offer; solid and lit once it is picked. */
 .pt-card.candidate {
-  box-shadow:
-    0 0 0 2px var(--warn),
-    0 0 16px -3px var(--warn);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--warn) 75%, transparent);
   cursor: pointer;
+}
+
+.pt-card.candidate.selected {
+  outline: 0;
+  box-shadow:
+    0 0 0 3px var(--warn),
+    0 0 20px -2px var(--warn);
 }
 
 .pt-mat .pt-card.selected { transform: scale(1.06); }
@@ -5950,3 +5956,18 @@
   text-transform: uppercase;
   color: var(--ink);
 }
+
+/* --- Playtest: combat --------------------------------------------------- */
+
+/* Declared as an attacker: pushed forward, the way you would on a table. */
+.pt-mat .pt-card.attacking {
+  box-shadow:
+    0 0 0 2px var(--danger),
+    0 0 18px -3px var(--danger);
+  transform: translateY(-10px) rotate(90deg) scale(0.92);
+}
+
+/* Vigilance: attacking, and not turned. */
+.pt-mat .pt-card.attacking:not(.tapped) { transform: translateY(-10px); }
+
+.pt-poison { color: var(--ok); margin-left: 4px; }

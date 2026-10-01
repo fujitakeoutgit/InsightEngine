@@ -21,8 +21,8 @@ import { stats } from './stats'
 import type { GameState, Instance } from './types'
 
 type Happened =
-  | { on: 'enters' | 'dies' | 'cast'; card: Instance }
-  | { on: 'lifeGain' | 'landPlay' }
+  | { on: 'enters' | 'dies' | 'cast' | 'attacks' | 'combatDamage'; card: Instance }
+  | { on: 'lifeGain' | 'landPlay' | 'attack' }
 
 function happened(before: GameState, after: GameState): Happened[] {
   const out: Happened[] = []
@@ -42,6 +42,20 @@ function happened(before: GameState, after: GameState): Happened[] {
     const card = after.cards.find((c) => c.iid === item.iid)
     if (card) out.push({ on: 'cast', card })
   }
+  // Attackers are declared together, and each is an attack of its own.
+  if (after.attacking.length && !before.attacking.length) {
+    out.push({ on: 'attack' })
+    for (const iid of after.attacking) {
+      const card = after.cards.find((c) => c.iid === iid)
+      if (card) out.push({ on: 'attacks', card })
+    }
+  }
+  if (after.dealt !== before.dealt) {
+    for (const iid of after.dealt) {
+      const card = after.cards.find((c) => c.iid === iid)
+      if (card) out.push({ on: 'combatDamage', card })
+    }
+  }
   if (after.life > before.life) out.push({ on: 'lifeGain' })
   if (after.landsPlayed > before.landsPlayed) out.push({ on: 'landPlay' })
   return out
@@ -49,7 +63,7 @@ function happened(before: GameState, after: GameState): Happened[] {
 
 function sees(when: TriggerEvent, event: Happened, source: Instance): boolean {
   if (when.on !== event.on) return false
-  if (when.on === 'enters' || when.on === 'dies') {
+  if (when.on === 'enters' || when.on === 'dies' || when.on === 'attacks' || when.on === 'combatDamage') {
     const { card } = event as Extract<Happened, { card: Instance }>
     return when.who === 'self' ? card.iid === source.iid : matches(card, when.who, source.iid)
   }
@@ -117,9 +131,11 @@ export function collectTriggers(before: GameState, after: GameState): GameState 
 
 /** "At the beginning of your upkeep", as the step begins. Text nothing reads
  *  yet is posted, so an upkeep the engine cannot do is not one you forget. */
-export function stepTriggers(state: GameState, step: 'upkeep' | 'end'): GameState {
+export function stepTriggers(state: GameState, step: 'upkeep' | 'combat' | 'end'): GameState {
   let next = state
-  const opening = step === 'upkeep' ? /^at the beginning of (your|each) upkeep\b/i : /^at the beginning of (your|each|the) end step\b/i
+  const opening = step === 'upkeep' ? /^at the beginning of (your|each) upkeep\b/i
+    : step === 'combat' ? /^at the beginning of combat\b/i
+      : /^at the beginning of (your|each|the) end step\b/i
   for (const source of inZone(state, 'battlefield')) {
     const compiled = compile(source.card)
     compiled.triggers.forEach((ability, index) => {

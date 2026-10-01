@@ -75,8 +75,16 @@ export function stateBased(state: GameState): GameState {
   if (next.life <= 0 && !next.lost) {
     next = noted({ ...next, lost: `Your life reached ${next.life} on turn ${next.turn}` }, 'You are out of life')
   }
-  if (next.opponent.life <= 0 && !next.won) {
-    next = noted({ ...next, won: `The opponent reached ${next.opponent.life} life on turn ${next.turn}` }, 'The opponent is out of life')
+  if (!next.won) {
+    // Theirs: no life (704.5a), ten poison (704.5c), or 21 combat damage
+    // from one commander (903.10a).
+    const { life, poison, commander } = next.opponent
+    const lethal = Object.entries(commander).find(([, n]) => n >= 21)
+    const how = life <= 0 ? `The opponent reached ${life} life`
+      : poison >= 10 ? `The opponent has ${poison} poison counters`
+        : lethal ? `${next.cards.find((c) => c.iid === lethal[0])?.card.name ?? 'Your commander'} dealt ${lethal[1]} commander damage`
+          : null
+    if (how) next = noted({ ...next, won: `${how} on turn ${next.turn}` }, 'The opponent has lost')
   }
   return next
 }

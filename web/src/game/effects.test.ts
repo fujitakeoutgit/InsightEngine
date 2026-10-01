@@ -91,7 +91,7 @@ describe('a spell that does what it says', () => {
 
   it('damages the opponent, and notices when that wins', () => {
     const bolt = spell('Lava Spike', 'Lava Spike deals 3 damage to target player or planeswalker.')
-    const done = run(ruled([[bolt, 'hand'], ...forests], { opponent: { life: 3 } }), cast('c0'), pass)
+    const done = run(ruled([[bolt, 'hand'], ...forests], { opponent: { life: 3, poison: 0, commander: {} } }), cast('c0'), pass)
     expect(done.opponent.life).toBe(0)
     expect(done.won).toBe('The opponent reached 0 life on turn 1')
   })

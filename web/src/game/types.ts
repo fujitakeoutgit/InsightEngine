@@ -57,9 +57,17 @@ export interface Known { power: number; toughness: number }
 export type Step =
   | 'untap' | 'upkeep' | 'draw'
   | 'main1'
-  | 'combatBegin' | 'combatAttackers' | 'combatEnd'
+  | 'combatBegin' | 'combatAttackers' | 'combatDamage' | 'combatEnd'
   | 'main2'
   | 'end' | 'cleanup'
+
+/** The other side of the table: totals to bring down, and nothing else. */
+export interface Opponent {
+  life: number
+  poison: number
+  /** Combat damage taken from each commander, by its iid. */
+  commander: Record<string, number>
+}
 
 /** A spell or a triggered ability waiting on the stack. */
 export interface StackItem {
@@ -136,6 +144,8 @@ export type Decision =
   }
   /** Scry or surveil: which of these stay on top. */
   | { kind: 'arrange'; mode: 'scry' | 'surveil'; cards: string[] }
+  /** Declare attackers: which of these attack. */
+  | { kind: 'attack'; options: string[] }
   /** "Choose one —" */
   | { kind: 'mode'; prompt: string; modes: string[] }
 
@@ -175,9 +185,15 @@ export interface GameState {
    *  end of the session. */
   lost: string | null
 
-  /** The other side of the table: a life total and nothing else. Effects
-   *  aimed at their permanents find none. */
-  opponent: { life: number }
+  /** The other side of the table. Effects aimed at their permanents find
+   *  none. */
+  opponent: Opponent
+  /** The creatures attacking, from when they are declared until combat
+   *  ends. */
+  attacking: string[]
+  /** The creatures that dealt combat damage this step, once for each time
+   *  they did — a double striker is here twice. */
+  dealt: string[]
   /** How the opponent was beaten, once they have been. */
   won: string | null
   /** Extra land drops this turn, from effects that grant them. */
@@ -239,6 +255,8 @@ export type Action =
   | { type: 'counter'; iid: string; counter: string; by: number }
   /** Set the opponent's life by hand. */
   | { type: 'opponentLife'; by: number }
+  /** Declare these attackers — none, to attack with nothing. */
+  | { type: 'attack'; iids: string[] }
   /** Done resolving a reminder by hand. */
   | { type: 'done'; id: string }
   | { type: 'rules'; on: boolean }

@@ -17,6 +17,7 @@ import type { DeckCard } from '../lib/deckModel'
 import {
   castSpell, enterBattlefield, isLand, isPermanentSpell, landProblem, playLand, tapForMana,
 } from './cast'
+import { declareAttackers } from './combat'
 import { fetchFinds } from './fetch'
 import { emptyPool } from './mana'
 import { begin, pass, passTo, settle, toNextStop } from './priority'
@@ -79,7 +80,9 @@ export function deal(
     reminders: [],
     casts: {},
     lost: null,
-    opponent: { life: 40 },
+    opponent: { life: 40, poison: 0, commander: {} },
+    attacking: [],
+    dealt: [],
     won: null,
     extraLands: 0,
     resolving: null,
@@ -257,6 +260,14 @@ function apply(state: GameState, action: Action): GameState {
       }
     }
 
+    case 'attack': {
+      if (state.pending?.kind !== 'attack') return state
+      const declared = settle(state, declareAttackers(state, action.iids))
+      // Whatever triggered on attacking is yours to respond to. With nothing
+      // on the stack there is nothing to respond to, and combat goes on.
+      return declared.stack.length || declared.pending ? declared : toNextStop(declared)
+    }
+
     case 'opponentLife':
       return { ...state, opponent: { ...state.opponent, life: state.opponent.life + action.by } }
 
@@ -357,7 +368,7 @@ function apply(state: GameState, action: Action): GameState {
 
 /** Actions that move the game on by themselves, settling as they go. The
  *  rest are settled here, once, after they have happened. */
-const SETTLES_ITSELF = new Set<Action['type']>(['pass', 'passTo', 'keep', 'nextTurn'])
+const SETTLES_ITSELF = new Set<Action['type']>(['pass', 'passTo', 'keep', 'nextTurn', 'attack'])
 
 export function reduce(state: GameState, action: Action): GameState {
   const next = apply(state, action)

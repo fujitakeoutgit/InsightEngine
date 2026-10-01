@@ -76,6 +76,9 @@ export function normalize(card: Card, text: string): string[] {
 function readTrigger(condition: string): TriggerEvent[] | null {
   const one = readOneTrigger(condition)
   if (one) return [one]
+  if (/^~ enters or attacks$/.test(condition.trim())) {
+    return [{ on: 'enters', who: 'self' }, { on: 'attacks', who: 'self' }]
+  }
   // "When ~ enters or dies", "Whenever another creature you control enters
   // or dies": the same ability, on either event.
   const either = /^(.+?) enters or dies$/.exec(condition.trim())
@@ -89,8 +92,23 @@ function readTrigger(condition: string): TriggerEvent[] | null {
 
 function readOneTrigger(condition: string): TriggerEvent | null {
   const c = condition.trim()
-  if (/^~ (enters|enters the battlefield)( or attacks)?$/.test(c)) return { on: 'enters', who: 'self' }
+  if (/^~ (enters|enters the battlefield)$/.test(c)) return { on: 'enters', who: 'self' }
   if (/^~ dies$/.test(c)) return { on: 'dies', who: 'self' }
+  if (/^~ attacks$/.test(c)) return { on: 'attacks', who: 'self' }
+  if (/^you attack$/.test(c)) return { on: 'attack' }
+  if (/^~ deals combat damage to (a player|an opponent)$/.test(c)) return { on: 'combatDamage', who: 'self' }
+  if (/^the beginning of combat on your turn$/.test(c)) return { on: 'step', step: 'combat' }
+
+  const attacking = /^(?:a|an|another) (.+?) attacks$/.exec(c)
+  if (attacking) {
+    const filter = readFilter(attacking[1])
+    if (filter) return { on: 'attacks', who: { ...filter, ...(/^another /.test(c) ? { other: true } : {}) } }
+  }
+  const hitting = /^(?:a|an|another) (.+?) deals combat damage to (?:a player|an opponent)$/.exec(c)
+  if (hitting) {
+    const filter = readFilter(hitting[1])
+    if (filter) return { on: 'combatDamage', who: { ...filter, ...(/^another /.test(c) ? { other: true } : {}) } }
+  }
 
   const entering = /^(?:a|an|another|one or more) (.+?) (?:enters|enter)(?: the battlefield)?(?: under your control)?$/.exec(c)
   if (entering) {
@@ -167,6 +185,12 @@ function readStatic(line: string): Static | null {
     return { kind: 'doubleLifeGain' }
   }
   if (/^you have no maximum hand size\.?$/.test(line)) return { kind: 'noMaxHandSize' }
+  if (/^(during your turn, )?each creature( you control)? assigns combat damage equal to its toughness rather than its power\.?$/.test(line)) {
+    return { kind: 'toughnessDamage' }
+  }
+  if (/^creatures you control can attack as though they didn't have defender\.?$/.test(line)) {
+    return { kind: 'defendersAttack' }
+  }
   const counters = /^~ enters with (\w+) ([+-]\d\/[+-]\d) counters? on it\.?$/.exec(line)
   if (counters) {
     const count = readCount(counters[1])

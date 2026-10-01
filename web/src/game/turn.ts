@@ -3,6 +3,7 @@
  * passing stops to ask you something.
  */
 
+import { dealCombatDamage, eligibleAttackers } from './combat'
 import { compile } from './compiler/compile'
 import { emptyPool, MANA_TYPES } from './mana'
 import { draw, inZone, noted } from './state'
@@ -11,7 +12,7 @@ import type { GameState, Step } from './types'
 export const STEPS: readonly Step[] = [
   'untap', 'upkeep', 'draw',
   'main1',
-  'combatBegin', 'combatAttackers', 'combatEnd',
+  'combatBegin', 'combatAttackers', 'combatDamage', 'combatEnd',
   'main2',
   'end', 'cleanup',
 ]
@@ -42,12 +43,23 @@ function enter(state: GameState): GameState {
       const cards = state.cards.map((c) => (
         c.zone === 'battlefield' && (c.tapped || c.sick) ? { ...c, tapped: false, sick: false } : c
       ))
-      return noted({ ...state, cards, landsPlayed: 0, extraLands: 0, triggered: [] }, `Turn ${state.turn}`)
+      return noted({
+        ...state, cards, landsPlayed: 0, extraLands: 0, triggered: [], attacking: [], dealt: [],
+      }, `Turn ${state.turn}`)
     }
     case 'draw':
       // Turn 1 skips its draw, as the first player's does in a two-player
       // game (CR 103.8a) and as the table always has.
       return state.turn === 1 ? state : draw(state, 1)
+    case 'combatAttackers': {
+      // Asked only when something could attack; otherwise combat goes by.
+      const options = eligibleAttackers(state).map((c) => c.iid)
+      return options.length ? { ...state, pending: { kind: 'attack', options } } : state
+    }
+    case 'combatDamage':
+      return state.attacking.length ? dealCombatDamage(state) : state
+    case 'combatEnd':
+      return state.attacking.length || state.dealt.length ? { ...state, attacking: [], dealt: [] } : state
     case 'cleanup': {
       // Damage wears off (CR 514.2).
       const healed = state.cards.some((c) => c.damage)

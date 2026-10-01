@@ -94,6 +94,10 @@ const PATTERNS: Pattern[] = [
   [/^its controller gains life equal to its (power|toughness)$/, (m) => (
     [{ op: 'life', who: 'you', sign: 1, count: { stat: m[1] as 'power' | 'toughness', of: 'chosen' } }]
   )],
+  // Ikra Shidiqi: the creature the trigger is about.
+  [/^(?:you )?gain life equal to that creature's (power|toughness)$/, (m) => (
+    [{ op: 'life', who: 'you', sign: 1, count: { stat: m[1] as 'power' | 'toughness', of: 'event' } }]
+  )],
   [/^(?:you )?gain life equal to (?:the|its) (power|toughness)(?: of (.+))?$/, (m) => {
     const stat = m[1] as 'power' | 'toughness'
     if (!m[2]) return [{ op: 'life', who: 'you', sign: 1, count: { stat, of: 'self' } }]
@@ -116,7 +120,12 @@ const PATTERNS: Pattern[] = [
   }],
 
   // --- tokens --------------------------------------------------------------
-  [/^create (\w+) (tapped )?(.+? tokens?(?: with [a-z, ]+?)?)(?: for each (.+))?$/, (m) => {
+  // Krenko: as many as its power.
+  [/^create a number of (.+? tokens?(?: with [a-z, ]+?)?) equal to (?:~'s|its) (power|toughness)$/, (m) => {
+    const token = readToken(m[1])
+    return token ? [{ op: 'token', count: { stat: m[2] as 'power' | 'toughness', of: 'self' }, token, tapped: false }] : null
+  }],
+  [/^create (\w+) (tapped )?(.+? tokens?(?: with [a-z, ]+?)?)(?: named [^.]+?)?(?: for each (.+))?$/, (m) => {
     const count = readCount(m[1])
     const token = readToken(m[3])
     if (count === null || !token) return null

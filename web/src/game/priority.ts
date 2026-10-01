@@ -36,7 +36,9 @@ export function settle(before: GameState, after: GameState): GameState {
 /** One step on, with what begins in it. */
 function stepOn(state: GameState): GameState {
   const moved = nextStep(state)
-  const begun = moved.step === 'upkeep' || moved.step === 'end' ? stepTriggers(moved, moved.step) : moved
+  const begun = moved.step === 'upkeep' || moved.step === 'end' ? stepTriggers(moved, moved.step)
+    : moved.step === 'combatBegin' ? stepTriggers(moved, 'combat')
+      : moved
   return settle(state, begun)
 }
 

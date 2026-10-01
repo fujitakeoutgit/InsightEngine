@@ -15,6 +15,7 @@
 
 import type { Card } from '../lib/api'
 import { enterBattlefield, isPermanentSpell, remind, remindUnread, rulesText } from './cast'
+import { lifeGainFactor } from './combat'
 import { compile } from './compiler/compile'
 import type { Aim, Count, Effect, Filter, TokenSpec } from './compiler/ir'
 import { autotap, parseCost } from './mana'
@@ -101,15 +102,6 @@ function makeToken(state: GameState, spec: TokenSpec, tapped: boolean): GameStat
   const made: Instance = { iid, card, zone: 'battlefield', tapped, x: 0.5, y: 0.5, token: true }
   const seat = seatFor(minted.cards, made)
   return { ...minted, cards: [...minted.cards, { ...made, ...seat, sick: isCreature(made) }] }
-}
-
-/** How lifegain is multiplied: once for each Rhox Faithmender. */
-function lifeGainFactor(state: GameState) {
-  let factor = 1
-  for (const inst of inZone(state, 'battlefield')) {
-    for (const fixed of compile(inst.card).statics) if (fixed.kind === 'doubleLifeGain') factor *= 2
-  }
-  return factor
 }
 
 /** A filter back in words, for a question: "up to 2 basic land cards",

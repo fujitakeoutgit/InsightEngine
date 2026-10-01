@@ -19,7 +19,7 @@ const PHASES: { label: string; step: Step; covers: Step[] }[] = [
   { label: 'Upkeep', step: 'upkeep', covers: ['upkeep'] },
   { label: 'Draw', step: 'draw', covers: ['draw'] },
   { label: 'Main 1', step: 'main1', covers: ['main1'] },
-  { label: 'Combat', step: 'combatBegin', covers: ['combatBegin', 'combatAttackers', 'combatEnd'] },
+  { label: 'Combat', step: 'combatBegin', covers: ['combatBegin', 'combatAttackers', 'combatDamage', 'combatEnd'] },
   { label: 'Main 2', step: 'main2', covers: ['main2'] },
   { label: 'End', step: 'end', covers: ['end', 'cleanup'] },
 ]
@@ -40,7 +40,7 @@ function Pool({ pool }: { pool: ManaPool }) {
 }
 
 export function PhaseBar({
-  turn, step, rules, pool, landsPlayed, landDrops, opponent, waiting, onPassTo, onRules, onOpponent,
+  turn, step, rules, pool, landsPlayed, landDrops, opponent, poison, waiting, onPassTo, onRules, onOpponent,
 }: {
   turn: number
   step: Step
@@ -49,8 +49,9 @@ export function PhaseBar({
   landsPlayed: number
   /** How many lands may be played this turn. */
   landDrops: number
-  /** The opponent's life. */
+  /** The opponent's life, and their poison counters. */
   opponent: number
+  poison: number
   /** Move the opponent's life by hand. */
   onOpponent: (by: number) => void
   /** A choice is open, and nothing moves until it is made. */
@@ -95,6 +96,7 @@ export function PhaseBar({
             title="The opponent's life. Click to take one off, Shift+click to add one."
           >
             Opp <span className="mono">{opponent}</span>
+            {poison > 0 && <span className="mono pt-poison" title="Poison counters: ten loses the game"> ☠{poison}</span>}
           </button>
         </>
       )}
@@ -171,11 +173,15 @@ export function Reminders({ items, onDone }: { items: Reminder[]; onDone: (id: s
  *  from the board or the hand, which sits low, out of the way of the cards
  *  it is asking about. Searches and scrying have dialogs of their own. */
 export function DecisionPrompt({
-  decision, chosen, onKeep, onMulligan, onConfirm, onAnswer, onMode,
+  decision, chosen, damage = 0, onKeep, onMulligan, onConfirm, onAnswer, onMode, onAll,
 }: {
   decision: Decision
   /** How many cards are picked so far. */
   chosen: number
+  /** What the attackers picked so far would deal. */
+  damage?: number
+  /** Pick everything that can be picked — attack with the lot. */
+  onAll?: () => void
   onKeep: () => void
   onMulligan: () => void
   onConfirm: () => void
@@ -226,6 +232,24 @@ export function DecisionPrompt({
     )
   }
   if (decision.kind === 'arrange') return null
+  if (decision.kind === 'attack') {
+    return (
+      <div className="pt-decision low" role="dialog" aria-label="Declare attackers">
+        <p className="pt-decision-text">
+          Declare attackers — click the creatures that attack.
+          {chosen > 0 && <> <strong>{chosen}</strong> attacking for <strong>{damage}</strong>.</>}
+        </p>
+        <div className="row gap-2">
+          {onAll && chosen < decision.options.length && (
+            <button className="btn btn-ghost sm" onClick={onAll}>All</button>
+          )}
+          <button className="btn btn-primary sm" onClick={onConfirm}>
+            {chosen ? 'Attack' : 'No attack'}
+          </button>
+        </div>
+      </div>
+    )
+  }
   if (decision.kind === 'mulligan') {
     // What keeping costs now, and what one more mulligan would make it.
     const owed = Math.max(0, decision.taken - 1)

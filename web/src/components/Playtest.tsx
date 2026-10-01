@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import {
   checkCast, isLand, landDrops, landProblem, manaOptions, manaProblem, playable,
 } from '../game/cast'
+import { eligibleAttackers, expectedDamage } from '../game/combat'
 import { compile } from '../game/compiler/compile'
 import { canFetch, fetchFinds, obviousFetch, type Fetch } from '../game/fetch'
 import type { ManaType } from '../game/mana'
@@ -94,7 +95,8 @@ const HINT_MS = 2600
 /** What passing does next, for the button that does it. */
 function passLabel(game: GameState) {
   if (game.stack.length) return 'Resolve'
-  if (game.step === 'main1') return 'Main 2'
+  if (game.step === 'main1') return eligibleAttackers(game).length ? 'Combat' : 'Main 2'
+  if (game.step === 'combatBegin' || game.step === 'combatAttackers') return 'Damage'
   if (game.step === 'main2') return 'End turn'
   return 'Continue'
 }
@@ -506,11 +508,13 @@ export function Playtest({
    * own dialog instead. */
   const pending = game.rules ? game.pending : null
   const pickLimit = pending?.kind === 'bottom' || pending?.kind === 'discard' ? pending.count
-    : pending?.kind === 'pick' ? pending.max : 0
+    : pending?.kind === 'pick' ? pending.max
+      : pending?.kind === 'attack' ? pending.options.length : 0
   const candidates = useMemo(() => new Set(
     pending?.kind === 'bottom' || pending?.kind === 'discard' ? inZone.hand.map((c) => c.iid)
       : pending?.kind === 'pick' && (pending.zone === 'hand' || pending.zone === 'battlefield') ? pending.options
-        : [],
+        : pending?.kind === 'attack' ? pending.options
+          : [],
   ), [pending, inZone.hand])
 
   const pick = (iid: string) => {
@@ -652,6 +656,7 @@ export function Playtest({
             onCounter={(iid, by) => dispatch({ type: 'counter', iid, counter: '+1/+1', by })}
             onPick={candidates.has(c.iid) ? pick : undefined}
             selected={selected.includes(c.iid)}
+            attacking={game.attacking.includes(c.iid)}
           />
         ))}
 
@@ -663,6 +668,7 @@ export function Playtest({
           landsPlayed={game.landsPlayed}
           landDrops={game.rules ? landDrops(game) : 1}
           opponent={game.opponent.life}
+          poison={game.opponent.poison}
           onOpponent={(by) => dispatch({ type: 'opponentLife', by })}
           waiting={Boolean(game.pending)}
           onPassTo={(step) => dispatch({ type: 'passTo', step })}
@@ -711,7 +717,11 @@ export function Playtest({
             chosen={selected.length}
             onKeep={() => dispatch({ type: 'keep' })}
             onMulligan={() => dispatch({ type: 'mulligan' })}
-            onConfirm={() => dispatch({ type: 'choose', iids: selected })}
+            damage={pending.kind === 'attack' ? expectedDamage(game, selected) : 0}
+            onAll={pending.kind === 'attack' ? () => setSelected(pending.options) : undefined}
+            onConfirm={() => dispatch(pending.kind === 'attack'
+              ? { type: 'attack', iids: selected }
+              : { type: 'choose', iids: selected })}
             onAnswer={(yes) => dispatch({ type: 'confirm', yes })}
             onMode={(index) => dispatch({ type: 'mode', index })}
           />
@@ -1199,7 +1209,7 @@ function Pile({
 function PlayCard({
   inst, drag, onTap, onPlay, onZoom, onLoyalty, placed, splitRead, style,
   playable, selected, willTap, tax = 0, onHover, tapHint = ' — click to tap',
-  rules, onCounter, onPick,
+  rules, onCounter, onPick, attacking,
 }: {
   inst: Instance
   drag: DragRef
@@ -1235,6 +1245,8 @@ function PlayCard({
   /** The game is asking for a card, and this is one it could be: a click
    *  picks it, whatever a click would otherwise do. */
   onPick?: (iid: string) => void
+  /** Declared as an attacker, this combat. */
+  attacking?: boolean
 }) {
   const face = useCardFace(inst.card)
 
@@ -1295,6 +1307,7 @@ function PlayCard({
     inst.tapped && 'tapped',
     (action || onPick) && 'actionable',
     onPick && 'candidate',
+    attacking && 'attacking',
     playable && 'playable',
     selected && 'selected',
     willTap && 'will-tap',

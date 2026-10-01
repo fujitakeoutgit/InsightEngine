@@ -147,7 +147,13 @@ export type TriggerEvent =
   | { on: 'enters'; who: Filter }
   | { on: 'dies'; who: 'self' }
   | { on: 'dies'; who: Filter }
-  | { on: 'step'; step: 'upkeep' | 'end' }
+  | { on: 'step'; step: 'upkeep' | 'combat' | 'end' }
+  /** "Whenever ~ attacks", "whenever a creature you control attacks". */
+  | { on: 'attacks'; who: 'self' | Filter }
+  /** "Whenever you attack": once, however many attack. */
+  | { on: 'attack' }
+  /** "Whenever ~ deals combat damage to a player". */
+  | { on: 'combatDamage'; who: 'self' | Filter }
   | { on: 'cast'; filter: Filter }
   /** "Whenever you gain life". */
   | { on: 'lifeGain' }
@@ -171,6 +177,11 @@ export type Static =
   | { kind: 'doubleLifeGain' }
   /** "You have no maximum hand size." */
   | { kind: 'noMaxHandSize' }
+  /** "Each creature you control assigns combat damage equal to its
+   *  toughness rather than its power." */
+  | { kind: 'toughnessDamage' }
+  /** "Creatures you control can attack as though they didn't have defender." */
+  | { kind: 'defendersAttack' }
 
 /** How much of a card the engine carries out for you. */
 export type Coverage = 'auto' | 'partial' | 'manual'
