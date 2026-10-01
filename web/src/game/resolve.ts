@@ -215,9 +215,14 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
         ? (effect.zone === 'exile' ? exiledWith(state, r.source) : inZone(state, effect.zone))
             .filter((c) => matches(c, wanted, r.source)).map((c) => c.iid)
         // The second of two targets is not the first again.
-        : onBattlefield(state, wanted, r.source)
-          .filter((c) => !r.kept.includes(c.iid) && (!effect.party || hasRole(c, sweeping(state))))
-          .map((c) => c.iid)
+        : [
+            ...onBattlefield(state, wanted, r.source)
+              .filter((c) => !r.kept.includes(c.iid) && (!effect.party || hasRole(c, sweeping(state))))
+              // "Another": not the creature the ability is about.
+              .filter((c) => !(effect.apart === 'event' && c.iid === r.event)),
+            // "…or creature card in a graveyard."
+            ...(effect.orGraveyard ? inZone(state, 'graveyard').filter((c) => matches(c, wanted, r.source)) : []),
+          ].map((c) => c.iid)
       const set = (chosen: string[]): GameState => ({
         ...state,
         resolving: {
@@ -233,7 +238,8 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
         state,
         wait: {
           kind: 'pick',
-          zone: effect.zone ?? 'battlefield',
+          // Cards that are not on the table are picked from a list.
+          zone: effect.zone ?? (effect.orGraveyard ? 'graveyard' : 'battlefield'),
           prompt: effect.party ? `${r.name}: choose a party — up to one each of Cleric, Rogue, Warrior and Wizard`
             : effect.zone
               ? `${r.name}: choose ${asked(effect.filter, effect.count, effect.upTo, 'card')} ${
@@ -357,17 +363,23 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
         const kept = effect.change.keepAbility
           ? rulesText(c.card).split('\n').find((line) => /\bbecomes a copy of\b/i.test(line))
           : undefined
-        const card = copyOf(of.card, {
+        const copied = copyOf(of.card, {
           ...effect.change,
           ...(kept ? { text: kept.split(c.card.name).join('~').replace(/\.$/, '') } : {}),
         })
+        // "Except his name is ~": the name it had before it was anything else.
+        const card = effect.change.keepName ? { ...copied, name: (c.original ?? c.was ?? c.card).name } : copied
         // For a while, what it was is kept to go back to; for good, what it
         // was printed as, for when it leaves.
         return until
-          ? { ...c, card, was: c.was ?? c.card, revert: until }
+          ? {
+              ...c, card, was: c.was ?? c.card, revert: until,
+              ...(until === 'attached' || until === 'source' ? { revertBy: r.source } : {}),
+            }
           : { ...c, card, original: c.original ?? c.card }
       })
-      const span = until === 'end' ? ' until end of turn' : until === 'turn' ? ' until your next turn' : ''
+      const span = until === 'end' ? ' until end of turn' : until === 'turn' ? ' until your next turn'
+        : until === 'attached' ? ` while ${r.name} is attached` : until === 'source' ? ` while ${r.name} is here` : ''
       return { state: noted(next, `${names(who)}: ${who.length > 1 ? 'copies' : 'a copy'} of ${of.card.name}${span}`) }
     }
 
@@ -405,6 +417,32 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       ].filter(Boolean).join(' ')
       const span = until === 'end' ? ' until end of turn' : until === 'turn' ? ' until your next turn' : ''
       return { state: noted(next, `${names(who)}: ${who.length > 1 ? `${what}s` : `a ${what}`}${span}`) }
+    }
+
+    case 'transform': {
+      const who = aimed(state, r, effect.who).filter((c) => c.zone === 'battlefield')
+      if (!who.length) return { state }
+      const { until, to } = effect
+      const next = change(state, who.map((c) => c.iid), (c) => {
+        // Its name and supertypes stay; everything else is what it is told.
+        const supers = (c.card.type_line ?? '').split(/\s+—\s+/)[0].split(/\s+/)
+          .filter((word) => ['Legendary', 'Basic', 'Snow'].includes(word))
+        const card: Card = {
+          ...c.card,
+          type_line: [...supers, to.typeLine].join(' '),
+          oracle_text: to.text,
+          power: null,
+          toughness: null,
+          loyalty: null,
+          keywords: [],
+          card_faces: null,
+          ...(to.colorless ? { colors: '' } : {}),
+        }
+        return until
+          ? { ...c, card, was: c.was ?? c.card, revert: until, revertBy: r.source }
+          : { ...c, card, original: c.original ?? c.card }
+      })
+      return { state: noted(next, `${names(who)}: now ${to.typeLine.toLowerCase()} — ${to.text}`) }
     }
 
     case 'emblem': {
@@ -620,6 +658,13 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       let next = state
       for (let i = 0; i < n; i += 1) next = makeToken(next, effect.token, effect.tapped, size, effect.fleeting, r.name)
       const what = `${size === undefined ? '' : `${size}/${size} `}${effect.token.name}`
+      // "…then attach this to it": the Equipment goes on the token it made.
+      const bearer = effect.equip && n > 0 ? next.cards[next.cards.length - 1] : undefined
+      if (bearer && find(next, r.source)?.zone === 'battlefield') {
+        next = change(next, [r.source], (c) => ({
+          ...c, attachedTo: bearer.iid, x: Math.min(0.97, bearer.x + 0.022), y: Math.max(0, bearer.y - 0.035),
+        }))
+      }
       return { state: n > 0 ? noted(next, `Created ${n > 1 ? `${n} ${what} tokens` : `a ${what} token`}`) : state }
     }
 
@@ -1426,6 +1471,20 @@ export function resolveTop(state: GameState): GameState {
     // An Aura goes onto something as it arrives.
     const enchant = /\bAura\b/.test(inst.card.type_line ?? '') ? compile(inst.card).enchant : null
     if (!enchant) return arrived
+    // What the Aura makes of what it is on, for as long as it is on it: a
+    // copy of a creature chosen as it arrives, or a plain land.
+    const { statics } = compile(inst.card)
+    const becomes = statics.find((fixed) => fixed.kind === 'hostBecomes')
+    const made: Effect[] = [
+      ...(statics.some((fixed) => fixed.kind === 'hostCopies') ? [
+        { op: 'keep' as const },
+        { op: 'choose' as const, filter: { types: ['creature'] }, count: 1, upTo: false, must: true },
+        { op: 'become' as const, who: { kind: 'kept' as const }, change: {}, until: 'attached' as const },
+      ] : []),
+      ...(becomes?.kind === 'hostBecomes'
+        ? [{ op: 'transform' as const, who: { kind: 'chosen' as const }, to: becomes.to, until: 'attached' as const }]
+        : []),
+    ]
     return carryOn({
       ...arrived,
       resolving: {
@@ -1433,7 +1492,7 @@ export function resolveTop(state: GameState): GameState {
         source: inst.iid,
         name: inst.card.name,
         text: rulesText(inst.card),
-        effects: [{ op: 'choose', filter: enchant, count: 1, upTo: false, must: true }, { op: 'attach' }],
+        effects: [{ op: 'choose', filter: enchant, count: 1, upTo: false, must: true }, { op: 'attach' }, ...made],
         event: null,
         known: {},
         spell: false,

@@ -165,6 +165,7 @@ function readOneTrigger(condition: string): TriggerEvent | null {
     const filter = readFilter(leaving[1])
     if (filter) return { on: 'leaves', who: { ...filter, ...(/^another /.test(c) ? { other: true } : {}) } }
   }
+  if (/^~ becomes attached to a creature$/.test(c)) return { on: 'attached' }
   const targeting = /^you cast a spell that targets (?:an?|one or more) (.+)$/.exec(c)
   if (targeting) {
     const filter = readFilter(targeting[1])
@@ -385,6 +386,21 @@ export function compile(card: Card): Compiled {
       grades.push(1)
       continue
     }
+    // For Mirrodin! and living weapon: a token to carry it, as it arrives.
+    if (lower === 'for mirrodin!' || lower === 'living weapon') {
+      const rebel = lower === 'for mirrodin!'
+      triggers.push({
+        text: printed, when: { on: 'enters', who: 'self' }, complete: true,
+        effects: [{
+          op: 'token', count: 1, tapped: false, equip: true,
+          token: rebel
+            ? { name: 'Rebel', pt: '2/2', colors: 'R', typeLine: 'Token Creature — Rebel', keywords: [] }
+            : { name: 'Phyrexian Germ', pt: '0/0', colors: 'B', typeLine: 'Token Creature — Phyrexian Germ', keywords: [] },
+        }],
+      })
+      grades.push(1)
+      continue
+    }
     // Melee: +1/+1 for each opponent attacked — and there is one.
     if (lower === 'melee') {
       triggers.push({
@@ -492,6 +508,7 @@ export function compile(card: Card): Compiled {
         // about the spell: most cast triggers say "it" of themselves.
         const about: Aim | null = events.some((when) => (
           ('who' in when && when.who !== 'self') || when.on === 'discard' || when.on === 'milled' || when.on === 'buried'
+          || when.on === 'attached'
           || (when.on === 'cast' && /^exile it\b|\bthat spell\b/.test(body))
         )) ? { kind: 'event' } : null
         const { effects, complete, once } = reading(body, about)

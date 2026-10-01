@@ -179,7 +179,16 @@ export interface CopyChange {
   /** "Except it has this ability": it keeps the ability that made it a
    *  copy. */
   keepAbility?: boolean
+  /** "Except his name is ~": it keeps the name it had. */
+  keepName?: boolean
+  /** "…and he's a legendary Human Mercenary Villain creature": its type
+   *  line, whatever the copied card's was. */
+  typeLine?: string
 }
+
+/** What a permanent is once it has lost everything else: its type line,
+ *  less any supertypes, and the one ability it is left with. */
+export interface Plain { typeLine: string; text: string; colorless?: boolean }
 
 /** Something that is so or is not, as the game stands: what follows "if". */
 export type Test =
@@ -262,6 +271,11 @@ export type Effect = (
     zone?: 'graveyard' | 'exile'
     /** A party: at most one each of Cleric, Rogue, Warrior and Wizard. */
     party?: boolean
+    /** Not the card the ability is about: "another target creature", of a
+     *  creature something was just attached to. */
+    apart?: 'event'
+    /** "…or creature card in a graveyard": those as well. */
+    orGraveyard?: boolean
     /** "With total power 4 or less": what the ones picked may add up to. */
     budget?: Budget
   }
@@ -304,7 +318,11 @@ export type Effect = (
   | { op: 'mill'; count: Count }
   /** `size` is for a token printed as X/X: how big, worked out as it is
    *  made. */
-  | { op: 'token'; count: Count; token: TokenSpec; tapped: boolean; size?: Count; fleeting?: boolean }
+  | {
+    op: 'token'; count: Count; token: TokenSpec; tapped: boolean; size?: Count; fleeting?: boolean
+    /** "…then attach this to it": the Equipment that made it goes on it. */
+    equip?: boolean
+  }
   /** Tokens that are copies of a card. `fleeting` ones are exiled as the
    *  end step begins. */
   | { op: 'copy'; of: Aim; count: Count; change: CopyChange; tapped: boolean; fleeting: boolean; attacking?: boolean }
@@ -314,8 +332,12 @@ export type Effect = (
    *  else and both be spoken of. */
   | { op: 'keep' }
   /** Permanents become copies of what was chosen — for good, until end of
-   *  turn, or until your next turn. */
-  | { op: 'become'; who: Aim; change: CopyChange; until?: 'end' | 'turn' }
+   *  turn, until your next turn, for as long as the source stays attached
+   *  to them, or for as long as it stays on the battlefield. */
+  | { op: 'become'; who: Aim; change: CopyChange; until?: 'end' | 'turn' | 'attached' | 'source' }
+  /** Permanents lose what they were and are this instead: a plain land, a
+   *  Treasure. Their name and supertypes stay. */
+  | { op: 'transform'; who: Aim; to: Plain; until?: 'attached' | 'source' }
   /** "Copy that spell": a permanent spell's copy arrives as a token; any
    *  other resolves a second time. */
   | { op: 'copySpell' }
@@ -538,6 +560,9 @@ export type TriggerEvent =
   | { on: 'buried' }
   /** "Whenever you cast a spell that targets a creature you control." */
   | { on: 'targets'; filter: Filter }
+  /** "Whenever ~ becomes attached to a creature": the ability is about that
+   *  creature. */
+  | { on: 'attached' }
 
 export interface TriggeredAbility extends Ability {
   when: TriggerEvent
@@ -652,6 +677,13 @@ export type Static =
   /** Paradigm: exiled as it resolves, to be cast again as a copy at the
    *  beginning of each first main phase. */
   | { kind: 'paradigm' }
+  /** "As ~ enters, choose a creature", of an Aura whose creature copies it. */
+  | { kind: 'chooseCreature' }
+  /** "Enchanted creature is a copy of the chosen creature." */
+  | { kind: 'hostCopies' }
+  /** "Enchanted permanent is a colorless land with "{T}: Add {C}" and loses
+   *  all other card types and abilities." */
+  | { kind: 'hostBecomes'; to: Plain }
   /** "As long as you have a full party, prevent all damage that would be
    *  dealt to equipped creature." */
   | { kind: 'shield'; to: 'self' | 'attached'; when: Test }

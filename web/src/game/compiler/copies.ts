@@ -22,7 +22,7 @@ export function readExcept(text: string): CopyChange | null {
   })
     // "…and, if it's a creature, it enters with…": a clause of its own.
     .replace(/ and, if it's a creature, /, ', ')
-  const clauses = rest.split(/,? and (?=it\b|it's|the token|its|his|her)|, (?=it\b|it's|the token|its|his|her)/)
+  const clauses = rest.split(/,? and (?=it\b|it's|the token|its|his|her|he's|she's)|, (?=it\b|it's|the token|its|his|her|he's|she's)/)
   for (const clause of clauses.map((c) => c.trim()).filter(Boolean)) {
     // "It's a 1/1 Food Golem artifact creature in addition to its other
     // types": a size as well, and "creature" is no news to a copy of one.
@@ -50,8 +50,15 @@ export function readExcept(text: string): CopyChange | null {
     else if (/^(?:it|the token) isn't legendary$/.test(clause)) change.notLegendary = true
     else if (has) change.keywords = [...(change.keywords ?? []), ...readKeywords(has[1])]
     else if (size) [, change.pt] = size
-    // A name is not something the table plays by.
-    else if (/^(?:its|his|her) name is ~$/.test(clause)) continue
+    // A token's name is not something the table plays by; a permanent that
+    // becomes a copy keeps the one it had.
+    else if (/^(?:its|his|her) name is ~$/.test(clause)) change.keepName = true
+    // "He's a legendary Human Mercenary Villain creature": its types, whatever
+    // the copied card's were.
+    else if (/^(?:he|she|it)'s an? (legendary )?([a-z ]+?) creature$/.test(clause)) {
+      const [, legendary, subtypes] = /^(?:he|she|it)'s an? (legendary )?([a-z ]+?) creature$/.exec(clause)!
+      change.typeLine = `${legendary ? 'Legendary ' : ''}Creature — ${subtypes.split(/\s+/).map(title).join(' ')}`
+    }
     else if (/^it enters with an additional \+1\/\+1 counter on it if it's a creature$/.test(clause)) change.counters = 1
     else if (/^it enters with an additional loyalty counter on it if it's a planeswalker$/.test(clause)) change.loyalty = 1
     else return null

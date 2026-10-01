@@ -41,6 +41,8 @@ type Happened =
   | { on: 'lifeGain' | 'landPlay' | 'attack' | 'scry' }
   /** A spell was aimed at this. */
   | { on: 'targets'; card: Instance }
+  /** Something — `by` — was attached to this. */
+  | { on: 'attached'; card: Instance; by: string }
   /** One card drawn: the `nth` this turn. */
   | { on: 'draw'; nth: number }
 
@@ -71,6 +73,10 @@ function happened(before: GameState, after: GameState): { events: Happened[]; ta
     }
     if (prev?.zone === 'battlefield' && now.zone === 'battlefield' && prev.tapped !== now.tapped) {
       out.push({ on: now.tapped ? 'tapped' : 'untapped', card: now })
+    }
+    if (now.zone === 'battlefield' && now.attachedTo && now.attachedTo !== (prev?.zone === 'battlefield' ? prev.attachedTo : undefined)) {
+      const host = is.get(now.attachedTo)
+      if (host) out.push({ on: 'attached', card: host, by: now.iid })
     }
     const hurt = now.zone === 'battlefield' ? (now.damage ?? 0) - (prev?.zone === 'battlefield' ? prev.damage ?? 0 : 0) : 0
     if (hurt > 0) out.push({ on: 'damaged', card: now, amount: hurt })
@@ -163,6 +169,7 @@ function sees(when: TriggerEvent, event: Happened, source: Instance, state: Game
   if (when.on === 'cast') return matches(card, when.filter, source.iid, state)
   if (when.on === 'milled') return matches(card, when.filter, source.iid)
   if (when.on === 'targets') return matches(card, when.filter, source.iid, state)
+  if (when.on === 'attached') return (event as Extract<Happened, { on: 'attached' }>).by === source.iid
   if (when.on === 'discard') return !when.filter || matches(card, when.filter, source.iid, state)
   if ('who' in when) {
     if (when.who === 'self') return card.iid === source.iid

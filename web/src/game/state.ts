@@ -64,6 +64,7 @@ export function relocate(
           sick: false, counters: undefined, damage: undefined, attachedTo: undefined,
           chosenType: undefined, chosenMode: undefined, fleeting: undefined, echo: undefined, frozen: undefined,
           card: c.original ?? c.was ?? c.card, original: undefined, was: undefined, revert: undefined,
+          revertBy: undefined,
         }
       : {}
     // What a card in exile was allowed, and by what, ends when it leaves.

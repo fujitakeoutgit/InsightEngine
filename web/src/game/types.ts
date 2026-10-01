@@ -63,9 +63,12 @@ export interface Instance {
    *  `card` is then what it copies. */
   original?: Card
   /** What it was before it became a copy for a while, and when it stops
-   *  being one: at cleanup, or as your next turn begins. */
+   *  being one: at cleanup, as your next turn begins — or when the permanent
+   *  that did it (`revertBy`) is no longer attached to it, or no longer on
+   *  the battlefield. */
   was?: Card
-  revert?: 'end' | 'turn'
+  revert?: 'end' | 'turn' | 'attached' | 'source'
+  revertBy?: string
   /** In exile, and you may play it from there: through this turn — or,
    *  null, for as long as it stays. `free`, without paying its mana cost. */
   mayPlay?: { through: number | null; free?: boolean }

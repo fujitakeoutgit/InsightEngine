@@ -284,6 +284,30 @@ const PATTERNS: Pattern[] = [
   // Becoming a copy. Who becomes one may be the card itself, everything of
   // a kind, everything but what was chosen, or a target of its own — and
   // then what it copies is a second target.
+  // Taskmaster: of a creature, or of a creature card in a graveyard.
+  [/^until (your next turn|end of turn), (.+?) becomes? a copy of up to one target creature on the battlefield or creature card in a graveyard(?:, except (.+))?$/, (m) => {
+    const change = m[3] ? readExcept(m[3]) : {}
+    const until = m[1] === 'your next turn' ? 'turn' as const : 'end' as const
+    return change && onPermanents(m[2], (who) => [
+      { op: 'choose', filter: { types: ['creature'] }, count: 1, upTo: true, orGraveyard: true },
+      { op: 'become', who, change, until },
+    ])
+  }],
+  // Blade of Shared Souls: its bearer, for as long as it bears it.
+  [/^for as long as ~ remains attached to it, you may have that creature become a copy of (another target .+)$/, (m) => {
+    const aimed = onTarget(m[1], () => [{ op: 'become', who: { kind: 'event' }, change: {}, until: 'attached' }])
+    return aimed && aimed.map((effect) => (effect.op === 'choose' ? { ...effect, apart: 'event' as const } : effect))
+  }],
+  // Kitesail Larcenist: one of yours, at most — there is nobody else's.
+  [/^for each player, choose (up to one other target .+?) that player controls$/, (m) => onTarget(`${m[1]} you control`, () => [])],
+  [/^for as long as ~ remains on the battlefield, the chosen permanents? becomes? treasure artifacts? with "\{t\}, sacrifice ~: add one mana of any color" and loses? all other abilities$/, () => [{
+    op: 'transform', who: referent ?? { kind: 'chosen' }, until: 'source',
+    to: { typeLine: 'Artifact — Treasure', text: '{T}, Sacrifice this artifact: Add one mana of any color.' },
+  }]],
+  // Ultima: a land with a blight counter makes colorless, and nothing else.
+  [/^for as long as that land has a blight counter on it, it loses all land types and abilities and has "\{t\}: add \{c\}\.?"$/, () => [{
+    op: 'transform', who: referent ?? { kind: 'chosen' }, to: { typeLine: 'Land', text: '{T}: Add {C}.' },
+  }]],
   [/^(.+?) becomes? (?:a copy|copies) of (that creature|that permanent|it|target .+?)( until end of turn| until your next turn)?(?:, except (.+))?$/, (m) => {
     const change = m[4] ? readExcept(m[4]) : {}
     if (!change) return null

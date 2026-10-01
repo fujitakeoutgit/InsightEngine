@@ -46,6 +46,7 @@ export function copyOf(card: Card, change: CopyChange): Card {
   for (const type of change.types ?? []) line = withType(line, type)
   const [power, toughness] = change.pt ? change.pt.split('/') : [card.power, card.toughness]
   const added = change.text ? sentenceCase(change.text.split('~').join(card.name)) : null
+  if (change.typeLine) line = change.typeLine
   return {
     ...card,
     type_line: line,

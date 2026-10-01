@@ -87,6 +87,20 @@ export function stateBased(state: GameState): GameState {
     }
   }
 
+  // What is something else only while another permanent is attached to it,
+  // or is on the battlefield at all, is itself again once that is not so.
+  for (const c of next.cards) {
+    if (c.zone !== 'battlefield' || !c.was || (c.revert !== 'attached' && c.revert !== 'source')) continue
+    const by = next.cards.find((x) => x.iid === c.revertBy)
+    const holds = by?.zone === 'battlefield' && (c.revert === 'source' || by.attachedTo === c.iid)
+    // An Aura still arriving has not been put on anything yet.
+    if (holds || next.resolving?.source === c.revertBy) continue
+    next = noted({
+      ...next,
+      cards: next.cards.map((x) => (x.iid === c.iid ? { ...x, card: c.was!, was: undefined, revert: undefined, revertBy: undefined } : x)),
+    }, `${c.was.name} is itself again`)
+  }
+
   // A commander in a graveyard or exile may go home instead (903.9a). It
   // always does here: keeping it in the graveyard is a choice nobody makes
   // without a reason the engine cannot see. Only one that was already there

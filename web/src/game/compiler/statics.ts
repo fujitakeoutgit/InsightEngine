@@ -144,6 +144,12 @@ export function readStatic(line: string): Static | null {
     return of && { kind: 'doubleTriggers', of: { ...of, other: true } }
   }
   if (/^as ~ enters, choose a creature type$/.test(l)) return { kind: 'chooseType' }
+  // Metamorphic Alteration: asked as the Aura arrives, of what it enchants.
+  if (/^as ~ enters, choose a creature$/.test(l)) return { kind: 'chooseCreature' }
+  if (/^enchanted creature is a copy of the chosen creature$/.test(l)) return { kind: 'hostCopies' }
+  if (/^enchanted permanent is a colorless land with "\{t\}: add \{c\}" and loses all other card types and abilities$/.test(l)) {
+    return { kind: 'hostBecomes', to: { typeLine: 'Land', text: '{T}: Add {C}.', colorless: true } }
+  }
   if (/^~ is the chosen type in addition to its other types$/.test(l)) return { kind: 'isChosenType' }
   if (/^creatures you control are every creature type\b/.test(l)) return { kind: 'everyCreatureType' }
 
