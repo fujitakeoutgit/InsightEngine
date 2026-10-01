@@ -2,7 +2,7 @@
 
 exports[`coverage of the sample decks > grades each card as it did 1`] = `
 {
-  "Abundance": "manual",
+  "Abundance": "auto",
   "Access Tunnel": "auto",
   "Aesi, Tyrant of Gyre Strait": "auto",
   "Allosaurus Rider": "auto",

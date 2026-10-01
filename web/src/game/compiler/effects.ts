@@ -692,6 +692,7 @@ const PATTERNS: Pattern[] = [
   [/^(?:target creature(?: with [a-z0-9 ]+)?|~|it) can't be blocked this turn$/, () => nothing('Nothing blocks at this table')],
 
   // --- the turn -----------------------------------------------------------
+  [/^there is an additional beginning phase after this phase$/, () => [{ op: 'extraBeginning' }]],
   [/^you may play (an|two|three) additional lands? this turn$/, (m) => {
     const count = readNumber(m[1])
     return count === null ? null : [{ op: 'extraLand', count }]

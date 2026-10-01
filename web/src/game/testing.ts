@@ -87,6 +87,8 @@ export function game(
     paying: null,
     casting: null,
     delayed: [],
+    extraBeginnings: 0,
+    beginning: false,
     tokenArt: {},
     events: [],
     tally: { drawn: 0, discarded: 0, died: 0, left: 0, binned: 0, gained: 0, lost: 0 },

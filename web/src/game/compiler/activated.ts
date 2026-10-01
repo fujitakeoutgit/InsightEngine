@@ -13,7 +13,7 @@ import { readAbility } from './effects'
 import type { AbilityCost, ActivatedAbility, Effect, Filter } from './ir'
 import { readFilter, readNumber, readTest } from './read'
 
-const FREE: AbilityCost = {
+export const FREE: AbilityCost = {
   mana: null, tap: false, life: 0, sacrificeSelf: false, sacrifice: null, sacrificeAny: null,
   discardSelf: false, remove: null, add: null, tapOther: null, loyalty: null,
 }

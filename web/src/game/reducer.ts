@@ -92,6 +92,8 @@ export function deal(
     paying: null,
     casting: null,
     delayed: [],
+    extraBeginnings: 0,
+    beginning: false,
     tokenArt: Object.fromEntries(tokens.map((t) => [t.name.toLowerCase(), t.image])),
     events: [],
     tally: emptyTally(),

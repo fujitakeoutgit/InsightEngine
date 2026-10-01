@@ -260,7 +260,14 @@ export type Decision =
   /** "Choose one —". Where more than one may be chosen, they are taken one
    *  at a time: `taken` is what has been so far, and `canStop` whether that
    *  is enough to stop at. */
-  | { kind: 'mode'; prompt: string; modes: string[]; taken: number[]; canStop: boolean }
+  | {
+    kind: 'mode'; prompt: string; modes: string[]; taken: number[]; canStop: boolean
+    /** Modes that are paid for out of a total, and may be taken again:
+     *  what each costs, and what is left. */
+    repeat?: boolean
+    left?: number
+    costs?: number[]
+  }
 
 export interface GameState {
   /** Every card in the game. A zone's order is the order of its cards here,
@@ -323,6 +330,10 @@ export interface GameState {
   /** A spell being cast, while the game asks whether it is the one cast
    *  without paying this turn. */
   casting: { iid: string; x: number } | null
+  /** Additional beginning phases owed after this turn's second main phase,
+   *  and whether the game is in one now. */
+  extraBeginnings: number
+  beginning: boolean
   /** Abilities waiting for the next end step to begin. */
   delayed: { iid: string; ability: NonNullable<StackItem['ability']> }[]
   /** Pictures for the tokens this deck makes, by name. */

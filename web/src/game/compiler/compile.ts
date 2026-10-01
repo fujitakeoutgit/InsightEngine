@@ -12,13 +12,13 @@
  */
 
 import type { Card } from '../../lib/api'
-import { readActivated, readKeywordAbility } from './activated'
+import { FREE, readActivated, readKeywordAbility } from './activated'
 import { readAbility, sentences } from './effects'
 import type {
   Ability, ActivatedAbility, Aim, Compiled, Coverage, Effect, Filter, Static, Test, TriggerEvent,
   TriggeredAbility,
 } from './ir'
-import { readFilter, readTest } from './read'
+import { readFilter, readNumber, readTest } from './read'
 import { isInert, readCostLess, readStatic } from './statics'
 
 /** Keywords with nothing to do at resolution: evasion, protection, combat
@@ -223,6 +223,7 @@ function readOneTrigger(condition: string): TriggerEvent | null {
   if (/^the beginning of (your|each) upkeep$/.test(c)) return { on: 'step', step: 'upkeep' }
   if (/^the beginning of your (first|precombat) main phase$/.test(c)) return { on: 'step', step: 'main' }
   if (/^the beginning of (your|each|the) end step$/.test(c)) return { on: 'step', step: 'end' }
+  if (/^the beginning of each of your postcombat main phases$/.test(c)) return { on: 'step', step: 'main2' }
   // Nobody else casts anything: "a player" is you.
   if (/^(?:you|a player) casts? a spell$/.test(c)) return { on: 'cast', filter: {} }
   if (/^you cast a spell of the chosen type$/.test(c)) return { on: 'cast', filter: { chosenType: true } }
@@ -422,6 +423,32 @@ export function compile(card: Card): Compiled {
       continue
     }
 
+    // "Choose up to five {P} worth of modes", and under it each mode with
+    // what it costs: taken as often as they can be paid for.
+    const paws = /^choose up to (\w+) \{p\} worth of modes\. you may choose the same mode more than once\.$/.exec(lower)
+    const most = paws && readNumber(paws[1])
+    if (paws && most !== null) {
+      const priced: { cost: number; mode: Ability }[] = []
+      for (let under = /^((?:\{P\})+) — (.+)$/.exec(lines[i + 1 + priced.length] ?? ''); under; under = /^((?:\{P\})+) — (.+)$/.exec(lines[i + 1 + priced.length] ?? '')) {
+        priced.push({ cost: under[1].length / 3, mode: { text: under[0], ...readAbility(under[2]) } })
+      }
+      i += priced.length
+      const whole = [printed, ...priced.map((p) => p.mode.text)].join('\n')
+      const read = priced.some((p) => p.mode.effects.length)
+      const complete = priced.length > 0 && priced.every((p) => p.mode.complete)
+      if (isSpell && read) {
+        spellParts.push({
+          text: whole, complete,
+          effects: [{
+            op: 'mode', modes: priced.map((p) => p.mode), min: 0, max: 99,
+            budget: { max: most as number, costs: priced.map((p) => p.cost) },
+          }],
+        })
+      } else unread.push(whole)
+      grades.push(!isSpell || !read ? 0 : complete ? 1 : 0.5)
+      continue
+    }
+
     // "Choose one —" and the bullets after it: on a spell, at the end of a
     // trigger, or after an activated ability's cost.
     let bullets = 0
@@ -544,6 +571,14 @@ export function compile(card: Card): Compiled {
 
     const fixed = modal ? null : readStatic(lower)
     if (fixed) {
+      // Abundance's standing choice can be made again whenever you like.
+      if (fixed.kind === 'drawsFind') {
+        activated.push({
+          text: 'Choose again what your draws look for.', cost: { ...FREE },
+          sorcery: false, oncePerTurn: false, fromHand: false, mana: null,
+          effects: [{ op: 'rechoose' }], complete: true,
+        })
+      }
       statics.push(fixed)
       grades.push(1)
       continue

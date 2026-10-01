@@ -96,10 +96,41 @@ export function toBottom(cards: readonly Instance[], iid: string, zone: Zone): I
 const drawDoublers = (state: GameState) => inZone(state, 'battlefield')
   .filter((c) => compile(c.card).statics.some((fixed) => fixed.kind === 'drawTwice')).length
 
+/** What Abundance may have a draw look for instead. */
+export const DRAWS_FIND = ['Land', 'Nonland']
+
+/** Abundance, and what was chosen for it: each draw is instead a dig for
+ *  the next card of that kind, the ones above it going to the bottom. */
+function drawFinding(state: GameState, count: number, kind: string): GameState {
+  let next = state
+  const found: string[] = []
+  for (let i = 0; i < count; i += 1) {
+    const library = inZone(next, 'library')
+    const at = library.findIndex((c) => /\bLand\b/.test(c.card.type_line ?? '') === (kind === 'Land'))
+    const revealed = new Set((at < 0 ? library : library.slice(0, at)).map((c) => c.iid))
+    const taken = at < 0 ? null : library[at]
+    const cards = next.cards.map((c) => (c.iid === taken?.iid ? { ...c, zone: 'hand' as Zone } : c))
+    if (taken) found.push(taken.iid)
+    next = noted(
+      { ...next, cards: [...cards.filter((c) => !revealed.has(c.iid)), ...cards.filter((c) => revealed.has(c.iid))] },
+      taken
+        ? `Abundance: ${taken.card.name} into your hand${revealed.size ? `, ${revealed.size} to the bottom` : ''}`
+        : `Abundance: no ${kind.toLowerCase()} card left to find`,
+    )
+  }
+  return found.length ? { ...next, drawn: found } : next
+}
+
 /** Draw cards. `first` is the draw step's own draw, which the cards that
  *  replace draws leave alone. */
 export function draw(state: GameState, asked: number, first = false): GameState {
   const count = state.rules && !first ? asked * 2 ** drawDoublers(state) : asked
+  const finding = state.rules
+    ? inZone(state, 'battlefield').find((c) => (
+      DRAWS_FIND.includes(c.chosenMode ?? '') && compile(c.card).statics.some((fixed) => fixed.kind === 'drawsFind')
+    ))?.chosenMode
+    : undefined
+  if (finding) return drawFinding(state, count, finding)
   const drawn = inZone(state, 'library').slice(0, count).map((c) => c.iid)
   let next = state
   if (drawn.length) {

@@ -356,6 +356,11 @@ export type Effect = (
   /** "When target creature is put into your graveyard this turn, return
    *  that card to the battlefield": marked now, returned if it dies. */
   | { op: 'saveFromGrave'; who: Aim }
+  /** "There is an additional beginning phase after this phase": untap,
+   *  upkeep and draw, once more. */
+  | { op: 'extraBeginning' }
+  /** The choice made for the source as it entered is asked again. */
+  | { op: 'rechoose' }
   /** Cards shuffled into your library: the permanents aimed at, or whole
    *  zones — "shuffle your graveyard and hand into your library". */
   | { op: 'shuffleIn'; what?: Aim; zones?: ('graveyard' | 'hand')[] }
@@ -484,6 +489,9 @@ export type Effect = (
     random?: { unless: Test }
     /** A villainous choice: the opponent's to make, so made for them. */
     who?: 'opponent'
+    /** "Up to five {P} worth of modes": what each costs, and the most they
+     *  may come to — the same mode as often as it can be afforded. */
+    budget?: { max: number; costs: number[] }
   }
   /** One outcome or another: "If that land is a Forest, put two counters on
    *  it instead." */
@@ -521,8 +529,8 @@ export type TriggerEvent =
   /** "Whenever equipped creature dies": what this is attached to. */
   | { on: 'dies'; who: 'attached' }
   | { on: 'dies'; who: Filter }
-  /** `main` is the first main phase. */
-  | { on: 'step'; step: 'upkeep' | 'main' | 'combat' | 'end' }
+  /** `main` is the first main phase, `main2` the one after combat. */
+  | { on: 'step'; step: 'upkeep' | 'main' | 'combat' | 'main2' | 'end' }
   /** "Whenever ~ attacks", "whenever a creature you control attacks". */
   | { on: 'attacks'; who: 'self' | 'attached' | Filter }
   /** "Whenever you attack": once, however many attack. */
@@ -677,6 +685,12 @@ export type Static =
   /** Paradigm: exiled as it resolves, to be cast again as a copy at the
    *  beginning of each first main phase. */
   | { kind: 'paradigm' }
+  /** "Nonland cards in your hand have miracle {0}": the first card you
+   *  draw each turn may be cast for nothing, if it is not a land. */
+  | { kind: 'miracle' }
+  /** Abundance: a draw may instead dig for a land, or for a nonland. Which
+   *  is chosen for it once, and stands until it is chosen again. */
+  | { kind: 'drawsFind' }
   /** "As ~ enters, choose a creature", of an Aura whose creature copies it. */
   | { kind: 'chooseCreature' }
   /** "Enchanted creature is a copy of the chosen creature." */

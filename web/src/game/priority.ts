@@ -13,6 +13,7 @@
 import { compile } from './compiler/compile'
 import { isCreatureType } from './compiler/subtypes'
 import { resolveTop } from './resolve'
+import { DRAWS_FIND } from './state'
 import { stateBased } from './sba'
 import { collectTriggers, stepTriggers } from './triggers'
 import { firstTurn, nextStep, STEPS, STOPS } from './turn'
@@ -47,8 +48,12 @@ function askType(state: GameState): GameState {
   // "…choose Khans or Dragons": the same question, of the card's own two.
   for (const c of state.cards) {
     if (c.zone !== 'battlefield' || c.chosenMode) continue
-    const asks = compile(c.card).statics.find((fixed) => fixed.kind === 'chooseSide')
+    const asks = compile(c.card).statics.find((fixed) => fixed.kind === 'chooseSide' || fixed.kind === 'drawsFind')
     if (asks?.kind === 'chooseSide') return { ...state, pending: { kind: 'type', iid: c.iid, options: asks.sides, side: true } }
+    // Abundance: what your draws look for, until you say otherwise.
+    if (asks?.kind === 'drawsFind') {
+      return { ...state, pending: { kind: 'type', iid: c.iid, options: [...DRAWS_FIND, 'As usual'], side: true } }
+    }
   }
   return state
 }
@@ -71,7 +76,7 @@ function typesInDeck(state: GameState): string[] {
 /** One step on, with what begins in it. */
 function stepOn(state: GameState): GameState {
   const moved = nextStep(state)
-  const begun = moved.step === 'upkeep' || moved.step === 'end' ? stepTriggers(moved, moved.step)
+  const begun = moved.step === 'upkeep' || moved.step === 'end' || moved.step === 'main2' ? stepTriggers(moved, moved.step)
     : moved.step === 'main1' ? stepTriggers(moved, 'main')
       : moved.step === 'combatBegin' ? stepTriggers(moved, 'combat')
         : moved

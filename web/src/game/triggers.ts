@@ -251,6 +251,33 @@ export function collectTriggers(before: GameState, after: GameState): GameState 
   if (fallen.size) {
     next = { ...next, cards: next.cards.map((c) => (fallen.has(c.iid) ? { ...c, fell: after.turn, returns: undefined } : c)) }
   }
+  // Molecule Man: the first card drawn this turn, if it is not a land, may
+  // be cast for nothing. Which card that was is known when it came in one
+  // draw.
+  const first = before.tally.drawn === 0 && after.tally.drawn > 0 && after.tally.drawn === after.drawn.length
+    ? after.cards.find((c) => c.iid === after.drawn[0])
+    : undefined
+  const granting = first?.zone === 'hand' && !/\bLand\b/.test(first.card.type_line ?? '')
+    ? inZone(after, 'battlefield').find((c) => compile(c.card).statics.some((fixed) => fixed.kind === 'miracle'))
+    : undefined
+  if (first && granting) {
+    const [id, minted] = mint(next, 's')
+    next = noted({
+      ...minted,
+      stack: [...minted.stack, {
+        id,
+        iid: granting.iid,
+        x: 0,
+        ability: {
+          text: `Miracle — cast ${first.card.name} without paying its mana cost.`,
+          effects: [{ op: 'castFree', from: 'event', filter: {}, count: 1, optional: true }],
+          complete: true,
+          event: first.iid,
+          known: {},
+        },
+      }],
+    }, `${first.card.name}: a miracle`)
+  }
   // Saffi: a creature marked to return this turn has died, and does.
   for (const event of events) {
     if (event.on !== 'dies' || event.card.returns?.turn !== after.turn || event.card.token) continue
@@ -320,7 +347,7 @@ function askOrder(before: GameState, after: GameState): GameState {
 
 /** "At the beginning of your upkeep", as the step begins. Text nothing reads
  *  yet is posted, so an upkeep the engine cannot do is not one you forget. */
-export function stepTriggers(state: GameState, step: 'upkeep' | 'main' | 'combat' | 'end'): GameState {
+export function stepTriggers(state: GameState, step: 'upkeep' | 'main' | 'combat' | 'main2' | 'end'): GameState {
   let next = state
   /** Put an ability made up here on the stack. */
   const push = (iid: string, text: string, effects: Effect[], event: string | null = null) => {
@@ -385,6 +412,7 @@ export function stepTriggers(state: GameState, step: 'upkeep' | 'main' | 'combat
   const opening = step === 'upkeep' ? /^at the beginning of (your|each) upkeep\b/i
     : step === 'main' ? /^at the beginning of your (first|precombat) main phase\b/i
       : step === 'combat' ? /^at the beginning of combat\b/i
+        : step === 'main2' ? /^at the beginning of (each of )?your (postcombat|second) main phases?\b/i
         : /^at the beginning of (your|each|the) end step\b/i
   for (const source of inZone(state, 'battlefield')) {
     const compiled = compile(source.card)

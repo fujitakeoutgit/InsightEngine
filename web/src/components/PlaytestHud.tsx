@@ -302,16 +302,20 @@ export function DecisionPrompt({
         <h3>{decision.prompt}</h3>
         <div className="pt-modes">
           {decision.modes.map((mode, i) => {
-            const taken = decision.taken.includes(i)
+            const times = decision.taken.filter((t) => t === i).length
+            const taken = times > 0
+            // Modes paid for out of a total may be taken again, for as long
+            // as what is left covers them.
+            const unaffordable = decision.repeat && (decision.costs?.[i] ?? 0) > (decision.left ?? 0)
             return (
               <button
                 key={mode}
                 className={taken ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
                 onClick={() => onMode(i)}
-                disabled={taken}
+                disabled={decision.repeat ? unaffordable : taken}
                 aria-pressed={taken}
               >
-                {mode}
+                {mode}{decision.repeat && times > 1 ? ` ×${times}` : ''}
               </button>
             )
           })}

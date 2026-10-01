@@ -51,6 +51,16 @@ function exileFleeting(state: GameState, when: 'end' | 'upkeep'): GameState {
 function enter(state: GameState): GameState {
   switch (state.step) {
     case 'untap': {
+      // An additional beginning phase: what is tapped untaps, and that is
+      // all — it is still the same turn.
+      if (state.beginning) {
+        const cards = state.cards.map((c) => (
+          c.zone !== 'battlefield' ? c
+            : c.frozen ? { ...c, frozen: undefined }
+              : c.tapped ? { ...c, tapped: false } : c
+        ))
+        return noted({ ...state, cards }, 'An additional beginning phase')
+      }
       // Everything untaps, and a creature you have had since this turn began
       // is no longer summoning sick — which, at the start of your turn, is
       // every creature you have.
@@ -63,14 +73,14 @@ function enter(state: GameState): GameState {
       ))
       return noted({
         ...state, cards, landsPlayed: 0, extraLands: 0, triggered: [], attacking: [], dealt: [],
-        tally: emptyTally(),
+        tally: emptyTally(), extraBeginnings: 0,
       }, `Turn ${state.turn}`)
     }
     case 'draw': {
       // Turn 1 skips its draw, as the first player's does in a two-player
       // game (CR 103.8a) and as the table always has — unless it is set to
       // draw, as everybody does in a multiplayer one.
-      if (state.turn === 1 && !state.firstDraw) return state
+      if (state.turn === 1 && !state.firstDraw && !state.beginning) return state
       // Kami of the Crescent Moon: more cards in the draw step.
       const extra = inZone(state, 'battlefield').reduce((n, c) => (
         n + compile(c.card).statics.reduce((m, fixed) => m + (fixed.kind === 'extraDraw' ? fixed.count : 0), 0)
@@ -127,6 +137,13 @@ export function nextStep(state: GameState): GameState {
   const last = i === STEPS.length - 1
   const unspent = MANA_TYPES.reduce((n, kind) => n + state.pool[kind], 0)
   const emptied = unspent ? noted(state, `${unspent} unspent mana left the pool`) : state
+  const pool = unspent ? emptyPool() : state.pool
+  // Sphinx of the Second Sun: after the second main phase, a beginning phase
+  // again — untap, upkeep, draw — and then the end step.
+  if (state.extraBeginnings > 0 && (state.step === 'main2' || (state.beginning && state.step === 'draw'))) {
+    return enter({ ...emptied, pool, step: 'untap', beginning: true, extraBeginnings: state.extraBeginnings - 1 })
+  }
+  if (state.beginning && state.step === 'draw') return enter({ ...emptied, pool, step: 'end', beginning: false })
   return enter({
     ...emptied,
     pool: unspent ? emptyPool() : state.pool,

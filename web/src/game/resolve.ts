@@ -312,7 +312,7 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
     case 'castFree': {
       if (effect.from === 'event') {
         const inst = r.event ? find(state, r.event) : undefined
-        if (!inst || inst.zone !== 'exile') return { state }
+        if (!inst || (inst.zone !== 'exile' && inst.zone !== 'hand')) return { state }
         const cast = castFreely(state, inst.iid, r.name)
         // "If it's a creature, it has haste": for the turn it arrives in.
         return {
@@ -494,6 +494,14 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
         ),
       }
     }
+
+    case 'extraBeginning':
+      return {
+        state: noted({ ...state, extraBeginnings: state.extraBeginnings + 1 }, `${r.name}: an additional beginning phase after this one`),
+      }
+
+    case 'rechoose':
+      return { state: change(state, [r.source], (c) => ({ ...c, chosenMode: undefined })) }
 
     case 'shuffleIn': {
       const what = effect.what
@@ -690,7 +698,12 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       // It becomes the copy first, so it arrives as one: what watches for
       // the original arriving watches this.
       const becoming = copied
-        ? change(state, [r.source], (c) => ({ ...c, original: c.original ?? c.card, card: copyOf(copied.card, how) }))
+        ? change(state, [r.source], (c) => ({
+            ...c,
+            original: c.original ?? c.card,
+            // "Except his name is ~": the copy, under the name it had.
+            card: { ...copyOf(copied.card, how), ...(how.keepName ? { name: (c.original ?? c.card).name } : {}) },
+          }))
         : state
       const entered = enterBattlefield(becoming, r.source, { x: r.x, forceTapped: Boolean(copied && how.tapped) }).state
       const arrived = copied
@@ -1045,6 +1058,22 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
         const leftover = mode.complete ? r.leftover : [r.leftover, text].filter(Boolean).join('\n')
         return { state: noted({ ...state, seed, resolving: { ...r, effects, leftover } }, `${r.name}, at random: ${text}`) }
       }
+      if (effect.budget) {
+        const left = effect.budget.max - r.modes.reduce((n, i) => n + effect.budget!.costs[i], 0)
+        return {
+          state,
+          wait: {
+            kind: 'mode',
+            prompt: `${r.name}: choose modes — ${left} of ${effect.budget.max} left to spend`,
+            modes: effect.modes.map((m) => m.text.split('~').join(r.name)),
+            taken: r.modes,
+            canStop: true,
+            repeat: true,
+            left,
+            costs: effect.budget.costs,
+          },
+        }
+      }
       const max = modeLimit(state, r, effect)
       const said = max <= 1 ? (effect.min ? 'choose one' : 'choose up to one')
         : effect.min === max ? `choose ${max}`
@@ -1273,11 +1302,18 @@ export function answer(state: GameState, action: Action): GameState {
 
   if (pending.kind === 'mode' && action.type === 'mode' && effect.op === 'mode') {
     const stop = action.index === -1
+    const { budget } = effect
+    /** What is left to spend, where the modes are paid for. */
+    const left = budget ? budget.max - r.modes.reduce((n, i) => n + budget.costs[i], 0) : 0
     // `taken` holds what was chosen earlier this turn as well as just now.
-    if (stop ? r.modes.length < effect.min : !effect.modes[action.index] || pending.taken.includes(action.index)) return state
+    if (budget ? !stop && (!effect.modes[action.index] || budget.costs[action.index] > left)
+      : stop ? r.modes.length < effect.min : !effect.modes[action.index] || pending.taken.includes(action.index)) return state
     const taken = stop ? r.modes : [...r.modes, action.index]
     // More may be chosen: ask again, with this one taken.
-    if (!stop && taken.length < modeLimit(answered, r, effect) && taken.length < effect.modes.length) {
+    const more = budget
+      ? budget.costs.some((cost) => cost <= left - budget.costs[action.index])
+      : taken.length < modeLimit(answered, r, effect) && taken.length < effect.modes.length
+    if (!stop && more) {
       return carryOn({ ...answered, resolving: { ...r, modes: taken } })
     }
     // The chosen modes' effects take the place of the choice, in the order
