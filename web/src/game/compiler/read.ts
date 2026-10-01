@@ -8,6 +8,7 @@
  */
 
 import type { Count, Filter, TokenSpec } from './ir'
+import { subtypeOf } from './subtypes'
 
 const NUMBERS: Record<string, number> = {
   a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5,
@@ -31,7 +32,11 @@ export function readNumber(word: string): number | null {
 const title = (word: string) => word[0].toUpperCase() + word.slice(1)
 
 const TYPES = ['creature', 'land', 'artifact', 'enchantment', 'planeswalker', 'battle', 'instant', 'sorcery']
-const LAND_TYPES = ['plains', 'island', 'swamp', 'mountain', 'forest']
+
+const COLOR_WORDS: Record<string, string> = {
+  white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G',
+}
+const COLOR = / (white|blue|black|red|green)\b(?:,| or| and)?/
 
 /**
  * The permanents or cards a noun phrase means.
@@ -52,10 +57,15 @@ export function readFilter(phrase: string): Filter | null {
   }
 
   if (take(/ (you control|under your control)\b/)) filter.controller = 'you'
-  else if (take(/ (an opponent controls|your opponents control|you don't control)\b/)) filter.controller = 'opponent'
+  else if (take(/ (an opponent controls|your opponents control|you don't control|that player controls|defending player controls)\b/)) filter.controller = 'opponent'
   if (take(/ (another|other)\b/)) filter.other = true
   if (take(/ nontoken\b/)) filter.nontoken = true
   if (take(/ basic\b/)) filter.basic = true
+  if (take(/ attacking\b/)) filter.attacking = true
+  if (take(/ colorless\b/)) filter.colorless = true
+  for (let color = take(COLOR); color; color = take(COLOR)) {
+    filter.colors = [...(filter.colors ?? []), COLOR_WORDS[color[1]]]
+  }
   const compare = take(/ with (power|toughness|mana value) (\d+) or (less|greater)\b/)
   if (compare) {
     filter.compare = {
@@ -69,8 +79,9 @@ export function readFilter(phrase: string): Filter | null {
 
   const types: string[] = []
   const subtypes: string[] = []
+  const either = / or /.test(rest)
   const words = rest.replace(/,/g, ' ').split(/\s+/).filter(Boolean)
-  for (const [i, word] of words.entries()) {
+  for (const word of words) {
     const singular = word.replace(/s$/, '')
     if (['or', 'and', 'card', 'cards', 'permanent', 'permanents', 'a', 'an', 'target'].includes(word)) continue
     if (TYPES.includes(singular)) types.push(singular)
@@ -78,24 +89,29 @@ export function readFilter(phrase: string): Filter | null {
       filter.not = [...(filter.not ?? []), singular.slice(3)]
     } else if (/^non-[a-z]+$/.test(singular)) {
       // "non-Spirit": a creature type it must not have.
-      filter.notSubtypes = [...(filter.notSubtypes ?? []), title(singular.slice(4))]
-    } else if (LAND_TYPES.includes(word) || LAND_TYPES.includes(singular)) {
-      // "Plains" is its own singular.
-      subtypes.push(title(LAND_TYPES.includes(word) ? word : singular))
-    } else if (/^[a-z]+$/.test(word) && /^(creature|card)s?$/.test(words[i + 1] ?? '')) {
-      // "Plant creature", "Eldrazi card": a word just before the type is
-      // the creature type it narrows to.
-      subtypes.push(title(singular))
-    } else return null
+      const without = subtypeOf(singular.slice(4))
+      if (!without) return null
+      filter.notSubtypes = [...(filter.notSubtypes ?? []), without]
+    } else if (word === 'legendary') {
+      // A supertype, but it sits on the type line like any other word.
+      subtypes.push('Legendary')
+    } else {
+      // "Plant creature", "Ally you control", "Zombies": a subtype, if it is
+      // one there is.
+      const subtype = subtypeOf(word)
+      if (!subtype) return null
+      subtypes.push(subtype)
+    }
   }
+  // Types are any-of and subtypes are any-of, and a card must answer to
+  // both. So "creature or Vehicle" cannot be said here: it would come out as
+  // a creature that is also a Vehicle.
+  if (either && types.length && subtypes.length) return null
   if (types.length) filter.types = types
   if (subtypes.length) filter.subtypes = subtypes
   return filter
 }
 
-const COLOR_WORDS: Record<string, string> = {
-  white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G',
-}
 
 /** Artifact tokens every deck knows by name. */
 const NAMED_TOKENS: Record<string, TokenSpec> = {
@@ -128,6 +144,17 @@ export function readToken(phrase: string): TokenSpec | null {
   const text = phrase.trim().toLowerCase().replace(/ tokens?(?= with |$)/, '')
   const named = NAMED_TOKENS[text]
   if (named) return named
+
+  // "Boo, a legendary 1/1 red Hamster creature token": one with a name.
+  const legend = /^([a-z' -]+), an? legendary (.+)$/.exec(text)
+  if (legend) {
+    const inner = readToken(legend[2])
+    return inner && {
+      ...inner,
+      name: legend[1].split(' ').map(title).join(' '),
+      typeLine: inner.typeLine.replace(/^Token /, 'Token Legendary '),
+    }
+  }
 
   const creature = /^(\d+)\/(\d+) ((?:(?:white|blue|black|red|green|colorless)(?:,? and |, | ))*(?:white|blue|black|red|green|colorless)) ((?:artifact |enchantment )*)([a-z ]+?) creature(?: with ([a-z, ]+?))?$/.exec(text)
   if (!creature) return null

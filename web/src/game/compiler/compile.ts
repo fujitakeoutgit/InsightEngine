@@ -59,6 +59,8 @@ export function normalize(card: Card, text: string): string[] {
       // Legends are called by their first name: "Felothar" for Felothar the
       // Steadfast, "Baldin" for Baldin, Century Herdmaster.
       names.add(part.split(',')[0])
+      const epithet = /^(\w{3,}) the \w/.exec(part)
+      if (epithet && /\bLegendary\b/.test(card.type_line ?? '')) names.add(epithet[1])
     }
   }
   let out = text.replace(/\([^)]*\)/g, '')
@@ -76,6 +78,14 @@ function readTrigger(condition: string): TriggerEvent[] | null {
   if (one) return [one]
   if (/^~ enters or attacks$/.test(condition.trim())) {
     return [{ on: 'enters', who: 'self' }, { on: 'attacks', who: 'self' }]
+  }
+  // "Whenever ~ or another nontoken Phyrexian you control enters": itself,
+  // and the others.
+  const orAnother = /^~ or (another .+? (?:enters|dies))$/.exec(condition.trim())
+  if (orAnother) {
+    const others = readOneTrigger(orAnother[1])
+    const own = readOneTrigger(`~ ${orAnother[1].split(' ').pop()}`)
+    if (others && own) return [own, others]
   }
   // "When ~ enters or dies", "Whenever another creature you control enters
   // or dies": the same ability, on either event.
@@ -130,6 +140,8 @@ function readOneTrigger(condition: string): TriggerEvent | null {
   if (/^(a player|you) plays? a land$/.test(c)) return { on: 'landPlay' }
   if (/^the beginning of your upkeep$/.test(c)) return { on: 'step', step: 'upkeep' }
   if (/^the beginning of (your|each|the) end step$/.test(c)) return { on: 'step', step: 'end' }
+  // Nobody else casts anything: "a player" is you.
+  if (/^(?:you|a player) casts? a spell$/.test(c)) return { on: 'cast', filter: {} }
   const cast = /^you cast (?:a|an) (.+?) spell$/.exec(c)
   if (cast) {
     const filter = readFilter(cast[1])

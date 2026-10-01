@@ -26,6 +26,11 @@ export interface Filter {
   /** Subtypes it must not have: "non-Spirit". */
   notSubtypes?: string[]
   basic?: boolean
+  /** Color letters, any of: "blue" is `['U']`. */
+  colors?: string[]
+  colorless?: boolean
+  /** Declared as an attacker this combat. */
+  attacking?: boolean
   nontoken?: boolean
   /** Not the source itself. */
   other?: boolean

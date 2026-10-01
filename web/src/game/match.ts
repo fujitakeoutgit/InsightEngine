@@ -4,24 +4,15 @@
  */
 
 import type { Filter } from './compiler/ir'
+import { isKind } from './kinds'
 import { hasKeyword, power, toughness } from './stats'
 import type { GameState, Instance } from './types'
-
-const word = (line: string, w: string) => new RegExp(`\\b${w}\\b`, 'i').test(line)
 
 /** `source` is the card whose ability is asking, which "another" excludes.
  *  With the game, size and keywords are what the board makes them. */
 export function matches(inst: Instance, filter: Filter, source?: string, state?: GameState): boolean {
-  // The other side of the table has nothing on it.
-  if (filter.controller === 'opponent') return false
-  const line = inst.card.type_line ?? ''
-  if (filter.types && !filter.types.some((t) => word(line, t))) return false
-  if (filter.not?.some((t) => word(line, t))) return false
-  if (filter.subtypes && !filter.subtypes.some((t) => word(line, t))) return false
-  if (filter.notSubtypes?.some((t) => word(line, t))) return false
-  if (filter.basic && !word(line, 'Basic')) return false
-  if (filter.nontoken && inst.token) return false
-  if (filter.other && inst.iid === source) return false
+  if (!isKind(inst, filter, source)) return false
+  if (filter.attacking && !state?.attacking.includes(inst.iid)) return false
   if (filter.keyword && !hasKeyword(inst, filter.keyword, state)) return false
   if (filter.compare) {
     const { stat, op, value } = filter.compare

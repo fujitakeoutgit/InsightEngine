@@ -19,8 +19,33 @@ import { readKeywords } from './statics'
 
 type Pattern = [RegExp, (m: RegExpExecArray) => Effect[] | null]
 
-/** "~", "it", "itself" — the source. */
-const SELF = /^(~|it|itself)$/
+/** "~", "it", "itself", "he" — the source. */
+const SELF = /^(~|it|itself|he|she|him|her)$/
+
+/** What "it", "that creature" and "they" mean just now, when a sentence
+ *  before this one picked something out: the target of "destroy target
+ *  creature", in "its controller gains…" after it. Null where nothing was,
+ *  and then "it" is the card itself. */
+let referent: Aim | null = null
+
+const PRONOUN = /^(it|that creature|that permanent|that land|that artifact|them|they|those creatures|those permanents)$/
+
+/** Read with "it" meaning this. */
+function referring<T>(to: Aim | null, read: () => T): T {
+  const before = referent
+  referent = to
+  try {
+    return read()
+  } finally {
+    referent = before
+  }
+}
+
+/** What these effects leave "it" meaning: the last thing targeted. A
+ *  sacrifice does not count — nobody says "it" of what is gone. */
+function referentOf(effects: readonly Effect[], otherwise: Aim | null): Aim | null {
+  return effects.some((effect) => effect.op === 'choose' && !effect.must) ? { kind: 'chosen' } : otherwise
+}
 
 const nothing = (why: string): Effect[] => [{ op: 'nothing', why }]
 
@@ -41,6 +66,7 @@ function onTarget(phrase: string, act: (what: Aim) => Effect[]): Effect[] | null
 /** "~", "each creature you control", "creatures you control", or "target
  *  creature": what an effect that acts on permanents acts on. */
 function onPermanents(phrase: string, act: (what: Aim) => Effect[]): Effect[] | null {
+  if (referent && PRONOUN.test(phrase)) return act(referent)
   if (SELF.test(phrase)) return act({ kind: 'self' })
   if (/^(that creature|equipped creature|enchanted creature)$/.test(phrase)) return act({ kind: 'event' })
   const each = /^(?:each|all) (.+)$/.exec(phrase) ?? /^((?:other )?[a-z]+s you control)$/.exec(phrase)
@@ -95,7 +121,7 @@ const PATTERNS: Pattern[] = [
     const count = readCount(m[1])
     return count === null ? null : [{ op: 'life', who: 'you', sign: 1, count }]
   }],
-  [/^you lose (\w+) life$/, (m) => {
+  [/^(?:you )?lose (\w+) life$/, (m) => {
     const count = readCount(m[1])
     return count === null ? null : [{ op: 'life', who: 'you', sign: -1, count }]
   }],
@@ -130,9 +156,9 @@ const PATTERNS: Pattern[] = [
     const opponent: Effect = { op: 'damage', to: { kind: 'opponent' }, count }
     return to === 'each player' ? [opponent, { op: 'damage', to: { kind: 'you' }, count }] : [opponent]
   }],
-  [/^~ deals (\w+) damage to (.*target creature.*)$/, (m) => {
+  [/^~ deals (\w+) damage to (each .+|.*target creature.*)$/, (m) => {
     const count = readCount(m[1])
-    return count === null ? null : onTarget(m[2], (what) => [{ op: 'damage', to: what, count }])
+    return count === null ? null : onPermanents(m[2], (what) => [{ op: 'damage', to: what, count }])
   }],
 
   // --- tokens --------------------------------------------------------------
@@ -141,7 +167,7 @@ const PATTERNS: Pattern[] = [
     const token = readToken(m[1])
     return token ? [{ op: 'token', count: { stat: m[2] as 'power' | 'toughness', of: 'self' }, token, tapped: false }] : null
   }],
-  [/^create (\w+) (tapped )?(.+? tokens?(?: with [a-z, ]+?)?)(?: named [^.]+?)?(?: for each (.+))?$/, (m) => {
+  [/^(?:you )?create (\w+) (tapped )?(.+? tokens?(?: with [a-z, ]+?)?)(?: named [^.]+?)?(?: for each (.+))?$/, (m) => {
     const count = readCount(m[1])
     const token = readToken(m[3])
     if (count === null || !token) return null
@@ -151,6 +177,12 @@ const PATTERNS: Pattern[] = [
     }
     return [{ op: 'token', count, token, tapped: Boolean(m[2]) }]
   }],
+  [/^create ([a-z' -]+, an? legendary .+? tokens?(?: with [a-z, ]+?)?)$/, (m) => {
+    const token = readToken(m[1])
+    return token ? [{ op: 'token', count: 1, token, tapped: false }] : null
+  }],
+  // On the only creatures there are, its controller is you.
+  [/^(?:its controller|that creature's controller|that permanent's controller) creates (.+)$/, (m) => readSentence(`create ${m[1]}`)],
   // The token's own abilities, in quotes. It is made; using them is yours.
   [/^(?:it has|they have|it gains|they gain) ".+"$/, () => []],
 
@@ -200,7 +232,7 @@ const PATTERNS: Pattern[] = [
           { op: 'move', what: { kind: 'chosen' }, to: 'graveyard' }]
       : null
   }],
-  [/^return (.+?) to (?:its|their) owner's hand$/, (m) => {
+  [/^return (.+?) to (?:its owner's hand|their owner's hand|their owners' hands)$/, (m) => {
     // Bounce lands: "return a land you control to its owner's hand".
     const owned = /^an? (.+)$/.exec(m[1])
     if (owned) {
@@ -255,8 +287,18 @@ const PATTERNS: Pattern[] = [
 
   [/^pay ((?:\{[^}]+\})+)$/, (m) => [{ op: 'pay', cost: m[1].toUpperCase() }]],
 
+  // --- the other side of the table -----------------------------------------
+  // A threaten, on the only creatures there are: it is yours already, and
+  // what is left is what comes after — untapped, and hasty.
+  [/^gain control of (target .+?) until end of turn$/, (m) => onTarget(m[1], () => [])],
+  [/^gain control of target (?!.*until end of turn)[^.]+$/, () => nothing('Everything here is already yours')],
+  [/^(?:that player|each opponent|target opponent|each other player|defending player) sacrifices (?!.* and you )[^.]+$/, () => nothing('Nothing on the other side to sacrifice')],
+  [/^(?:it|that creature|they) can't be regenerated$/, () => []],
+  // One opponent.
+  [/^for each opponent, (?:you )?(.+)$/, (m) => readSentence(m[1])],
+
   // --- the stack -----------------------------------------------------------
-  [/^counter target (?:spell|creature spell|noncreature spell|activated ability|triggered ability|activated or triggered ability)(?: unless its controller pays \{\d+\})?$/, () => nothing('No spell on the other side to counter')],
+  [/^counter target [a-z, ]*?(?:spell|ability)(?: unless its controller pays \{\d+\})?$/, () => nothing('No spell on the other side to counter')],
   [/^(?:~|this spell) can't be countered$/, () => []],
 ]
 
@@ -273,11 +315,14 @@ export function readSentence(sentence: string): Effect[] | null {
       if (effects) return effects
     }
   }
-  const optional = /^(?:you|each player) may (?:have ~ )?(.+)$/.exec(s)
+  const optional = /^(you|each player) may (?:have ~ )?(.+)$/.exec(s)
   if (optional) {
     // Asked once: the first effect carries the question, and the rest of
-    // the sentence follows only if the answer was yes.
-    const inner = readSentence(optional[1])
+    // the sentence follows only if the answer was yes. "Each player may
+    // search their library" is you searching yours.
+    const inner = readSentence(optional[1] === 'you' ? optional[2] : optional[2].replace(/\btheir library\b/, 'your library'))
+    // Nothing to do is not worth a question.
+    if (inner?.every((effect) => effect.op === 'nothing')) return inner
     return inner && inner.map((effect, i) => (i === 0 ? { ...effect, optional: true } : { ...effect, ifDone: true }))
   }
   const ifDone = /^if you do, (.+)$/.exec(s)
@@ -289,7 +334,7 @@ export function readSentence(sentence: string): Effect[] | null {
     const halves = joint.exec(s)
     if (!halves) continue
     const first = readSentence(halves[1])
-    const second = readSentence(halves[2])
+    const second = first && referring(referentOf(first, referent), () => readSentence(halves[2]))
     if (first && second) return [...first, ...second]
   }
   return null
@@ -329,9 +374,29 @@ export function readAbility(text: string): { effects: Effect[]; complete: boolea
   let complete = true
   let once = false
   let understood = true
+  /** What "it" means so far. */
+  let it: Aim | null = null
+  /** A counterspell has been read: there was no spell, so what the card goes
+   *  on to say about that spell and whoever cast it is nothing as well. */
+  let countered = false
   for (const sentence of text.split(/(?<=\.)\s+/)) {
     const s = sentence.trim().replace(/\.$/, '').toLowerCase()
     if (!s) continue
+    if (countered && /\b(that spell|that spell's|its controller|that player)\b/.test(s)) continue
+    if (/^counter target [a-z, ]*?(spell|ability)\b/.test(s)) {
+      countered = true
+      effects.push(...nothing('No spell on the other side to counter'))
+      continue
+    }
+    // Mob Rule: "gain control of all creatures with power 4 or greater" is
+    // no change at a table where they are all yours — but it is who "those
+    // creatures" are in what follows.
+    const all = /^gain control of (all .+?) until end of turn$/.exec(s)
+    const everyone = all && readFilter(all[1].replace(/^all /, ''))
+    if (everyone) {
+      it = { kind: 'each', filter: everyone }
+      continue
+    }
     if (ONCE.test(s)) {
       once = true
       continue
@@ -348,10 +413,12 @@ export function readAbility(text: string): { effects: Effect[]; complete: boolea
     // "If you do, …" hangs on the sentence before it. If that one was not
     // understood, neither is this: running it would hand out the reward
     // without the price.
-    const read: Effect[] | null = /^if you do,/.test(s) && !understood ? null : readSentence(s)
+    const read: Effect[] | null = /^if you do,/.test(s) && !understood ? null : referring(it, () => readSentence(s))
     understood = read !== null
-    if (read) effects.push(...read)
-    else complete = false
+    if (read) {
+      effects.push(...read)
+      it = referentOf(read, it)
+    } else complete = false
   }
   return { effects, complete, once }
 }

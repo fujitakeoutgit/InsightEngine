@@ -23,9 +23,19 @@ function readPer(phrase: string): Filter | 'colors' | null {
   return readFilter(phrase)
 }
 
-/** Statics that hold and change nothing here: there is nobody to cast
- *  spells in your turn, block, or target your things. */
+/** Lines that hold and change nothing here: there is nobody to cast
+ *  spells in your turn, block, target your things, or take a turn of their
+ *  own — so an ability only the opponent could set off never is. */
 const INERT = [
+  /^(?:whenever|when) (?:an opponent|a player other than you|one or more goaded creatures) /,
+  /^(?:whenever|when) an? [a-z ]+? an opponent controls /,
+  /^whenever you or a permanent you control becomes the target of a spell or ability an opponent controls, /,
+  /^at the beginning of each (?:opponent's|other player's) /,
+  /^creatures can't attack you (?:or planeswalkers you control )?unless /,
+  /^untap all permanents you control during each other player's untap step\.?$/,
+  /^~ can attack players who attacked you during their last turn as though it didn't have defender\.?$/,
+  /: [^:]*\bactivate only if it's not your turn\.?$/,
+  /^a deck can have any number of cards named ~\.?$/,
   /^~ can't be countered\.?$/,
   /^your opponents can't cast spells during your turn\.?$/,
   /^you(, [^.]+)? have (hexproof|shroud)\.?$/,

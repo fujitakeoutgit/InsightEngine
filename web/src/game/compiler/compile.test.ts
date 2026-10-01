@@ -103,3 +103,140 @@ describe('compiling cards', () => {
     expect(compile(card('Runeclaw Bear', 'Creature — Bear')).coverage).toBe('auto')
   })
 })
+
+const text = (oracle: string, type = 'Enchantment', extra: Partial<Card> = {}) =>
+  compile(card(`Test ${oracle.length} ${oracle.slice(0, 24)}`, type, { oracle_text: oracle, ...extra }))
+
+describe('creature types', () => {
+  it('reads a type it knows on its own, plural or not', () => {
+    expect(readFilter('Ally you control')).toEqual({ controller: 'you', subtypes: ['Ally'] })
+    expect(readFilter('Elves you control')).toEqual({ controller: 'you', subtypes: ['Elf'] })
+    expect(readFilter('Zombies')).toEqual({ subtypes: ['Zombie'] })
+    expect(readFilter('Eldrazi card')).toEqual({ subtypes: ['Eldrazi'] })
+  })
+
+  it('refuses a word that is not a type rather than invent one', () => {
+    expect(readFilter('tapped creature')).toBeNull()
+    expect(readFilter('goaded creatures')).toBeNull()
+  })
+
+  it('reads colors, and what is attacking', () => {
+    expect(readFilter('blue or black creature')).toEqual({ colors: ['U', 'B'], types: ['creature'] })
+    expect(readFilter('colorless creatures you control')).toEqual({ controller: 'you', colorless: true, types: ['creature'] })
+    expect(readFilter('attacking creature')).toEqual({ attacking: true, types: ['creature'] })
+  })
+
+  it('refuses a type "or" a subtype, which one filter cannot say', () => {
+    expect(readFilter('creature or Vehicle')).toBeNull()
+  })
+})
+
+describe('what cannot happen at this table', () => {
+  it('reads a trigger only the opponent could set off, and does nothing with it', () => {
+    const mastermind = text('Whenever an opponent draws their second card each turn, you draw a card.')
+    expect(mastermind).toMatchObject({ coverage: 'auto', triggers: [], unread: [] })
+    expect(text('Whenever a land an opponent controls enters, they sacrifice it.').coverage).toBe('auto')
+  })
+
+  it('reads statics about turns and attacks the opponent never takes', () => {
+    expect(text("Creatures can't attack you unless their controller pays {2} for each creature they control that's attacking you.").coverage).toBe('auto')
+    expect(text("Untap all permanents you control during each other player's untap step.", 'Creature — Spirit').coverage).toBe('auto')
+    expect(text("{0}: Return ~ to its owner's hand. Activate only if it's not your turn.", 'Land').coverage).toBe('auto')
+  })
+
+  it('reads any counterspell as having nothing to counter', () => {
+    const denial = text('Counter target spell unless its controller pays {2}. If you control a Bird, counter that spell unless its controller pays {4} instead.', 'Instant')
+    expect(denial).toMatchObject({ coverage: 'auto', spell: { complete: true, effects: [{ op: 'nothing' }] } })
+    const song = text('Counter target enchantment, instant, or sorcery spell. Its controller creates a 2/2 blue Bird creature token with flying.', 'Instant')
+    expect(song.spell?.effects).toEqual([{ op: 'nothing', why: 'No spell on the other side to counter' }])
+  })
+
+  it('reads taking control for good as nothing to take', () => {
+    const sower = text('When ~ enters, gain control of target creature for as long as ~ remains on the battlefield.', 'Creature — Faerie')
+    expect(sower).toMatchObject({ coverage: 'auto', triggers: [{ effects: [{ op: 'nothing' }] }] })
+  })
+
+  it('reads a threaten on your own creature: untapped, and hasty', () => {
+    expect(readSentence('gain control of target creature until end of turn')).toEqual([
+      { op: 'choose', filter: { types: ['creature'] }, count: 1, upTo: false },
+    ])
+    const greed = text('Gain control of target creature until end of turn. Untap that creature. It gains haste until end of turn.', 'Sorcery')
+    expect(greed.spell).toMatchObject({
+      complete: true,
+      effects: [
+        { op: 'choose' },
+        { op: 'untap', what: { kind: 'chosen' } },
+        { op: 'boost', to: { kind: 'chosen' }, keywords: ['Haste'] },
+      ],
+    })
+  })
+
+  it('counts one opponent', () => {
+    expect(readSentence('for each opponent, you create a 2/1 black Villain creature token with menace')).toMatchObject([
+      { op: 'token', count: 1, token: { name: 'Villain', keywords: ['Menace'] } },
+    ])
+  })
+})
+
+describe('small wordings', () => {
+  it('means the target by "it" once something has been targeted', () => {
+    const pongify = text("Destroy target creature. It can't be regenerated. Its controller creates a 3/3 green Ape creature token.", 'Instant')
+    expect(pongify.spell).toMatchObject({
+      complete: true,
+      effects: [{ op: 'choose' }, { op: 'move', what: { kind: 'chosen' } }, { op: 'token', token: { name: 'Ape' } }],
+    })
+    // …and still the card itself where nothing was.
+    expect(readSentence('put a +1/+1 counter on it')).toEqual([
+      { op: 'counters', to: { kind: 'self' }, count: 1, counter: '+1/+1' },
+    ])
+  })
+
+  it('reads "and lose 2 life" as yours', () => {
+    expect(readSentence('you draw two cards and lose 2 life')).toEqual([
+      { op: 'draw', count: 2 }, { op: 'life', who: 'you', sign: -1, count: 2 },
+    ])
+  })
+
+  it("returns all creatures to their owners' hands", () => {
+    expect(readSentence("return all creatures to their owners' hands")).toEqual([
+      { op: 'move', what: { kind: 'each', filter: { types: ['creature'] } }, to: 'hand' },
+    ])
+  })
+
+  it('damages each creature', () => {
+    expect(readSentence('~ deals 13 damage to each creature')).toEqual([
+      { op: 'damage', to: { kind: 'each', filter: { types: ['creature'] } }, count: 13 },
+    ])
+  })
+
+  it('knows a legend by the name in front of "the"', () => {
+    const arcanis = compile(card('Arcanis the Omnipotent', 'Legendary Creature — Wizard', {
+      oracle_text: "{T}: Draw three cards.\n{2}{U}{U}: Return Arcanis to its owner's hand.",
+    }))
+    expect(arcanis.coverage).toBe('auto')
+    expect(arcanis.activated[1].effects).toEqual([{ op: 'move', what: { kind: 'self' }, to: 'hand' }])
+  })
+
+  it('lets each player search, when you are the only one who will', () => {
+    const explorer = text('When ~ dies, each player may search their library for up to two basic land cards, put them onto the battlefield, then shuffle.', 'Creature — Human')
+    expect(explorer).toMatchObject({
+      coverage: 'auto',
+      triggers: [{ effects: [{ op: 'search', count: 2, upTo: true, to: 'battlefield', optional: true }] }],
+    })
+  })
+
+  it('reads a token made by name', () => {
+    expect(readSentence('create boo, a legendary 1/1 red hamster creature token with trample and haste')).toMatchObject([
+      { op: 'token', count: 1, token: { name: 'Boo', pt: '1/1', typeLine: 'Token Legendary Creature — Hamster', keywords: ['Trample', 'Haste'] } },
+    ])
+  })
+
+  it('sees more ways an ability is set off', () => {
+    expect(text('Whenever ~ or another nontoken Phyrexian you control enters, draw a card.', 'Creature — Phyrexian').triggers.map((t) => t.when)).toEqual([
+      { on: 'enters', who: 'self' },
+      { on: 'enters', who: { controller: 'you', other: true, nontoken: true, subtypes: ['Phyrexian'] } },
+    ])
+    expect(text('Whenever a player casts a spell, you gain 1 life.').triggers[0].when).toEqual({ on: 'cast', filter: {} })
+    expect(text('Whenever you cast a Villain spell, draw a card.').triggers[0].when).toEqual({ on: 'cast', filter: { subtypes: ['Villain'] } })
+  })
+})

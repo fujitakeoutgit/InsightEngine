@@ -15,6 +15,7 @@
 
 import { compile } from './compiler/compile'
 import type { Boost, Filter, Measure } from './compiler/ir'
+import { isKind } from './kinds'
 import type { GameState, Instance, Known } from './types'
 
 const printed = (inst: Instance, field: 'power' | 'toughness') =>
@@ -23,23 +24,10 @@ const printed = (inst: Instance, field: 'power' | 'toughness') =>
 const counted = (inst: Instance) =>
   (inst.counters?.['+1/+1'] ?? 0) - (inst.counters?.['-1/-1'] ?? 0)
 
-const word = (line: string, w: string) => new RegExp(`\\b${w}\\b`, 'i').test(line)
-
-/** Does a permanent answer to a static ability's filter? By type only: no
+/** Does a permanent answer to a static ability's filter? By kind only: no
  *  standing effect here asks about size, which would be asking this module
  *  about itself. */
-function fits(inst: Instance, filter: Filter, source: string): boolean {
-  if (filter.controller === 'opponent') return false
-  const line = inst.card.type_line ?? ''
-  if (filter.types && !filter.types.some((t) => word(line, t))) return false
-  if (filter.not?.some((t) => word(line, t))) return false
-  if (filter.subtypes && !filter.subtypes.some((t) => word(line, t))) return false
-  if (filter.notSubtypes?.some((t) => word(line, t))) return false
-  if (filter.basic && !word(line, 'Basic')) return false
-  if (filter.nontoken && inst.token) return false
-  if (filter.other && inst.iid === source) return false
-  return true
-}
+const fits = isKind
 
 const onBoard = (state: GameState) => state.cards.filter((c) => c.zone === 'battlefield')
 
