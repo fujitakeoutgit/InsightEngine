@@ -21,8 +21,16 @@ import type { GameState, Instance, Known } from './types'
 const printed = (inst: Instance, field: 'power' | 'toughness') =>
   inst.card[field] ?? inst.card.card_faces?.[0]?.[field] ?? null
 
-const counted = (inst: Instance) =>
-  (inst.counters?.['+1/+1'] ?? 0) - (inst.counters?.['-1/-1'] ?? 0)
+/** What its counters add: every kind written as a change to size counts —
+ *  +1/+1 and -1/-1, and Wall of Roots' -0/-1. */
+function counted(inst: Instance, field: 'power' | 'toughness' = 'power'): number {
+  let total = 0
+  for (const [kind, count] of Object.entries(inst.counters ?? {})) {
+    const change = /^([+-]\d+)\/([+-]\d+)$/.exec(kind)
+    if (change) total += Number(change[field === 'power' ? 1 : 2]) * count
+  }
+  return total
+}
 
 /** Does a permanent answer to a static ability's filter? By kind only: no
  *  standing effect here asks about size, which would be asking this module
@@ -101,7 +109,7 @@ export function power(inst: Instance, state?: GameState) {
 }
 
 export function toughness(inst: Instance, state?: GameState) {
-  return base(inst, 'toughness', state) + counted(inst) + (state ? applied(inst, state).toughness : 0)
+  return base(inst, 'toughness', state) + counted(inst, 'toughness') + (state ? applied(inst, state).toughness : 0)
 }
 
 export const stats = (inst: Instance, state?: GameState): Known =>
@@ -145,7 +153,7 @@ export function sizeKnown(inst: Instance) {
 /** Whether the board has changed it from what is printed — the table shows
  *  its size only then, since the card already shows the rest. */
 export function resized(inst: Instance, state?: GameState) {
-  if (counted(inst) !== 0 || (inst.damage ?? 0) > 0) return true
+  if (counted(inst) !== 0 || counted(inst, 'toughness') !== 0 || (inst.damage ?? 0) > 0) return true
   if (!state) return false
   const now = stats(inst, state)
   const was = { power: printed(inst, 'power'), toughness: printed(inst, 'toughness') }

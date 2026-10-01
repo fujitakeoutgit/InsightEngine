@@ -116,7 +116,7 @@ describe('creature types', () => {
   })
 
   it('refuses a word that is not a type rather than invent one', () => {
-    expect(readFilter('tapped creature')).toBeNull()
+    expect(readFilter('enchanted creature')).toBeNull()
     expect(readFilter('goaded creatures')).toBeNull()
   })
 

@@ -572,6 +572,11 @@ export function Playtest({
       setChoosingX({ iid, name: inst.card.name, max: largestX(game, iid) })
       return
     }
+    // X that is life rather than mana: Toxic Deluge. Any amount you have.
+    if (/as an additional cost to cast [^.]*, pay x life/i.test(inst.card.oracle_text ?? '')) {
+      setChoosingX({ iid, name: inst.card.name, max: Math.max(0, game.life - 1) })
+      return
+    }
     dispatch({ type: 'play', iid })
   }
 

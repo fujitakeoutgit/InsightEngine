@@ -15,7 +15,7 @@ import { readFilter, readNumber } from './read'
 
 const FREE: AbilityCost = {
   mana: null, tap: false, life: 0, sacrificeSelf: false, sacrifice: null,
-  discardSelf: false, remove: null, loyalty: null,
+  discardSelf: false, remove: null, add: null, tapOther: null, loyalty: null,
 }
 
 /** "{2}, {T}, Sacrifice ~" → what that takes; null if any part is unknown. */
@@ -25,21 +25,32 @@ export function readCost(text: string): AbilityCost | null {
   const loyalty = /^([+−-]?)(\d+)$/.exec(text.trim())
   if (loyalty) return { ...cost, loyalty: (loyalty[1] === '+' || !loyalty[1] ? 1 : -1) * Number(loyalty[2]) }
 
-  for (const part of text.split(/,\s*/)) {
+  // "Remove three quest counters from ~ and sacrifice it" is two costs.
+  const parts = text.split(/,\s*/).flatMap((part) => part.split(/ and (?=sacrifice |pay |discard |remove |put |tap )/i))
+  for (const part of parts) {
     const p = part.trim().toLowerCase()
     if (p === '{t}') cost.tap = true
     else if (/^(\{[^}]+\})+$/.test(p)) {
       // X in an ability's cost wants asking for; not yet.
       if (/\{x\}/.test(p)) return null
       cost.mana = (cost.mana ?? '') + p.toUpperCase()
-    } else if (/^sacrifice ~$/.test(p)) cost.sacrificeSelf = true
+    } else if (/^sacrifice (~|it)$/.test(p)) cost.sacrificeSelf = true
     else if (/^sacrifice (an?|another) /.test(p)) {
       const filter = readFilter(p.replace(/^sacrifice an? /, '').replace(/^sacrifice another /, 'another '))
       if (!filter) return null
       cost.sacrifice = { ...filter, controller: 'you' }
     } else if (/^pay \d+ life$/.test(p)) cost.life += Number(/\d+/.exec(p)![0])
     else if (/^discard ~$/.test(p)) cost.discardSelf = true
-    else {
+    else if (/^put (an?|\w+) ([+-]\d\/[+-]\d|[a-z]+) counters? on ~$/.test(p)) {
+      const put = /^put (an?|\w+) ([+-]\d\/[+-]\d|[a-z]+) counters? on ~$/.exec(p)!
+      const count = readNumber(put[1])
+      if (count === null) return null
+      cost.add = { counter: put[2], count }
+    } else if (/^tap an untapped /.test(p)) {
+      const filter = readFilter(p.replace(/^tap an untapped /, ''))
+      if (!filter) return null
+      cost.tapOther = { ...filter, controller: 'you', tapped: false }
+    } else {
       const remove = /^remove (\w+) ([+-]\d\/[+-]\d|[a-z]+) counters? from ~$/.exec(p)
       const count = remove && readNumber(remove[1])
       if (!remove || count === null) return null

@@ -7,7 +7,7 @@
 
 import type { Boost, Filter, Measure, Static } from './ir'
 import { readExcept } from './copies'
-import { readAmount, readCount, readFilter, readKeywords, readNumber } from './read'
+import { readAmount, readCount, readFilter, readKeywords, readNumber, readTest } from './read'
 
 const COLORS: Record<string, string> = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' }
 
@@ -61,8 +61,32 @@ const INERT = [
 
 export const isInert = (line: string) => INERT.some((pattern) => pattern.test(line))
 
+/** One sentence of a spell's own discount: "~ costs {1} less to cast for
+ *  each creature on the battlefield", "it also costs {1} less to cast if you
+ *  control an enchantment". */
+export function readCostLess(sentence: string): Static | null {
+  const m = /^(?:~|it)(?: also)? costs \{(\d+)\} less to cast(?: for each (.+?)(?: on the battlefield)?| if (.+))?$/.exec(sentence.replace(/\.$/, ''))
+  if (!m) return null
+  const amount = Number(m[1])
+  if (m[2]) {
+    const per = readFilter(m[2])
+    return per && { kind: 'selfCostLess', amount, per }
+  }
+  if (m[3]) {
+    const when = readTest(m[3])
+    return when && { kind: 'selfCostLess', amount, when }
+  }
+  return { kind: 'selfCostLess', amount }
+}
+
 export function readStatic(line: string): Static | null {
   const l = line.replace(/\.$/, '')
+
+  const cheaper = /^(.+?) spells you cast cost \{(\d+)\} less to cast$/.exec(l)
+  if (cheaper) {
+    const filter = readFilter(cheaper[1])
+    return filter && { kind: 'costLess', filter, amount: Number(cheaper[2]) }
+  }
 
   if (/^you may play an additional land on each of your turns$/.test(l)) return { kind: 'extraLand', count: 1 }
   if (/^if you would gain life, you gain twice that much life instead$/.test(l)) return { kind: 'doubleLifeGain' }

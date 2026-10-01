@@ -395,6 +395,10 @@ const PATTERNS: Pattern[] = [
   }],
 
   [/^pay ((?:\{[^}]+\})+)$/, (m) => [{ op: 'pay', cost: m[1].toUpperCase() }]],
+  [/^pay (\w+) life$/, (m) => {
+    const count = readCount(m[1])
+    return count === null ? null : [{ op: 'life', who: 'you', sign: -1, count }]
+  }],
 
   // --- the other side of the table -----------------------------------------
   // A threaten, on the only creatures there are: it is yours already, and

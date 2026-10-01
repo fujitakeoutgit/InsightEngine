@@ -31,6 +31,8 @@ export interface Filter {
   colorless?: boolean
   /** Declared as an attacker this combat. */
   attacking?: boolean
+  /** Untapped, or tapped. */
+  tapped?: boolean
   /** One of your commanders. */
   commander?: boolean
   nontoken?: boolean
@@ -358,6 +360,11 @@ export type Static =
   | { kind: 'doubleLifeGain' }
   /** "You have no maximum hand size." */
   | { kind: 'noMaxHandSize' }
+  /** "Blue spells you cast cost {1} less to cast." Generic mana only. */
+  | { kind: 'costLess'; filter: Filter; amount: number }
+  /** "This spell costs {1} less to cast for each creature on the
+   *  battlefield", "…if you control a Spirit": on the spell itself. */
+  | { kind: 'selfCostLess'; amount: number; per?: Filter; when?: Test }
   /** "You may have ~ enter as a copy of any creature on the battlefield." */
   | { kind: 'enterAsCopy'; filter: Filter; change: CopyChange }
   /** "If you would draw a card except the first one you draw in each of
@@ -393,6 +400,11 @@ export interface AbilityCost {
   discardSelf: boolean
   /** Counters taken off the permanent. */
   remove: { counter: string; count: number } | null
+  /** Counters put on it: Wall of Roots' -0/-1. */
+  add: { counter: string; count: number } | null
+  /** Tap another untapped permanent of yours: "tap an untapped legendary
+   *  creature you control". */
+  tapOther: Filter | null
   /** Loyalty added (or, negative, removed): a planeswalker's ability. */
   loyalty: number | null
 }

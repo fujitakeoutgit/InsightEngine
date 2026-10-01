@@ -188,6 +188,8 @@ export function readFilter(phrase: string): Filter | null {
   if (take(/ nontoken\b/)) filter.nontoken = true
   if (take(/ basic\b/)) filter.basic = true
   if (take(/ attacking\b/)) filter.attacking = true
+  if (take(/ untapped\b/)) filter.tapped = false
+  else if (take(/ tapped\b/)) filter.tapped = true
   if (take(/ colorless\b/)) filter.colorless = true
   for (let color = take(COLOR); color; color = take(COLOR)) {
     filter.colors = [...(filter.colors ?? []), COLOR_WORDS[color[1]]]

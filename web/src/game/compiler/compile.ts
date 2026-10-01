@@ -13,13 +13,13 @@
 
 import type { Card } from '../../lib/api'
 import { readActivated, readKeywordAbility } from './activated'
-import { readAbility } from './effects'
+import { readAbility, sentences } from './effects'
 import type {
   Ability, ActivatedAbility, Aim, Compiled, Coverage, Effect, Filter, Static, Test, TriggerEvent,
   TriggeredAbility,
 } from './ir'
 import { readFilter, readTest } from './read'
-import { isInert, readStatic } from './statics'
+import { isInert, readCostLess, readStatic } from './statics'
 
 /** Keywords with nothing to do at resolution: evasion, protection, combat
  *  abilities the attack step will read, and flash, which casting already
@@ -264,6 +264,15 @@ export function compile(card: Card): Compiled {
     const reading = (body: string, about: Aim | null) => (modal ? { ...modal, once: false } : readAbility(body, about))
     const shown = modal ? modal.text : printed
     const headed = choice ? choice.head.trim().toLowerCase() : null
+
+    // A spell's own discount, which may run to two sentences.
+    if (/^~ costs \{\d+\} less to cast\b/.test(lower)) {
+      const read = sentences(lower).map((sentence) => readCostLess(sentence))
+      if (read.every((fixed): fixed is Static => fixed !== null)) statics.push(...read)
+      else unread.push(printed)
+      grades.push(read.every(Boolean) ? 1 : 0)
+      continue
+    }
 
     // A static that is worded like a trigger.
     const early = /^at the beginning of each player's draw step\b/.test(lower) ? readStatic(lower) : null

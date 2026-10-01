@@ -5,8 +5,9 @@
  * a mana ability, straight into the pool. Whether it may be activated at all
  * is one check that also says why not, the same as casting.
  *
- * A cost that needs a choice — which creature to sacrifice — asks first.
- * Nothing is paid until that is answered, so backing out costs nothing.
+ * A cost that needs a choice — which creature to sacrifice, which to tap —
+ * asks first. Nothing is paid until that is answered, so backing out costs
+ * nothing.
  */
 
 import { compile } from './compiler/compile'
@@ -31,17 +32,23 @@ export function costLabel(ability: ActivatedAbility): string {
     cost.life ? `${cost.life} life` : '',
     cost.sacrificeSelf ? 'sacrifice' : '',
     cost.sacrifice ? 'sacrifice another' : '',
+    cost.tapOther ? 'tap another' : '',
     cost.discardSelf ? 'discard' : '',
     cost.remove ? `−${cost.remove.count} ${cost.remove.counter}` : '',
+    cost.add ? `+${cost.add.count} ${cost.add.counter}` : '',
   ].filter(Boolean).join(', ') || 'free'
 }
 
-/** What could be sacrificed to pay for it. */
-function sacrificeable(state: GameState, inst: Instance, ability: ActivatedAbility): Instance[] {
-  if (!ability.cost.sacrifice) return []
-  return onBattlefield(state, ability.cost.sacrifice, inst.iid)
+/** What could be sacrificed to pay for it — or, for a cost that taps
+ *  something else, what could be tapped. An ability asks for one or the
+ *  other. */
+function payable(state: GameState, inst: Instance, ability: ActivatedAbility): Instance[] {
+  const { cost } = ability
+  if (cost.tapOther) return onBattlefield(state, cost.tapOther, inst.iid)
+  if (!cost.sacrifice) return []
+  return onBattlefield(state, cost.sacrifice, inst.iid)
     // "Sacrifice ~" and "a creature" in one cost are two different things.
-    .filter((c) => !(ability.cost.sacrificeSelf && c.iid === inst.iid))
+    .filter((c) => !(cost.sacrificeSelf && c.iid === inst.iid))
 }
 
 /** The sources its mana may come from: not itself, if it taps or goes. */
@@ -79,7 +86,8 @@ export function activationProblem(state: GameState, iid: string, index: number):
   if (cost.remove && (inst.counters?.[cost.remove.counter] ?? 0) < cost.remove.count) {
     return `Not enough ${cost.remove.counter} counters`
   }
-  if (cost.sacrifice && !sacrificeable(state, inst, ability).length) return 'Nothing to sacrifice'
+  if (cost.tapOther && !payable(state, inst, ability).length) return 'Nothing to tap for it'
+  if (cost.sacrifice && !payable(state, inst, ability).length) return 'Nothing to sacrifice'
   if (cost.mana && !autotap(parseCost(cost.mana), payers(state, inst, ability), { pool: state.pool, life: state.life })) {
     return `Not enough mana — it costs ${formatCost(parseCost(cost.mana))}`
   }
@@ -96,14 +104,21 @@ function chooseKind(state: GameState, kinds: ManaType[]): ManaType {
   return from.reduce((best, k) => (wanted[k] > wanted[best] ? k : best), from[0])
 }
 
-/** Pay everything, and put the ability on the stack. */
-function complete(state: GameState, iid: string, index: number, sacrificed: string[]): GameState {
+/** Pay everything, and put the ability on the stack. `picked` is what was
+ *  chosen for the part of the cost that takes a choice. */
+function complete(state: GameState, iid: string, index: number, picked: string[]): GameState {
   const inst = find(state, iid)!
   const ability = abilitiesOf(inst)[index]
   const { cost } = ability
+  const sacrificed = cost.tapOther ? [] : picked
   // As they were when the cost was paid: the ability may ask after them.
   const known = Object.fromEntries([iid, ...sacrificed].map((id) => [id, snapshot(find(state, id)!, state)]))
   let next: GameState = { ...state, pending: null, paying: null }
+  // What is tapped as the cost is tapped first, so it is not also tapped
+  // for the mana.
+  if (cost.tapOther) {
+    next = { ...next, cards: next.cards.map((c) => (picked.includes(c.iid) ? { ...c, tapped: true } : c)) }
+  }
 
   if (cost.mana) {
     const paid = autotap(parseCost(cost.mana), payers(next, inst, ability), { pool: next.pool, life: next.life })
@@ -126,9 +141,12 @@ function complete(state: GameState, iid: string, index: number, sacrificed: stri
     triggered: marks.length ? [...next.triggered, ...marks] : next.triggered,
     cards: next.cards.map((c) => {
       if (c.iid !== iid) return c
-      const counters = cost.remove
+      const taken = cost.remove
         ? { ...c.counters, [cost.remove.counter]: (c.counters?.[cost.remove.counter] ?? 0) - cost.remove.count }
         : c.counters
+      const counters = cost.add
+        ? { ...taken, [cost.add.counter]: (taken?.[cost.add.counter] ?? 0) + cost.add.count }
+        : taken
       return {
         ...c,
         tapped: cost.tap ? true : c.tapped,
@@ -172,15 +190,15 @@ export function activate(state: GameState, iid: string, index: number): GameStat
   if (activationProblem(state, iid, index)) return state
   const inst = find(state, iid)!
   const ability = abilitiesOf(inst)[index]
-  const options = sacrificeable(state, inst, ability)
-  if (ability.cost.sacrifice && options.length > 1) {
+  const options = payable(state, inst, ability)
+  if (options.length > 1) {
     return {
       ...state,
       paying: { iid, index },
       pending: {
         kind: 'pick',
         zone: 'battlefield',
-        prompt: `${inst.card.name}: sacrifice which?`,
+        prompt: `${inst.card.name}: ${ability.cost.tapOther ? 'tap' : 'sacrifice'} which?`,
         options: options.map((c) => c.iid),
         min: 1,
         max: 1,
@@ -190,7 +208,7 @@ export function activate(state: GameState, iid: string, index: number): GameStat
   return complete(state, iid, index, options.map((c) => c.iid))
 }
 
-/** The sacrifice is chosen: now pay, and activate. */
+/** What to sacrifice, or to tap, is chosen: now pay, and activate. */
 export function paid(state: GameState, picked: string[]): GameState {
   const { paying, pending } = state
   if (!paying || pending?.kind !== 'pick' || picked.length !== 1 || !pending.options.includes(picked[0])) return state

@@ -11,6 +11,9 @@ import { entersTapped } from '../lib/landTiming'
 import type { Card } from '../lib/api'
 import { amount } from './amount'
 import { compile } from './compiler/compile'
+import { holds } from './holds'
+import { isKind } from './kinds'
+import { onBattlefield } from './match'
 import { autotap, demand, formatCost, parseCost, type Cost, type ManaType, type Payment } from './mana'
 import { seatFor } from './seat'
 import { canTapForMana, hasKeyword, isCreature, manaAbilities, manaSources } from './sources'
@@ -138,10 +141,30 @@ export function playLand(state: GameState, iid: string, at?: Spot): GameState {
  *  commander has already been cast from the command zone (CR 903.8). */
 export function costOf(state: GameState, inst: Instance): Cost {
   const cost = parseCost(manaCostOf(inst.card))
-  if (inst.commander && inst.zone === 'command') {
-    return { ...cost, generic: cost.generic + 2 * (state.casts[inst.iid] ?? 0) }
+  const tax = inst.commander && inst.zone === 'command' ? 2 * (state.casts[inst.iid] ?? 0) : 0
+  // What makes it cheaper takes off generic mana only, and no further than
+  // none of it.
+  return { ...cost, generic: Math.max(0, cost.generic + tax - discount(state, inst)) }
+}
+
+/** Generic mana taken off a spell: by permanents that say so ("blue spells
+ *  you cast cost {1} less"), and by the spell itself ("costs {1} less to
+ *  cast for each creature on the battlefield"). */
+function discount(state: GameState, inst: Instance): number {
+  if (!state.rules) return 0
+  let less = 0
+  for (const source of inZone(state, 'battlefield')) {
+    for (const fixed of compile(source.card).statics) {
+      if (fixed.kind === 'costLess' && isKind(inst, fixed.filter, source.iid)) less += fixed.amount
+    }
   }
-  return cost
+  const asking = { x: 0, source: inst.iid, chosen: [], event: null, known: {}, last: 0 }
+  for (const fixed of compile(inst.card).statics) {
+    if (fixed.kind !== 'selfCostLess') continue
+    if (fixed.per) less += fixed.amount * onBattlefield(state, fixed.per, inst.iid).length
+    else if (!fixed.when || holds(state, asking, fixed.when)) less += fixed.amount
+  }
+  return less
 }
 
 /** What the rest of the hand wants, so the land it is waiting on is not the

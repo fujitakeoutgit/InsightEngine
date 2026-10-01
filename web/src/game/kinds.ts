@@ -34,6 +34,7 @@ export function isKind(inst: Instance, filter: Filter, source?: string): boolean
   if (filter.colors && !filter.colors.some((color) => (inst.card.colors ?? '').includes(color))) return false
   if (filter.colorless && inst.card.colors) return false
   if (filter.commander && !inst.commander) return false
+  if (filter.tapped !== undefined && inst.tapped !== filter.tapped) return false
   if (filter.nontoken && inst.token) return false
   if (filter.other && inst.iid === source) return false
   return true
