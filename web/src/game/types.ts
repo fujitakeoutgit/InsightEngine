@@ -125,6 +125,8 @@ export interface Resolution {
   agreed: boolean
   /** The last "you may" was declined, so its "if you do" is skipped. */
   declined: boolean
+  /** The modes taken so far, of a "choose one or more" still being asked. */
+  modes: number[]
   /** How many things the effect before this one acted on — "the number of
    *  creatures destroyed this way". */
   last: number
@@ -166,8 +168,10 @@ export type Decision =
   | { kind: 'arrange'; mode: 'scry' | 'surveil'; cards: string[] }
   /** Declare attackers: which of these attack. */
   | { kind: 'attack'; options: string[] }
-  /** "Choose one —" */
-  | { kind: 'mode'; prompt: string; modes: string[] }
+  /** "Choose one —". Where more than one may be chosen, they are taken one
+   *  at a time: `taken` is what has been so far, and `canStop` whether that
+   *  is enough to stop at. */
+  | { kind: 'mode'; prompt: string; modes: string[]; taken: number[]; canStop: boolean }
 
 export interface GameState {
   /** Every card in the game. A zone's order is the order of its cards here,
@@ -275,6 +279,7 @@ export type Action =
   | { type: 'confirm'; yes: boolean }
   /** Scry or surveil answered: what stays on top, in order, and what goes. */
   | { type: 'arrange'; keep: string[]; away: string[] }
+  /** A mode taken — or, with -1, no more of them. */
   | { type: 'mode'; index: number }
   /** Add or remove counters by hand. */
   | { type: 'counter'; iid: string; counter: string; by: number }

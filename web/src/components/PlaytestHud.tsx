@@ -202,13 +202,29 @@ export function DecisionPrompt({
   }
   if (decision.kind === 'mode') {
     return (
-      <div className="pt-decision" role="dialog" aria-label="Choose one">
+      <div className="pt-decision" role="dialog" aria-label="Choose">
         <h3>{decision.prompt}</h3>
         <div className="pt-modes">
-          {decision.modes.map((mode, i) => (
-            <button key={mode} className="btn btn-ghost sm" onClick={() => onMode(i)}>{mode}</button>
-          ))}
+          {decision.modes.map((mode, i) => {
+            const taken = decision.taken.includes(i)
+            return (
+              <button
+                key={mode}
+                className={taken ? 'btn btn-primary sm' : 'btn btn-ghost sm'}
+                onClick={() => onMode(i)}
+                disabled={taken}
+                aria-pressed={taken}
+              >
+                {mode}
+              </button>
+            )
+          })}
         </div>
+        {decision.canStop && (
+          <button className="btn btn-ghost sm" onClick={() => onMode(-1)}>
+            {decision.taken.length ? 'Done' : 'None'}
+          </button>
+        )}
       </div>
     )
   }

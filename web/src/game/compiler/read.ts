@@ -7,7 +7,7 @@
  * enters" read the same.
  */
 
-import type { Count, Filter, TokenSpec, Whose } from './ir'
+import type { Count, Filter, Test, TokenSpec, Whose } from './ir'
 import { subtypeOf } from './subtypes'
 
 const NUMBERS: Record<string, number> = {
@@ -78,6 +78,46 @@ export function readAmount(phrase: string, who: Speaking = NOBODY): Count | null
   if (counters) return { counters: counters[1], of: counters[2] === '~' ? 'self' : who.it }
   const per = readFilter(what)
   return per && { per }
+}
+
+/**
+ * A condition in words — what stands between "if" and the comma: "you
+ * control a Bird", "that land is a Forest", "there are seven or more cards
+ * in your graveyard". Null for anything else.
+ */
+export function readTest(phrase: string, who: Speaking = NOBODY): Test | null {
+  const p = phrase.trim().toLowerCase()
+
+  const control = /^you control (an?|(\w+) or more) (.+)$/.exec(p)
+  if (control) {
+    const atLeast = control[2] ? readNumber(control[2]) : 1
+    const filter = readFilter(control[3])
+    return atLeast !== null && filter ? { control: { ...filter, controller: 'you' }, atLeast } : null
+  }
+  const graveyard = /^there are (\w+) or more cards in your graveyard$/.exec(p)
+  if (graveyard) {
+    const n = readNumber(graveyard[1])
+    return n === null ? null : { graveyard: n }
+  }
+  const is = /^(?:that land|that creature|that card|that permanent|it)(?: is|'s) an? (.+?)(?: card)?$/.exec(p)
+  if (is) {
+    const filter = readFilter(is[1])
+    return filter && { is: filter, of: who.it }
+  }
+  const stat = /^(?:the creature|that creature|it) had (power|toughness) (\d+) or (greater|less)$/.exec(p)
+    ?? /^(?:its|that creature's) (power|toughness) (?:is|was) (\d+) or (greater|less)$/.exec(p)
+  if (stat) {
+    return {
+      stat: stat[1] as 'power' | 'toughness', of: who.it,
+      op: stat[3] === 'greater' ? '>=' : '<=', value: Number(stat[2]),
+    }
+  }
+  const counters = /^~ has (\w+) or more ([+-]\d\/[+-]\d|[a-z]+) counters on it$/.exec(p)
+  if (counters) {
+    const atLeast = readNumber(counters[1])
+    return atLeast === null ? null : { counters: counters[2], of: 'self', atLeast }
+  }
+  return null
 }
 
 const title = (word: string) => word[0].toUpperCase() + word.slice(1)

@@ -14,7 +14,8 @@
 import { remind } from './cast'
 import { compile } from './compiler/compile'
 import type { TriggeredAbility, TriggerEvent } from './compiler/ir'
-import { matches, onBattlefield } from './match'
+import { holds } from './holds'
+import { matches } from './match'
 import { isCreature } from './sources'
 import { inZone, mint, noted } from './state'
 import { snapshot } from './stats'
@@ -82,9 +83,12 @@ function fire(
   state: GameState, source: Instance, index: number, ability: TriggeredAbility,
   about: Instance | null, known: Known | null,
 ): GameState {
-  if (ability.condition
-    && onBattlefield(state, ability.condition.filter, source.iid).length < ability.condition.atLeast) {
-    return state
+  if (ability.condition) {
+    const asking = {
+      x: 0, source: source.iid, chosen: [], event: about?.iid ?? null, last: 0,
+      known: about && known ? { [about.iid]: known } : {},
+    }
+    if (!holds(state, asking, ability.condition)) return state
   }
   let next = state
   if (ability.oncePerTurn) {
@@ -138,11 +142,12 @@ export function collectTriggers(before: GameState, after: GameState): GameState 
 
 /** "At the beginning of your upkeep", as the step begins. Text nothing reads
  *  yet is posted, so an upkeep the engine cannot do is not one you forget. */
-export function stepTriggers(state: GameState, step: 'upkeep' | 'combat' | 'end'): GameState {
+export function stepTriggers(state: GameState, step: 'upkeep' | 'main' | 'combat' | 'end'): GameState {
   let next = state
   const opening = step === 'upkeep' ? /^at the beginning of (your|each) upkeep\b/i
-    : step === 'combat' ? /^at the beginning of combat\b/i
-      : /^at the beginning of (your|each|the) end step\b/i
+    : step === 'main' ? /^at the beginning of your (first|precombat) main phase\b/i
+      : step === 'combat' ? /^at the beginning of combat\b/i
+        : /^at the beginning of (your|each|the) end step\b/i
   for (const source of inZone(state, 'battlefield')) {
     const compiled = compile(source.card)
     compiled.triggers.forEach((ability, index) => {

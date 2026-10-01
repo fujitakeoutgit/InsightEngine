@@ -14,7 +14,9 @@
 
 import type { ManaType } from '../mana'
 import type { Aim, Count, Effect, Signed, TokenSpec } from './ir'
-import { readAmount, readCount, readFilter, readNumber, readToken, type Speaking } from './read'
+import {
+  readAmount, readCount, readFilter, readNumber, readTest, readToken, type Speaking,
+} from './read'
 import { readKeywords } from './statics'
 
 type Pattern = [RegExp, (m: RegExpExecArray) => Effect[] | null]
@@ -249,6 +251,10 @@ const PATTERNS: Pattern[] = [
     const counter = m[2]
     return onPermanents(m[3], (to) => [{ op: 'counters', to, count, counter }])
   }],
+  [/^double the number of ([+-]\d\/[+-]\d|[a-z]+) counters on ~$/, (m) => (
+    [{ op: 'counters', to: { kind: 'self' }, count: { counters: m[1], of: 'self' }, counter: m[1] }]
+  )],
+  [/^proliferate$/, () => [{ op: 'proliferate' }]],
   [/^put a number of ([+-]\d\/[+-]\d|[a-z]+) counters on (.+?) equal to (.+)$/, (m) => (
     counted(m[3], (count) => onPermanents(m[2], (to) => {
       // On each of several, "that creature's toughness" is its own.
@@ -359,6 +365,16 @@ const PATTERNS: Pattern[] = [
   [/^(?:it|that creature|they) can't be regenerated$/, () => []],
   // One opponent.
   [/^for each opponent, (?:you )?(.+)$/, (m) => readSentence(m[1])],
+  // A tempting offer nobody is there to take.
+  [/^each opponent may search their library [^.]+$/, () => []],
+  [/^for each opponent who [^,]+, [^.]+$/, () => []],
+  [/^then each player who searched a library this way shuffles$/, () => []],
+  [/^~ fights (?:up to one )?(?:other )?target creature (?:you don't control|an opponent controls)$/, () => nothing('Nothing on the other side to fight')],
+
+  // --- costs ---------------------------------------------------------------
+  // Paid as the spell resolves rather than as it is cast: with nobody to
+  // respond in between, the two are the same thing.
+  [/^as an additional cost to cast (?:~|this spell), (.+)$/, (m) => readSentence(m[1])],
 
   // --- the stack -----------------------------------------------------------
   [/^counter target [a-z, ]*?(?:spell|ability)(?: unless its controller pays \{\d+\})?$/, () => nothing('No spell on the other side to counter')],
@@ -452,7 +468,39 @@ export function readCompound(text: string): Effect[] | null {
 }
 
 /** Riders on a triggered ability rather than effects of it. */
-const ONCE = /^this ability triggers only once each turn$/
+const ONCE = /^(?:this ability triggers|do this) only once each turn$/
+
+/**
+ * An ability's text as its sentences. A full stop ends one — or a full stop
+ * and the quotation mark that closes what a token says — but not a full stop
+ * inside those quotes: `It has "{2}: Draw a card. Activate only as a
+ * sorcery."` is one sentence.
+ */
+export function sentences(text: string): string[] {
+  const out: string[] = []
+  let quoted = false
+  let start = 0
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i]
+    if (ch === '"') quoted = !quoted
+    const ends = !quoted && (ch === '.' || (ch === '"' && text[i - 1] === '.'))
+    if (ends && /\s/.test(text[i + 1] ?? '')) {
+      out.push(text.slice(start, i + 1).trim())
+      start = i + 1
+    }
+  }
+  const rest = text.slice(start).trim()
+  if (rest) out.push(rest)
+  return out.filter(Boolean)
+}
+
+/** "Create two of those tokens": the token the sentence before made, again. */
+function thoseTokens(body: string, before: readonly Effect[]): Effect[] | null {
+  const m = /^create (\w+) of those tokens$/.exec(body)
+  const made = before.find((effect) => effect.op === 'token')
+  const count = m && readCount(m[1])
+  return m && made?.op === 'token' && count !== null ? [{ ...made, count: count! }] : null
+}
 
 /**
  * The text of one ability, compiled: every sentence that reads, and whether
@@ -475,10 +523,33 @@ export function readAbility(text: string): { effects: Effect[]; complete: boolea
   /** A counterspell has been read: there was no spell, so what the card goes
    *  on to say about that spell and whoever cast it is nothing as well. */
   let countered = false
-  for (const sentence of text.split(/(?<=\.)\s+/)) {
-    const s = sentence.trim().replace(/\.$/, '').toLowerCase()
+  /** Where the sentence before this one's effects begin, for an "instead". */
+  let previous = 0
+  for (const sentence of sentences(text)) {
+    let s = sentence.trim().replace(/\.$/, '').toLowerCase()
     if (!s) continue
     if (countered && /\b(that spell|that spell's|its controller|that player)\b/.test(s)) continue
+
+    // "If that land is a Forest, put two counters on ~ instead": this, in
+    // place of what the sentence before it said, when the condition holds.
+    if (/\binstead\b/.test(s) && /^if /.test(s)) {
+      const m = /^if (.+?), (.+)$/.exec(s)
+      const body = m ? m[2].replace(/^instead /, '').replace(/ instead$/, '') : ''
+      const was = effects.slice(previous)
+      const test = m && referring(it, () => readTest(m[1], speaking()))
+      const then = test && was.length
+        ? thoseTokens(body, was) ?? after(effects, () => referring(it, () => readSentence(body)))
+        : null
+      if (test && then) effects.splice(previous, was.length, { op: 'if', test, then, otherwise: was })
+      else complete = false
+      understood = Boolean(test && then)
+      continue
+    }
+
+    // What a token is made with, in quotes: `…token with "~ can't block."`
+    // The token carries those words; here the sentence is read without them.
+    const saying = /^(.*\btokens?) with "(.+?)\.?"$/.exec(sentence.trim().replace(/\.$/, ''))
+    if (saying) s = saying[1].toLowerCase()
     if (/^counter target [a-z, ]*?(spell|ability)\b/.test(s)) {
       countered = true
       effects.push(...nothing('No spell on the other side to counter'))
@@ -514,7 +585,10 @@ export function readAbility(text: string): { effects: Effect[]; complete: boolea
       : after(effects, () => referring(it, () => readSentence(s)))
     understood = read !== null
     if (read) {
-      effects.push(...read)
+      previous = effects.length
+      effects.push(...read.map((effect) => (
+        saying && effect.op === 'token' ? { ...effect, token: { ...effect.token, text: saying[2] } } : effect
+      )))
       it = referentOf(read, it)
     } else complete = false
   }

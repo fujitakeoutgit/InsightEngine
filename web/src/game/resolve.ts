@@ -19,6 +19,7 @@ import { enterBattlefield, isPermanentSpell, remind, remindUnread, rulesText } f
 import { lifeGainFactor } from './combat'
 import { compile } from './compiler/compile'
 import type { Aim, Effect, Filter, TokenSpec } from './compiler/ir'
+import { holds } from './holds'
 import { autotap, parseCost } from './mana'
 import { matches, onBattlefield } from './match'
 import { seatFor } from './seat'
@@ -70,6 +71,10 @@ function arrange(cards: readonly Instance[], top: readonly string[], bottom: rea
   return [...placed, ...bottom.map((iid) => byId.get(iid)!)]
 }
 
+/** Words as a sentence: a capital to start, a full stop to end. */
+const sentenceCase = (text: string) =>
+  `${text.charAt(0).toUpperCase()}${text.slice(1)}${/[.!?"]$/.test(text) ? '' : '.'}`
+
 /** A token, made and seated where its type belongs. `size` is what an X/X
  *  one comes to. */
 function makeToken(state: GameState, spec: TokenSpec, tapped: boolean, size?: number): GameState {
@@ -90,8 +95,9 @@ function makeToken(state: GameState, spec: TokenSpec, tapped: boolean, size?: nu
     image_small: art,
     image_normal: art,
     mana_cost: null,
-    // "This token" is the card's own name to the compiler.
-    oracle_text: spec.text ? spec.text.replace(/this token/gi, spec.name) : null,
+    // "This token" — "~", once normalized — is the card's own name to the
+    // compiler, and to whoever reads the token.
+    oracle_text: spec.text ? sentenceCase(spec.text.replace(/this token|~/gi, spec.name)) : null,
     cmc: 0,
   } as unknown as Card
   const made: Instance = { iid, card, zone: 'battlefield', tapped, x: 0.5, y: 0.5, token: true }
@@ -220,6 +226,22 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
         ...c, counters: { ...c.counters, [effect.counter]: (c.counters?.[effect.counter] ?? 0) + n },
       }))
       return { state: noted(added, `${plural(n, `${effect.counter} counter`)} on ${names(on)}`) }
+    }
+
+    case 'proliferate': {
+      const on = inZone(state, 'battlefield').filter((c) => (
+        Object.values(c.counters ?? {}).some((count) => count > 0)
+        || (/\bPlaneswalker\b/.test(c.card.type_line ?? '') && (c.loyalty ?? 0) > 0)
+      ))
+      const poisoned = state.opponent.poison > 0
+      if (!on.length && !poisoned) return { state: noted(state, `${r.name}: nothing to proliferate`) }
+      const more = change(state, on.map((c) => c.iid), (c) => ({
+        ...c,
+        ...(c.counters ? { counters: Object.fromEntries(Object.entries(c.counters).map(([kind, count]) => [kind, count > 0 ? count + 1 : count])) } : {}),
+        ...(/\bPlaneswalker\b/.test(c.card.type_line ?? '') && (c.loyalty ?? 0) > 0 ? { loyalty: (c.loyalty ?? 0) + 1 } : {}),
+      }))
+      const opponent = poisoned ? { ...state.opponent, poison: state.opponent.poison + 1 } : state.opponent
+      return { state: noted({ ...more, opponent }, `${r.name}: proliferated${on.length ? ` — ${names(on)}` : ''}${poisoned ? ', and the opponent\'s poison' : ''}`) }
     }
 
     case 'search': {
@@ -361,11 +383,29 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       }
     }
 
-    case 'mode':
+    case 'mode': {
+      const many = effect.max > 1
+      const said = !many ? (effect.min ? 'choose one' : 'choose up to one')
+        : effect.min === effect.max ? `choose ${effect.max}`
+          : effect.min ? 'choose one or more' : `choose up to ${effect.max}`
       return {
         state,
-        wait: { kind: 'mode', prompt: `${r.name}: choose one`, modes: effect.modes.map((m) => m.text) },
+        wait: {
+          kind: 'mode',
+          prompt: `${r.name}: ${said}`,
+          modes: effect.modes.map((m) => m.text.split('~').join(r.name)),
+          taken: r.modes,
+          canStop: r.modes.length >= effect.min,
+        },
       }
+    }
+
+    case 'if': {
+      // The branch that holds takes the place of the question.
+      const branch = holds(state, r, effect.test) ? effect.then : effect.otherwise
+      const effects = [...r.effects.slice(0, r.at + 1), ...branch, ...r.effects.slice(r.at + 1)]
+      return { state: { ...state, resolving: { ...r, effects } } }
+    }
 
     case 'nothing':
       return { state: noted(state, `${r.name}: ${effect.why.charAt(0).toLowerCase()}${effect.why.slice(1)}`) }
@@ -468,12 +508,22 @@ export function answer(state: GameState, action: Action): GameState {
   }
 
   if (pending.kind === 'mode' && action.type === 'mode' && effect.op === 'mode') {
-    const mode = effect.modes[action.index]
-    if (!mode) return state
-    // The chosen mode's effects take the place of the choice.
-    const effects = [...r.effects.slice(0, r.at + 1), ...mode.effects, ...r.effects.slice(r.at + 1)]
-    const leftover = mode.complete ? r.leftover : [r.leftover, mode.text].filter(Boolean).join('\n')
-    return carryOn(advance(noted({ ...settled, resolving: { ...r, effects, leftover } }, `${r.name}: ${mode.text}`)))
+    const stop = action.index === -1
+    if (stop ? r.modes.length < effect.min : !effect.modes[action.index] || r.modes.includes(action.index)) return state
+    const taken = stop ? r.modes : [...r.modes, action.index]
+    // More may be chosen: ask again, with this one taken.
+    if (!stop && taken.length < effect.max && taken.length < effect.modes.length) {
+      return carryOn({ ...settled, resolving: { ...r, modes: taken } })
+    }
+    // The chosen modes' effects take the place of the choice, in the order
+    // they are printed.
+    const chosen = [...taken].sort((a, b) => a - b).map((index) => effect.modes[index])
+      .map((mode) => ({ ...mode, text: mode.text.split('~').join(r.name) }))
+    const effects = [...r.effects.slice(0, r.at + 1), ...chosen.flatMap((m) => m.effects), ...r.effects.slice(r.at + 1)]
+    const leftover = [r.leftover, ...chosen.filter((m) => !m.complete).map((m) => m.text)].filter(Boolean).join('\n') || null
+    let said: GameState = { ...settled, resolving: { ...r, effects, leftover, modes: [] } }
+    for (const mode of chosen) said = noted(said, `${r.name}: ${mode.text}`)
+    return carryOn(advance(said))
   }
   return state
 }
@@ -548,7 +598,7 @@ export function resolveTop(state: GameState): GameState {
   if (!top) return state
   const stack = state.stack.slice(0, -1)
   const inst = find(state, top.iid)
-  const blank = { at: 0, x: top.x, chosen: [], agreed: false, declined: false, last: 0 }
+  const blank = { at: 0, x: top.x, chosen: [], agreed: false, declined: false, last: 0, modes: [] }
 
   if (top.ability) {
     const name = inst?.card.name ?? 'An ability'

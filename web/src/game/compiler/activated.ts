@@ -59,8 +59,11 @@ function readMana(text: string): ManaType[][] | null {
 }
 
 /** One line, as an activated ability; null if it is not one, or cannot be
- *  read whole. `shown` is the line as printed, for the menu. */
-export function readActivated(line: string, shown: string): ActivatedAbility | null {
+ *  read whole. `shown` is the line as printed, for the menu. `given` is what
+ *  it does when that was read elsewhere — the modes under "Choose one —". */
+export function readActivated(
+  line: string, shown: string, given?: { effects: Effect[]; complete: boolean },
+): ActivatedAbility | null {
   const colon = line.indexOf(': ')
   if (colon < 0) return null
   const cost = readCost(line.slice(0, colon))
@@ -75,8 +78,8 @@ export function readActivated(line: string, shown: string): ActivatedAbility | n
   // Any other restriction is one this cannot check.
   if (/activate only/i.test(body)) return null
 
-  const mana = readMana(body)
-  const read = mana ? { effects: [] as Effect[], complete: true } : readAbility(body)
+  const mana = given ? null : readMana(body)
+  const read = given ?? (mana ? { effects: [] as Effect[], complete: true } : readAbility(body))
   return {
     text: shown, cost, sorcery, oncePerTurn, fromHand: false, mana,
     effects: read.effects, complete: read.complete,

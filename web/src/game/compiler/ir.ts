@@ -98,6 +98,19 @@ export type Aim =
   /** Every permanent matching. */
   | { kind: 'each'; filter: Filter }
 
+/** Something that is so or is not, as the game stands: what follows "if". */
+export type Test =
+  /** "If you control a Bird", "…three or more creatures". */
+  | { control: Filter; atLeast: number }
+  /** Threshold: this many cards in your graveyard. */
+  | { graveyard: number }
+  /** "If that land is a Forest", "if it's a creature card". */
+  | { is: Filter; of: Whose }
+  /** "If the creature had power 4 or greater." */
+  | { stat: 'power' | 'toughness'; of: Whose; op: '>=' | '<='; value: number }
+  /** "If ~ has five or more charge counters on it." */
+  | { counters: string; of: Whose; atLeast: number }
+
 /** A token, as described where it is created. */
 export interface TokenSpec {
   name: string
@@ -147,6 +160,9 @@ export type Effect = (
    *  made. */
   | { op: 'token'; count: Count; token: TokenSpec; tapped: boolean; size?: Count }
   | { op: 'counters'; to: Aim; count: Count; counter: string }
+  /** One more of each kind of counter already there, on everything of yours
+   *  that has any — and a poison counter for an opponent who has one. */
+  | { op: 'proliferate' }
   /** Search your library. */
   | {
     op: 'search'
@@ -180,8 +196,12 @@ export type Effect = (
   /** Pay mana, as part of an effect: "you may pay {1}. If you do, …". Paid
    *  the way a spell is; if it cannot be, it counts as declined. */
   | { op: 'pay'; cost: string }
-  /** "Choose one —": the modes, each its own little ability. */
-  | { op: 'mode'; modes: Ability[] }
+  /** "Choose one —": the modes, each its own little ability. "Choose one
+   *  or more" and "choose up to one" set how few and how many. */
+  | { op: 'mode'; modes: Ability[]; min: number; max: number }
+  /** One outcome or another: "If that land is a Forest, put two counters on
+   *  it instead." */
+  | { op: 'if'; test: Test; then: Effect[]; otherwise: Effect[] }
   /** Understood, and does nothing at this table: the opponent has no hand,
    *  no graveyard, no spells to counter. Said in the log, so it is clear the
    *  sentence was read rather than skipped. */
@@ -209,7 +229,8 @@ export type TriggerEvent =
   /** "Whenever equipped creature dies": what this is attached to. */
   | { on: 'dies'; who: 'attached' }
   | { on: 'dies'; who: Filter }
-  | { on: 'step'; step: 'upkeep' | 'combat' | 'end' }
+  /** `main` is the first main phase. */
+  | { on: 'step'; step: 'upkeep' | 'main' | 'combat' | 'end' }
   /** "Whenever ~ attacks", "whenever a creature you control attacks". */
   | { on: 'attacks'; who: 'self' | 'attached' | Filter }
   /** "Whenever you attack": once, however many attack. */
@@ -225,7 +246,7 @@ export type TriggerEvent =
 export interface TriggeredAbility extends Ability {
   when: TriggerEvent
   /** "…, if you control five or more lands, …": checked as it triggers. */
-  condition?: { atLeast: number; filter: Filter }
+  condition?: Test
   /** "This ability triggers only once each turn." */
   oncePerTurn?: boolean
 }

@@ -15,9 +15,9 @@ import type { Card } from '../../lib/api'
 import { readActivated, readKeywordAbility } from './activated'
 import { readAbility } from './effects'
 import type {
-  Ability, ActivatedAbility, Compiled, Coverage, Filter, Static, TriggerEvent, TriggeredAbility,
+  Ability, ActivatedAbility, Compiled, Coverage, Effect, Filter, Static, TriggerEvent, TriggeredAbility,
 } from './ir'
-import { readFilter, readNumber } from './read'
+import { readFilter, readTest } from './read'
 import { isInert, readStatic } from './statics'
 
 /** Keywords with nothing to do at resolution: evasion, protection, combat
@@ -139,6 +139,7 @@ function readOneTrigger(condition: string): TriggerEvent | null {
   if (/^you gain life$/.test(c)) return { on: 'lifeGain' }
   if (/^(a player|you) plays? a land$/.test(c)) return { on: 'landPlay' }
   if (/^the beginning of your upkeep$/.test(c)) return { on: 'step', step: 'upkeep' }
+  if (/^the beginning of your (first|precombat) main phase$/.test(c)) return { on: 'step', step: 'main' }
   if (/^the beginning of (your|each|the) end step$/.test(c)) return { on: 'step', step: 'end' }
   // Nobody else casts anything: "a player" is you.
   if (/^(?:you|a player) casts? a spell$/.test(c)) return { on: 'cast', filter: {} }
@@ -153,11 +154,21 @@ function readOneTrigger(condition: string): TriggerEvent | null {
 /** "if you control five or more lands, …", the condition some triggers
  *  check as they trigger. */
 function readCondition(text: string) {
-  const m = /^if you control (\w+) or more (.+?), (.+)$/.exec(text)
+  const m = /^if (.+?), (.+)$/.exec(text)
+  const condition = m && readTest(m[1])
+  return m && condition ? { condition, rest: m[2] } : null
+}
+
+/** "Choose one —", "choose up to one —", "choose one or more —": how few and
+ *  how many of the bullets under it, or null if the line does not end so. */
+function readChoice(line: string, modes: number): { head: string; min: number; max: number } | null {
+  const m = /^(.*?)\bchoose (one|two|up to one|up to two|one or more|one or both) —$/i.exec(line)
   if (!m) return null
-  const atLeast = readNumber(m[1])
-  const filter = readFilter(m[2])
-  return atLeast !== null && filter ? { condition: { atLeast, filter: { ...filter, controller: 'you' as const } }, rest: m[3] } : null
+  const [min, max] = {
+    one: [1, 1], two: [2, 2], 'up to one': [0, 1], 'up to two': [0, 2],
+    'one or more': [1, modes], 'one or both': [1, 2],
+  }[m[2].toLowerCase()] as [number, number]
+  return { head: m[1], min, max }
 }
 
 const cache = new Map<string, Compiled>()
@@ -192,36 +203,51 @@ export function compile(card: Card): Compiled {
       continue
     }
 
-    // "Choose one —" and the bullets after it.
-    if (/^choose one —$/.test(lower) && isSpell) {
-      const modes: Ability[] = []
-      while (i + 1 < lines.length && lines[i + 1].startsWith('•')) {
-        i += 1
-        const body = lines[i].replace(/^•\s*/, '')
-        modes.push({ text: body, ...readAbility(body) })
-      }
-      const read = modes.filter((m) => m.effects.length)
-      spellParts.push({
-        text: [line, ...modes.map((m) => `• ${m.text}`)].join('\n'),
-        effects: read.length ? [{ op: 'mode', modes }] : [],
-        complete: modes.every((m) => m.complete),
+    // "Choose one —" and the bullets after it: on a spell, at the end of a
+    // trigger, or after an activated ability's cost.
+    let bullets = 0
+    while (lines[i + 1 + bullets]?.startsWith('•')) bullets += 1
+    const choice = bullets ? readChoice(line, bullets) : null
+    let modal: { effects: Effect[]; complete: boolean; text: string } | null = null
+    if (choice) {
+      const modes: Ability[] = lines.slice(i + 1, i + 1 + bullets).map((bullet) => {
+        const shown = bullet.replace(/^•\s*/, '')
+        // A mode may have a name: "Sell Contraband — Create a Treasure".
+        const { effects, complete } = readAbility(shown.replace(/^[A-Z~][\w' ]* — /, ''))
+        return { text: shown, effects, complete }
       })
-      grades.push(modes.every((m) => m.complete) ? 1 : read.length ? 0.5 : 0)
-      continue
+      i += bullets
+      const read = modes.some((m) => m.effects.length)
+      modal = {
+        text: [line, ...modes.map((m) => `• ${m.text}`)].join('\n'),
+        effects: read ? [{ op: 'mode', modes, min: choice.min, max: choice.max }] : [],
+        complete: modes.every((m) => m.complete),
+      }
+      if (!choice.head.trim()) {
+        // On its own line: the spell itself. A permanent's is not read yet.
+        if (isSpell) spellParts.push(modal)
+        else unread.push(modal.text)
+        grades.push(!isSpell ? 0 : modal.complete ? 1 : read ? 0.5 : 0)
+        continue
+      }
     }
+    /** What this line does, read — or, for a modal one, the choice. */
+    const reading = (body: string) => (modal ? { ...modal, once: false } : readAbility(body))
+    const shown = modal ? modal.text : line
+    const headed = choice ? choice.head.trim().toLowerCase() : null
 
-    const trig = /^(when|whenever|at) (.+?), (.+)$/.exec(lower)
+    const trig = /^(when|whenever|at) (.+?), (.+)$/.exec(headed !== null ? `${headed} …` : lower)
     if (trig) {
       const events = readTrigger(trig[2])
-      // "…, if you control five or more lands, …" is read; any other
-      // intervening "if" is not yet.
+      // "…, if you control five or more lands, …": checked as it triggers.
+      // An "if" this cannot check leaves the line in words.
       const conditional = readCondition(trig[3])
       const body = conditional ? conditional.rest : trig[3]
       if (events && !/^if /.test(body)) {
-        const { effects, complete, once } = readAbility(body)
+        const { effects, complete, once } = reading(body)
         for (const when of events) {
           triggers.push({
-            text: line, when, effects, complete,
+            text: shown, when, effects, complete,
             ...(conditional ? { condition: conditional.condition } : {}),
             ...(once ? { oncePerTurn: true } : {}),
           })
@@ -229,12 +255,12 @@ export function compile(card: Card): Compiled {
         grades.push(complete ? 1 : effects.length ? 0.5 : 0)
         continue
       }
-      unread.push(line)
+      unread.push(shown)
       grades.push(0)
       continue
     }
 
-    const fixed = readStatic(lower)
+    const fixed = modal ? null : readStatic(lower)
     if (fixed) {
       statics.push(fixed)
       grades.push(1)
@@ -250,7 +276,9 @@ export function compile(card: Card): Compiled {
       continue
     }
 
-    const ability = isSpell ? null : readKeywordAbility(lower, line) ?? readActivated(line.replace(/−/g, '-'), line)
+    const ability = isSpell ? null
+      : modal ? readActivated(`${choice!.head.trim()} …`, shown, modal)
+        : readKeywordAbility(lower, line) ?? readActivated(line.replace(/−/g, '-'), line)
     if (ability) {
       activated.push(ability)
       grades.push(ability.complete ? 1 : ability.effects.length ? 0.5 : 0)
@@ -258,13 +286,20 @@ export function compile(card: Card): Compiled {
     }
 
     if (isSpell && !/^[^"]*: /.test(lower)) {
-      const read = readAbility(line)
-      spellParts.push({ text: line, ...read })
+      // An ability word is flavor here too: "Threshold — If there are…".
+      const said = line.replace(/^[A-Z][a-z' ]* — (?=\S)/, '')
+      // "…, instead search for up to three" replaces the line before it, so
+      // the two are read as one.
+      const before = /\binstead\b/i.test(said) ? spellParts.pop() : undefined
+      if (before) grades.pop()
+      const whole = before ? `${before.text} ${said}` : said
+      const read = readAbility(whole)
+      spellParts.push({ text: before ? `${before.text}\n${line}` : line, ...read })
       grades.push(read.complete ? 1 : read.effects.length ? 0.5 : 0)
       continue
     }
 
-    unread.push(line)
+    unread.push(shown)
     grades.push(0)
   }
 
