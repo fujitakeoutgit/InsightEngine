@@ -47,6 +47,8 @@ export interface Instance {
   damage?: number
   /** The permanent this Equipment or Aura is attached to. */
   attachedTo?: string
+  /** The creature type chosen for it as it entered. */
+  chosenType?: string
   /** A token here only for the turn: exiled as the end step begins. */
   fleeting?: boolean
   /** The card this is, while it is on the battlefield as a copy of another.
@@ -189,6 +191,8 @@ export type Decision =
   | { kind: 'arrange'; mode: 'scry' | 'surveil'; cards: string[] }
   /** Declare attackers: which of these attack. */
   | { kind: 'attack'; options: string[] }
+  /** "As ~ enters, choose a creature type": which, for this permanent. */
+  | { kind: 'type'; iid: string; options: string[] }
   /** "Choose one —". Where more than one may be chosen, they are taken one
    *  at a time: `taken` is what has been so far, and `canStop` whether that
    *  is enough to stop at. */
@@ -306,6 +310,8 @@ export type Action =
   | { type: 'arrange'; keep: string[]; away: string[] }
   /** A mode taken — or, with -1, no more of them. */
   | { type: 'mode'; index: number }
+  /** The creature type chosen for the permanent that is asking. */
+  | { type: 'pickType'; subtype: string }
   /** Add or remove counters by hand. */
   | { type: 'counter'; iid: string; counter: string; by: number }
   /** Set the opponent's life by hand. */

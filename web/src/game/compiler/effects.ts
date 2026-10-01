@@ -572,7 +572,7 @@ function readDig(howMany: string, tail: string): Effect[] | null {
  *  it onto the battlefield. If you don't …, put it into your hand." */
 const TOP_CARD = new RegExp([
   /^(?:look at|reveal) the top card of your library\. /,
-  /if it's an? (.+?) card, (you may )?(?:reveal it and )?put it (onto the battlefield( tapped)?|into your hand)\./,
+  /if it's an? (.+? )?card( of the chosen type)?, (you may )?(?:reveal it and )?put it (onto the battlefield( tapped)?|into your hand)\./,
   /(?: (?:otherwise|if you don't put the card (?:onto the battlefield|into your hand)), (you may )?put (?:it|that card) (into your hand|on the bottom of your library|into your graveyard)\.)?$/,
 ].map((part) => part.source).join(''))
 
@@ -581,12 +581,16 @@ const TOP_CARD = new RegExp([
 export function readCompound(text: string): Effect[] | null {
   const top = TOP_CARD.exec(text.trim().toLowerCase().replace(/([^.])$/, '$1.'))
   if (!top) return null
-  const match = readFilter(top[1])
-  if (!match) return null
-  const miss = top[6] === 'into your hand' ? 'hand' : top[6] === 'into your graveyard' ? 'graveyard' : top[6] ? 'bottom' : 'stay'
+  const [, kind, chosen, may, where, tapped, missMay, missWhere] = top
+  // "A card of the chosen type" is any card of it; and with neither a kind
+  // nor a chosen type there is nothing being looked for.
+  const read = kind ? readFilter(kind) : chosen ? {} : null
+  if (!read) return null
+  const match = chosen ? { ...read, chosenType: true } : read
+  const miss = missWhere === 'into your hand' ? 'hand' : missWhere === 'into your graveyard' ? 'graveyard' : missWhere ? 'bottom' : 'stay'
   return [{
-    op: 'topCard', match, hit: top[3] === 'into your hand' ? 'hand' : 'battlefield',
-    tapped: Boolean(top[4]), ask: Boolean(top[2]), miss, missAsk: Boolean(top[5]),
+    op: 'topCard', match, hit: where === 'into your hand' ? 'hand' : 'battlefield',
+    tapped: Boolean(tapped), ask: Boolean(may), miss, missAsk: Boolean(missMay),
   }]
 }
 

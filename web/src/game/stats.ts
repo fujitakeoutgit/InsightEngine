@@ -15,7 +15,7 @@
 
 import { compile } from './compiler/compile'
 import type { Boost, Filter, Measure } from './compiler/ir'
-import { isKind } from './kinds'
+import { everyType, forSource, isKind } from './kinds'
 import type { GameState, Instance, Known } from './types'
 
 const printed = (inst: Instance, field: 'power' | 'toughness') =>
@@ -35,7 +35,8 @@ function counted(inst: Instance, field: 'power' | 'toughness' = 'power'): number
 /** Does a permanent answer to a static ability's filter? By kind only: no
  *  standing effect here asks about size, which would be asking this module
  *  about itself. */
-const fits = isKind
+const fits = (inst: Instance, filter: Filter, source: Instance, state: GameState) =>
+  isKind(inst, forSource(filter, source), source.iid, everyType(state))
 
 const onBoard = (state: GameState) => state.cards.filter((c) => c.zone === 'battlefield')
 
@@ -44,11 +45,11 @@ export const colorsOnBoard = (state: GameState) =>
   new Set(onBoard(state).flatMap((c) => [...(c.card.colors ?? '')])).size
 
 /** How many there are of what a "for each" counts. */
-function measure(state: GameState, of: Filter | 'colors' | Measure, source: string): number {
+function measure(state: GameState, of: Filter | 'colors' | Measure, source: Instance): number {
   if (of === 'colors') return colorsOnBoard(state)
   if ('plus' in of) return of.plus.reduce((n, part) => n + measure(state, part, source), 0)
   if ('zone' in of) {
-    return state.cards.filter((c) => c.zone === of.zone && (!of.filter || fits(c, of.filter, source))).length
+    return state.cards.filter((c) => c.zone === of.zone && (!of.filter || fits(c, of.filter, source, state))).length
   }
   if ('devotion' in of) {
     // Devotion: that color's symbols in the costs of your permanents.
@@ -58,7 +59,7 @@ function measure(state: GameState, of: Filter | 'colors' | Measure, source: stri
     ), 0)
   }
   const filter = 'per' in of ? of.per : of
-  return onBoard(state).filter((c) => fits(c, filter as Filter, source)).length
+  return onBoard(state).filter((c) => fits(c, filter as Filter, source, state)).length
 }
 
 interface Applied { power: number; toughness: number; keywords: string[] }
@@ -77,11 +78,11 @@ function applied(inst: Instance, state: GameState): Applied {
       if (fixed.kind !== 'boost') continue
       const mine = fixed.to === 'self' ? source.iid === inst.iid
         : fixed.to === 'attached' ? source.attachedTo === inst.iid
-          : fits(inst, fixed.to, source.iid)
+          : fits(inst, fixed.to, source, state)
       if (!mine) continue
       if (fixed.condition
-        && measure(state, fixed.condition.filter, source.iid) < fixed.condition.atLeast) continue
-      add(fixed.boost, fixed.boost.per ? measure(state, fixed.boost.per, source.iid) : 1)
+        && measure(state, fixed.condition.filter, source) < fixed.condition.atLeast) continue
+      add(fixed.boost, fixed.boost.per ? measure(state, fixed.boost.per, source) : 1)
     }
   }
   for (const boost of state.boosts) {
@@ -96,7 +97,7 @@ function base(inst: Instance, field: 'power' | 'toughness', state?: GameState) {
   if (state) {
     for (const fixed of compile(inst.card).statics) {
       if (fixed.kind === 'size' && fixed.stats.includes(field)) {
-        return fixed.plus + measure(state, fixed.measure, inst.iid)
+        return fixed.plus + measure(state, fixed.measure, inst)
       }
     }
   }

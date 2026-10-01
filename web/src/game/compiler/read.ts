@@ -187,6 +187,7 @@ export function readFilter(phrase: string): Filter | null {
   if (take(/ (another|other)\b/)) filter.other = true
   if (take(/ nontoken\b/)) filter.nontoken = true
   if (take(/ basic\b/)) filter.basic = true
+  if (take(/ of the chosen type\b/)) filter.chosenType = true
   if (take(/ attacking\b/)) filter.attacking = true
   if (take(/ untapped\b/)) filter.tapped = false
   else if (take(/ tapped\b/)) filter.tapped = true

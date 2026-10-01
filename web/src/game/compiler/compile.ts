@@ -80,6 +80,13 @@ function readTrigger(condition: string): TriggerEvent[] | null {
   if (/^~ enters or attacks$/.test(condition.trim())) {
     return [{ on: 'enters', who: 'self' }, { on: 'attacks', who: 'self' }]
   }
+  // "When ~ enters and at the beginning of your upkeep".
+  const also = /^(.+?) and at (the beginning of .+)$/.exec(condition.trim())
+  if (also) {
+    const first = readOneTrigger(also[1])
+    const second = readOneTrigger(also[2])
+    if (first && second) return [first, second]
+  }
   // "Whenever ~ or another nontoken Phyrexian you control enters": itself,
   // and the others.
   const orAnother = /^~ or (another .+? (?:enters|dies))$/.exec(condition.trim())

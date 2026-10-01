@@ -6,30 +6,62 @@
  * it is being worked out.
  */
 
+import { compile } from './compiler/compile'
 import type { Filter } from './compiler/ir'
 import { isCreatureType } from './compiler/subtypes'
-import type { Instance } from './types'
+import type { GameState, Instance } from './types'
 
 const word = (line: string, w: string) => new RegExp(`\\b${w}\\b`, 'i').test(line)
 
-/** Does it have this subtype? A changeling is every creature type. */
-export function hasSubtype(inst: Instance, subtype: string): boolean {
+/**
+ * Does it have this subtype? A changeling is every creature type; so is
+ * every creature while something says they all are (`every`); and a
+ * permanent that "is the chosen type" is the type chosen for it.
+ */
+export function hasSubtype(inst: Instance, subtype: string, every = false): boolean {
   const line = inst.card.type_line ?? ''
   if (word(line, subtype)) return true
-  return isCreatureType(subtype)
-    && word(line, 'Creature')
-    && (inst.card.keywords ?? []).some((k) => k.toLowerCase() === 'changeling')
+  if (!isCreatureType(subtype)) return false
+  if (inst.chosenType === subtype && compile(inst.card).statics.some((fixed) => fixed.kind === 'isChosenType')) {
+    return true
+  }
+  return word(line, 'Creature')
+    && (every || (inst.card.keywords ?? []).some((k) => k.toLowerCase() === 'changeling'))
+}
+
+const everyTypes = new WeakMap<GameState, boolean>()
+
+/** Is something making every creature every creature type? Maskwood Nexus.
+ *  Asked once of each state. */
+export function everyType(state: GameState): boolean {
+  const known = everyTypes.get(state)
+  if (known !== undefined) return known
+  const every = state.cards.some((c) => (
+    c.zone === 'battlefield' && compile(c.card).statics.some((fixed) => fixed.kind === 'everyCreatureType')
+  ))
+  everyTypes.set(state, every)
+  return every
+}
+
+/** A filter as one permanent's ability means it: "of the chosen type" is the
+ *  type chosen for that permanent — and, until one has been, nothing. */
+export function forSource(filter: Filter, source: Instance | undefined): Filter {
+  if (!filter.chosenType) return filter
+  const { chosenType, ...rest } = filter
+  return { ...rest, subtypes: [source?.chosenType ?? '—'] }
 }
 
 /** `source` is the card whose ability is asking, which "another" excludes. */
-export function isKind(inst: Instance, filter: Filter, source?: string): boolean {
+export function isKind(inst: Instance, filter: Filter, source?: string, every = false): boolean {
   // The other side of the table has nothing on it.
   if (filter.controller === 'opponent') return false
+  // Whose chosen type? See `forSource`, which has to have answered first.
+  if (filter.chosenType) return false
   const line = inst.card.type_line ?? ''
   if (filter.types && !filter.types.some((t) => word(line, t))) return false
   if (filter.not?.some((t) => word(line, t))) return false
-  if (filter.subtypes && !filter.subtypes.some((t) => hasSubtype(inst, t))) return false
-  if (filter.notSubtypes?.some((t) => hasSubtype(inst, t))) return false
+  if (filter.subtypes && !filter.subtypes.some((t) => hasSubtype(inst, t, every))) return false
+  if (filter.notSubtypes?.some((t) => hasSubtype(inst, t, every))) return false
   if (filter.basic && !word(line, 'Basic')) return false
   if (filter.colors && !filter.colors.some((color) => (inst.card.colors ?? '').includes(color))) return false
   if (filter.colorless && inst.card.colors) return false

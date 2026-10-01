@@ -33,6 +33,9 @@ export interface Filter {
   attacking?: boolean
   /** Untapped, or tapped. */
   tapped?: boolean
+  /** "Of the chosen type": the creature type chosen for the permanent whose
+   *  ability this is, as it entered. */
+  chosenType?: boolean
   /** One of your commanders. */
   commander?: boolean
   nontoken?: boolean
@@ -360,8 +363,15 @@ export type Static =
   | { kind: 'doubleLifeGain' }
   /** "You have no maximum hand size." */
   | { kind: 'noMaxHandSize' }
-  /** "Blue spells you cast cost {1} less to cast." Generic mana only. */
-  | { kind: 'costLess'; filter: Filter; amount: number }
+  /** "Blue spells you cast cost {1} less to cast." Generic mana — or, for
+   *  Morophon, one colored mana of each of `colored`. */
+  | { kind: 'costLess'; filter: Filter; amount: number; colored?: string }
+  /** "As ~ enters, choose a creature type." */
+  | { kind: 'chooseType' }
+  /** "~ is the chosen type in addition to its other types." */
+  | { kind: 'isChosenType' }
+  /** "Creatures you control are every creature type." */
+  | { kind: 'everyCreatureType' }
   /** "This spell costs {1} less to cast for each creature on the
    *  battlefield", "…if you control a Spirit": on the spell itself. */
   | { kind: 'selfCostLess'; amount: number; per?: Filter; when?: Test }

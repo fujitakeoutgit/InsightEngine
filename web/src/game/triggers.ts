@@ -105,18 +105,20 @@ function happened(before: GameState, after: GameState): { events: Happened[]; ta
   return { events: out, tally }
 }
 
-function sees(when: TriggerEvent, event: Happened, source: Instance): boolean {
+function sees(when: TriggerEvent, event: Happened, source: Instance, state: GameState): boolean {
   if (when.on !== event.on) return false
   if (when.on === 'draw') return !when.nth || when.nth === (event as Extract<Happened, { on: 'draw' }>).nth
   if (!('card' in event)) return true
   const { card } = event
-  if (when.on === 'cast') return matches(card, when.filter, source.iid)
-  if (when.on === 'discard') return !when.filter || matches(card, when.filter, source.iid)
+  if (when.on === 'cast') return matches(card, when.filter, source.iid, state)
+  if (when.on === 'discard') return !when.filter || matches(card, when.filter, source.iid, state)
   if ('who' in when) {
     if (when.who === 'self') return card.iid === source.iid
     // "Equipped creature": what this is on.
     if (when.who === 'attached') return source.attachedTo === card.iid
-    return matches(card, when.who, source.iid)
+    // A creature that has died is asked as the card it was: off the
+    // battlefield it has no board to be sized by.
+    return matches(card, when.who, source.iid, when.on === 'dies' ? undefined : state)
   }
   return true
 }
@@ -176,7 +178,7 @@ export function collectTriggers(before: GameState, after: GameState): GameState 
     const watching = event.on === 'dies' ? inZone(before, 'battlefield') : inZone(next, 'battlefield')
     for (const source of watching) {
       compile(source.card).triggers.forEach((ability, index) => {
-        if (!sees(ability.when, event, source)) return
+        if (!sees(ability.when, event, source, next)) return
         const key = `${source.iid}#${index}`
         if (ability.batch && answered.has(key)) return
         answered.add(key)

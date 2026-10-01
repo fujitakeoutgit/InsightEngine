@@ -350,6 +350,17 @@ function apply(state: GameState, action: Action): GameState {
     case 'mode':
       return answer(state, action)
 
+    case 'pickType': {
+      const { pending } = state
+      if (pending?.kind !== 'type' || !pending.options.includes(action.subtype)) return state
+      const name = find(state, pending.iid)?.card.name ?? 'It'
+      return noted({
+        ...state,
+        pending: null,
+        cards: state.cards.map((c) => (c.iid === pending.iid ? { ...c, chosenType: action.subtype } : c)),
+      }, `${name}: chose ${action.subtype}`)
+    }
+
     case 'choose': {
       const { pending } = state
       // A pick that is a cost — what to sacrifice — rather than an effect.

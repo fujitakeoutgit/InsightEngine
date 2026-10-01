@@ -10,6 +10,8 @@
  * everything here that moves the game on calls it after each move.
  */
 
+import { compile } from './compiler/compile'
+import { isCreatureType } from './compiler/subtypes'
 import { resolveTop } from './resolve'
 import { stateBased } from './sba'
 import { collectTriggers, stepTriggers } from './triggers'
@@ -26,11 +28,37 @@ export function settle(before: GameState, after: GameState): GameState {
   for (let guard = 0; guard < 30; guard += 1) {
     next = collectTriggers(prev, next)
     const checked = stateBased(next)
-    if (checked === next) return next
+    if (checked === next) return askType(next)
     prev = next
     next = checked
   }
-  return next
+  return askType(next)
+}
+
+/** "As ~ enters, choose a creature type": asked as soon as nothing else is
+ *  being, of the first permanent still waiting for one. */
+function askType(state: GameState): GameState {
+  if (state.pending || state.resolving) return state
+  const waiting = state.cards.find((c) => (
+    c.zone === 'battlefield' && !c.chosenType
+    && compile(c.card).statics.some((fixed) => fixed.kind === 'chooseType')
+  ))
+  return waiting ? { ...state, pending: { kind: 'type', iid: waiting.iid, options: typesInDeck(state) } } : state
+}
+
+/** The creature types in the deck, the commonest first: what a type would
+ *  sensibly be chosen from. */
+function typesInDeck(state: GameState): string[] {
+  const counts = new Map<string, number>()
+  for (const c of state.cards) {
+    const [types, subtypes = ''] = (c.card.type_line ?? '').split(/\s+—\s+/)
+    if (c.token || !/\b(Creature|Kindred)\b/.test(types)) continue
+    for (const subtype of subtypes.split(/\s+/).filter(isCreatureType)) {
+      counts.set(subtype, (counts.get(subtype) ?? 0) + 1)
+    }
+  }
+  const ordered = [...counts].sort((a, b) => b[1] - a[1]).map(([subtype]) => subtype)
+  return ordered.length ? ordered : ['Shapeshifter']
 }
 
 /** One step on, with what begins in it. */

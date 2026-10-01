@@ -12,7 +12,7 @@ import type { Card } from '../lib/api'
 import { amount } from './amount'
 import { compile } from './compiler/compile'
 import { holds } from './holds'
-import { isKind } from './kinds'
+import { everyType, forSource, isKind } from './kinds'
 import { onBattlefield } from './match'
 import { autotap, demand, formatCost, parseCost, type Cost, type ManaType, type Payment } from './mana'
 import { seatFor } from './seat'
@@ -142,20 +142,31 @@ export function playLand(state: GameState, iid: string, at?: Spot): GameState {
 export function costOf(state: GameState, inst: Instance): Cost {
   const cost = parseCost(manaCostOf(inst.card))
   const tax = inst.commander && inst.zone === 'command' ? 2 * (state.casts[inst.iid] ?? 0) : 0
-  // What makes it cheaper takes off generic mana only, and no further than
-  // none of it.
-  return { ...cost, generic: Math.max(0, cost.generic + tax - discount(state, inst)) }
+  const less = discount(state, inst)
+  // Morophon takes off colored mana: one pip of each color it names, where
+  // the spell has one.
+  const pips = [...cost.pips]
+  for (const color of less.colored) {
+    const at = pips.findIndex((pip) => pip.length === 1 && pip[0] === color)
+    if (at >= 0) pips.splice(at, 1)
+  }
+  // Everything else takes off generic mana, and no further than none of it.
+  return { ...cost, pips, generic: Math.max(0, cost.generic + tax - less.generic) }
 }
 
 /** Generic mana taken off a spell: by permanents that say so ("blue spells
  *  you cast cost {1} less"), and by the spell itself ("costs {1} less to
  *  cast for each creature on the battlefield"). */
-function discount(state: GameState, inst: Instance): number {
-  if (!state.rules) return 0
+function discount(state: GameState, inst: Instance): { generic: number; colored: string } {
+  if (!state.rules) return { generic: 0, colored: '' }
   let less = 0
+  let colored = ''
   for (const source of inZone(state, 'battlefield')) {
     for (const fixed of compile(source.card).statics) {
-      if (fixed.kind === 'costLess' && isKind(inst, fixed.filter, source.iid)) less += fixed.amount
+      if (fixed.kind !== 'costLess') continue
+      if (!isKind(inst, forSource(fixed.filter, source), source.iid, everyType(state))) continue
+      less += fixed.amount
+      colored += fixed.colored ?? ''
     }
   }
   const asking = { x: 0, source: inst.iid, chosen: [], event: null, known: {}, last: 0 }
@@ -164,7 +175,7 @@ function discount(state: GameState, inst: Instance): number {
     if (fixed.per) less += fixed.amount * onBattlefield(state, fixed.per, inst.iid).length
     else if (!fixed.when || holds(state, asking, fixed.when)) less += fixed.amount
   }
-  return less
+  return { generic: less, colored }
 }
 
 /** What the rest of the hand wants, so the land it is waiting on is not the

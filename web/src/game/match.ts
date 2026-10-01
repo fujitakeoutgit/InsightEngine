@@ -4,14 +4,18 @@
  */
 
 import type { Filter } from './compiler/ir'
-import { isKind } from './kinds'
+import { everyType, forSource, isKind } from './kinds'
 import { hasKeyword, power, toughness } from './stats'
 import type { GameState, Instance } from './types'
 
 /** `source` is the card whose ability is asking, which "another" excludes.
  *  With the game, size and keywords are what the board makes them. */
-export function matches(inst: Instance, filter: Filter, source?: string, state?: GameState): boolean {
-  if (!isKind(inst, filter, source)) return false
+export function matches(inst: Instance, asked: Filter, source?: string, state?: GameState): boolean {
+  // "Of the chosen type" is answered by the permanent that is asking.
+  const filter = asked.chosenType && state && source
+    ? forSource(asked, state.cards.find((c) => c.iid === source))
+    : asked
+  if (!isKind(inst, filter, source, state ? everyType(state) : false)) return false
   if (filter.attacking && !state?.attacking.includes(inst.iid)) return false
   if (filter.keyword && !hasKeyword(inst, filter.keyword, state)) return false
   if (filter.compare) {

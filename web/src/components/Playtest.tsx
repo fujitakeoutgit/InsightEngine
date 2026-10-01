@@ -734,6 +734,8 @@ export function Playtest({
               : { type: 'choose', iids: selected })}
             onAnswer={(yes) => dispatch({ type: 'confirm', yes })}
             onMode={(index) => dispatch({ type: 'mode', index })}
+            name={pending.kind === 'type' ? cards.find((c) => c.iid === pending.iid)?.card.name : undefined}
+            onType={(subtype) => dispatch({ type: 'pickType', subtype })}
           />
         )}
 
@@ -1435,8 +1437,9 @@ function PlayCard({
           >+</button>
         </span>
       )}
-      {others.length > 0 && placed && (
+      {(others.length > 0 || inst.chosenType) && placed && (
         <span className="pt-counters mono">
+          {inst.chosenType && <span title="The creature type chosen for it">{inst.chosenType}</span>}
           {others.map(([kind, n]) => <span key={kind}>{kind} {n}</span>)}
         </span>
       )}

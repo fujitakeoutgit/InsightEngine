@@ -82,10 +82,20 @@ export function readCostLess(sentence: string): Static | null {
 export function readStatic(line: string): Static | null {
   const l = line.replace(/\.$/, '')
 
-  const cheaper = /^(.+?) spells you cast cost \{(\d+)\} less to cast$/.exec(l)
+  if (/^as ~ enters, choose a creature type$/.test(l)) return { kind: 'chooseType' }
+  if (/^~ is the chosen type in addition to its other types$/.test(l)) return { kind: 'isChosenType' }
+  if (/^creatures you control are every creature type\b/.test(l)) return { kind: 'everyCreatureType' }
+
+  // "Blue spells you cast cost {1} less to cast", "creature spells you cast
+  // of the chosen type cost {1} less", and Morophon's five colors.
+  const cheaper = /^(?:(.+?) )?spells (?:you cast( of the chosen type)?|of the chosen type you cast) cost ((?:\{[^}]+\})+) less to cast(?:\. this effect reduces only the amount of colored mana you pay)?$/.exec(l)
   if (cheaper) {
-    const filter = readFilter(cheaper[1])
-    return filter && { kind: 'costLess', filter, amount: Number(cheaper[2]) }
+    const read = cheaper[1] ? readFilter(cheaper[1]) : {}
+    const generic = /^\{(\d+)\}$/.exec(cheaper[3])
+    const colored = /^(?:\{[wubrg]\})+$/.test(cheaper[3]) ? cheaper[3].replace(/[{}]/g, '').toUpperCase() : null
+    if (!read || (!generic && !colored)) return null
+    const filter = / of the chosen type/.test(l) ? { ...read, chosenType: true } : read
+    return { kind: 'costLess', filter, amount: generic ? Number(generic[1]) : 0, ...(colored ? { colored } : {}) }
   }
 
   if (/^you may play an additional land on each of your turns$/.test(l)) return { kind: 'extraLand', count: 1 }
@@ -126,19 +136,16 @@ export function readStatic(line: string): Static | null {
 
   // "Creatures you control get +1/+1", "Spirits you control get +1/+1 and
   // have trample and haste", "Creatures you control have haste".
-  const anthem = /^(.+?) you control (?:get ([+-]\d+)\/([+-]\d+)(?: and have (.+))?|have (.+))$/.exec(l)
+  const anthem = /^(.+?) you control( of the chosen type)? (?:get ([+-]\d+)\/([+-]\d+)(?: and have (.+))?|have (.+))$/.exec(l)
   if (anthem) {
-    // "Spirits you control": a creature type on its own.
-    const tribe = /^(other )?([a-z]+?)s$/.exec(anthem[1])
     const filter = readFilter(anthem[1])
-      ?? (tribe ? { subtypes: [tribe[2][0].toUpperCase() + tribe[2].slice(1)], ...(tribe[1] ? { other: true } : {}) } : null)
     if (filter) {
       const boost: Boost = {
-        power: Number(anthem[2] ?? 0),
-        toughness: Number(anthem[3] ?? 0),
-        keywords: readKeywords(anthem[4] ?? anthem[5] ?? ''),
+        power: Number(anthem[3] ?? 0),
+        toughness: Number(anthem[4] ?? 0),
+        keywords: readKeywords(anthem[5] ?? anthem[6] ?? ''),
       }
-      return { kind: 'boost', to: { ...filter, controller: 'you' }, boost }
+      return { kind: 'boost', to: { ...filter, controller: 'you', ...(anthem[2] ? { chosenType: true } : {}) }, boost }
     }
   }
 

@@ -173,9 +173,12 @@ export function Reminders({ items, onDone }: { items: Reminder[]; onDone: (id: s
  *  from the board or the hand, which sits low, out of the way of the cards
  *  it is asking about. Searches and scrying have dialogs of their own. */
 export function DecisionPrompt({
-  decision, chosen, damage = 0, onKeep, onMulligan, onConfirm, onAnswer, onMode, onAll,
+  decision, chosen, damage = 0, name = '', onKeep, onMulligan, onConfirm, onAnswer, onMode, onType, onAll,
 }: {
   decision: Decision
+  /** The permanent a choice of creature type is for. */
+  name?: string
+  onType: (subtype: string) => void
   /** How many cards are picked so far. */
   chosen: number
   /** What the attackers picked so far would deal. */
@@ -225,6 +228,18 @@ export function DecisionPrompt({
             {decision.taken.length ? 'Done' : 'None'}
           </button>
         )}
+      </div>
+    )
+  }
+  if (decision.kind === 'type') {
+    return (
+      <div className="pt-decision" role="dialog" aria-label="Choose a creature type">
+        <h3>{name ? `${name}: choose a creature type` : 'Choose a creature type'}</h3>
+        <div className="pt-modes pt-types">
+          {decision.options.map((subtype) => (
+            <button key={subtype} className="btn btn-ghost sm" onClick={() => onType(subtype)}>{subtype}</button>
+          ))}
+        </div>
       </div>
     )
   }
