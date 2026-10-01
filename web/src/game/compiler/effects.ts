@@ -13,7 +13,7 @@
  */
 
 import type { ManaType } from '../mana'
-import type { Aim, Count, Effect, Signed, TokenSpec } from './ir'
+import type { Aim, Count, Effect, Signed, Test, TokenSpec } from './ir'
 import { subtypeOf } from './subtypes'
 import {
   readAmount, readCount, readFilter, readKeywords, readNumber, readTest, readToken, type Speaking,
@@ -713,7 +713,7 @@ export function readAbility(
     if (plain && !/\binstead\b/.test(s)) {
       // What it asks about may be what the sentence before did, so one that
       // did not read leaves this in words too.
-      const test = understood ? referring(it, () => readTest(plain[1], speaking())) : null
+      const test: Test | null = understood ? referring(it, () => readTest(plain[1], speaking())) : null
       const then = test && after(effects, () => referring(it, () => readSentence(plain[2])))
       if (test && then) {
         previous = effects.length
