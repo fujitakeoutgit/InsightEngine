@@ -35,8 +35,10 @@ export interface Filter {
   /** Not the source itself. */
   other?: boolean
   keyword?: string
-  /** "with power 2 or less", "with mana value 3 or less". */
-  compare?: { stat: 'power' | 'toughness' | 'manaValue'; op: '<=' | '>='; value: number }
+  /** "with power 2 or less", "with mana value 3 or less" — or against an
+   *  amount worked out when it is asked: "with mana value less than or equal
+   *  to the number of lands you control". */
+  compare?: { stat: 'power' | 'toughness' | 'manaValue'; op: '<=' | '>='; value: Count }
   /** Whose. The opponent has no permanents, so a phrase only theirs can
    *  match is one that finds nothing. */
   controller?: 'you' | 'opponent' | 'any'
@@ -174,9 +176,39 @@ export type Effect = (
     /** Cultivate: the first found goes `to`, the rest into your hand. */
     restToHand?: boolean
   }
-  /** The top card of your library, revealed: a land goes one way, anything
-   *  else another — Coiling Oracle, Into the Wilds. */
-  | { op: 'topCard'; land: 'battlefield' | 'hand' | 'stay'; other: 'hand' | 'stay'; ask: boolean }
+  /** The top card of your library, looked at. If it is what the card wants
+   *  (`match`) it goes where `hit` says — asked first, when it is a "you
+   *  may". Anything else, or a card you turned down, goes where `miss` says,
+   *  which may be a question of its own: Coiling Oracle, Into the Wilds,
+   *  Parcelbeast, Cabaretti Ascendancy. */
+  | {
+    op: 'topCard'
+    match: Filter
+    hit: 'battlefield' | 'hand'
+    tapped: boolean
+    ask: boolean
+    miss: 'hand' | 'stay' | 'bottom' | 'graveyard'
+    missAsk: boolean
+  }
+  /** Look at the top cards of your library and take some: all that match,
+   *  or up to a number of them. The rest go where the card says. */
+  | {
+    op: 'dig'
+    count: Count
+    /** What may be taken; null for any card. */
+    take: Filter | null
+    takeCount: number | 'all'
+    /** "You may": fewer than `takeCount`, or none, is allowed. */
+    upTo: boolean
+    to: 'hand' | 'battlefield'
+    tapped: boolean
+    rest: 'bottom' | 'graveyard' | 'top'
+  }
+  /** Reveal cards from the top until one matches; it goes `to`, the others
+   *  to `rest`. */
+  | { op: 'digUntil'; filter: Filter; to: 'hand' | 'battlefield'; rest: 'bottom' | 'graveyard' }
+  /** Put cards from your hand on top of your library, the first on top. */
+  | { op: 'putBack'; count: number }
   /** Put a card from your hand onto the battlefield — a land, usually. */
   | { op: 'fromHand'; filter: Filter; count: number; upTo: boolean; tapped: boolean }
   /** Move permanents: destroy, exile, return to hand, sacrifice. */

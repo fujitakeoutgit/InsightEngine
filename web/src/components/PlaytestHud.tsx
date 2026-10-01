@@ -394,10 +394,13 @@ export interface Offered {
  * of a card are one row with a count: thirteen Forests are one decision.
  */
 export function PickDialog({
-  prompt, cards, min, max, onChoose,
+  prompt, cards, seen = [], min, max, onChoose,
 }: {
   prompt: string
   cards: Offered[]
+  /** Cards looked at along with these that cannot be taken — the rest of
+   *  the top five. Shown, so the choice is made knowing them. */
+  seen?: Offered[]
   min: number
   max: number
   onChoose: (iids: string[]) => void
@@ -455,6 +458,13 @@ export function PickDialog({
               </button>
             )
           })}
+          {seen.map((c) => (
+            <div key={c.iid} className="pt-tutor-row seen" aria-disabled>
+              <span className="nm">{c.name}</span>
+              <span className="mono faint">{c.cost ?? ''}</span>
+              <span className="faint">{c.type}</span>
+            </div>
+          ))}
         </div>
         <div className="row gap-2" style={{ marginTop: 'var(--gap-2)' }}>
           <button

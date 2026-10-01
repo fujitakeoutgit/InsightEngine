@@ -16,6 +16,9 @@ export function matches(inst: Instance, filter: Filter, source?: string, state?:
   if (filter.keyword && !hasKeyword(inst, filter.keyword, state)) return false
   if (filter.compare) {
     const { stat, op, value } = filter.compare
+    // An amount still in words has no answer here: see `settled` in
+    // amount.ts, which works it out first.
+    if (typeof value !== 'number') return false
     const n = stat === 'power' ? power(inst, state)
       : stat === 'toughness' ? toughness(inst, state) : (inst.card.cmc ?? 0)
     if (op === '<=' ? n > value : n < value) return false

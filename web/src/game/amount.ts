@@ -4,7 +4,7 @@
  * the sacrificed creature's toughness, the cards in your hand.
  */
 
-import type { Count, Signed } from './compiler/ir'
+import type { Count, Filter, Signed } from './compiler/ir'
 import { matches, onBattlefield } from './match'
 import { find, inZone } from './state'
 import { colorsOnBoard, snapshot, stats } from './stats'
@@ -53,6 +53,14 @@ export function amount(state: GameState, r: Asking, count: Count): number {
   if (count.stat === 'manaValue') return seen.manaValue ?? 0
   if (count.stat === 'gap') return Math.abs(seen.power - seen.toughness)
   return seen[count.stat]
+}
+
+/** A filter with any amount in it worked out: "mana value less than or
+ *  equal to the number of lands you control" becomes "…3 or less". */
+export function settled(state: GameState, r: Asking, filter: Filter): Filter {
+  const { compare } = filter
+  if (!compare || typeof compare.value === 'number') return filter
+  return { ...filter, compare: { ...compare, value: amount(state, r, compare.value) } }
 }
 
 /** A change to power or toughness, as a number. */

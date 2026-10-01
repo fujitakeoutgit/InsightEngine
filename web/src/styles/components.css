@@ -5916,6 +5916,10 @@
   outline: 1px solid color-mix(in oklab, var(--aether) 55%, transparent);
 }
 
+/* Looked at, and not for taking: there to be read, not clicked. */
+.pt-tutor-row.seen { opacity: 0.5; cursor: default; }
+.pt-tutor-row.seen:hover { background: none; }
+
 /* Scry and surveil: the top of the library face up, each card kept or sent. */
 .pt-arrange { text-align: center; }
 .pt-arrange p { font-size: 12px; margin: 0 0 12px; }

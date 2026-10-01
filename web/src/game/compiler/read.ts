@@ -124,6 +124,14 @@ const title = (word: string) => word[0].toUpperCase() + word.slice(1)
 
 const TYPES = ['creature', 'land', 'artifact', 'enchantment', 'planeswalker', 'battle', 'instant', 'sorcery']
 
+/** Keywords a phrase may ask for: "creature with defender". */
+const KEYWORDS = new Set([
+  'flying', 'first strike', 'double strike', 'deathtouch', 'defender', 'haste', 'hexproof',
+  'indestructible', 'lifelink', 'menace', 'reach', 'trample', 'vigilance', 'flash', 'shroud',
+  'infect', 'changeling', 'fear', 'intimidate', 'shadow', 'horsemanship', 'skulk', 'prowess',
+  'wither', 'islandwalk', 'swampwalk', 'forestwalk', 'mountainwalk', 'plainswalk',
+])
+
 const COLOR_WORDS: Record<string, string> = {
   white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G',
 }
@@ -147,6 +155,18 @@ export function readFilter(phrase: string): Filter | null {
     return hit
   }
 
+  // "…with mana value less than or equal to the number of lands you
+  // control": taken first, before "you control" is read as whose it is.
+  const versus = take(/ with (power|toughness|mana value) (less|greater) than or equal to (.+?) $/)
+  if (versus) {
+    const value = readAmount(versus[3])
+    if (value === null) return null
+    filter.compare = {
+      stat: versus[1] === 'mana value' ? 'manaValue' : versus[1] as 'power' | 'toughness',
+      op: versus[2] === 'less' ? '<=' : '>=',
+      value,
+    }
+  }
   if (take(/ (you control|under your control)\b/)) filter.controller = 'you'
   else if (take(/ (an opponent controls|your opponents control|you don't control|that player controls|defending player controls)\b/)) filter.controller = 'opponent'
   if (take(/ (another|other)\b/)) filter.other = true
@@ -166,7 +186,11 @@ export function readFilter(phrase: string): Filter | null {
     }
   }
   const keyword = take(/ with ([a-z ]+?) (?=$|\s)/)
-  if (keyword) filter.keyword = keyword[1].trim()
+  if (keyword) {
+    // "With" a keyword — and not with anything else that follows the word.
+    if (!KEYWORDS.has(keyword[1].trim())) return null
+    filter.keyword = keyword[1].trim()
+  }
 
   const types: string[] = []
   const subtypes: string[] = []

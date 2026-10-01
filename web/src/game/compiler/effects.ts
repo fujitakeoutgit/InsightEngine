@@ -72,7 +72,7 @@ function withX(effect: Effect, n: Count): Effect {
   const change = (by: Signed): Signed => (typeof by === 'number' ? by : { ...by, count: swap(by.count) })
   switch (effect.op) {
     case 'draw': case 'life': case 'damage': case 'scry': case 'surveil': case 'mill':
-    case 'counters': case 'discard': case 'search':
+    case 'counters': case 'discard': case 'search': case 'dig':
       return { ...effect, count: swap(effect.count) }
     case 'token':
       return { ...effect, count: swap(effect.count), ...(effect.size ? { size: swap(effect.size) } : {}) }
@@ -288,6 +288,21 @@ const PATTERNS: Pattern[] = [
       : null
   }],
 
+  // Looking at the top few: the sentences that say what is taken and where
+  // the rest goes were joined to this one with semicolons by `readAbility`.
+  [/^(?:look at|reveal) the top (\w+) cards of your library; (.+)$/, (m) => readDig(m[1], m[2])],
+  [/^reveal cards from the top of your library until you reveal an? (.+?) card, put that card (into your hand|onto the battlefield) and the rest (.+)$/, (m) => {
+    const filter = readFilter(m[1])
+    const rest = readRest(m[3])
+    return filter && rest && rest !== 'top'
+      ? [{ op: 'digUntil', filter, to: m[2] === 'into your hand' ? 'hand' : 'battlefield', rest }]
+      : null
+  }],
+  [/^put (\w+) cards? from your hand on top of your library(?: in any order)?$/, (m) => {
+    const count = readNumber(m[1])
+    return count === null ? null : [{ op: 'putBack', count }]
+  }],
+
   // --- permanents ----------------------------------------------------------
   [/^(destroy|exile) (.+)$/, (m) => {
     const to = m[1] === 'destroy' ? 'graveyard' : 'exile'
@@ -394,7 +409,7 @@ export function readSentence(sentence: string): Effect[] | null {
   // "…, where X is the number of lands you control": the sentence without
   // it, and then that amount wherever it says X. It may sit in the middle —
   // "up to X basic land cards, where X is …, put them onto the battlefield".
-  const where = /^(.+?),? where x is ([^,]+)(,.+)?$/.exec(s)
+  const where = /^(.+?),? where x is ([^,;]+)([,;].+)?$/.exec(s)
   if (where) {
     const n = readAmount(where[2], speaking())
     const inner = n === null ? null : readSentence(where[1] + (where[3] ?? ''))
@@ -448,23 +463,83 @@ function after<T>(effects: readonly Effect[], read: () => T): T {
   }
 }
 
+/** Where the cards not taken go: "on the bottom of your library in a random
+ *  order", "into your graveyard". */
+function readRest(phrase: string): 'bottom' | 'graveyard' | 'top' | null {
+  if (/^on the bottom(?: of your library)?(?: in (?:any|a random) order)?$/.test(phrase)) return 'bottom'
+  if (/^into your graveyard$/.test(phrase)) return 'graveyard'
+  if (/^(?:back )?on top(?: of your library)?(?: in any order)?$/.test(phrase)) return 'top'
+  return null
+}
+
+/** "Look at the top N cards", and what the sentences after it say to do
+ *  with them. */
+function readDig(howMany: string, tail: string): Effect[] | null {
+  const count = readCount(howMany)
+  if (count === null) return null
+  let take: Extract<Effect, { op: 'dig' }> | null = null
+  let rest: 'bottom' | 'graveyard' | 'top' | null = null
+  const blank = { op: 'dig' as const, count, tapped: false, rest: 'top' as const }
+
+  for (const part of tail.split('; ')) {
+    // Kicker is not offered: the unkicked half is what happens.
+    if (/^if ~ was kicked, .+ instead$/.test(part)) continue
+    const leftover = /^(.+?) and the rest (.+)$/.exec(part)
+    const body = leftover ? leftover[1] : part
+    if (leftover) rest = readRest(leftover[2])
+    if (leftover && !rest) return null
+
+    const all = /^put all (.+?) from among them (onto the battlefield( tapped)?|into your hand)$/.exec(body)
+    const some = all ? null : /^(you may )?(?:reveal|put) (an?|up to (\w+)|(\w+)) (.+?) from among them(?: and put (?:it|them|that card))? (into your hand|onto the battlefield( tapped)?)$/.exec(body)
+    const any = /^put (\w+) of (?:them|those cards) (into your hand|onto the battlefield)$/.exec(body)
+    const away = /^(?:then )?put the rest (.+)$/.exec(body)
+    if (some) {
+      const filter = readFilter(some[5])
+      const n = readNumber(some[3] ?? some[4] ?? 'one')
+      if (!filter || n === null) return null
+      take = {
+        ...blank, take: filter, takeCount: n, upTo: Boolean(some[1] || some[3]),
+        to: some[6] === 'into your hand' ? 'hand' : 'battlefield', tapped: Boolean(some[7]),
+      }
+    } else if (any) {
+      const n = readNumber(any[1])
+      if (n === null) return null
+      take = { ...blank, take: null, takeCount: n, upTo: false, to: any[2] === 'into your hand' ? 'hand' : 'battlefield' }
+    } else if (all) {
+      const filter = readFilter(all[1])
+      if (!filter) return null
+      take = {
+        ...blank, take: filter, takeCount: 'all', upTo: false,
+        to: all[2] === 'into your hand' ? 'hand' : 'battlefield', tapped: Boolean(all[3]),
+      }
+    } else if (away) {
+      rest = readRest(away[1])
+      if (!rest) return null
+    } else return null
+  }
+  return take && rest ? [{ ...take, rest }] : null
+}
+
+/** "Look at the top card of your library. If it's a land card, you may put
+ *  it onto the battlefield. If you don't …, put it into your hand." */
+const TOP_CARD = new RegExp([
+  /^(?:look at|reveal) the top card of your library\. /,
+  /if it's an? (.+?) card, (you may )?(?:reveal it and )?put it (onto the battlefield( tapped)?|into your hand)\./,
+  /(?: (?:otherwise|if you don't put the card (?:onto the battlefield|into your hand)), (you may )?put (?:it|that card) (into your hand|on the bottom of your library|into your graveyard)\.)?$/,
+].map((part) => part.source).join(''))
+
 /** Shapes that run across sentences, tried on an ability's whole text before
  *  it is split. */
-const COMPOUND: [RegExp, () => Effect[]][] = [
-  // Coiling Oracle.
-  [/^reveal the top card of your library\. if it's a land card, put it onto the battlefield\. otherwise, put that card into your hand\.?$/,
-    () => [{ op: 'topCard', land: 'battlefield', other: 'hand', ask: false }]],
-  // Into the Wilds.
-  [/^look at the top card of your library\. if it's a land card, you may put it onto the battlefield\.?$/,
-    () => [{ op: 'topCard', land: 'battlefield', other: 'stay', ask: true }]],
-]
-
 export function readCompound(text: string): Effect[] | null {
-  const t = text.trim().toLowerCase()
-  for (const [pattern, build] of COMPOUND) {
-    if (pattern.test(t)) return build()
-  }
-  return null
+  const top = TOP_CARD.exec(text.trim().toLowerCase().replace(/([^.])$/, '$1.'))
+  if (!top) return null
+  const match = readFilter(top[1])
+  if (!match) return null
+  const miss = top[6] === 'into your hand' ? 'hand' : top[6] === 'into your graveyard' ? 'graveyard' : top[6] ? 'bottom' : 'stay'
+  return [{
+    op: 'topCard', match, hit: top[3] === 'into your hand' ? 'hand' : 'battlefield',
+    tapped: Boolean(top[4]), ask: Boolean(top[2]), miss, missAsk: Boolean(top[5]),
+  }]
 }
 
 /** Riders on a triggered ability rather than effects of it. */
@@ -523,9 +598,22 @@ export function readAbility(text: string): { effects: Effect[]; complete: boolea
   /** A counterspell has been read: there was no spell, so what the card goes
    *  on to say about that spell and whoever cast it is nothing as well. */
   let countered = false
+  // …and so is "reveal cards until you reveal a creature card. Put that
+  // card into your hand and the rest into your graveyard."
+  text = text.replace(/(until you reveal an? [^.]+? card)\. (put that card )/i, '$1, $2')
+  // Looking at the top few cards runs on for as long as the sentences are
+  // about them: those are joined to it, to be read as one instruction.
+  const parts: string[] = []
+  for (const sentence of sentences(text)) {
+    const before = parts[parts.length - 1] ?? ''
+    const looking = /^(?:[^.;]*, )?(?:look at|reveal) the top \w+ cards of your library\b/i.test(before.split('; ')[0])
+    if (looking && /\b(from among them|of them|of those cards|the rest|was kicked)\b/i.test(sentence)) {
+      parts[parts.length - 1] = `${before.replace(/\.$/, '')}; ${sentence}`
+    } else parts.push(sentence)
+  }
   /** Where the sentence before this one's effects begin, for an "instead". */
   let previous = 0
-  for (const sentence of sentences(text)) {
+  for (const sentence of parts) {
     let s = sentence.trim().replace(/\.$/, '').toLowerCase()
     if (!s) continue
     if (countered && /\b(that spell|that spell's|its controller|that player)\b/.test(s)) continue

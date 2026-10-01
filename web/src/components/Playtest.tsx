@@ -1049,6 +1049,7 @@ export function Playtest({
         <PickDialog
           prompt={pending.prompt}
           cards={offered(pending.options)}
+          seen={offered(pending.seen ?? [])}
           min={pending.min}
           max={pending.max}
           onChoose={(iids) => dispatch({ type: 'choose', iids })}

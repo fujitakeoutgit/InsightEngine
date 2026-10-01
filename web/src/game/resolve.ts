@@ -14,7 +14,7 @@
  */
 
 import type { Card } from '../lib/api'
-import { amount, signed } from './amount'
+import { amount, settled, signed } from './amount'
 import { enterBattlefield, isPermanentSpell, remind, remindUnread, rulesText } from './cast'
 import { lifeGainFactor } from './combat'
 import { compile } from './compiler/compile'
@@ -24,7 +24,8 @@ import { autotap, parseCost } from './mana'
 import { matches, onBattlefield } from './match'
 import { seatFor } from './seat'
 import { isCreature, manaSources } from './sources'
-import { draw, find, inZone, mint, noted, relocate, shuffleLibrary } from './state'
+import { shuffle } from './random'
+import { draw, find, inZone, mint, noted, relocate, shuffleLibrary, toBottom } from './state'
 import { snapshot } from './stats'
 import type { Action, Decision, GameState, Instance, Resolution } from './types'
 
@@ -267,11 +268,68 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
     case 'topCard': {
       const top = inZone(state, 'library')[0]
       if (!top) return { state }
-      const land = /\bLand\b/.test(top.card.type_line ?? '')
-      if (land && effect.land === 'battlefield' && effect.ask) {
-        return { state, wait: { kind: 'confirm', prompt: `${r.name}: put ${top.card.name} onto the battlefield?` } }
+      if (matches(top, effect.match, r.source, state)) {
+        if (!effect.ask) return { state: takeTop(state, r, effect) }
+        const where = effect.hit === 'hand' ? 'into your hand' : `onto the battlefield${effect.tapped ? ' tapped' : ''}`
+        return { state, wait: { kind: 'confirm', prompt: `${r.name}: put ${top.card.name} ${where}?` } }
       }
-      return { state: revealTop(state, r, effect, true) }
+      return leaveTop(state, r, effect)
+    }
+
+    case 'dig': {
+      const looked = inZone(state, 'library').slice(0, amount(state, r, effect.count))
+      if (!looked.length) return { state: noted(state, `${r.name}: no cards to look at`) }
+      const filter = effect.take && settled(state, r, effect.take)
+      const options = looked.filter((c) => !filter || matches(c, filter, r.source, state)).map((c) => c.iid)
+      if (effect.takeCount === 'all') return { state: finishDig(state, r, effect, options) }
+      const max = Math.min(effect.takeCount, options.length)
+      if (max === 0) return { state: finishDig(state, r, effect, []) }
+      const what = effect.take ? asked(effect.take, effect.takeCount, effect.upTo, 'card') : plural(max, 'card')
+      return {
+        state,
+        wait: {
+          kind: 'pick',
+          zone: 'library',
+          prompt: `${r.name}: the top ${looked.length} — take ${what} ${effect.to === 'hand' ? 'into your hand' : 'onto the battlefield'}`,
+          options,
+          seen: looked.map((c) => c.iid).filter((iid) => !options.includes(iid)),
+          min: effect.upTo ? 0 : max,
+          max,
+        },
+      }
+    }
+
+    case 'digUntil': {
+      const library = inZone(state, 'library')
+      const at = library.findIndex((c) => matches(c, effect.filter, r.source, state))
+      const revealed = at < 0 ? library : library.slice(0, at)
+      const found = at < 0 ? null : library[at]
+      let next = state
+      if (found) {
+        next = effect.to === 'battlefield'
+          ? enterBattlefield(next, found.iid).state
+          : { ...next, cards: relocate(next.cards, found.iid, 'hand'), drawn: [found.iid] }
+      }
+      next = putAway(next, revealed.map((c) => c.iid), effect.rest, true)
+      const where = effect.to === 'hand' ? 'into your hand' : 'onto the battlefield'
+      return {
+        state: noted(next, found
+          ? `${r.name}: revealed ${plural(revealed.length + 1, 'card')} — ${found.card.name} ${where}`
+          : `${r.name}: revealed the whole library and found nothing`),
+      }
+    }
+
+    case 'putBack': {
+      const hand = inZone(state, 'hand').map((c) => c.iid)
+      const owed = Math.min(effect.count, hand.length)
+      if (owed <= 0) return { state }
+      return {
+        state,
+        wait: {
+          kind: 'pick', zone: 'hand', options: hand, min: owed, max: owed,
+          prompt: `${r.name}: put ${plural(owed, 'card')} on top of your library — the first you pick goes on top`,
+        },
+      }
     }
 
     case 'fromHand': {
@@ -412,27 +470,90 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
   }
 }
 
-/** Coiling Oracle and its kind: the top card shown, and sent on its way. */
-function revealTop(
-  state: GameState, r: Resolution, effect: Extract<Effect, { op: 'topCard' }>, takeLand: boolean,
-): GameState {
+type TopCard = Extract<Effect, { op: 'topCard' }>
+
+/** Coiling Oracle and its kind: the top card is the one wanted, and goes
+ *  where the card says. */
+function takeTop(state: GameState, r: Resolution, effect: TopCard): GameState {
   const top = inZone(state, 'library')[0]
   if (!top) return state
-  const land = /\bLand\b/.test(top.card.type_line ?? '')
-  const to = land ? (takeLand ? effect.land : 'stay') : effect.other
-  if (to === 'battlefield') {
-    return noted(enterBattlefield(state, top.iid).state, `${r.name} revealed ${top.card.name} — onto the battlefield`)
+  if (effect.hit === 'battlefield') {
+    return noted(enterBattlefield(state, top.iid, { forceTapped: effect.tapped }).state,
+      `${r.name} revealed ${top.card.name} — onto the battlefield${effect.tapped ? ' tapped' : ''}`)
   }
-  if (to === 'hand') {
-    return noted({ ...state, cards: relocate(state.cards, top.iid, 'hand'), drawn: [top.iid] }, `${r.name} revealed ${top.card.name} — into your hand`)
+  return noted({ ...state, cards: relocate(state.cards, top.iid, 'hand'), drawn: [top.iid] }, `${r.name} revealed ${top.card.name} — into your hand`)
+}
+
+/** …or it is not, or you turned it down: where it goes instead, which may
+ *  be a question of its own. */
+function leaveTop(state: GameState, r: Resolution, effect: TopCard): Outcome {
+  const top = inZone(state, 'library')[0]
+  if (!top) return { state }
+  if (effect.miss === 'stay') return { state: noted(state, `${r.name} looked at ${top.card.name}`) }
+  if (effect.missAsk && effect.miss !== 'hand') {
+    const where = effect.miss === 'bottom' ? 'on the bottom of your library' : 'into your graveyard'
+    return {
+      state: { ...state, resolving: { ...r, asked: 1 } },
+      wait: { kind: 'confirm', prompt: `${r.name}: put ${top.card.name} ${where}?` },
+    }
+  }
+  return { state: missTop(state, r, effect) }
+}
+
+function missTop(state: GameState, r: Resolution, effect: TopCard): GameState {
+  const top = inZone(state, 'library')[0]
+  if (!top) return state
+  if (effect.miss === 'hand') {
+    return noted({ ...state, cards: relocate(state.cards, top.iid, 'hand'), drawn: [top.iid] }, `${r.name} looked at ${top.card.name} — into your hand`)
+  }
+  if (effect.miss === 'bottom') {
+    return noted({ ...state, cards: toBottom(state.cards, top.iid, 'library') }, `${r.name} looked at ${top.card.name} — to the bottom`)
+  }
+  if (effect.miss === 'graveyard') {
+    return noted({ ...state, cards: relocate(state.cards, top.iid, 'graveyard') }, `${r.name} looked at ${top.card.name} — into the graveyard`)
   }
   return noted(state, `${r.name} looked at ${top.card.name}`)
+}
+
+/** Cards looked at and not taken, sent where the card says. On the bottom
+ *  they go in a random order when it says so, and as they were otherwise. */
+function putAway(state: GameState, iids: readonly string[], rest: 'bottom' | 'graveyard' | 'top', random = false): GameState {
+  if (rest === 'top' || !iids.length) return state
+  let next = state
+  let order = [...iids]
+  if (rest === 'bottom' && random) {
+    const [shuffled, seed] = shuffle(order, next.seed)
+    order = shuffled
+    next = { ...next, seed }
+  }
+  let cards = next.cards
+  for (const iid of order) cards = rest === 'bottom' ? toBottom(cards, iid, 'library') : relocate(cards, iid, 'graveyard')
+  return { ...next, cards }
+}
+
+/** What was taken from the top few goes where it is going; the rest go
+ *  away. */
+function finishDig(state: GameState, r: Resolution, effect: Extract<Effect, { op: 'dig' }>, taken: readonly string[]): GameState {
+  const looked = inZone(state, 'library').slice(0, amount(state, r, effect.count))
+  const took = taken.map((iid) => find(state, iid)!)
+  let next = state
+  for (const iid of taken) {
+    next = effect.to === 'battlefield'
+      ? enterBattlefield(next, iid, { forceTapped: effect.tapped }).state
+      : { ...next, cards: relocate(next.cards, iid, 'hand') }
+  }
+  if (effect.to === 'hand' && taken.length) next = { ...next, drawn: [...taken] }
+  next = putAway(next, looked.map((c) => c.iid).filter((iid) => !taken.includes(iid)), effect.rest)
+  const where = effect.to === 'hand' ? 'into your hand' : `onto the battlefield${effect.tapped ? ' tapped' : ''}`
+  return acted(noted(next, took.length
+    ? `${r.name}: looked at ${looked.length} — ${names(took)} ${where}`
+    : `${r.name}: looked at ${looked.length}, and took nothing`), took.length)
 }
 
 /** On to the next effect. */
 const advance = (state: GameState): GameState => {
   const r = state.resolving!
-  return { ...state, resolving: { ...r, at: r.at + 1, agreed: false } }
+  return { ...state, resolving: { ...r, at: r.at + 1, agreed: false, asked: 0 } }
 }
 
 /** All of it is done: the spell goes to the graveyard, and whatever was not
@@ -477,22 +598,26 @@ export function answer(state: GameState, action: Action): GameState {
   const { resolving: r, pending } = state
   if (!r || !pending) return state
   const effect = r.effects[r.at]
-  const settled: GameState = { ...state, pending: null }
+  const answered: GameState = { ...state, pending: null }
 
   if (pending.kind === 'confirm' && action.type === 'confirm') {
     // Into the Wilds asks about the card, not about the ability.
     if (effect.op === 'topCard' && (!effect.optional || r.agreed)) {
-      return carryOn(advance(revealTop(settled, r, effect, action.yes)))
+      // The second question: where a card that was not kept goes.
+      if (r.asked === 1) return carryOn(advance(action.yes ? missTop(answered, r, effect) : answered))
+      if (action.yes) return carryOn(advance(takeTop(answered, r, effect)))
+      const left = leaveTop(answered, r, effect)
+      return left.wait ? { ...left.state, pending: left.wait } : carryOn(advance(left.state))
     }
-    if (action.yes) return carryOn({ ...settled, resolving: { ...r, agreed: true } })
-    return carryOn(advance({ ...settled, resolving: { ...r, declined: true } }))
+    if (action.yes) return carryOn({ ...answered, resolving: { ...r, agreed: true } })
+    return carryOn(advance({ ...answered, resolving: { ...r, declined: true } }))
   }
 
   if (pending.kind === 'pick' && action.type === 'choose') {
     const picked = [...new Set(action.iids)]
     if (picked.length < pending.min || picked.length > pending.max) return state
     if (!picked.every((iid) => pending.options.includes(iid))) return state
-    return carryOn(advance(applyPick(settled, r, effect, picked)))
+    return carryOn(advance(applyPick(answered, r, effect, picked)))
   }
 
   if (pending.kind === 'arrange' && action.type === 'arrange') {
@@ -500,11 +625,11 @@ export function answer(state: GameState, action: Action): GameState {
     if (all.size !== pending.cards.length || !pending.cards.every((iid) => all.has(iid))) return state
     const said = `${pending.mode === 'scry' ? 'Scried' : 'Surveilled'} ${pending.cards.length}: ${action.keep.length} on top`
     if (pending.mode === 'scry') {
-      return carryOn(advance(noted({ ...settled, cards: arrange(settled.cards, action.keep, action.away) }, said)))
+      return carryOn(advance(noted({ ...answered, cards: arrange(answered.cards, action.keep, action.away) }, said)))
     }
-    let cards = arrange(settled.cards, action.keep, [])
+    let cards = arrange(answered.cards, action.keep, [])
     for (const iid of action.away) cards = relocate(cards, iid, 'graveyard')
-    return carryOn(advance(noted({ ...settled, cards }, said)))
+    return carryOn(advance(noted({ ...answered, cards }, said)))
   }
 
   if (pending.kind === 'mode' && action.type === 'mode' && effect.op === 'mode') {
@@ -513,7 +638,7 @@ export function answer(state: GameState, action: Action): GameState {
     const taken = stop ? r.modes : [...r.modes, action.index]
     // More may be chosen: ask again, with this one taken.
     if (!stop && taken.length < effect.max && taken.length < effect.modes.length) {
-      return carryOn({ ...settled, resolving: { ...r, modes: taken } })
+      return carryOn({ ...answered, resolving: { ...r, modes: taken } })
     }
     // The chosen modes' effects take the place of the choice, in the order
     // they are printed.
@@ -521,7 +646,7 @@ export function answer(state: GameState, action: Action): GameState {
       .map((mode) => ({ ...mode, text: mode.text.split('~').join(r.name) }))
     const effects = [...r.effects.slice(0, r.at + 1), ...chosen.flatMap((m) => m.effects), ...r.effects.slice(r.at + 1)]
     const leftover = [r.leftover, ...chosen.filter((m) => !m.complete).map((m) => m.text)].filter(Boolean).join('\n') || null
-    let said: GameState = { ...settled, resolving: { ...r, effects, leftover, modes: [] } }
+    let said: GameState = { ...answered, resolving: { ...r, effects, leftover, modes: [] } }
     for (const mode of chosen) said = noted(said, `${r.name}: ${mode.text}`)
     return carryOn(advance(said))
   }
@@ -570,6 +695,15 @@ function applyPick(state: GameState, r: Resolution, effect: Effect, picked: stri
       return acted(noted({ ...state, cards: hand }, `${r.name}: discarded ${names(cards)}`), picked.length)
     }
 
+    case 'dig':
+      return finishDig(state, r, effect, picked)
+
+    case 'putBack': {
+      let library = state.cards
+      for (const iid of picked) library = relocate(library, iid, 'library')
+      return noted({ ...state, cards: arrange(library, picked, []) }, `${r.name}: put ${plural(picked.length, 'card')} on top of your library`)
+    }
+
     case 'reanimate': {
       let next = state
       for (const iid of picked) {
@@ -598,7 +732,7 @@ export function resolveTop(state: GameState): GameState {
   if (!top) return state
   const stack = state.stack.slice(0, -1)
   const inst = find(state, top.iid)
-  const blank = { at: 0, x: top.x, chosen: [], agreed: false, declined: false, last: 0, modes: [] }
+  const blank = { at: 0, x: top.x, chosen: [], agreed: false, declined: false, last: 0, modes: [], asked: 0 }
 
   if (top.ability) {
     const name = inst?.card.name ?? 'An ability'

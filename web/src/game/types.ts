@@ -127,6 +127,9 @@ export interface Resolution {
   declined: boolean
   /** The modes taken so far, of a "choose one or more" still being asked. */
   modes: number[]
+  /** Questions the effect at `at` has had answered, for one that asks more
+   *  than one. */
+  asked: number
   /** How many things the effect before this one acted on — "the number of
    *  creatures destroyed this way". */
   last: number
@@ -163,6 +166,9 @@ export type Decision =
     options: string[]
     min: number
     max: number
+    /** Cards looked at with the options that cannot be taken: the rest of
+     *  the top five, shown so the choice is made knowing them. */
+    seen?: string[]
   }
   /** Scry or surveil: which of these stay on top. */
   | { kind: 'arrange'; mode: 'scry' | 'surveil'; cards: string[] }
