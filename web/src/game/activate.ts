@@ -14,13 +14,18 @@ import { compile } from './compiler/compile'
 import type { ActivatedAbility } from './compiler/ir'
 import { autotap, demand, formatCost, parseCost } from './mana'
 import { onBattlefield } from './match'
-import { chooseKind, isCreature, manaSources } from './sources'
+import { holds } from './holds'
+import { chooseKind, isCreature, manaSources, tapForPayment } from './sources'
 import { find, inZone, mint, noted, relocate } from './state'
 import { hasKeyword, power, snapshot } from './stats'
 import { isMain } from './turn'
 import type { GameState, Instance } from './types'
 
 export const abilitiesOf = (inst: Instance): ActivatedAbility[] => compile(inst.card).activated
+
+/** Where a card has to be for this ability to be used. */
+export const usedFrom = (ability: ActivatedAbility) =>
+  (ability.fromHand ? 'hand' : ability.fromGraveyard ? 'graveyard' : 'battlefield')
 
 /** The cost in a few words, for the menu. */
 export function costLabel(ability: ActivatedAbility): string {
@@ -35,6 +40,8 @@ export function costLabel(ability: ActivatedAbility): string {
     cost.sacrificeAny ? 'sacrifice any number' : '',
     cost.tapOther ? 'tap another' : '',
     cost.crew ? `tap ${cost.crew} power` : '',
+    cost.bounce ? `return ${cost.bounce.count}` : '',
+    cost.exileSelf ? 'exile' : '',
     cost.discardSelf ? 'discard' : '',
     cost.remove ? `−${cost.remove.count} ${cost.remove.counter}` : '',
     cost.add ? `+${cost.add.count} ${cost.add.counter}` : '',
@@ -52,6 +59,7 @@ function payable(state: GameState, inst: Instance, ability: ActivatedAbility): I
     return onBattlefield(state, { types: ['creature'], controller: 'you', tapped: false }, inst.iid)
       .filter((c) => c.iid !== inst.iid)
   }
+  if (cost.bounce) return onBattlefield(state, cost.bounce.filter, inst.iid)
   if (cost.tapOther) return onBattlefield(state, cost.tapOther, inst.iid)
   if (cost.sacrificeAny) return onBattlefield(state, cost.sacrificeAny, inst.iid).filter((c) => c.iid !== inst.iid)
   if (!cost.sacrifice) return []
@@ -72,8 +80,13 @@ export function activationProblem(state: GameState, iid: string, index: number, 
   const ability = inst && abilitiesOf(inst)[index]
   if (!inst || !ability) return 'There is no such ability'
   if (state.pending) return 'Finish the choice in front of you first'
-  if (inst.zone !== (ability.fromHand ? 'hand' : 'battlefield')) {
-    return ability.fromHand ? 'Only from your hand' : 'It is not on the battlefield'
+  const from = usedFrom(ability)
+  if (inst.zone !== from) {
+    return from === 'hand' ? 'Only from your hand' : from === 'graveyard' ? 'Only from your graveyard' : 'It is not on the battlefield'
+  }
+  if (ability.only) {
+    const asking = { x: 0, source: iid, chosen: [], event: null, known: {}, last: 0 }
+    if (!holds(state, asking, ability.only.test)) return `Only if ${ability.only.text}`
   }
   if (ability.sorcery && !(isMain(state.step) && !state.stack.length)) {
     return 'Only in a main phase, with the stack empty'
@@ -96,6 +109,7 @@ export function activationProblem(state: GameState, iid: string, index: number, 
     return `Not enough ${cost.remove.counter} counters`
   }
   if (cost.tapOther && !payable(state, inst, ability).length) return 'Nothing to tap for it'
+  if (cost.bounce && payable(state, inst, ability).length < cost.bounce.count) return 'Not enough to return to your hand'
   if (cost.crew && payable(state, inst, ability).reduce((n, c) => n + Math.max(0, power(c, state)), 0) < cost.crew) {
     return `Not enough power to crew it — it takes ${cost.crew}`
   }
@@ -113,7 +127,7 @@ function complete(state: GameState, iid: string, index: number, picked: string[]
   const ability = abilitiesOf(inst)[index]
   const { cost } = ability
   const tapping = Boolean(cost.tapOther || cost.crew)
-  const sacrificed = tapping ? [] : picked
+  const sacrificed = tapping || cost.bounce ? [] : picked
   // As they were when the cost was paid: the ability may ask after them.
   const known = Object.fromEntries([iid, ...sacrificed].map((id) => [id, snapshot(find(state, id)!, state)]))
   let next: GameState = { ...state, pending: null, paying: null }
@@ -126,13 +140,16 @@ function complete(state: GameState, iid: string, index: number, picked: string[]
   if (cost.mana) {
     const paid = autotap(parseCost(cost.mana), payers(next, inst, ability), { x, pool: next.pool, life: next.life })
     if (!paid) return state
-    const tapping = new Set(paid.taps.map((t) => t.id))
     next = {
       ...next,
       pool: paid.pool,
       life: next.life - paid.life,
-      cards: next.cards.map((c) => (tapping.has(c.iid) ? { ...c, tapped: true } : c)),
+      cards: tapForPayment(next, new Set(paid.taps.map((t) => t.id))),
     }
+  }
+  // Lands given back as the cost — after the mana, so they could pay it.
+  if (cost.bounce) {
+    for (const back of picked) next = { ...next, cards: relocate(next.cards, back, 'hand') }
   }
   const marks = [
     ...(ability.oncePerTurn ? [`act:${iid}#${index}`] : []),
@@ -161,6 +178,7 @@ function complete(state: GameState, iid: string, index: number, picked: string[]
   for (const gone of [...sacrificed, ...(cost.sacrificeSelf || cost.discardSelf ? [iid] : [])]) {
     next = { ...next, cards: relocate(next.cards, gone, 'graveyard') }
   }
+  if (cost.exileSelf) next = { ...next, cards: relocate(next.cards, iid, 'exile') }
 
   if (ability.mana) {
     const pool = { ...next.pool }
@@ -214,6 +232,23 @@ export function activate(state: GameState, iid: string, index: number, x = 0): G
           min: crew, max: 9999, of: 'power',
           cost: Object.fromEntries(options.map((c) => [c.iid, Math.max(0, power(c, state))])),
         },
+      },
+    }
+  }
+  // So many of them, exactly: asked unless there are only that many.
+  if (ability.cost.bounce) {
+    const { count } = ability.cost.bounce
+    if (options.length === count) return complete(state, iid, index, options.map((c) => c.iid), x)
+    return {
+      ...state,
+      paying: { iid, index, x },
+      pending: {
+        kind: 'pick',
+        zone: 'battlefield',
+        prompt: `${inst.card.name}: return ${count} of these to your hand`,
+        options: options.map((c) => c.iid),
+        min: count,
+        max: count,
       },
     }
   }

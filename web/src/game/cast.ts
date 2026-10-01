@@ -17,7 +17,8 @@ import { forSource, isKind, sweeping } from './kinds'
 import { matches, onBattlefield } from './match'
 import { autotap, demand, formatCost, parseCost, type Cost, type ManaType, type Payment } from './mana'
 import { seatFor } from './seat'
-import { canTapForMana, hasKeyword, isCreature, manaAbilities, manaSources } from './sources'
+import { partySize } from './party'
+import { canTapForMana, hasKeyword, isCreature, manaAbilities, manaSources, tapForPayment } from './sources'
 import { find, inZone, mint, noted, relocate } from './state'
 import { isMain } from './turn'
 import type { GameState, Instance, Spot } from './types'
@@ -239,6 +240,7 @@ function discount(state: GameState, inst: Instance): { generic: number; colored:
     let mine = 0
     if (fixed.per) mine = fixed.amount * onBattlefield(state, fixed.per, inst.iid).length
     else if (fixed.perType) mine = fixed.amount * creatureTypes(state)
+    else if (fixed.party) mine = fixed.amount * partySize(state)
     else if (!fixed.when || holds(state, asking, fixed.when)) mine = fixed.amount
     less += fixed.max === undefined ? mine : Math.min(mine, fixed.max)
   }
@@ -299,10 +301,7 @@ export function castSpell(state: GameState, iid: string, asked = 0, free = false
   const allowing = free && !inst.mayPlay?.free ? freeSource(state, inst) : null
 
   const tapping = new Set(payment.taps.map((t) => t.id))
-  const cards = relocate(
-    state.cards.map((c) => (tapping.has(c.iid) ? { ...c, tapped: true } : c)),
-    iid, 'stack',
-  )
+  const cards = relocate(tapForPayment(state, tapping), iid, 'stack')
   const [id, minted] = mint({ ...state, cards }, 's')
   const casts = inst.zone === 'command'
     ? { ...state.casts, [iid]: (state.casts[iid] ?? 0) + 1 }
@@ -374,16 +373,17 @@ export function tapForMana(state: GameState, iid: string, ability = 0, kinds: Ma
     const paid = autotap(input, manaSources(state, {}, new Set([iid])), { pool: state.pool })
     if (!paid) return state
     const tapping = new Set(paid.taps.map((t) => t.id))
-    next = {
-      ...next,
-      pool: paid.pool,
-      cards: next.cards.map((c) => (tapping.has(c.iid) ? { ...c, tapped: true } : c)),
-    }
+    next = { ...next, pool: paid.pool, cards: tapForPayment(next, tapping) }
   }
 
   const pool = { ...next.pool }
   for (const kind of made) pool[kind] += 1
-  const cards = next.cards.map((c) => (c.iid === iid ? { ...c, tapped: true } : c))
+  const { rider } = chosen
+  const cards = next.cards.map((c) => (
+    c.iid === iid
+      ? { ...c, tapped: true, ...(rider ? { counters: { ...c.counters, [rider]: (c.counters?.[rider] ?? 0) + 1 } } : {}) }
+      : c
+  ))
   return noted({ ...next, pool, cards }, `Tapped ${inst.card.name} for ${made.map((k) => `{${k}}`).join('')}`)
 }
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
-import { abilitiesOf, activationProblem, costLabel } from '../game/activate'
+import { abilitiesOf, activationProblem, costLabel, usedFrom } from '../game/activate'
 import {
   checkCast, freeSource, isLand, landDrops, landProblem, manaOptions, manaProblem, playable, revealedTop,
 } from '../game/cast'
@@ -288,6 +288,9 @@ export function Playtest({
     const top = revealedTop(game)
     return [
       ...cards.filter((c) => c.zone === 'exile' && c.mayPlay).map((c) => ({ inst: c, from: 'Exile' })),
+      // In the graveyard, with something to do from there.
+      ...cards.filter((c) => c.zone === 'graveyard' && abilitiesOf(c).some((a) => a.fromGraveyard))
+        .map((c) => ({ inst: c, from: 'Graveyard' })),
       // Suspended: not yet playable, and worth seeing count down.
       ...cards.filter((c) => c.zone === 'exile' && c.suspended)
         .map((c) => ({ inst: c, from: `Suspended · ${c.suspended}` })),
@@ -693,7 +696,7 @@ export function Playtest({
             onPick={candidates.has(c.iid) ? pick : undefined}
             selected={selected.includes(c.iid)}
             attacking={game.attacking.includes(c.iid)}
-            onAbilities={game.rules && abilitiesOf(c).some((a) => !a.fromHand) ? setAbilitiesFor : undefined}
+            onAbilities={game.rules && abilitiesOf(c).some((a) => usedFrom(a) === 'battlefield') ? setAbilitiesFor : undefined}
           />
         ))}
 
@@ -802,7 +805,7 @@ export function Playtest({
           // battlefield, the rest.
           const offers = abilitiesOf(source)
             .map((ability, index) => ({ ability, index }))
-            .filter(({ ability }) => ability.fromHand === (source.zone === 'hand'))
+            .filter(({ ability }) => usedFrom(ability) === source.zone)
             .map(({ ability, index }) => ({
               index,
               cost: costLabel(ability),
@@ -957,7 +960,7 @@ export function Playtest({
                 selected={selected.includes(c.iid)}
                 onHover={setPreviewing}
                 rules={game.rules}
-                onAbilities={game.rules && abilitiesOf(c).some((a) => a.fromHand) ? setAbilitiesFor : undefined}
+                onAbilities={game.rules && abilitiesOf(c).some((a) => usedFrom(a) === 'hand') ? setAbilitiesFor : undefined}
               />
             ))}
             {!inZone.hand.length && !elsewhere.length && <p className="faint" style={{ fontSize: 12 }}>Empty hand.</p>}
@@ -970,6 +973,7 @@ export function Playtest({
                 onHover={setPreviewing}
                 rules={game.rules}
                 tag={from}
+                onAbilities={from === 'Graveyard' ? setAbilitiesFor : undefined}
                 style={i === 0 && inZone.hand.length ? { marginLeft: 18 } : undefined}
               />
             ))}

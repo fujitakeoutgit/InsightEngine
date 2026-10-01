@@ -72,6 +72,7 @@ export function readCostLess(sentence: string): Static | null {
   if (!m) return null
   const amount = Number(m[1])
   if (m[2] === 'creature type among creatures you control') return { kind: 'selfCostLess', amount, perType: true }
+  if (m[2] === 'creature in your party') return { kind: 'selfCostLess', amount, party: true }
   if (m[2]) {
     const per = readFilter(m[2])
     return per && { kind: 'selfCostLess', amount, per }
@@ -96,6 +97,11 @@ export function readStatic(line: string): Static | null {
   }
   const echo = /^echo ((?:\{[^}]+\})+)$/.exec(l)
   if (echo) return { kind: 'echo', cost: echo[1].toUpperCase() }
+  const shield = /^as long as (.+?), prevent all damage that would be dealt to (equipped creature|enchanted creature|~)$/.exec(l)
+  if (shield) {
+    const when = readTest(shield[1])
+    return when && { kind: 'shield', to: shield[2] === '~' ? 'self' : 'attached', when }
+  }
   const upkeep = /^cumulative upkeep ((?:\{[^}]+\})+)$/.exec(l)
   if (upkeep) return { kind: 'cumulativeUpkeep', cost: upkeep[1].toUpperCase() }
   if (/^paradigm$/.test(l)) return { kind: 'paradigm' }

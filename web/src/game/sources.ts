@@ -25,6 +25,9 @@ export interface ManaAbility {
   input: number
   /** The ability's own words. */
   text: string
+  /** A counter it puts on the permanent as it is tapped: "Add {U}. Put a
+   *  time counter on ~." */
+  rider?: string
 }
 
 const LAND_TYPES: [string, Color][] = [
@@ -175,7 +178,8 @@ export function manaAbilities(inst: Instance, state: GameState): ManaAbility[] {
     if (!taps || !usable) continue
 
     const makes = readOutput(added[1], state, inst)
-    if (makes?.length) out.push({ makes, input, text })
+    const rider = /^Add [^.]+\. Put an? ([a-z]+) counter on [^.]+\.?$/i.exec(text.slice(colon + 2))
+    if (makes?.length) out.push({ makes, input, text, ...(rider ? { rider: rider[1].toLowerCase() } : {}) })
   }
   return out.map((ability) => ({ ...ability, makes: [...ability.makes, ...additional(inst, state, ability.makes)] }))
 }
@@ -202,6 +206,20 @@ function additional(inst: Instance, state: GameState, makes: readonly ManaType[]
     }
   }
   return more
+}
+
+/** These permanents, tapped for mana: turned sideways, and with whatever
+ *  else their mana ability does — a time counter on Trenzalore Clocktower. */
+export function tapForPayment(state: GameState, ids: ReadonlySet<string>): Instance[] {
+  return state.cards.map((c) => {
+    if (!ids.has(c.iid)) return c
+    const [rider] = manaAbilities(c, state).map((ability) => ability.rider).filter(Boolean)
+    return {
+      ...c,
+      tapped: true,
+      ...(rider ? { counters: { ...c.counters, [rider]: (c.counters?.[rider] ?? 0) + 1 } } : {}),
+    }
+  })
 }
 
 /** Which of several kinds of mana to make, when nothing says: the one the

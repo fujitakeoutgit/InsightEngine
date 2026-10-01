@@ -26,7 +26,9 @@ import { leveled } from './classes'
 import { autotap, parseCost } from './mana'
 import { matches, onBattlefield } from './match'
 import { seatFor } from './seat'
-import { chooseKind, isCreature, manaSources } from './sources'
+import { sweeping } from './kinds'
+import { hasRole, isParty } from './party'
+import { chooseKind, isCreature, manaSources, tapForPayment } from './sources'
 import { shuffle } from './random'
 import {
   draw, find, happen, inZone, mint, noted, relocate, shuffleLibrary, startingLoyalty, toBottom,
@@ -213,7 +215,9 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
         ? (effect.zone === 'exile' ? exiledWith(state, r.source) : inZone(state, effect.zone))
             .filter((c) => matches(c, wanted, r.source)).map((c) => c.iid)
         // The second of two targets is not the first again.
-        : onBattlefield(state, wanted, r.source).map((c) => c.iid).filter((iid) => !r.kept.includes(iid))
+        : onBattlefield(state, wanted, r.source)
+          .filter((c) => !r.kept.includes(c.iid) && (!effect.party || hasRole(c, sweeping(state))))
+          .map((c) => c.iid)
       const set = (chosen: string[]): GameState => ({
         ...state,
         resolving: {
@@ -230,10 +234,11 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
         wait: {
           kind: 'pick',
           zone: effect.zone ?? 'battlefield',
-          prompt: effect.zone
-            ? `${r.name}: choose ${asked(effect.filter, effect.count, effect.upTo, 'card')} ${
-              effect.zone === 'exile' ? 'it has exiled' : 'in your graveyard'}`
-            : `${r.name}: choose ${asked(effect.filter, effect.count, effect.upTo, 'permanent')}`,
+          prompt: effect.party ? `${r.name}: choose a party — up to one each of Cleric, Rogue, Warrior and Wizard`
+            : effect.zone
+              ? `${r.name}: choose ${asked(effect.filter, effect.count, effect.upTo, 'card')} ${
+                effect.zone === 'exile' ? 'it has exiled' : 'in your graveyard'}`
+              : `${r.name}: choose ${asked(effect.filter, effect.count, effect.upTo, 'permanent')}`,
           options,
           min: effect.must ? Math.min(effect.count, options.length) : 0,
           max: Math.min(effect.count, options.length),
@@ -547,7 +552,18 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       if (effect.to.kind === 'you') {
         return { state: noted({ ...state, life: state.life - n }, `${r.name} deals ${n} damage to you`) }
       }
-      const hit = aimed(state, r, effect.to).filter((c) => c.zone === 'battlefield')
+      const struck = aimed(state, r, effect.to).filter((c) => c.zone === 'battlefield')
+      // Damage that something on the battlefield prevents is not dealt.
+      const hit = struck.filter((c) => !inZone(state, 'battlefield').some((source) => (
+        compile(source.card).statics.some((fixed) => (
+          fixed.kind === 'shield'
+          && (fixed.to === 'self' ? source.iid === c.iid : source.attachedTo === c.iid)
+          && holds(state, { ...r, source: source.iid }, fixed.when)
+        ))
+      )))
+      if (struck.length > hit.length) {
+        state = noted(state, `Damage to ${names(struck.filter((c) => !hit.includes(c)))} is prevented`)
+      }
       if (!hit.length) return { state }
       // Undergrowth Champion: a +1/+1 counter goes in place of the damage.
       const shielded = (c: Instance) => (c.counters?.['+1/+1'] ?? 0) > 0
@@ -961,7 +977,8 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       const tapping = new Set(paid.taps.map((t) => t.id))
       return {
         state: noted({
-          ...change(state, [...tapping], (c) => ({ ...c, tapped: true })),
+          ...state,
+          cards: tapForPayment(state, tapping),
           pool: paid.pool,
           life: state.life - paid.life,
         }, `${r.name}: paid ${effect.cost}`),
@@ -1184,6 +1201,8 @@ export function answer(state: GameState, action: Action): GameState {
     // More than the card allows the picked to add up to.
     const { budget } = pending
     if (budget && picked.reduce((total, iid) => total + (budget.cost[iid] ?? 0), 0) > budget.max) return state
+    // Two Clerics are not a party.
+    if (effect.op === 'choose' && effect.party && !isParty(state, picked.map((iid) => find(state, iid)!))) return state
     return carryOn(advance(applyPick(answered, r, effect, picked)))
   }
 

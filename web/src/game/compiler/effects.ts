@@ -507,6 +507,14 @@ const PATTERNS: Pattern[] = [
   [/^exile (.+?), then return (?:it|them|that card|those cards) to the battlefield under (?:your|its owner's|their owners') control$/, (m) => (
     onPermanents(m[1], (what) => [{ op: 'flicker', what }])
   )],
+  // Keep a party, lose the rest.
+  [/^each player chooses a party from among creatures they control, then sacrifices the rest$/, () => [
+    { op: 'choose', filter: { types: ['creature'], controller: 'you' }, count: 4, upTo: true, party: true },
+    { op: 'move', what: { kind: 'others', filter: { types: ['creature'], controller: 'you' } }, to: 'graveyard' },
+  ]],
+  [/^shuffle your (graveyard and hand|hand and graveyard|graveyard|hand) into your library$/, (m) => [{
+    op: 'shuffleIn', zones: m[1].split(' and ') as ('graveyard' | 'hand')[],
+  }]],
   // Keep these, lose the rest: Slaughter the Strong.
   [/^each player chooses any number of (.+?) they control with total (power|toughness) (\d+) or less, then sacrifices all other (.+?) they control$/, (m) => {
     const keep = readFilter(m[1])

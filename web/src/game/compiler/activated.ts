@@ -11,7 +11,7 @@
 import type { ManaType } from '../mana'
 import { readAbility } from './effects'
 import type { AbilityCost, ActivatedAbility, Effect, Filter } from './ir'
-import { readFilter, readNumber } from './read'
+import { readFilter, readNumber, readTest } from './read'
 
 const FREE: AbilityCost = {
   mana: null, tap: false, life: 0, sacrificeSelf: false, sacrifice: null, sacrificeAny: null,
@@ -26,7 +26,7 @@ export function readCost(text: string): AbilityCost | null {
   if (loyalty) return { ...cost, loyalty: (loyalty[1] === '+' || !loyalty[1] ? 1 : -1) * Number(loyalty[2]) }
 
   // "Remove three quest counters from ~ and sacrifice it" is two costs.
-  const parts = text.split(/,\s*/).flatMap((part) => part.split(/ and (?=sacrifice |pay |discard |remove |put |tap )/i))
+  const parts = text.split(/,\s*/).flatMap((part) => part.split(/ and (?=sacrifice |pay |discard |remove |put |tap |exile )/i))
   for (const part of parts) {
     const p = part.trim().toLowerCase()
     if (p === '{t}') cost.tap = true
@@ -51,6 +51,13 @@ export function readCost(text: string): AbilityCost | null {
       const count = readNumber(put[1])
       if (count === null) return null
       cost.add = { counter: put[2], count }
+    } else if (/^exile (~|it)(?: from your graveyard)?$/.test(p)) cost.exileSelf = true
+    else if (/^return (\w+) (.+?) to (?:its|their) owners?'s? hands?$/.test(p)) {
+      const back = /^return (\w+) (.+?) to (?:its|their) owners?'s? hands?$/.exec(p)!
+      const count = readNumber(back[1])
+      const filter = readFilter(back[2])
+      if (count === null || !filter) return null
+      cost.bounce = { filter: { ...filter, controller: 'you' }, count }
     } else if (/^tap an untapped /.test(p)) {
       const filter = readFilter(p.replace(/^tap an untapped /, ''))
       if (!filter) return null
@@ -80,14 +87,23 @@ function readMana(text: string): ManaType[][] | null {
 export function readActivated(
   line: string, shown: string, given?: { effects: Effect[]; complete: boolean },
 ): ActivatedAbility | null {
-  const colon = line.indexOf(': ')
+  // An ability word before the cost is flavor: "Renew — {2}{U}, …".
+  const said = line.replace(/^[A-Z][A-Za-z']*(?: [A-Za-z']+)* — (?=\{)/, '')
+  const colon = said.indexOf(': ')
   if (colon < 0) return null
-  const cost = readCost(line.slice(0, colon))
+  const cost = readCost(said.slice(0, colon))
   if (!cost) return null
 
-  let body = line.slice(colon + 2)
+  let body = said.slice(colon + 2)
   let sorcery = cost.loyalty !== null
   let oncePerTurn = false
+  let only: ActivatedAbility['only']
+  // "Activate only if you control a Time Lord": checked as it is activated.
+  body = body.replace(/\s*activate only if ([^.]+)\.?/i, (whole, condition: string) => {
+    const test = readTest(condition)
+    if (test) only = { test, text: condition.trim() }
+    return test ? '' : whole
+  })
   // Riders on when it may be activated.
   body = body.replace(/\s*activate only as a sorcery\.?/i, () => { sorcery = true; return '' })
   body = body.replace(/\s*activate only once each turn\.?/i, () => { oncePerTurn = true; return '' })
@@ -96,9 +112,14 @@ export function readActivated(
 
   const mana = given ? null : readMana(body)
   const read = given ?? (mana ? { effects: [] as Effect[], complete: true } : readAbility(body))
+  // What exiles itself from the graveyard, or returns itself from there,
+  // is used from there.
+  const fromGraveyard = /\bfrom your graveyard\b/i.test(said.slice(0, colon)) || /^return ~ from your graveyard\b/i.test(body.trim())
   return {
     text: shown, cost, sorcery, oncePerTurn, fromHand: false, mana,
     effects: read.effects, complete: read.complete,
+    ...(fromGraveyard ? { fromGraveyard } : {}),
+    ...(only ? { only } : {}),
   }
 }
 

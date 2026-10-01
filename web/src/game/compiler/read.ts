@@ -13,6 +13,7 @@ import { subtypeOf } from './subtypes'
 const NUMBERS: Record<string, number> = {
   a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5,
   six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, twenty: 20,
 }
 
 /** "two" → 2, "x" → 'X', "3" → 3; null for anything else. */
@@ -106,6 +107,7 @@ export function readTest(phrase: string, who: Speaking = NOBODY): Test | null {
     const filter = readFilter(control[3])
     return atLeast !== null && filter ? { control: { ...filter, controller: 'you' }, atLeast } : null
   }
+  if (/^you have a full party$/.test(p)) return { party: 4 }
   const exiled = /^(\w+) or more cards have been exiled with ~$/.exec(p)
   if (exiled) {
     const n = readNumber(exiled[1])
@@ -224,6 +226,7 @@ export function readFilter(phrase: string): Filter | null {
   const shares = take(/ that shares? a creature type with (it|~|enchanted creature|equipped creature)\b/)
   if (shares) filter.sharesType = shares[1] === 'it' ? 'it' : shares[1] === '~' ? 'self' : 'host'
   if (take(/ nontoken\b/)) filter.nontoken = true
+  if (take(/ nonlegendary\b/)) filter.notSubtypes = [...(filter.notSubtypes ?? []), 'Legendary']
   if (take(/ basic\b/)) filter.basic = true
   if (take(/ of the chosen type\b/)) filter.chosenType = true
   if (take(/ that's attacking alone\b/)) {
@@ -255,6 +258,8 @@ export function readFilter(phrase: string): Filter | null {
 
   const types: string[] = []
   const subtypes: string[] = []
+  // A creature type in two words.
+  if (take(/ time lords?\b/)) subtypes.push('Time Lord')
   const either = / or /.test(rest)
   const several = either || / and /.test(rest) || /,/.test(rest)
   const words = rest.replace(/,/g, ' ').split(/\s+/).filter(Boolean)

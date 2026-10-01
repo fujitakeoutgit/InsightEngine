@@ -204,6 +204,8 @@ export type Test =
   | { sharedType: number }
   /** "If three or more cards have been exiled with ~." */
   | { exiled: number }
+  /** "If you have a full party": this many creatures in it. */
+  | { party: number }
 
 /** A limit on a pick, by what the picked add up to. */
 export interface Budget { stat: 'power' | 'toughness'; max: number }
@@ -258,6 +260,8 @@ export type Effect = (
     /** Cards in your graveyard rather than permanents — or, in exile, the
      *  ones the source put there. */
     zone?: 'graveyard' | 'exile'
+    /** A party: at most one each of Cleric, Rogue, Warrior and Wizard. */
+    party?: boolean
     /** "With total power 4 or less": what the ones picked may add up to. */
     budget?: Budget
   }
@@ -590,6 +594,8 @@ export type Static =
     perType?: boolean
     /** "…can't reduce the amount of mana it costs by more than {5}." */
     max?: number
+    /** "For each creature in your party." */
+    party?: boolean
   }
   /** "If a triggered ability of another creature you control of the chosen
    *  type triggers, it triggers an additional time." */
@@ -646,6 +652,9 @@ export type Static =
   /** Paradigm: exiled as it resolves, to be cast again as a copy at the
    *  beginning of each first main phase. */
   | { kind: 'paradigm' }
+  /** "As long as you have a full party, prevent all damage that would be
+   *  dealt to equipped creature." */
+  | { kind: 'shield'; to: 'self' | 'attached'; when: Test }
   /** "~'s power and toughness are each equal to the number of lands you
    *  control": what it is in place of the `*` it prints. */
   | { kind: 'size'; stats: ('power' | 'toughness')[]; plus: number; measure: Measure }
@@ -676,6 +685,11 @@ export interface AbilityCost {
   /** Crew: tap untapped creatures you control with this much power between
    *  them. */
   crew?: number
+  /** "Return two lands you control to their owner's hand." */
+  bounce?: { filter: Filter; count: number }
+  /** Exile the card itself — from the battlefield, or from the graveyard
+   *  for an ability used from there. */
+  exileSelf?: boolean
 }
 
 export interface ActivatedAbility extends Ability {
@@ -685,6 +699,10 @@ export interface ActivatedAbility extends Ability {
   oncePerTurn: boolean
   /** Activated from your hand rather than the battlefield: cycling. */
   fromHand: boolean
+  /** …or from your graveyard: "return ~ from your graveyard to your hand". */
+  fromGraveyard?: boolean
+  /** "Activate only if you control a Time Lord", and how it was put. */
+  only?: { test: Test; text: string }
   /** A mana ability with a cost beyond {T}: it resolves at once, into the
    *  pool, and never touches the stack (CR 605). */
   mana: ManaType[][] | null
