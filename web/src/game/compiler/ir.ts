@@ -35,9 +35,9 @@ export interface Filter {
   /** A token. */
   token?: boolean
   /** "That shares a creature type with it": with the card the ability is
-   *  about, what this is attached to, or this card itself. Worked out into
-   *  `subtypes` as it is asked. */
-  sharesType?: 'it' | 'host' | 'self'
+   *  about, what this is attached to, this card itself — or `yours`, any
+   *  creature you control. Worked out into `subtypes` as it is asked. */
+  sharesType?: 'it' | 'host' | 'self' | 'yours'
   /** Color letters, any of: "blue" is `['U']`. */
   colors?: string[]
   colorless?: boolean
@@ -151,6 +151,8 @@ export type Aim =
   /** Every permanent matching that was not chosen: "sacrifices all other
    *  creatures". */
   | { kind: 'others'; filter: Filter }
+  /** The cards the source has exiled: "a card exiled with ~". */
+  | { kind: 'exiled' }
 
 /** How a copy differs from what it copies: "except it's a Spirit in addition
  *  to its other types and it isn't legendary". */
@@ -197,6 +199,8 @@ export type Test =
   | { not: Test }
   /** "You control three or more creatures that share a creature type." */
   | { sharedType: number }
+  /** "If three or more cards have been exiled with ~." */
+  | { exiled: number }
 
 /** A limit on a pick, by what the picked add up to. */
 export interface Budget { stat: 'power' | 'toughness'; max: number }
@@ -245,10 +249,26 @@ export type Effect = (
     count: number
     upTo: boolean
     must?: boolean
-    zone?: 'graveyard'
+    /** Cards in your graveyard rather than permanents — or, in exile, the
+     *  ones the source put there. */
+    zone?: 'graveyard' | 'exile'
     /** "With total power 4 or less": what the ones picked may add up to. */
     budget?: Budget
   }
+  /** Exile cards from the top of your library: they are what was chosen,
+   *  for what the card says of them next. */
+  | { op: 'exileTop'; count: Count }
+  /** Cards in exile that you may play, for a while: this turn, through the
+   *  end of your next, or for as long as they stay there — `free`, without
+   *  paying their mana costs. */
+  | { op: 'mayPlay'; who: Aim; until: 'end' | 'nextEnd' | 'exiled'; free?: boolean }
+  /** "You may cast a spell from your hand without paying its mana cost" —
+   *  or any number, from among the cards just exiled; what is not cast is
+   *  what stays chosen. */
+  | { op: 'castFree'; from: 'hand' | 'chosen'; filter: Filter; count: number }
+  /** The cards the source has exiled leave exile — all but the one the
+   *  ability is about, with `except`. */
+  | { op: 'unexile'; to: 'graveyard' | 'battlefield'; except?: boolean }
   /** "Choose a number between 0 and 10": it is X for the rest. */
   | { op: 'number'; min: number; max: number }
   /** Exile, and return at once: it arrives as a new permanent. */
@@ -308,15 +328,17 @@ export type Effect = (
    *  (`match`) it goes where `hit` says — asked first, when it is a "you
    *  may". Anything else, or a card you turned down, goes where `miss` says,
    *  which may be a question of its own: Coiling Oracle, Into the Wilds,
-   *  Parcelbeast, Cabaretti Ascendancy. */
+   *  Parcelbeast, Cabaretti Ascendancy. With `cast` it is cast from there
+   *  without paying its mana cost — only `once` a turn, where the card says. */
   | {
     op: 'topCard'
     match: Filter
-    hit: 'battlefield' | 'hand'
+    hit: 'battlefield' | 'hand' | 'cast'
     tapped: boolean
     ask: boolean
     miss: 'hand' | 'stay' | 'bottom' | 'graveyard'
     missAsk: boolean
+    once?: boolean
   }
   /** Look at the top cards of your library and take some: all that match,
    *  or up to a number of them. The rest go where the card says. */
@@ -339,8 +361,9 @@ export type Effect = (
   | { op: 'putBack'; count: number }
   /** Put a card from your hand onto the battlefield — a land, usually. */
   | { op: 'fromHand'; filter: Filter; count: number; upTo: boolean; tapped: boolean }
-  /** Move permanents: destroy, exile, return to hand, sacrifice. */
-  | { op: 'move'; what: Aim; to: 'graveyard' | 'exile' | 'hand' }
+  /** Move permanents: destroy, exile, return to hand, sacrifice. `only`
+   *  those still in one place: "exile that card from your graveyard". */
+  | { op: 'move'; what: Aim; to: 'graveyard' | 'exile' | 'hand'; only?: 'graveyard' }
   /** Return cards from your graveyard: ones you pick, or — `all` — every
    *  one that matches. `until` is for those that go back into exile:
    *  "exile those creatures at the beginning of your next upkeep". */
@@ -465,9 +488,16 @@ export type TriggerEvent =
   | { on: 'damaged'; who: 'self' }
   /** "When this Class becomes level 3." */
   | { on: 'level'; level: number }
+  /** "Whenever a creature you control leaves the battlefield." */
+  | { on: 'leaves'; who: Filter }
+  /** "When the sixth plan counter is put on ~." */
+  | { on: 'counters'; counter: string; count: number }
 
 export interface TriggeredAbility extends Ability {
   when: TriggerEvent
+  /** It belongs to one side of a card that had you choose as it entered —
+   *  Khans, or Dragons — and is there only if that was the side chosen. */
+  side?: string
   /** "…, if you control five or more lands, …": checked as it triggers. */
   condition?: Test
   /** It works from the graveyard: "return ~ from your graveyard to your
@@ -493,6 +523,16 @@ export type Static =
   | { kind: 'costLess'; filter: Filter; amount: number; colored?: string }
   /** "As ~ enters, choose a creature type." */
   | { kind: 'chooseType' }
+  /** "As ~ enters, choose Khans or Dragons." */
+  | { kind: 'chooseSide'; sides: string[] }
+  /** "You may look at the top card of your library any time." */
+  | { kind: 'lookTop' }
+  /** "You may play lands and cast spells from the top of your library" —
+   *  lands, the spells that match, or both. */
+  | { kind: 'playTop'; lands: boolean; spells: Filter | null }
+  /** "Once during each of your turns, you may cast a spell from your hand
+   *  or the top of your library without paying its mana cost." */
+  | { kind: 'freeSpell' }
   /** "~ is the chosen type in addition to its other types." */
   | { kind: 'isChosenType' }
   /** "Creatures you control are every creature type." */

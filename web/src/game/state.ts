@@ -62,15 +62,18 @@ export function relocate(
     const left = zone !== 'battlefield'
       ? {
           sick: false, counters: undefined, damage: undefined, attachedTo: undefined,
-          chosenType: undefined, fleeting: undefined, echo: undefined, frozen: undefined,
+          chosenType: undefined, chosenMode: undefined, fleeting: undefined, echo: undefined, frozen: undefined,
           card: c.original ?? c.was ?? c.card, original: undefined, was: undefined, revert: undefined,
         }
       : {}
+    // What a card in exile was allowed, and by what, ends when it leaves.
+    const moved = c.zone !== zone ? { mayPlay: undefined, exiledBy: undefined } : {}
     return {
       ...c,
       zone,
       tapped: zone === 'battlefield' ? (tapped ?? c.tapped) : false,
       ...left,
+      ...moved,
       ...(loyalty !== null ? { loyalty } : {}),
       ...(at ?? {}),
       buried: c.zone === 'graveyard' && zone === 'graveyard' ? c.buried : buried,

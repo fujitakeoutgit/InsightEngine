@@ -14,7 +14,7 @@ import { compile } from './compiler/compile'
 import { isCreatureType } from './compiler/subtypes'
 import { holds } from './holds'
 import { forSource, isKind, sweeping } from './kinds'
-import { onBattlefield } from './match'
+import { matches, onBattlefield } from './match'
 import { autotap, demand, formatCost, parseCost, type Cost, type ManaType, type Payment } from './mana'
 import { seatFor } from './seat'
 import { canTapForMana, hasKeyword, isCreature, manaAbilities, manaSources } from './sources'
@@ -95,16 +95,57 @@ export function enterBattlefield(
       ? {
           ...c, zone: 'battlefield' as const, tapped, sick, ...seat,
           ...(counters ? { counters } : {}), ...(echo ? { echo } : {}),
+          mayPlay: undefined, exiledBy: undefined,
         }
       : c
   ))
   return { state: { ...state, cards }, tapped, why: forceTapped ? undefined : verdict.why }
 }
 
+/** The top card of your library, while something lets you look at it. */
+export function revealedTop(state: GameState): Instance | null {
+  if (!state.rules) return null
+  const seen = inZone(state, 'battlefield').some((c) => (
+    compile(c.card).statics.some((fixed) => fixed.kind === 'lookTop' || fixed.kind === 'playTop')
+  ))
+  return seen ? state.cards.find((c) => c.zone === 'library') ?? null : null
+}
+
+/** May the top card of the library be played from there? Something on the
+ *  battlefield has to say so, of lands or of spells like this one. */
+function topPlay(state: GameState, inst: Instance): boolean {
+  if (state.cards.find((c) => c.zone === 'library')?.iid !== inst.iid) return false
+  return inZone(state, 'battlefield').some((source) => compile(source.card).statics.some((fixed) => (
+    fixed.kind === 'playTop' && (isLand(inst.card)
+      ? fixed.lands
+      : fixed.spells !== null && matches(inst, fixed.spells, source.iid, state))
+  )))
+}
+
+/** Where a card would be played from, if it may be played from where it is:
+ *  your hand, the command zone for a commander, exile for a card you were
+ *  told you may play, the top of your library when a permanent allows it. */
+export function playedFrom(state: GameState, inst: Instance): 'hand' | 'command' | 'exile' | 'top' | null {
+  if (inst.zone === 'hand') return 'hand'
+  if (inst.zone === 'command') return inst.commander ? 'command' : null
+  if (inst.zone === 'exile') return inst.mayPlay ? 'exile' : null
+  return inst.zone === 'library' && topPlay(state, inst) ? 'top' : null
+}
+
+/** The permanent that would let this spell be cast without paying this
+ *  turn — One with the Multiverse, not yet used — if there is one. */
+export function freeSource(state: GameState, inst: Instance): Instance | null {
+  const from = playedFrom(state, inst)
+  if (!state.rules || isLand(inst.card) || (from !== 'hand' && from !== 'top')) return null
+  return inZone(state, 'battlefield').find((c) => (
+    compile(c.card).statics.some((fixed) => fixed.kind === 'freeSpell') && !state.triggered.includes(`free:${c.iid}`)
+  )) ?? null
+}
+
 /** Why this land cannot be played now, or null if it can. */
 export function landProblem(state: GameState, iid: string): string | null {
   const inst = find(state, iid)
-  if (!inst || inst.zone !== 'hand') return 'Only a land in your hand can be played'
+  if (!inst || !playedFrom(state, inst)) return 'Only a land in your hand can be played'
   if (!isLand(inst.card)) return 'That is not a land'
   if (state.pending) return 'Finish the choice in front of you first'
   if (!isMain(state.step) || state.stack.length) {
@@ -213,19 +254,23 @@ export interface CastCheck {
   payment: Payment | null
 }
 
-export function checkCast(state: GameState, iid: string, x = 0): CastCheck {
+/** `free` asks after casting it without paying its mana cost, as the turn's
+ *  one spell that something on the battlefield allows that of. A card in
+ *  exile that may be played for nothing always is. */
+export function checkCast(state: GameState, iid: string, x = 0, free = false): CastCheck {
   const inst = find(state, iid)
-  const cost = inst ? costOf(state, inst) : parseCost(null)
+  const gratis = Boolean(inst && (free || inst.mayPlay?.free))
+  const cost = !inst || gratis ? parseCost(null) : costOf(state, inst)
   const fail = (why: string): CastCheck => ({ why, cost, payment: null })
   if (!inst) return fail('That card is not here')
   if (state.pending) return fail('Finish the choice in front of you first')
-  if (inst.zone !== 'hand' && !(inst.zone === 'command' && inst.commander)) {
-    return fail('Only a card in your hand can be cast')
-  }
+  if (!playedFrom(state, inst)) return fail('Only a card in your hand can be cast')
   if (isLand(inst.card)) return fail('Lands are played, not cast')
   const fast = /\bInstant\b/.test(inst.card.type_line ?? '') || hasKeyword(inst, 'Flash')
   if (!fast && !isMain(state.step)) return fail('Sorcery speed — only in a main phase')
   if (!fast && state.stack.length) return fail('Sorcery speed — wait for the stack to resolve')
+  if (free && !inst.mayPlay?.free && !freeSource(state, inst)) return fail('Nothing lets it be cast without paying')
+  if (gratis) return { cost, payment: { taps: [], life: 0, pool: state.pool } }
 
   const payment = autotap(cost, manaSources(state, wantedBy(state, iid)), {
     x, pool: state.pool, life: state.life,
@@ -234,12 +279,17 @@ export function checkCast(state: GameState, iid: string, x = 0): CastCheck {
   return { cost, payment }
 }
 
-/** Cast a spell: pay for it, and put it on the stack. */
-export function castSpell(state: GameState, iid: string, x = 0): GameState {
+/** Cast a spell: pay for it — or, `free`, do not — and put it on the stack. */
+export function castSpell(state: GameState, iid: string, asked = 0, free = false): GameState {
   const inst = find(state, iid)
-  const check = checkCast(state, iid, x)
+  const gratis = Boolean(inst && (free || inst.mayPlay?.free))
+  // With no mana cost paid, X is nothing (CR 107.3b).
+  const x = gratis ? 0 : asked
+  const check = checkCast(state, iid, x, free)
   if (!inst || check.why || !check.payment) return state
   const { payment } = check
+  // The turn's one free spell is spent on this.
+  const allowing = free && !inst.mayPlay?.free ? freeSource(state, inst) : null
 
   const tapping = new Set(payment.taps.map((t) => t.id))
   const cards = relocate(
@@ -252,7 +302,10 @@ export function castSpell(state: GameState, iid: string, x = 0): GameState {
     : state.casts
 
   const tapped = payment.taps.map((t) => find(state, t.id)?.card.name ?? '?')
+  const from = playedFrom(state, inst)
   const line = `Cast ${inst.card.name}${x ? ` (X = ${x})` : ''}${
+    from === 'exile' ? ' from exile' : from === 'top' ? ' from the top of your library' : ''}${
+    gratis ? ' without paying its mana cost' : ''}${
     tapped.length ? ` — tapped ${listOf(tapped)}` : ''}${
     payment.life ? `, paid ${payment.life} life` : ''}`
   return noted({
@@ -260,6 +313,7 @@ export function castSpell(state: GameState, iid: string, x = 0): GameState {
     pool: payment.pool,
     life: state.life - payment.life,
     casts,
+    triggered: allowing ? [...minted.triggered, `free:${allowing.iid}`] : minted.triggered,
     stack: [...state.stack, { id, iid, x }],
   }, line)
 }
@@ -326,15 +380,19 @@ export function tapForMana(state: GameState, iid: string, ability = 0, kinds: Ma
   return noted({ ...next, pool, cards }, `Tapped ${inst.card.name} for ${made.map((k) => `{${k}}`).join('')}`)
 }
 
-/** Everything in hand — and a commander at home — that could be played or
- *  cast right now. The table lights these. */
+/** Everything in hand — and a commander at home, a card in exile you may
+ *  play, the top of the library when that is allowed — that could be played
+ *  or cast right now. The table lights these. */
 export function playable(state: GameState): Set<string> {
   const out = new Set<string>()
   if (!state.rules || state.pending) return out
+  const top = state.cards.find((c) => c.zone === 'library')
   for (const inst of state.cards) {
-    const home = inst.zone === 'command' && inst.commander
-    if (inst.zone !== 'hand' && !home) continue
-    const ok = isLand(inst.card) ? !landProblem(state, inst.iid) : !checkCast(state, inst.iid).why
+    // Of the library, only its top card could be.
+    if (inst.zone === 'library' ? inst !== top : !playedFrom(state, inst)) continue
+    const ok = isLand(inst.card)
+      ? !landProblem(state, inst.iid)
+      : !checkCast(state, inst.iid).why || (freeSource(state, inst) !== null && !checkCast(state, inst.iid, 0, true).why)
     if (ok) out.add(inst.iid)
   }
   return out

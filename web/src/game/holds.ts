@@ -26,6 +26,9 @@ export function holds(state: GameState, r: Asking, test: Test): boolean {
     const sweep = sweeping(state)
     return [...types].some((type) => creatures.filter((c) => hasSubtype(c, type, sweep)).length >= test.sharedType)
   }
+  if ('exiled' in test) {
+    return state.cards.filter((c) => c.zone === 'exile' && c.exiledBy === r.source).length >= test.exiled
+  }
   if ('tally' in test) return state.tally[test.tally] >= test.atLeast
   if ('control' in test) return onBattlefield(state, test.control, r.source).length >= test.atLeast
   if ('graveyard' in test) {

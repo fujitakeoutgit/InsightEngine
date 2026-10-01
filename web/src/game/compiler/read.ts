@@ -106,6 +106,11 @@ export function readTest(phrase: string, who: Speaking = NOBODY): Test | null {
     const filter = readFilter(control[3])
     return atLeast !== null && filter ? { control: { ...filter, controller: 'you' }, atLeast } : null
   }
+  const exiled = /^(\w+) or more cards have been exiled with ~$/.exec(p)
+  if (exiled) {
+    const n = readNumber(exiled[1])
+    return n === null ? null : { exiled: n }
+  }
   // Always so, where every creature is yours — given that there is one.
   if (/^you control each creature on the battlefield with the greatest power$/.test(p)) {
     return { control: { types: ['creature'], controller: 'you' }, atLeast: 1 }
@@ -208,6 +213,8 @@ export function readFilter(phrase: string): Filter | null {
       value,
     }
   }
+  // …and so is "a creature you control", where that is whose type it shares.
+  if (take(/ that shares? a creature type with a creature you control\b/)) filter.sharesType = 'yours'
   if (take(/ except for commanders\b/)) filter.commander = false
   if (take(/ named ~/)) filter.sameName = true
   // The one player there is to mean is you.

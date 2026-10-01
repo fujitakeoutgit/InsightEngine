@@ -27,11 +27,13 @@ import { inZone, mint, noted } from './state'
 import { snapshot } from './stats'
 import type { GameState, Instance, Known, Tally } from './types'
 
-type About = 'enters' | 'dies' | 'cast' | 'attacks' | 'combatDamage' | 'discard' | 'tapped' | 'untapped' | 'connives'
+type About = 'enters' | 'dies' | 'leaves' | 'cast' | 'attacks' | 'combatDamage' | 'discard' | 'tapped' | 'untapped' | 'connives'
 
 type Happened =
   | { on: About; card: Instance; from?: string }
   | { on: 'leavesGraveyard' }
+  /** Counters of one kind put on a permanent: how many it had, and has. */
+  | { on: 'counters'; card: Instance; counter: string; had: number; has: number }
   /** Damage marked on a creature: how much more than it had. */
   | { on: 'damaged'; card: Instance; amount: number }
   /** A Class has become this level. */
@@ -66,11 +68,20 @@ function happened(before: GameState, after: GameState): { events: Happened[]; ta
     }
     const hurt = now.zone === 'battlefield' ? (now.damage ?? 0) - (prev?.zone === 'battlefield' ? prev.damage ?? 0 : 0) : 0
     if (hurt > 0) out.push({ on: 'damaged', card: now, amount: hurt })
+    if (now.zone === 'battlefield' && now.counters && now.counters !== prev?.counters) {
+      for (const [counter, has] of Object.entries(now.counters)) {
+        const had = prev?.zone === 'battlefield' ? prev.counters?.[counter] ?? 0 : 0
+        if (has > had) out.push({ on: 'counters', card: now, counter, had, has })
+      }
+    }
   }
   // Leaving is counted from what was there, since a token that has left is
   // soon nowhere at all.
   for (const prev of before.cards) {
-    if (prev.zone === 'battlefield' && is.get(prev.iid)?.zone !== 'battlefield') tally.left += 1
+    if (prev.zone === 'battlefield' && is.get(prev.iid)?.zone !== 'battlefield') {
+      tally.left += 1
+      out.push({ on: 'leaves', card: prev })
+    }
   }
   if (before.cards.some((prev) => prev.zone === 'graveyard' && is.get(prev.iid)?.zone !== 'graveyard')) {
     out.push({ on: 'leavesGraveyard' })
@@ -128,6 +139,11 @@ function sees(when: TriggerEvent, event: Happened, source: Instance, state: Game
     const became = event as Extract<Happened, { on: 'level' }>
     return became.card.iid === source.iid && became.level === when.level
   }
+  if (when.on === 'counters') {
+    // "When the sixth counter is put on ~": it had fewer, and now has that.
+    const put = event as Extract<Happened, { on: 'counters' }>
+    return put.card.iid === source.iid && put.counter === when.counter && put.had < when.count && put.has >= when.count
+  }
   if (!('card' in event)) return true
   const { card } = event
   if (when.on === 'enters' && when.from && when.from !== (event as { from?: string }).from) return false
@@ -139,7 +155,7 @@ function sees(when: TriggerEvent, event: Happened, source: Instance, state: Game
     if (when.who === 'attached') return source.attachedTo === card.iid
     // A creature that has died is asked as the card it was: off the
     // battlefield it has no board to be sized by.
-    return matches(card, when.who, source.iid, when.on === 'dies' ? undefined : state)
+    return matches(card, when.who, source.iid, when.on === 'dies' || when.on === 'leaves' ? undefined : state)
   }
   return true
 }
@@ -150,6 +166,8 @@ function fire(
   state: GameState, source: Instance, index: number, ability: TriggeredAbility,
   about: Instance | null, known: Known | null, amount?: number,
 ): GameState {
+  // One side of a Siege: only the side that was chosen for it.
+  if (ability.side && source.chosenMode !== ability.side) return state
   if (ability.condition) {
     const asking = {
       x: 0, source: source.iid, chosen: [], event: about?.iid ?? null, last: 0,
@@ -209,21 +227,22 @@ export function collectTriggers(before: GameState, after: GameState): GameState 
     // A death is seen by what was on the battlefield as it happened, the dead
     // included: creatures that leave together each see the others go. A card
     // in the graveyard watches too, for the abilities that work from there.
+    const gone = event.on === 'dies' || event.on === 'leaves'
     const watching = [
-      ...(event.on === 'dies' ? inZone(before, 'battlefield') : inZone(next, 'battlefield')),
+      ...(gone ? inZone(before, 'battlefield') : inZone(next, 'battlefield')),
       ...inZone(next, 'graveyard').filter((c) => compile(c.card).triggers.some((ability) => ability.from === 'graveyard')),
     ]
     for (const source of watching) {
       compile(source.card).triggers.forEach((ability, index) => {
         // Each ability works from one place: the battlefield, unless it says.
-        if ((ability.from ?? 'battlefield') !== (source.zone === 'graveyard' && event.on !== 'dies' ? 'graveyard' : 'battlefield')) return
+        if ((ability.from ?? 'battlefield') !== (source.zone === 'graveyard' && !gone ? 'graveyard' : 'battlefield')) return
         if (!sees(ability.when, event, source, next)) return
         const key = `${source.iid}#${index}`
         if (ability.batch && answered.has(key)) return
         answered.add(key)
         // What it was as it left, for a death; what it is, for the rest.
         const about = 'card' in event ? event.card : null
-        const known = about ? snapshot(about, event.on === 'dies' ? before : next) : null
+        const known = about ? snapshot(about, gone ? before : next) : null
         // How much, for the abilities that ask: damage taken, or dealt.
         const amount = event.on === 'damaged' ? event.amount
           : event.on === 'combatDamage' ? combatDamage(next, event.card) : undefined

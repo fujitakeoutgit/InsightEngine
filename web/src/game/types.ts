@@ -66,6 +66,13 @@ export interface Instance {
    *  being one: at cleanup, or as your next turn begins. */
   was?: Card
   revert?: 'end' | 'turn'
+  /** In exile, and you may play it from there: through this turn — or,
+   *  null, for as long as it stays. `free`, without paying its mana cost. */
+  mayPlay?: { through: number | null; free?: boolean }
+  /** The permanent whose ability exiled it: "a card exiled with ~". */
+  exiledBy?: string
+  /** The side chosen for it as it entered: Khans, or Dragons. */
+  chosenMode?: string
 }
 
 /** A change to size and keywords that lasts until end of turn, on the
@@ -209,7 +216,7 @@ export type Decision =
   | {
     kind: 'pick'
     prompt: string
-    zone: 'battlefield' | 'library' | 'graveyard' | 'hand'
+    zone: 'battlefield' | 'library' | 'graveyard' | 'hand' | 'exile'
     options: string[]
     min: number
     max: number
@@ -225,8 +232,9 @@ export type Decision =
   | { kind: 'arrange'; mode: 'scry' | 'surveil'; cards: string[] }
   /** Declare attackers: which of these attack. */
   | { kind: 'attack'; options: string[] }
-  /** "As ~ enters, choose a creature type": which, for this permanent. */
-  | { kind: 'type'; iid: string; options: string[] }
+  /** "As ~ enters, choose a creature type": which, for this permanent. With
+   *  `side` it is one of the card's own two names instead: Khans or Dragons. */
+  | { kind: 'type'; iid: string; options: string[]; side?: boolean }
   /** Abilities that triggered together: the order they go on the stack in
    *  is yours to choose (CR 603.3b). These are their stack ids. */
   | { kind: 'order'; ids: string[] }
@@ -293,6 +301,9 @@ export interface GameState {
   /** An ability being activated, while its cost waits on a choice — what to
    *  sacrifice. */
   paying: { iid: string; index: number; x?: number } | null
+  /** A spell being cast, while the game asks whether it is the one cast
+   *  without paying this turn. */
+  casting: { iid: string; x: number } | null
   /** Pictures for the tokens this deck makes, by name. */
   tokenArt: Record<string, string | null>
   /** What has happened that triggers have yet to be asked about. */
@@ -314,9 +325,11 @@ export type Action =
   | { type: 'draw'; count?: number }
   /** Sandbox: untap, then draw. */
   | { type: 'nextTurn' }
-  /** Play from hand or the command zone. With the rules on a land is played
-   *  and anything else is cast; off, permanents go straight down. */
-  | { type: 'play'; iid: string; x?: number }
+  /** Play from hand or the command zone — or from wherever else a card says
+   *  it may be played. With the rules on a land is played and anything else
+   *  is cast; off, permanents go straight down. `free` says whether this is
+   *  the spell cast without paying, where one may be; unsaid, it is asked. */
+  | { type: 'play'; iid: string; x?: number; free?: boolean }
   /** Dropped on the mat at a particular spot. */
   | { type: 'place'; iid: string; at: Spot }
   /** Dropped on a pile, the hand or the library. */

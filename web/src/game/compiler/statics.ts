@@ -150,6 +150,23 @@ export function readStatic(line: string): Static | null {
     return { kind: 'costLess', filter, amount: generic ? Number(generic[1]) : 0, ...(colored ? { colored } : {}) }
   }
 
+  // The top of the library, seen and played from.
+  if (/^(?:you may look at the top card of your library any time|play with the top card of your library revealed)$/.test(l)) {
+    return { kind: 'lookTop' }
+  }
+  if (/^you may play lands and cast spells from the top of your library$/.test(l)) {
+    return { kind: 'playTop', lands: true, spells: {} }
+  }
+  if (/^you may play lands from the top of your library$/.test(l)) return { kind: 'playTop', lands: true, spells: null }
+  const fromTop = /^you may cast (.+?) spells( of the chosen type)? from the top of your library$/.exec(l)
+  if (fromTop) {
+    const spells = readFilter(fromTop[1])
+    return spells && { kind: 'playTop', lands: false, spells: { ...spells, ...(fromTop[2] ? { chosenType: true } : {}) } }
+  }
+  if (/^once during each of your turns, you may cast a spell from your hand or the top of your library without paying its mana cost$/.test(l)) {
+    return { kind: 'freeSpell' }
+  }
+
   if (/^you may play an additional land on each of your turns$/.test(l)) return { kind: 'extraLand', count: 1 }
   if (/^if you would gain life, you gain twice that much life instead$/.test(l)) return { kind: 'doubleLifeGain' }
   if (/^you have no maximum hand size$/.test(l)) return { kind: 'noMaxHandSize' }

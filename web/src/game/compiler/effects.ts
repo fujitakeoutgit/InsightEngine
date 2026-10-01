@@ -50,8 +50,12 @@ function referentOf(effects: readonly Effect[], otherwise: Aim | null): Aim | nu
   const gone = effects.some((effect) => (
     effect.op === 'move' && effect.what.kind === 'chosen' && effect.to === 'graveyard'
   ))
-  // What was taken from the top of the library is "those lands" afterwards.
-  const picked = effects.some((effect) => (effect.op === 'choose' && (!effect.must || !gone)) || effect.op === 'dig')
+  // What was taken from the top of the library is "those lands" afterwards
+  // — and a card picked out of exile is still "it" in the graveyard.
+  const picked = effects.some((effect) => (
+    (effect.op === 'choose' && (!effect.must || !gone || Boolean(effect.zone)))
+    || effect.op === 'dig' || effect.op === 'exileTop'
+  ))
   return picked ? { kind: 'chosen' } : otherwise
 }
 
@@ -125,6 +129,7 @@ function onPermanents(phrase: string, act: (what: Aim) => Effect[]): Effect[] | 
   if (SELF.test(phrase)) return act({ kind: 'self' })
   if (/^that creature$/.test(phrase)) return act({ kind: 'event' })
   if (/^(equipped|enchanted) (creature|permanent|land)$/.test(phrase)) return act({ kind: 'host' })
+  if (/^(?:a|the) cards? exiled with ~$/.test(phrase)) return act({ kind: 'exiled' })
   // The player a spell is aimed at, where it helps, is you.
   if (/^creatures target player controls$/.test(phrase)) return act({ kind: 'each', filter: { types: ['creature'], controller: 'you' } })
   const each = /^(?:each|all) (.+)$/.exec(phrase) ?? /^((?:other )?[a-z]+s you control)$/.exec(phrase)
@@ -384,6 +389,39 @@ const PATTERNS: Pattern[] = [
     const count = readNumber(m[1])
     return count === null ? null : [{ op: 'putBack', count }]
   }],
+
+  // --- playing from elsewhere ----------------------------------------------
+  [/^exile the top (?:(\w+) )?cards? of your library$/, (m) => {
+    const count = readCount(m[1] ?? 'one')
+    return count === null ? null : [{ op: 'exileTop', count }]
+  }],
+  // Extract Power: yours is the only library there is.
+  [/^look at the top card of each player's library, then exile those cards face down$/, () => [{ op: 'exileTop', count: 1 }]],
+  [/^exile that card from your graveyard$/, () => [{ op: 'move', what: { kind: 'event' }, to: 'exile', only: 'graveyard' }]],
+  // A permission rather than a choice: the card may be played from exile,
+  // for as long as this says.
+  [/^(?:(until end of turn|until the end of your next turn), )?you may play (?:that card|those cards|them|it)( this turn)?( without paying (?:its|their) mana costs?)?( for as long as (?:it|they) remains? exiled)?$/, (m) => {
+    const until = m[4] ? 'exiled' as const
+      : m[1] === 'until the end of your next turn' ? 'nextEnd' as const
+        : m[1] || m[2] ? 'end' as const : null
+    return until && [{ op: 'mayPlay', who: referent ?? { kind: 'event' }, until, ...(m[3] ? { free: true } : {}) }]
+  }],
+  [/^you may cast a spell with mana value (\d+) or less from your hand without paying its mana cost$/, (m) => [{
+    op: 'castFree', from: 'hand', count: 1,
+    filter: { not: ['land'], compare: { stat: 'manaValue', op: '<=', value: Number(m[1]) } },
+  }]],
+  [/^you may cast any number of spells from among them without paying their mana costs$/, () => (
+    [{ op: 'castFree', from: 'chosen', count: 99, filter: { not: ['land'] } }]
+  )],
+  // …and what was not cast.
+  [/^put the rest into your hand$/, () => [{ op: 'move', what: { kind: 'chosen' }, to: 'hand' }]],
+  // What a permanent has exiled, and what becomes of it.
+  [/^put a card exiled with ~ into its owner's graveyard$/, () => [
+    { op: 'choose', filter: {}, count: 1, upTo: false, must: true, zone: 'exile' },
+    { op: 'move', what: { kind: 'chosen' }, to: 'graveyard' },
+  ]],
+  [/^return each other card exiled with ~ to its owner's graveyard$/, () => [{ op: 'unexile', to: 'graveyard', except: true }]],
+  [/^return those cards to the battlefield under their owners?'s? control$/, () => [{ op: 'unexile', to: 'battlefield' }]],
 
   // --- permanents ----------------------------------------------------------
   // Out and straight back: it arrives as a new permanent.
@@ -741,10 +779,31 @@ const TOP_CARD = new RegExp([
   /(?: (?:otherwise|if you don't put the card (?:onto the battlefield|into your hand)), (you may )?put (?:it|that card) (into your hand|on the bottom of your library|into your graveyard)\.)?$/,
 ].map((part) => part.source).join(''))
 
+/** "Reveal the top card of your library. If it's a creature card that shares
+ *  a creature type with a creature you control, you may cast it without
+ *  paying its mana cost. If you don't cast it, put it on the bottom." */
+const TOP_CAST = new RegExp([
+  /^(?:look at|reveal) the top card of your library\. /,
+  /(?:if it's an? (.+?), )?you may cast (?:it|that card) without paying its mana cost\./,
+  /(?: if you don't cast it, put it (on the bottom of your library|into your graveyard)\.)?/,
+  /( do this only once each turn\.)?$/,
+].map((part) => part.source).join(''))
+
 /** Shapes that run across sentences, tried on an ability's whole text before
  *  it is split. */
 export function readCompound(text: string): Effect[] | null {
-  const top = TOP_CARD.exec(text.trim().toLowerCase().replace(/([^.])$/, '$1.'))
+  const said = text.trim().toLowerCase().replace(/([^.])$/, '$1.')
+  const cast = TOP_CAST.exec(said)
+  if (cast) {
+    const read = cast[1] ? readFilter(cast[1]) : {}
+    // A land is played, not cast, whatever else the card would have of it.
+    return read && [{
+      op: 'topCard', match: { ...read, not: [...(read.not ?? []), 'land'] }, hit: 'cast', tapped: false, ask: true,
+      miss: !cast[2] ? 'stay' : cast[2] === 'into your graveyard' ? 'graveyard' : 'bottom', missAsk: false,
+      ...(cast[3] ? { once: true } : {}),
+    }]
+  }
+  const top = TOP_CARD.exec(said)
   if (!top) return null
   const [, kind, chosen, may, where, tapped, missMay, missWhere] = top
   // "A card of the chosen type" is any card of it; and with neither a kind

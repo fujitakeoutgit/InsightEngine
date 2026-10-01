@@ -123,6 +123,8 @@ function readTrigger(condition: string): TriggerEvent[] | null {
   return null
 }
 
+const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth']
+
 function readOneTrigger(condition: string): TriggerEvent | null {
   const c = condition.trim()
   if (/^~ (enters|enters the battlefield)$/.test(c)) return { on: 'enters', who: 'self' }
@@ -152,6 +154,21 @@ function readOneTrigger(condition: string): TriggerEvent | null {
   if (/^~ is dealt damage$/.test(c)) return { on: 'damaged', who: 'self' }
   const level = /^~ becomes level (\d+)$/.exec(c)
   if (level) return { on: 'level', level: Number(level[1]) }
+  const counter = /^the (\w+) ([+-]\d\/[+-]\d|[a-z]+) counter is put on ~$/.exec(c)
+  if (counter && ORDINALS.includes(counter[1])) {
+    return { on: 'counters', counter: counter[2], count: ORDINALS.indexOf(counter[1]) + 1 }
+  }
+  const leaving = /^(?:a|an|another) (.+?) leaves the battlefield$/.exec(c)
+  if (leaving) {
+    const filter = readFilter(leaving[1])
+    if (filter) return { on: 'leaves', who: { ...filter, ...(/^another /.test(c) ? { other: true } : {}) } }
+  }
+  // Dying, said the long way.
+  const buried = /^(?:a|an|another) (.+?) is put into (?:your|a) graveyard from the battlefield$/.exec(c)
+  if (buried) {
+    const filter = readFilter(buried[1])
+    if (filter) return { on: 'dies', who: { ...filter, ...(/^another /.test(c) ? { other: true } : {}) } }
+  }
   const conniving = /^(?:a|an|another) (.+?) connives$/.exec(c)
   if (conniving) {
     const filter = readFilter(conniving[1])
@@ -284,8 +301,23 @@ export function compile(card: Card): Compiled {
   /** A Class: how much had been read when its next level's line was met.
    *  What is under that line is read for the grade and is not yet had. */
   let reached: { triggers: number; activated: number; statics: number; unread: number } | null = null
+  /** The lines that belong to one side of a Siege, and which. */
+  const sideAt = new Map<number, string>()
 
   for (let i = 0; i < lines.length; i += 1) {
+    // "As ~ enters, choose Khans or Dragons", and a line under it for each:
+    // those are read as the card's own, each marked with its side.
+    const sides = /^As ~ enters, choose ([A-Z][a-z]+) or ([A-Z][a-z]+)\.?$/.exec(lines[i])
+    if (sides && [sides[1], sides[2]].every((name, n) => lines[i + 1 + n]?.startsWith(`• ${name} — `))) {
+      for (const [n, name] of [sides[1], sides[2]].entries()) {
+        lines[i + 1 + n] = lines[i + 1 + n].slice(`• ${name} — `.length)
+        sideAt.set(i + 1 + n, name)
+      }
+      statics.push({ kind: 'chooseSide', sides: [sides[1], sides[2]] })
+      grades.push(1)
+      continue
+    }
+    const side = sideAt.get(i)
     const printed = lines[i]
     // A Background: `Commander creatures you own have "…"`. The ability is
     // read as this card's own, for as long as a commander of yours is there
@@ -400,7 +432,7 @@ export function compile(card: Card): Compiled {
     }
 
     // A static that is worded like a trigger.
-    const early = /^(at the beginning of each player's draw step|whenever you tap an? .+ for (mana|\{c\}), add|whenever enchanted land is tapped for mana)\b/.test(lower)
+    const early = !side && /^(at the beginning of each player's draw step|whenever you tap an? .+ for (mana|\{c\}), add|whenever enchanted land is tapped for mana)\b/.test(lower)
       ? readStatic(lower)
       : null
     if (early) {
@@ -428,6 +460,7 @@ export function compile(card: Card): Compiled {
             ...(conditions.length ? { condition: conditions.length > 1 ? { all: conditions } : conditions[0] } : {}),
             ...(once ? { oncePerTurn: true } : {}),
             ...(/\bone or more\b/.test(trig[2]) ? { batch: true } : {}),
+            ...(side ? { side } : {}),
             // What returns itself from the graveyard works from there.
             ...(/\breturn ~ from your graveyard\b/.test(body) ? { from: 'graveyard' as const } : {}),
           })
@@ -439,8 +472,9 @@ export function compile(card: Card): Compiled {
       grades.push(0)
       continue
     }
-    // Anything else given to a commander is not something this reads.
-    if (having) {
+    // Anything else given to a commander is not something this reads — nor
+    // is a side's line that is not a trigger.
+    if (having || side) {
       unread.push(printed)
       grades.push(0)
       continue

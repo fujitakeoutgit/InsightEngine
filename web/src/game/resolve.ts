@@ -15,7 +15,7 @@
 
 import type { Card } from '../lib/api'
 import { amount, settled, signed } from './amount'
-import { enterBattlefield, isPermanentSpell, remind, remindUnread, rulesText } from './cast'
+import { enterBattlefield, isLand, isPermanentSpell, remind, remindUnread, rulesText } from './cast'
 import { lifeGainFactor } from './combat'
 import { compile } from './compiler/compile'
 import type { Aim, Budget, CopyChange, Effect, Filter, TokenSpec } from './compiler/ir'
@@ -48,11 +48,28 @@ function aimed(state: GameState, r: Resolution, aim: Aim): Instance[] {
     // What it is on — or, once that has gone, the card the ability is about.
     case 'host': return one(find(state, r.source)?.attachedTo ?? r.event)
     case 'kept': return r.kept.flatMap((iid) => one(iid))
+    case 'exiled': return exiledWith(state, r.source)
     // The ones that were not kept.
     case 'others':
       return onBattlefield(state, settled(state, r, aim.filter), r.source).filter((c) => !r.chosen.includes(c.iid))
     default: return []
   }
+}
+
+/** The cards a permanent's abilities have exiled, and that are still there. */
+const exiledWith = (state: GameState, source: string) =>
+  state.cards.filter((c) => c.zone === 'exile' && c.exiledBy === source)
+
+/** Put a card on the stack as a spell, with nothing paid for it: cast as
+ *  part of an effect, whatever the step. */
+function castFreely(state: GameState, iid: string, by: string): GameState {
+  const inst = find(state, iid)
+  if (!inst || isLand(inst.card)) return state
+  const [id, minted] = mint({ ...state, cards: relocate(state.cards, iid, 'stack') }, 's')
+  return noted(
+    { ...minted, stack: [...minted.stack, { id, iid, x: 0 }] },
+    `${by}: cast ${inst.card.name} without paying its mana cost`,
+  )
 }
 
 const change = (state: GameState, iids: readonly string[], to: (c: Instance) => Instance): GameState => {
@@ -186,8 +203,10 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
   switch (effect.op) {
     case 'choose': {
       const wanted = settled(state, r, effect.filter)
+      // In exile, the cards this permanent put there.
       const options = effect.zone
-        ? inZone(state, effect.zone).filter((c) => matches(c, wanted, r.source)).map((c) => c.iid)
+        ? (effect.zone === 'exile' ? exiledWith(state, r.source) : inZone(state, effect.zone))
+            .filter((c) => matches(c, wanted, r.source)).map((c) => c.iid)
         : onBattlefield(state, wanted, r.source).map((c) => c.iid)
       const set = (chosen: string[]): GameState => ({
         ...state,
@@ -206,7 +225,8 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
           kind: 'pick',
           zone: effect.zone ?? 'battlefield',
           prompt: effect.zone
-            ? `${r.name}: choose ${asked(effect.filter, effect.count, effect.upTo, 'card')} in your graveyard`
+            ? `${r.name}: choose ${asked(effect.filter, effect.count, effect.upTo, 'card')} ${
+              effect.zone === 'exile' ? 'it has exiled' : 'in your graveyard'}`
             : `${r.name}: choose ${asked(effect.filter, effect.count, effect.upTo, 'permanent')}`,
           options,
           min: effect.must ? Math.min(effect.count, options.length) : 0,
@@ -218,6 +238,63 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
 
     case 'keep':
       return { state: { ...state, resolving: { ...r, kept: r.chosen } } }
+
+    case 'exileTop': {
+      const top = inZone(state, 'library').slice(0, amount(state, r, effect.count))
+      if (!top.length) return { state: noted({ ...state, resolving: { ...r, chosen: [] } }, `${r.name}: no cards to exile`) }
+      let cards = state.cards
+      for (const c of top) cards = relocate(cards, c.iid, 'exile')
+      const taken = new Set(top.map((c) => c.iid))
+      cards = cards.map((c) => (taken.has(c.iid) ? { ...c, exiledBy: r.source } : c))
+      return {
+        state: acted(noted({ ...state, cards, resolving: { ...r, chosen: [...taken] } }, `${r.name}: exiled ${names(top)}`), top.length),
+      }
+    }
+
+    case 'mayPlay': {
+      const who = aimed(state, r, effect.who).filter((c) => c.zone === 'exile')
+      if (!who.length) return { state }
+      const through = effect.until === 'end' ? state.turn : effect.until === 'nextEnd' ? state.turn + 1 : null
+      const allowed = change(state, who.map((c) => c.iid), (c) => ({
+        ...c, mayPlay: { through, ...(effect.free ? { free: true } : {}) },
+      }))
+      const span = effect.until === 'end' ? 'this turn'
+        : effect.until === 'nextEnd' ? 'until the end of your next turn' : 'for as long as it stays exiled'
+      return { state: noted(allowed, `You may play ${names(who)} ${span}${effect.free ? ', without paying' : ''}`) }
+    }
+
+    case 'castFree': {
+      const wanted = settled(state, r, effect.filter)
+      const from = effect.from === 'hand' ? inZone(state, 'hand') : aimed(state, r, { kind: 'chosen' })
+      const options = from.filter((c) => !isLand(c.card) && matches(c, wanted, r.source)).map((c) => c.iid)
+      if (!options.length) return { state: noted(state, `${r.name}: nothing to cast`) }
+      return {
+        state,
+        wait: {
+          kind: 'pick',
+          zone: effect.from === 'hand' ? 'hand' : 'exile',
+          prompt: `${r.name}: cast ${effect.count === 1 ? 'a spell' : 'any number of these'} without paying ${
+            effect.count === 1 ? 'its mana cost' : 'their mana costs'} — or none`,
+          options,
+          min: 0,
+          max: Math.min(effect.count, options.length),
+        },
+      }
+    }
+
+    case 'unexile': {
+      const back = exiledWith(state, r.source).filter((c) => !(effect.except && c.iid === r.event))
+      if (!back.length) return { state }
+      let next = state
+      for (const c of back) {
+        next = effect.to === 'battlefield'
+          ? enterBattlefield(next, c.iid).state
+          : { ...next, cards: relocate(next.cards, c.iid, 'graveyard') }
+      }
+      return {
+        state: acted(noted(next, `${names(back)}: ${effect.to === 'battlefield' ? 'returned to the battlefield' : 'put into the graveyard'}`), back.length),
+      }
+    }
 
     case 'become': {
       const of = r.chosen[0] ? find(state, r.chosen[0]) : undefined
@@ -527,10 +604,15 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
     case 'topCard': {
       const top = inZone(state, 'library')[0]
       if (!top) return { state }
-      if (matches(top, effect.match, r.source, state)) {
+      // "Do this only once each turn", and it has been done.
+      if (effect.once && state.triggered.includes(`once:${r.source}`)) {
+        return { state: noted(state, `${r.name} looked at ${top.card.name}`) }
+      }
+      if (matches(top, settled(state, r, effect.match), r.source, state)) {
         if (!effect.ask) return { state: takeTop(state, r, effect) }
-        const where = effect.hit === 'hand' ? 'into your hand' : `onto the battlefield${effect.tapped ? ' tapped' : ''}`
-        return { state, wait: { kind: 'confirm', prompt: `${r.name}: put ${top.card.name} ${where}?` } }
+        const prompt = effect.hit === 'cast' ? `${r.name}: cast ${top.card.name} without paying its mana cost?`
+          : `${r.name}: put ${top.card.name} ${effect.hit === 'hand' ? 'into your hand' : `onto the battlefield${effect.tapped ? ' tapped' : ''}`}?`
+        return { state, wait: { kind: 'confirm', prompt } }
       }
       return leaveTop(state, r, effect)
     }
@@ -609,10 +691,15 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
     }
 
     case 'move': {
-      const what = aimed(state, r, effect.what)
+      const what = aimed(state, r, effect.what).filter((c) => !effect.only || c.zone === effect.only)
       if (!what.length) return { state }
       let cards = state.cards
       for (const c of what) cards = relocate(cards, c.iid, effect.to)
+      // What exiled it is remembered: "a card exiled with ~".
+      if (effect.to === 'exile') {
+        const gone = new Set(what.map((c) => c.iid))
+        cards = cards.map((c) => (gone.has(c.iid) && c.zone === 'exile' ? { ...c, exiledBy: r.source } : c))
+      }
       const verb = effect.to === 'graveyard' ? 'to the graveyard' : effect.to === 'exile' ? 'exiled' : 'returned to hand'
       return { state: acted(noted({ ...state, cards }, `${names(what)} ${verb}`), what.length) }
     }
@@ -784,6 +871,10 @@ type TopCard = Extract<Effect, { op: 'topCard' }>
 function takeTop(state: GameState, r: Resolution, effect: TopCard): GameState {
   const top = inZone(state, 'library')[0]
   if (!top) return state
+  if (effect.hit === 'cast') {
+    const cast = castFreely(state, top.iid, r.name)
+    return effect.once ? { ...cast, triggered: [...cast.triggered, `once:${r.source}`] } : cast
+  }
   if (effect.hit === 'battlefield') {
     return noted(enterBattlefield(state, top.iid, { forceTapped: effect.tapped }).state,
       `${r.name} revealed ${top.card.name} — onto the battlefield${effect.tapped ? ' tapped' : ''}`)
@@ -1025,6 +1116,15 @@ function applyPick(state: GameState, r: Resolution, effect: Effect, picked: stri
 
     case 'dig':
       return finishDig(state, r, effect, picked)
+
+    case 'castFree': {
+      let next = state
+      for (const iid of picked) next = castFreely(next, iid, r.name)
+      // From among cards set aside, what was not cast is "the rest".
+      return effect.from === 'chosen'
+        ? { ...next, resolving: { ...r, chosen: r.chosen.filter((iid) => !picked.includes(iid)) } }
+        : next
+    }
 
     case 'connive': {
       const who = aimed(state, r, effect.who)[0]

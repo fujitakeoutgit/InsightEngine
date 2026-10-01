@@ -325,9 +325,11 @@ export function DecisionPrompt({
     )
   }
   if (decision.kind === 'type') {
+    // A creature type — or, for a Siege, one of the two names it offers.
+    const what = decision.side ? 'choose one' : 'choose a creature type'
     return (
-      <div className="pt-decision" role="dialog" aria-label="Choose a creature type">
-        <h3>{name ? `${name}: choose a creature type` : 'Choose a creature type'}</h3>
+      <div className="pt-decision" role="dialog" aria-label={decision.side ? 'Choose one' : 'Choose a creature type'}>
+        <h3>{name ? `${name}: ${what}` : `${what[0].toUpperCase()}${what.slice(1)}`}</h3>
         <div className="pt-modes pt-types">
           {decision.options.map((subtype) => (
             <button key={subtype} className="btn btn-ghost sm" onClick={() => onType(subtype)}>{subtype}</button>
@@ -338,7 +340,7 @@ export function DecisionPrompt({
   }
   if (decision.kind === 'pick') {
     // A search or a return from the graveyard has a dialog of its own.
-    if (decision.zone === 'library' || decision.zone === 'graveyard') return null
+    if (decision.zone === 'library' || decision.zone === 'graveyard' || decision.zone === 'exile') return null
     return (
       <div className="pt-decision low" role="dialog" aria-label="Choose">
         <p className="pt-decision-text">{decision.prompt}</p>

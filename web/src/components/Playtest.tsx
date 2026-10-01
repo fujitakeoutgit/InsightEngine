@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 
 import { abilitiesOf, activationProblem, costLabel } from '../game/activate'
 import {
-  checkCast, isLand, landDrops, landProblem, manaOptions, manaProblem, playable,
+  checkCast, freeSource, isLand, landDrops, landProblem, manaOptions, manaProblem, playable, revealedTop,
 } from '../game/cast'
 import { eligibleAttackers, expectedDamage } from '../game/combat'
 import { compile } from '../game/compiler/compile'
@@ -281,6 +281,16 @@ export function Playtest({
   const [seenWin, setSeenWin] = useState<string | null>(null)
 
   const canPlay = useMemo(() => playable(game), [game])
+  /** Cards that may be played from somewhere other than your hand, shown
+   *  beside it: the ones in exile a card said you may play, and the top of
+   *  the library while something lets you look at it. */
+  const elsewhere = useMemo(() => {
+    const top = revealedTop(game)
+    return [
+      ...cards.filter((c) => c.zone === 'exile' && c.mayPlay).map((c) => ({ inst: c, from: 'Exile' })),
+      ...(top ? [{ inst: top, from: 'Top of library' }] : []),
+    ]
+  }, [game, cards])
   /** What the tapper would tap for the card being previewed. */
   const wouldTap = useMemo(() => {
     if (!previewing || !game.rules || !canPlay.has(previewing)) return new Set<string>()
@@ -575,8 +585,11 @@ export function Playtest({
       return
     }
     const check = checkCast(game, iid)
+    // It may still be the turn's free spell: the game asks, as it is cast.
+    const gratis = freeSource(game, inst) !== null && !checkCast(game, iid, 0, true).why
     if (check.why) {
-      setHint(check.why)
+      if (gratis) dispatch({ type: 'play', iid })
+      else setHint(check.why)
       return
     }
     if (check.cost.x > 0) {
@@ -944,7 +957,19 @@ export function Playtest({
                 onAbilities={game.rules && abilitiesOf(c).some((a) => a.fromHand) ? setAbilitiesFor : undefined}
               />
             ))}
-            {!inZone.hand.length && <p className="faint" style={{ fontSize: 12 }}>Empty hand.</p>}
+            {!inZone.hand.length && !elsewhere.length && <p className="faint" style={{ fontSize: 12 }}>Empty hand.</p>}
+            {/* Not in hand, and playable as if they were: set a little apart,
+                and labelled with where they really are. */}
+            {elsewhere.map(({ inst, from }, i) => (
+              <PlayCard
+                key={inst.iid} inst={inst} drag={drag} onPlay={play} onZoom={setZoomed} splitRead
+                playable={canPlay.has(inst.iid)}
+                onHover={setPreviewing}
+                rules={game.rules}
+                tag={from}
+                style={i === 0 && inZone.hand.length ? { marginLeft: 18 } : undefined}
+              />
+            ))}
           </div>
         </div>
 
@@ -1101,7 +1126,7 @@ export function Playtest({
         </div>
       </div>
 
-      {pending?.kind === 'pick' && (pending.zone === 'library' || pending.zone === 'graveyard') && (
+      {pending?.kind === 'pick' && (pending.zone === 'library' || pending.zone === 'graveyard' || pending.zone === 'exile') && (
         <PickDialog
           prompt={pending.prompt}
           cards={offered(pending.options)}
@@ -1302,8 +1327,10 @@ function Pile({
 function PlayCard({
   inst, drag, onTap, onPlay, onZoom, onLoyalty, placed, splitRead, style,
   playable, selected, willTap, tax = 0, onHover, tapHint = ' — click to tap',
-  rules, onCounter, onPick, attacking, size = '', onAbilities,
+  rules, onCounter, onPick, attacking, size = '', onAbilities, tag,
 }: {
+  /** Where it is, when that is not where it is shown: "Exile". */
+  tag?: string
   inst: Instance
   drag: DragRef
   /** `byHand` is a Shift+click: turn it sideways without it doing anything,
@@ -1495,6 +1522,8 @@ function PlayCard({
           {others.map(([kind, n]) => <span key={kind}>{kind} {n}</span>)}
         </span>
       )}
+
+      {tag && <span className="pt-from">{tag}</span>}
 
       {/* What the commander costs on top of itself, by now. */}
       {tax > 0 && <span className="pt-tax mono" title={`Commander tax: {${tax}} more each cast`}>+{tax}</span>}

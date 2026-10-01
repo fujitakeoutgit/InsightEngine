@@ -15,7 +15,7 @@
 import type { Card, DeckToken } from '../lib/api'
 import type { DeckCard } from '../lib/deckModel'
 import {
-  castSpell, enterBattlefield, isLand, isPermanentSpell, landProblem, playLand, tapForMana,
+  castSpell, checkCast, enterBattlefield, freeSource, isLand, isPermanentSpell, landProblem, playLand, tapForMana,
 } from './cast'
 import { activate, paid } from './activate'
 import { declareAttackers } from './combat'
@@ -90,6 +90,7 @@ export function deal(
     triggered: [],
     boosts: [],
     paying: null,
+    casting: null,
     tokenArt: Object.fromEntries(tokens.map((t) => [t.name.toLowerCase(), t.image])),
     events: [],
     tally: emptyTally(),
@@ -155,7 +156,7 @@ function crack(state: GameState, iid: string, pick: string): GameState {
  *  going, without the ceremony; abilities waiting there are dropped, and so
  *  is whatever was half-resolved. */
 function clearStack(state: GameState): GameState {
-  let next: GameState = { ...state, stack: [], resolving: null, pending: null }
+  let next: GameState = { ...state, stack: [], resolving: null, pending: null, casting: null }
   const spells = [
     ...state.stack.filter((item) => !item.ability).map((item) => item.iid),
     ...(state.resolving?.spell ? [state.resolving.source] : []),
@@ -198,7 +199,21 @@ function apply(state: GameState, action: Action): GameState {
       if (!state.rules) return playFreely(state, action.iid)
       const inst = find(state, action.iid)
       if (!inst || waiting) return state
-      return isLand(inst.card) ? playLandOrCopy(state, action.iid) : castSpell(state, action.iid, action.x ?? 0)
+      if (isLand(inst.card)) return playLandOrCopy(state, action.iid)
+      // One with the Multiverse: this could be the turn's free spell, and
+      // whether it is has not been said. Asked before anything is paid.
+      const allowing = action.free === undefined ? freeSource(state, inst) : null
+      if (allowing && !checkCast(state, action.iid, 0, true).why) {
+        return {
+          ...state,
+          casting: { iid: action.iid, x: action.x ?? 0 },
+          pending: {
+            kind: 'confirm',
+            prompt: `${allowing.card.name}: cast ${inst.card.name} without paying its mana cost?\nOnce each turn.`,
+          },
+        }
+      }
+      return castSpell(state, action.iid, action.x ?? 0, action.free ?? false)
     }
 
     case 'place': {
@@ -210,7 +225,7 @@ function apply(state: GameState, action: Action): GameState {
       }
       if (inst.zone === 'stack') return state
       // A land from hand dragged to the mat is the turn's land, when it can be.
-      if (state.rules && inst.zone === 'hand' && isLand(inst.card) && !landProblem(state, action.iid)) {
+      if (state.rules && isLand(inst.card) && !landProblem(state, action.iid)) {
         return playLandOrCopy(state, action.iid, action.at)
       }
       const entered = enterBattlefield(state, action.iid, { at: action.at })
@@ -347,7 +362,14 @@ function apply(state: GameState, action: Action): GameState {
       return begin(noted(state, state.pending.taken ? 'Kept seven — the first mulligan is free' : 'Kept'))
     }
 
-    case 'confirm':
+    case 'confirm': {
+      const { casting } = state
+      if (!casting) return answer(state, action)
+      // For nothing, or paid for: either way it is cast now, if it can be.
+      const asked: GameState = { ...state, casting: null, pending: null }
+      return castSpell(asked, casting.iid, casting.x, action.yes)
+    }
+
     case 'arrange':
     case 'mode':
     case 'number':
@@ -374,10 +396,11 @@ function apply(state: GameState, action: Action): GameState {
       const { pending } = state
       if (pending?.kind !== 'type' || !pending.options.includes(action.subtype)) return state
       const name = find(state, pending.iid)?.card.name ?? 'It'
+      const chosen = pending.side ? { chosenMode: action.subtype } : { chosenType: action.subtype }
       return noted({
         ...state,
         pending: null,
-        cards: state.cards.map((c) => (c.iid === pending.iid ? { ...c, chosenType: action.subtype } : c)),
+        cards: state.cards.map((c) => (c.iid === pending.iid ? { ...c, ...chosen } : c)),
       }, `${name}: chose ${action.subtype}`)
     }
 

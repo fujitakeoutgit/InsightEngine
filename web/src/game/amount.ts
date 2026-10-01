@@ -72,6 +72,16 @@ export function settled(state: GameState, r: Asking, asked: Filter): Filter {
  *  than a creature; something with no creature type shares with none. */
 function sharing(state: GameState, r: Asking, filter: Filter): Filter {
   const { sharesType, ...rest } = filter
+  if (sharesType === 'yours') {
+    // With any creature you control: every type there is among them.
+    const yours = inZone(state, 'battlefield').filter((c) => /\bCreature\b/.test(c.card.type_line ?? ''))
+    const every = yours.some((c) => (c.card.keywords ?? []).some((k) => k.toLowerCase() === 'changeling'))
+    if (every) return { ...rest, types: rest.types ?? ['creature'] }
+    const among = [...new Set(yours.flatMap((c) => (
+      (c.card.type_line ?? '').split(/\s+—\s+/)[1]?.split(/\s+/).filter(isCreatureType) ?? []
+    )))]
+    return { ...rest, subtypes: among.length ? among : ['—'] }
+  }
   const source = find(state, r.source)
   const iid = sharesType === 'host' ? source?.attachedTo ?? r.event
     : sharesType === 'it' ? r.event ?? r.source : r.source

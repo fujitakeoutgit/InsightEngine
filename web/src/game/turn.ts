@@ -98,11 +98,17 @@ function enter(state: GameState): GameState {
       // Damage wears off (CR 514.2).
       // … and "until end of turn" ends with it.
       // …and so does being a copy of something "until end of turn".
-      const healed = state.cards.some((c) => c.damage || c.revert === 'end') || state.boosts.length
+      // …and so does leave to play a card from exile "this turn".
+      const lapsed = (c: Instance) => c.mayPlay && c.mayPlay.through !== null && c.mayPlay.through <= state.turn
+      const healed = state.cards.some((c) => c.damage || c.revert === 'end' || lapsed(c)) || state.boosts.length
         ? {
             ...state,
             boosts: [],
-            cards: reverted(state.cards, 'end').map((c) => (c.damage ? { ...c, damage: undefined } : c)),
+            cards: reverted(state.cards, 'end').map((c) => (
+              c.damage || lapsed(c)
+                ? { ...c, damage: undefined, ...(lapsed(c) ? { mayPlay: undefined } : {}) }
+                : c
+            )),
           }
         : state
       if (noMaximumHandSize(healed)) return healed

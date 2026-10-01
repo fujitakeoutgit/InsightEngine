@@ -5756,6 +5756,25 @@
   pointer-events: none;
 }
 
+/* Where a card really is, when it is shown beside the hand because it may
+   be played from there: exile, or the top of the library. */
+.pt-from {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--bg-hi) 88%, transparent);
+  border: 1px solid color-mix(in oklab, var(--ok) 50%, transparent);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink);
+  pointer-events: none;
+}
+
 /* --- Playtest: effects that play themselves ----------------------------- */
 
 /* A question about cards on the table sits low, clear of the board it is

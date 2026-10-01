@@ -95,8 +95,11 @@ describe('compiling cards', () => {
 
   it('grades a card it only partly reads, and one it cannot read at all', () => {
     expect(named('Swords to Plowshares').coverage).toBe('auto')
-    expect(named("Kari Zev's Expertise").coverage).toBe('partial')
-    expect(named('Abundance').coverage).toBe('manual')
+    // Made up, so that what counts as unread does not shift as more is read.
+    const unreadable = 'Each player shuffles their hand and graveyard into their library.'
+    expect(text(`Draw a card.
+${unreadable}`, 'Sorcery').coverage).toBe('partial')
+    expect(text(unreadable, 'Sorcery').coverage).toBe('manual')
   })
 
   it('treats a vanilla creature as needing nothing', () => {

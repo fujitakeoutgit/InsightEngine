@@ -43,7 +43,14 @@ function askType(state: GameState): GameState {
     c.zone === 'battlefield' && !c.chosenType
     && compile(c.card).statics.some((fixed) => fixed.kind === 'chooseType')
   ))
-  return waiting ? { ...state, pending: { kind: 'type', iid: waiting.iid, options: typesInDeck(state) } } : state
+  if (waiting) return { ...state, pending: { kind: 'type', iid: waiting.iid, options: typesInDeck(state) } }
+  // "…choose Khans or Dragons": the same question, of the card's own two.
+  for (const c of state.cards) {
+    if (c.zone !== 'battlefield' || c.chosenMode) continue
+    const asks = compile(c.card).statics.find((fixed) => fixed.kind === 'chooseSide')
+    if (asks?.kind === 'chooseSide') return { ...state, pending: { kind: 'type', iid: c.iid, options: asks.sides, side: true } }
+  }
+  return state
 }
 
 /** The creature types in the deck, the commonest first: what a type would
