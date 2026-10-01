@@ -27,7 +27,8 @@ import { PlayCoin, type CoinFace } from './PlayCoin'
 
 import { PlayDie } from './PlayDie'
 import {
-  AbilityMenu, ArrangeDialog, CoverageDialog, DecisionPrompt, ManaPicker, PhaseBar, PickDialog, Reminders,
+  AbilityMenu, ArrangeDialog, CoverageDialog, DecisionPrompt, ManaPicker, OrderPrompt, PhaseBar, PickDialog,
+  Reminders,
   StackPanel, XPrompt, type Offered,
 } from './PlaytestHud'
 import { canAnimate, gsap } from '../lib/motion'
@@ -160,12 +161,14 @@ export function Playtest({
   /** Whether new games play by the rules. Remembered, because it is a way of
    *  using the table rather than a fact about one game. */
   const [rulesByDefault, setRulesByDefault] = usePersisted('insight-enigma:playtest-rules', true)
+  /** Whether turn 1 draws: remembered, since it is how you play rather than a fact about one game. */
+  const [firstDraw, setFirstDraw] = usePersisted('insight-enigma:playtest-first-draw', false)
 
   /* The game, and the states undo can return to. A resumed game comes back
    * with its undo intact; anything else is dealt here, so the first frame the
    * table draws already has a hand in it. */
   const [table, dispatch] = useReducer(reduceTable, undefined, () => (
-    resumed?.table ?? freshTable(deal(deck, randomSeed(), rulesByDefault, tokens))
+    resumed?.table ?? freshTable(deal(deck, randomSeed(), rulesByDefault, tokens, firstDraw))
   ))
   const game = table.game
   const { cards, turn, life, log, drawn } = game
@@ -744,6 +747,21 @@ export function Playtest({
             onMode={(index) => dispatch({ type: 'mode', index })}
             name={pending.kind === 'type' ? cards.find((c) => c.iid === pending.iid)?.card.name : undefined}
             onType={(subtype) => dispatch({ type: 'pickType', subtype })}
+            firstDraw={game.firstDraw}
+            onFirstDraw={(on) => { setFirstDraw(on); dispatch({ type: 'firstDraw', on }) }}
+          />
+        )}
+
+        {pending?.kind === 'order' && (
+          <OrderPrompt
+            // A new set of triggers is a new question.
+            key={pending.ids.join()}
+            items={pending.ids.flatMap((id) => {
+              const item = game.stack.find((entry) => entry.id === id)
+              const source = item && cards.find((c) => c.iid === item.iid)
+              return item ? [{ id, name: source?.card.name ?? 'An ability', text: item.ability?.text ?? '' }] : []
+            })}
+            onOrder={(ids) => dispatch({ type: 'order', ids })}
           />
         )}
 

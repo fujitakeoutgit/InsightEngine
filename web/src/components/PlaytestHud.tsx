@@ -259,9 +259,14 @@ export function Reminders({ items, onDone }: { items: Reminder[]; onDone: (id: s
  *  from the board or the hand, which sits low, out of the way of the cards
  *  it is asking about. Searches and scrying have dialogs of their own. */
 export function DecisionPrompt({
-  decision, chosen, damage = 0, name = '', onKeep, onMulligan, onConfirm, onAnswer, onMode, onType, onAll,
+  decision, chosen, damage = 0, name = '', firstDraw = false, onFirstDraw,
+  onKeep, onMulligan, onConfirm, onAnswer, onMode, onType, onAll,
 }: {
   decision: Decision
+  /** Whether turn 1 draws a card, and the switch for it on the opening
+   *  hand. */
+  firstDraw?: boolean
+  onFirstDraw?: (on: boolean) => void
   /** The permanent a choice of creature type is for. */
   name?: string
   onType: (subtype: string) => void
@@ -348,7 +353,8 @@ export function DecisionPrompt({
       </div>
     )
   }
-  if (decision.kind === 'arrange') return null
+  // Scrying and ordering triggers have panels of their own.
+  if (decision.kind === 'arrange' || decision.kind === 'order') return null
   if (decision.kind === 'attack') {
     return (
       <div className="pt-decision low" role="dialog" aria-label="Declare attackers">
@@ -385,6 +391,17 @@ export function DecisionPrompt({
           <button className="btn btn-primary sm" onClick={onKeep}>Keep</button>
           <button className="btn btn-ghost sm" onClick={onMulligan}>Mulligan</button>
         </div>
+        {onFirstDraw && (
+          <button
+            className={`pt-rules pt-first-draw${firstDraw ? ' on' : ''}`}
+            onClick={() => onFirstDraw(!firstDraw)}
+            aria-pressed={firstDraw}
+            title="In a multiplayer game everyone draws on their first turn; the player who goes first in a two-player game does not."
+          >
+            <span className="pt-rules-dot" aria-hidden />
+            Draw on turn 1
+          </button>
+        )}
       </div>
     )
   }
@@ -398,6 +415,43 @@ export function DecisionPrompt({
       <button className="btn btn-primary sm" onClick={onConfirm} disabled={chosen !== decision.count}>
         {verb}
       </button>
+    </div>
+  )
+}
+
+/** One of several abilities that triggered together. */
+export interface Triggered { id: string; name: string; text: string }
+
+/**
+ * Abilities that triggered together, in the order they will resolve. Click
+ * one to have it resolve first; the rest keep their places behind it.
+ */
+export function OrderPrompt({ items, onOrder }: { items: Triggered[]; onOrder: (ids: string[]) => void }) {
+  const [order, setOrder] = useState(() => items.map((item) => item.id))
+  const byId = new Map(items.map((item) => [item.id, item]))
+  return (
+    <div className="pt-decision pt-order" role="dialog" aria-label="Order abilities">
+      <h3>These triggered together</h3>
+      <p className="faint">They resolve top to bottom. Click one to move it to the front.</p>
+      <ol className="pt-order-list">
+        {order.map((id, i) => (
+          <li key={id}>
+            <button
+              className="btn btn-ghost sm"
+              onClick={() => setOrder((now) => [id, ...now.filter((other) => other !== id)])}
+              disabled={i === 0}
+              title={i === 0 ? 'Resolves first' : 'Resolve this one first'}
+            >
+              <span className="mono pt-order-n">{i + 1}</span>
+              <span>
+                <strong>{byId.get(id)?.name}</strong>
+                <span className="pt-order-text">{byId.get(id)?.text}</span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ol>
+      <button className="btn btn-primary sm" onClick={() => onOrder(order)}>Resolve in this order</button>
     </div>
   )
 }

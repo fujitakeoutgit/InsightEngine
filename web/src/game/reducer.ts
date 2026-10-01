@@ -58,7 +58,7 @@ function build(deck: readonly DeckCard[]): Instance[] {
 /** A new game: the library shuffled, seven in hand, the commander waiting.
  *  With the rules on it opens on the mulligan decision. */
 export function deal(
-  deck: readonly DeckCard[], seed: number, rules = true, tokens: readonly DeckToken[] = [],
+  deck: readonly DeckCard[], seed: number, rules = true, tokens: readonly DeckToken[] = [], firstDraw = false,
 ): GameState {
   const [everything, next] = shuffle(build(deck), seed)
   const library = everything.filter((c) => c.zone === 'library')
@@ -94,6 +94,7 @@ export function deal(
     events: [],
     tally: emptyTally(),
     blessing: false,
+    firstDraw,
   }
 }
 
@@ -176,7 +177,7 @@ function apply(state: GameState, action: Action): GameState {
 
   switch (action.type) {
     case 'deal': {
-      const dealt = deal(action.deck, action.seed, state.rules, action.tokens)
+      const dealt = deal(action.deck, action.seed, state.rules, action.tokens, state.firstDraw)
       // A reset keeps the pictures it already had.
       return action.tokens ? dealt : { ...dealt, tokenArt: state.tokenArt }
     }
@@ -350,6 +351,23 @@ function apply(state: GameState, action: Action): GameState {
     case 'arrange':
     case 'mode':
       return answer(state, action)
+
+    case 'order': {
+      const { pending } = state
+      if (pending?.kind !== 'order') return state
+      const asked = new Set(pending.ids)
+      if (action.ids.length !== asked.size || new Set(action.ids).size !== asked.size
+        || !action.ids.every((id) => asked.has(id))) return state
+      // The first to resolve is the top of the stack, which is its end.
+      const byId = new Map(state.stack.map((item) => [item.id, item]))
+      const placed = [...action.ids].reverse().map((id) => byId.get(id)!)
+      let next = 0
+      const stack = state.stack.map((item) => (asked.has(item.id) ? placed[next++] : item))
+      return { ...state, stack, pending: null }
+    }
+
+    case 'firstDraw':
+      return action.on === state.firstDraw ? state : { ...state, firstDraw: action.on }
 
     case 'pickType': {
       const { pending } = state

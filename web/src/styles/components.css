@@ -5779,6 +5779,30 @@
 .pt-modes { display: flex; flex-direction: column; gap: 6px; }
 .pt-modes .btn { white-space: normal; text-align: left; height: auto; padding: 8px 10px; line-height: 1.4; text-transform: none; letter-spacing: 0; font-size: 12px; }
 
+/* Abilities that triggered together, in the order they will resolve. */
+.pt-order { max-width: 420px; }
+.pt-order-list { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pt-order-list .btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  height: auto;
+  padding: 8px 10px;
+  white-space: normal;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.pt-order-list .btn:disabled { opacity: 1; border-color: color-mix(in oklab, var(--aether) 55%, transparent); cursor: default; }
+.pt-order-n { color: var(--aether-hi); font-weight: 600; }
+.pt-order-text { display: block; color: var(--muted); }
+
+/* The switch for a draw on turn 1, under the opening hand's two buttons. */
+.pt-first-draw { margin-top: 10px; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; }
+
 /* Creature types to choose from: short words, so they sit in rows. */
 .pt-modes.pt-types { flex-direction: row; flex-wrap: wrap; max-width: 360px; }
 .pt-modes.pt-types .btn { padding: 5px 10px; }

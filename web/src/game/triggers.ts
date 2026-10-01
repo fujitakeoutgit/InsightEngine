@@ -202,7 +202,18 @@ export function collectTriggers(before: GameState, after: GameState): GameState 
       })
     }
   }
-  return next
+  return askOrder(after, next)
+}
+
+/** Abilities that triggered together go on the stack in an order you choose
+ *  (CR 603.3b). Asked when more than one did and they do different things —
+ *  and not in the middle of something else that is being asked. */
+function askOrder(before: GameState, after: GameState): GameState {
+  if (after.pending || after.resolving) return after
+  const had = new Set(before.stack.map((item) => item.id))
+  const added = after.stack.filter((item) => item.ability && !had.has(item.id))
+  if (new Set(added.map((item) => item.ability!.text)).size < 2) return after
+  return { ...after, pending: { kind: 'order', ids: added.map((item) => item.id) } }
 }
 
 /** "At the beginning of your upkeep", as the step begins. Text nothing reads

@@ -200,6 +200,9 @@ export type Decision =
   | { kind: 'attack'; options: string[] }
   /** "As ~ enters, choose a creature type": which, for this permanent. */
   | { kind: 'type'; iid: string; options: string[] }
+  /** Abilities that triggered together: the order they go on the stack in
+   *  is yours to choose (CR 603.3b). These are their stack ids. */
+  | { kind: 'order'; ids: string[] }
   /** "Choose one —". Where more than one may be chosen, they are taken one
    *  at a time: `taken` is what has been so far, and `canStop` whether that
    *  is enough to stop at. */
@@ -272,6 +275,10 @@ export interface GameState {
   /** You have the city's blessing — had ten permanents with something that
    *  ascends — and keep it for the rest of the game. */
   blessing: boolean
+  /** Turn 1 draws a card. Off, it is skipped, as the player who goes first
+   *  in a two-player game skips theirs (CR 103.8a); in a multiplayer game
+   *  nobody does (103.8c). */
+  firstDraw: boolean
 }
 
 export type Action =
@@ -322,6 +329,10 @@ export type Action =
   | { type: 'mode'; index: number }
   /** The creature type chosen for the permanent that is asking. */
   | { type: 'pickType'; subtype: string }
+  /** The order abilities that triggered together resolve in, first first. */
+  | { type: 'order'; ids: string[] }
+  /** Whether turn 1 has a draw step: it does in a multiplayer game. */
+  | { type: 'firstDraw'; on: boolean }
   /** Add or remove counters by hand. */
   | { type: 'counter'; iid: string; counter: string; by: number }
   /** Set the opponent's life by hand. */
