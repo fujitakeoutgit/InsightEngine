@@ -612,6 +612,36 @@ button.chip.empty:active { transform: none; }
 }
 .fld::placeholder { color: var(--faint); }
 
+/* A field with a ✕ at its right end to empty it. The button sits over the
+   field's own padding, so the text never runs under it. */
+.fld-clearable { position: relative; width: 100%; }
+.fld-clearable .fld { padding-right: 32px; }
+
+.fld-clear {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color var(--dur-fast), background var(--dur-fast);
+}
+.fld-clear:hover,
+.fld-clear:focus-visible {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--aether) 18%, transparent);
+  outline: none;
+}
+
 select.fld {
   font-family: var(--font-m);
   font-size: 12px;

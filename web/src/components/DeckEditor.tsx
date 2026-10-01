@@ -16,6 +16,7 @@ import {
   GROUP_KEY, OVERLAY_KEY, SORT_DIR_KEY, SORT_KEY,
   usePersisted, useShared, useSortDir,
 } from '../lib/usePersisted'
+import { ClearButton } from './ClearButton'
 import { CARD_DRAG_TYPE } from './DeckSearch'
 import { FlipButton } from './FlipButton'
 import { PrintingPicker } from './PrintingPicker'
@@ -134,6 +135,7 @@ export function DeckEditor({
   )
   const [tileSize, setTileSize] = usePersisted('insight-enigma:editor-tile', 120)
   const [query, setQuery] = useState('')
+  const filterRef = useRef<HTMLInputElement>(null)
   /** Which group tab is open, per section. */
   const [openGroups, setOpenGroups] = useState<Record<string, string>>({})
   const [dragging, setDragging] = useState<string | null>(null)
@@ -345,14 +347,21 @@ export function DeckEditor({
         />
       )}
       <div className="editor-bar">
-        <input
-          className="fld"
-          style={{ maxWidth: 240 }}
-          placeholder="Filter this deck…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label="Filter deck"
-        />
+        <div className="fld-clearable" style={{ maxWidth: 240 }}>
+          <input
+            ref={filterRef}
+            className="fld"
+            placeholder="Filter this deck…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Filter deck"
+          />
+          <ClearButton
+            shown={query !== ''}
+            onClear={() => { setQuery(''); filterRef.current?.focus() }}
+            label="Clear filter"
+          />
+        </div>
         <select
           className="fld" style={{ width: 'auto' }}
           value={groupBy} onChange={(e) => setGroupBy(e.target.value as GroupBy)}

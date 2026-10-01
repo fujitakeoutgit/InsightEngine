@@ -10,6 +10,7 @@ import {
   GROUP_KEY, OVERLAY_KEY, SORT_DIR_KEY, SORT_KEY,
   usePersisted, useShared, useSortDir,
 } from '../lib/usePersisted'
+import { ClearButton } from './ClearButton'
 import { FlipButton } from './FlipButton'
 import { GroupTabs, useOpenGroup } from './GroupTabs'
 import { ManaCost } from './ManaCost'
@@ -273,20 +274,22 @@ export function DeckSearch({
     <div className={`deck-search stack gap-3${pinOverlay ? ' overlay-pinned' : ''}`}>
       <div className="row gap-2 wrap">
         <div className="typeahead" style={{ flex: 1, minWidth: 200 }}>
-          <input
-            ref={inputRef}
-            className="fld"
-            style={{ width: '100%' }}
-            value={draft}
-            placeholder="Card name — Tab to complete, Enter to search"
-            spellCheck={false}
-            autoComplete="off"
-            onChange={(e) => { setDraft(e.target.value); setOpen(true) }}
-            onFocus={() => setOpen(true)}
-            onBlur={() => setTimeout(() => setOpen(false), 140)}
-            onKeyDown={onKeyDown}
-            aria-label="Card name"
-          />
+          <div className="fld-clearable">
+            <input
+              ref={inputRef}
+              className="fld"
+              value={draft}
+              placeholder="Card name — Tab to complete, Enter to search"
+              spellCheck={false}
+              autoComplete="off"
+              onChange={(e) => { setDraft(e.target.value); setOpen(true) }}
+              onFocus={() => setOpen(true)}
+              onBlur={() => setTimeout(() => setOpen(false), 140)}
+              onKeyDown={onKeyDown}
+              aria-label="Card name"
+            />
+            <ClearButton shown={draft !== ''} onClear={() => fill('')} label="Clear card name" />
+          </div>
           {open && names.length > 0 && (
             <div className="ta-options">
               {names.map((name, i) => (
