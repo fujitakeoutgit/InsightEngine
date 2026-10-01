@@ -42,11 +42,17 @@ export interface Filter {
   controller?: 'you' | 'opponent' | 'any'
 }
 
-/** A permanent's number, read off the one an effect refers to. */
+/** Which card an amount is read off: what was chosen, the card the trigger
+ *  is about, the source — or `each`, the permanent the effect is acting on,
+ *  one at a time: "counters on each creature equal to that creature's
+ *  toughness". */
+export type Whose = 'chosen' | 'event' | 'self' | 'each'
+
+/** A permanent's number, read off the one an effect refers to. `gap` is the
+ *  difference between its power and its toughness. */
 export interface Stat {
-  stat: 'power' | 'toughness'
-  /** What was chosen; the card the trigger is about; the source. */
-  of: 'chosen' | 'event' | 'self'
+  stat: 'power' | 'toughness' | 'manaValue' | 'gap'
+  of: Whose
 }
 
 /** How many. */
@@ -57,6 +63,24 @@ export type Count =
   /** One for each permanent matching — "for each creature you control". */
   | { per: Filter }
   | Stat
+  /** The cards in your hand, or in your graveyard — all, or those matching. */
+  | { zone: 'hand' | 'graveyard'; filter?: Filter }
+  /** The counters of one kind on a permanent. */
+  | { counters: string; of: Whose }
+  /** "The total toughness of other creatures you control." */
+  | { total: 'power' | 'toughness'; of: Filter }
+  /** The colors among permanents you control. */
+  | 'colors'
+  /** Your life total. */
+  | 'life'
+  /** As many as the effect before this one acted on: "the number of
+   *  creatures destroyed this way". */
+  | 'thatMany'
+
+/** A change to power or toughness: a plain number, or an amount worked out
+ *  as the effect happens — "-X/-X, where X is the sacrificed creature's
+ *  toughness". */
+export type Signed = number | { sign: 1 | -1; count: Count }
 
 /** Who or what an effect is aimed at. */
 export type Aim =
@@ -96,11 +120,17 @@ export interface Boost {
   keywords: string[]
   /** Counted once for each of these: "for each land you control", or for
    *  each color among your permanents. */
-  per?: Filter | 'colors'
+  per?: Filter | 'colors' | Measure
 }
 
-/** What a characteristic-defining ability counts. */
-export type Measure = { per: Filter } | { devotion: string }
+/** What a standing ability counts. */
+export type Measure =
+  | { per: Filter }
+  | { devotion: string }
+  /** Cards in your graveyard or hand: "each land card in your graveyard". */
+  | { zone: 'hand' | 'graveyard'; filter?: Filter }
+  /** Several of these, added up. */
+  | { plus: Measure[] }
 
 export type Effect = (
   /** Pick permanents for the effects after it. A target may be declined —
@@ -113,13 +143,15 @@ export type Effect = (
   | { op: 'scry'; count: Count }
   | { op: 'surveil'; count: Count }
   | { op: 'mill'; count: Count }
-  | { op: 'token'; count: Count; token: TokenSpec; tapped: boolean }
+  /** `size` is for a token printed as X/X: how big, worked out as it is
+   *  made. */
+  | { op: 'token'; count: Count; token: TokenSpec; tapped: boolean; size?: Count }
   | { op: 'counters'; to: Aim; count: Count; counter: string }
   /** Search your library. */
   | {
     op: 'search'
     filter: Filter
-    count: number
+    count: Count
     upTo: boolean
     to: 'hand' | 'battlefield' | 'top'
     tapped: boolean
@@ -140,7 +172,7 @@ export type Effect = (
   | { op: 'extraLand'; count: number }
   | { op: 'addMana'; makes: ManaType[][] }
   /** "Gets +3/+3 and gains trample until end of turn." */
-  | { op: 'boost'; to: Aim; power: number; toughness: number; keywords: string[] }
+  | { op: 'boost'; to: Aim; power: Signed; toughness: Signed; keywords: string[] }
   /** Attach the source — an Equipment, an Aura — to what was chosen. */
   | { op: 'attach' }
   /** Discard from your hand: your choice of which. */

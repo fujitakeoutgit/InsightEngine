@@ -61,7 +61,13 @@ export interface TurnBoost {
 /** Power and toughness as they stood, for an effect that asks after the
  *  card has moved on — "it deals damage equal to its power", of a creature
  *  that just died. */
-export interface Known { power: number; toughness: number }
+export interface Known {
+  power: number
+  toughness: number
+  /** Its counters and mana value, for the effects that ask after those. */
+  counters?: Record<string, number>
+  manaValue?: number
+}
 
 /** The turn, step by step (CR 500–514). Declare blockers is absent: the
  *  opponent has nothing to block with. */
@@ -119,6 +125,9 @@ export interface Resolution {
   agreed: boolean
   /** The last "you may" was declined, so its "if you do" is skipped. */
   declined: boolean
+  /** How many things the effect before this one acted on — "the number of
+   *  creatures destroyed this way". */
+  last: number
   /** A spell: its card goes to the graveyard when this is done. */
   spell: boolean
   /** Words left over for you to finish, when not all of it was understood. */

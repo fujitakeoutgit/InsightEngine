@@ -5,8 +5,8 @@
  * those that are true and make no difference at a table with one player.
  */
 
-import type { Boost, Filter, Static } from './ir'
-import { readCount, readFilter, readNumber } from './read'
+import type { Boost, Filter, Measure, Static } from './ir'
+import { readAmount, readCount, readFilter, readNumber } from './read'
 
 const COLORS: Record<string, string> = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' }
 
@@ -17,10 +17,29 @@ export function readKeywords(phrase: string): string[] {
 }
 
 /** "for each land you control" / "for each color among permanents you
- *  control" → what to count. */
-function readPer(phrase: string): Filter | 'colors' | null {
+ *  control" / "each land you control and each land card in your graveyard"
+ *  → what to count. */
+function readPer(phrase: string): Filter | 'colors' | Measure | null {
   if (/^color among permanents you control$/.test(phrase)) return 'colors'
-  return readFilter(phrase)
+  const measure = readMeasure(phrase)
+  // A plain "for each land you control" stays the filter it always was.
+  return measure && 'per' in measure ? measure.per : measure
+}
+
+function readMeasure(phrase: string): Measure | null {
+  const both = /^(.+?) and each (.+)$/.exec(phrase)
+  if (both) {
+    const first = readMeasure(both[1])
+    const second = readMeasure(both[2])
+    return first && second ? { plus: [first, second] } : null
+  }
+  const buried = /^(?:(.+?) )?cards? in your graveyard$/.exec(phrase)
+  if (buried) {
+    const filter = buried[1] ? readFilter(buried[1]) : undefined
+    return filter === null ? null : { zone: 'graveyard', ...(filter ? { filter } : {}) }
+  }
+  const filter = readFilter(phrase)
+  return filter && { per: filter }
 }
 
 /** Lines that hold and change nothing here: there is nobody to cast
@@ -60,10 +79,13 @@ export function readStatic(line: string): Static | null {
     return { kind: 'defendersAttack' }
   }
 
-  const counters = /^~ enters with (\w+) ([+-]\d\/[+-]\d) counters? on it$/.exec(l)
+  const counters = /^~ enters with (\w+) ([+-]\d\/[+-]\d|[a-z]+) counters? on it(?:, where x is (.+))?$/.exec(l)
   if (counters) {
-    const count = readCount(counters[1])
-    if (count !== null) return { kind: 'entersWithCounters', counter: counters[2], count }
+    // "…X charge counters on it, where X is your life total."
+    const count = counters[3] ? readAmount(counters[3]) : readCount(counters[1])
+    if (count !== null && (!counters[3] || counters[1] === 'x')) {
+      return { kind: 'entersWithCounters', counter: counters[2], count }
+    }
   }
 
   // "Creatures you control get +1/+1", "Spirits you control get +1/+1 and

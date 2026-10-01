@@ -9,8 +9,8 @@
 
 import { entersTapped } from '../lib/landTiming'
 import type { Card } from '../lib/api'
+import { amount } from './amount'
 import { compile } from './compiler/compile'
-import { onBattlefield } from './match'
 import { autotap, demand, formatCost, parseCost, type Cost, type ManaType, type Payment } from './mana'
 import { seatFor } from './seat'
 import { canTapForMana, hasKeyword, isCreature, manaAbilities, manaSources } from './sources'
@@ -81,9 +81,7 @@ export function enterBattlefield(
   let counters = inst.counters
   for (const fixed of state.rules ? compile(inst.card).statics : []) {
     if (fixed.kind !== 'entersWithCounters') continue
-    const n = typeof fixed.count === 'number' ? fixed.count
-      : fixed.count === 'X' ? x
-        : 'per' in fixed.count ? onBattlefield(state, fixed.count.per, iid).length : 0
+    const n = amount(state, { x, source: iid, chosen: [], event: null, known: {}, last: 0 }, fixed.count)
     counters = { ...counters, [fixed.counter]: (counters?.[fixed.counter] ?? 0) + n }
   }
   const cards = state.cards.map((c) => (

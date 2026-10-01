@@ -17,7 +17,7 @@ import type { TriggeredAbility, TriggerEvent } from './compiler/ir'
 import { matches, onBattlefield } from './match'
 import { isCreature } from './sources'
 import { inZone, mint, noted } from './state'
-import { stats } from './stats'
+import { snapshot } from './stats'
 import type { GameState, Instance, Known } from './types'
 
 type Happened =
@@ -127,7 +127,7 @@ export function collectTriggers(before: GameState, after: GameState): GameState 
         if (sees(ability.when, event, source)) {
           // What it was as it left, for a death; what it is, for the rest.
           const about = 'card' in event ? event.card : null
-          const known = about ? stats(about, event.on === 'dies' ? before : next) : null
+          const known = about ? snapshot(about, event.on === 'dies' ? before : next) : null
           next = fire(next, source, index, ability, about, known)
         }
       })

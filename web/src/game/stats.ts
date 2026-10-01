@@ -31,10 +31,16 @@ const fits = isKind
 
 const onBoard = (state: GameState) => state.cards.filter((c) => c.zone === 'battlefield')
 
+/** The colors among permanents you control. */
+export const colorsOnBoard = (state: GameState) =>
+  new Set(onBoard(state).flatMap((c) => [...(c.card.colors ?? '')])).size
+
 /** How many there are of what a "for each" counts. */
 function measure(state: GameState, of: Filter | 'colors' | Measure, source: string): number {
-  if (of === 'colors') {
-    return new Set(onBoard(state).flatMap((c) => [...(c.card.colors ?? '')])).size
+  if (of === 'colors') return colorsOnBoard(state)
+  if ('plus' in of) return of.plus.reduce((n, part) => n + measure(state, part, source), 0)
+  if ('zone' in of) {
+    return state.cards.filter((c) => c.zone === of.zone && (!of.filter || fits(c, of.filter, source))).length
   }
   if ('devotion' in of) {
     // Devotion: that color's symbols in the costs of your permanents.
@@ -100,6 +106,14 @@ export function toughness(inst: Instance, state?: GameState) {
 
 export const stats = (inst: Instance, state?: GameState): Known =>
   ({ power: power(inst, state), toughness: toughness(inst, state) })
+
+/** A card as it stands, to be asked about after it has moved on: its size,
+ *  its counters, its mana value. */
+export const snapshot = (inst: Instance, state?: GameState): Known => ({
+  ...stats(inst, state),
+  counters: inst.counters ?? {},
+  manaValue: inst.card.cmc ?? 0,
+})
 
 /** Its own keywords, and any the board gives it. */
 export function hasKeyword(inst: Instance, keyword: string, state?: GameState) {

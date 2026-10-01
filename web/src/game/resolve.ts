@@ -14,31 +14,18 @@
  */
 
 import type { Card } from '../lib/api'
+import { amount, signed } from './amount'
 import { enterBattlefield, isPermanentSpell, remind, remindUnread, rulesText } from './cast'
 import { lifeGainFactor } from './combat'
 import { compile } from './compiler/compile'
-import type { Aim, Count, Effect, Filter, TokenSpec } from './compiler/ir'
+import type { Aim, Effect, Filter, TokenSpec } from './compiler/ir'
 import { autotap, parseCost } from './mana'
 import { matches, onBattlefield } from './match'
 import { seatFor } from './seat'
 import { isCreature, manaSources } from './sources'
 import { draw, find, inZone, mint, noted, relocate, shuffleLibrary } from './state'
-import { stats } from './stats'
+import { snapshot } from './stats'
 import type { Action, Decision, GameState, Instance, Resolution } from './types'
-
-/** How many, as the game stands. */
-function amount(state: GameState, r: Resolution, count: Count): number {
-  if (typeof count === 'number') return count
-  if (count === 'X') return r.x
-  if ('per' in count) return onBattlefield(state, count.per, r.source).length
-  const iid = count.of === 'chosen' ? r.chosen[0] : count.of === 'event' ? r.event : r.source
-  if (!iid) return 0
-  // The source is asked as it is now; anything else as it was when it was
-  // picked or when the trigger saw it, since it may have left since.
-  const live = find(state, iid)
-  if (count.of === 'self' && live?.zone === 'battlefield') return stats(live, state)[count.stat]
-  return r.known[iid]?.[count.stat] ?? (live ? stats(live, state)[count.stat] : 0)
-}
 
 /** The permanents an effect acts on. */
 function aimed(state: GameState, r: Resolution, aim: Aim): Instance[] {
@@ -62,6 +49,11 @@ const change = (state: GameState, iids: readonly string[], to: (c: Instance) => 
 
 const names = (cards: readonly Instance[]) => cards.map((c) => c.card.name).join(', ')
 
+/** Note how many things an effect acted on, for the one after it to ask:
+ *  "the number of creatures destroyed this way". */
+const acted = (state: GameState, n: number): GameState =>
+  (state.resolving ? { ...state, resolving: { ...state.resolving, last: n } } : state)
+
 /** "Wall of Omens'", "Aesi's". */
 const possessive = (name: string) => `${name}${name.endsWith('s') ? "'" : "'s"}`
 
@@ -78,12 +70,14 @@ function arrange(cards: readonly Instance[], top: readonly string[], bottom: rea
   return [...placed, ...bottom.map((iid) => byId.get(iid)!)]
 }
 
-/** A token, made and seated where its type belongs. */
-function makeToken(state: GameState, spec: TokenSpec, tapped: boolean): GameState {
+/** A token, made and seated where its type belongs. `size` is what an X/X
+ *  one comes to. */
+function makeToken(state: GameState, spec: TokenSpec, tapped: boolean, size?: number): GameState {
   const slug = spec.name.toLowerCase().replace(/\W+/g, '-')
   const [iid, minted] = mint(state, `token-${slug}-`)
   const art = state.tokenArt[spec.name.toLowerCase()] ?? null
-  const [power, toughness] = spec.pt ? spec.pt.split('/') : [null, null]
+  const [power, toughness] = size !== undefined ? [String(size), String(size)]
+    : spec.pt ? spec.pt.split('/') : [null, null]
   const card = {
     oracle_id: `token-${slug}`,
     name: spec.name,
@@ -129,7 +123,7 @@ type Outcome = { state: GameState; wait?: Decision }
 function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
   const n = effect.op === 'draw' || effect.op === 'life' || effect.op === 'damage'
     || effect.op === 'scry' || effect.op === 'surveil' || effect.op === 'mill'
-    || effect.op === 'token' || effect.op === 'counters'
+    || effect.op === 'token' || effect.op === 'counters' || effect.op === 'search'
     ? amount(state, r, effect.count) : 0
 
   switch (effect.op) {
@@ -140,7 +134,7 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
         resolving: {
           ...r,
           chosen,
-          known: { ...r.known, ...Object.fromEntries(chosen.map((iid) => [iid, stats(find(state, iid)!, state)])) },
+          known: { ...r.known, ...Object.fromEntries(chosen.map((iid) => [iid, snapshot(find(state, iid)!, state)])) },
         },
       })
       if (!options.length) return { state: noted(set([]), `${r.name}: nothing to choose`) }
@@ -201,13 +195,26 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
     }
 
     case 'token': {
+      const size = effect.size === undefined ? undefined : amount(state, r, effect.size)
       let next = state
-      for (let i = 0; i < n; i += 1) next = makeToken(next, effect.token, effect.tapped)
-      return { state: n > 0 ? noted(next, `Created ${n > 1 ? `${n} ${effect.token.name} tokens` : `a ${effect.token.name} token`}`) : state }
+      for (let i = 0; i < n; i += 1) next = makeToken(next, effect.token, effect.tapped, size)
+      const what = `${size === undefined ? '' : `${size}/${size} `}${effect.token.name}`
+      return { state: n > 0 ? noted(next, `Created ${n > 1 ? `${n} ${what} tokens` : `a ${what} token`}`) : state }
     }
 
     case 'counters': {
-      const on = aimed(state, r, effect.to)
+      const on = aimed(state, r, effect.to).filter((c) => c.zone === 'battlefield')
+      const { count } = effect
+      if (typeof count === 'object' && 'of' in count && count.of === 'each') {
+        // Each gets its own amount: "equal to that creature's toughness".
+        const each = new Map(on.map((c) => (
+          [c.iid, amount(state, { ...r, event: c.iid, known: {} }, { ...count, of: 'event' } as typeof count)]
+        )))
+        const added = change(state, on.map((c) => c.iid), (c) => ({
+          ...c, counters: { ...c.counters, [effect.counter]: (c.counters?.[effect.counter] ?? 0) + Math.max(0, each.get(c.iid) ?? 0) },
+        }))
+        return { state: on.length ? noted(added, `${effect.counter} counters on ${names(on)}`) : state }
+      }
       if (!on.length || n <= 0) return { state }
       const added = change(state, on.map((c) => c.iid), (c) => ({
         ...c, counters: { ...c.counters, [effect.counter]: (c.counters?.[effect.counter] ?? 0) + n },
@@ -217,7 +224,7 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
 
     case 'search': {
       const options = inZone(state, 'library').filter((c) => matches(c, effect.filter, r.source)).map((c) => c.iid)
-      if (!options.length) {
+      if (!options.length || n <= 0) {
         return { state: noted(shuffleLibrary(state), `${r.name}: found nothing, then shuffled`) }
       }
       return {
@@ -225,12 +232,12 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
         wait: {
           kind: 'pick',
           zone: 'library',
-          prompt: `${r.name}: search for ${asked(effect.filter, effect.count, effect.upTo, 'card')}${
+          prompt: `${r.name}: search for ${asked(effect.filter, n, effect.upTo, 'card')}${
             effect.restToHand ? ' — the first goes onto the battlefield, the other into your hand' : ''}`,
           options,
           // A search of a hidden zone may always come up empty (CR 701.19b).
           min: 0,
-          max: Math.min(effect.count, options.length),
+          max: Math.min(n, options.length),
         },
       }
     }
@@ -267,7 +274,7 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       let cards = state.cards
       for (const c of what) cards = relocate(cards, c.iid, effect.to)
       const verb = effect.to === 'graveyard' ? 'to the graveyard' : effect.to === 'exile' ? 'exiled' : 'returned to hand'
-      return { state: noted({ ...state, cards }, `${names(what)} ${verb}`) }
+      return { state: acted(noted({ ...state, cards }, `${names(what)} ${verb}`), what.length) }
     }
 
     case 'reanimate': {
@@ -302,13 +309,13 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
     }
 
     case 'boost': {
-      const on = effect.to.kind === 'you' || effect.to.kind === 'opponent' ? [] : aimed(state, r, effect.to)
+      const on = (effect.to.kind === 'you' || effect.to.kind === 'opponent' ? [] : aimed(state, r, effect.to))
+        .filter((c) => c.zone === 'battlefield')
       if (!on.length) return { state }
-      const boosts = [...state.boosts, {
-        iids: on.map((c) => c.iid), power: effect.power, toughness: effect.toughness, keywords: effect.keywords,
-      }]
+      const [power, toughness] = [signed(state, r, effect.power), signed(state, r, effect.toughness)]
+      const boosts = [...state.boosts, { iids: on.map((c) => c.iid), power, toughness, keywords: effect.keywords }]
       const what = [
-        effect.power || effect.toughness ? `${effect.power >= 0 ? '+' : ''}${effect.power}/${effect.toughness >= 0 ? '+' : ''}${effect.toughness}` : '',
+        power || toughness ? `${power >= 0 ? '+' : ''}${power}/${toughness >= 0 ? '+' : ''}${toughness}` : '',
         effect.keywords.join(', ').toLowerCase(),
       ].filter(Boolean).join(' and ')
       return { state: noted({ ...state, boosts }, `${names(on)}: ${what} until end of turn`) }
@@ -481,7 +488,7 @@ function applyPick(state: GameState, r: Resolution, effect: Effect, picked: stri
         resolving: {
           ...r,
           chosen: picked,
-          known: { ...r.known, ...Object.fromEntries(cards.map((c) => [c.iid, stats(c, state)])) },
+          known: { ...r.known, ...Object.fromEntries(cards.map((c) => [c.iid, snapshot(c, state)])) },
         },
       }
 
@@ -510,7 +517,7 @@ function applyPick(state: GameState, r: Resolution, effect: Effect, picked: stri
     case 'discard': {
       let hand = state.cards
       for (const iid of picked) hand = relocate(hand, iid, 'graveyard')
-      return noted({ ...state, cards: hand }, `${r.name}: discarded ${names(cards)}`)
+      return acted(noted({ ...state, cards: hand }, `${r.name}: discarded ${names(cards)}`), picked.length)
     }
 
     case 'reanimate': {
@@ -541,7 +548,7 @@ export function resolveTop(state: GameState): GameState {
   if (!top) return state
   const stack = state.stack.slice(0, -1)
   const inst = find(state, top.iid)
-  const blank = { at: 0, x: top.x, chosen: [], agreed: false, declined: false }
+  const blank = { at: 0, x: top.x, chosen: [], agreed: false, declined: false, last: 0 }
 
   if (top.ability) {
     const name = inst?.card.name ?? 'An ability'

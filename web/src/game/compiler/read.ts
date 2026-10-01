@@ -7,7 +7,7 @@
  * enters" read the same.
  */
 
-import type { Count, Filter, TokenSpec } from './ir'
+import type { Count, Filter, TokenSpec, Whose } from './ir'
 import { subtypeOf } from './subtypes'
 
 const NUMBERS: Record<string, number> = {
@@ -27,6 +27,57 @@ export function readCount(word: string): Count | null {
 export function readNumber(word: string): number | null {
   const count = readCount(word)
   return typeof count === 'number' ? count : null
+}
+
+/** Who "its" and "the sacrificed creature's" belong to, where the sentence
+ *  is being read: the thing targeted, if something was; otherwise the card
+ *  the ability is about. */
+export interface Speaking { it: Whose; sacrificed: Whose }
+
+const NOBODY: Speaking = { it: 'event', sacrificed: 'event' }
+
+/**
+ * An amount in words: "the number of lands you control", "your life total",
+ * "the sacrificed creature's toughness". What comes after "where X is" and
+ * "equal to". Null for anything else.
+ */
+export function readAmount(phrase: string, who: Speaking = NOBODY): Count | null {
+  const p = phrase.trim().toLowerCase().replace(/\.$/, '')
+  const plain = readCount(p)
+  if (plain !== null) return plain
+  if (p === 'your life total') return 'life'
+
+  const stat = /^(~'s|its|that creature's|that permanent's|that card's|the sacrificed creature's) (power|toughness|mana value)$/.exec(p)
+  if (stat) {
+    const of = stat[1] === "~'s" ? 'self' : stat[1].startsWith('the sacrificed') ? who.sacrificed : who.it
+    return { stat: stat[2] === 'mana value' ? 'manaValue' : stat[2] as 'power' | 'toughness', of }
+  }
+  if (/^the difference between (?:that creature's|its) power and (?:its )?toughness$/.test(p)) {
+    return { stat: 'gap', of: who.it }
+  }
+  const total = /^the total (power|toughness) of (.+)$/.exec(p)
+  if (total) {
+    const of = readFilter(total[2])
+    return of && { total: total[1] as 'power' | 'toughness', of }
+  }
+
+  const number = /^the number of (.+)$/.exec(p)
+  if (!number) return null
+  const what = number[1]
+  if (what === 'cards in your hand') return { zone: 'hand' }
+  if (what === 'colors among permanents you control') return 'colors'
+  // The table has one.
+  if (what === 'opponents you have') return 1
+  if (/ (destroyed|sacrificed|exiled|discarded|returned) this way$/.test(what)) return 'thatMany'
+  const buried = /^(?:(.+?) )?cards in your graveyard$/.exec(what)
+  if (buried) {
+    const filter = buried[1] ? readFilter(buried[1]) : undefined
+    return filter === null ? null : { zone: 'graveyard', ...(filter ? { filter } : {}) }
+  }
+  const counters = /^([+-]\d\/[+-]\d|[a-z]+) counters on (~|it|that creature)$/.exec(what)
+  if (counters) return { counters: counters[1], of: counters[2] === '~' ? 'self' : who.it }
+  const per = readFilter(what)
+  return per && { per }
 }
 
 const title = (word: string) => word[0].toUpperCase() + word.slice(1)
@@ -156,15 +207,18 @@ export function readToken(phrase: string): TokenSpec | null {
     }
   }
 
-  const creature = /^(\d+)\/(\d+) ((?:(?:white|blue|black|red|green|colorless)(?:,? and |, | ))*(?:white|blue|black|red|green|colorless)) ((?:artifact |enchantment )*)([a-z ]+?) creature(?: with ([a-z, ]+?))?$/.exec(text)
+  const creature = /^(\d+|x)\/(\d+|x) ((?:(?:white|blue|black|red|green|colorless)(?:,? and |, | ))*(?:white|blue|black|red|green|colorless)) ((?:artifact |enchantment )*)([a-z ]+?) ((?:artifact |enchantment )*)creature(?: with ([a-z, ]+?))?$/.exec(text)
   if (!creature) return null
-  const [, power, toughness, colorWords, more, subtypes, keywords] = creature
+  // "Phyrexian Horror artifact creature" now; "artifact Soldier creature"
+  // once. The other types sit on either side of the creature types.
+  const [, power, toughness, colorWords, before, subtypes, behind, keywords] = creature
   const colors = colorWords.split(/,? and |, | /).map((w) => COLOR_WORDS[w] ?? '').join('')
-  const types = more.trim().split(/\s+/).filter(Boolean).map(title)
+  const types = `${before} ${behind}`.trim().split(/\s+/).filter(Boolean).map(title)
   const sub = subtypes.trim().split(/\s+/).map(title).join(' ')
   return {
     name: sub,
-    pt: `${power}/${toughness}`,
+    // "X/X" is worked out as it is made.
+    pt: `${power}/${toughness}`.toUpperCase(),
     colors,
     typeLine: `Token ${[...types, 'Creature'].join(' ')} — ${sub}`,
     keywords: keywords ? keywords.split(/,? and |, /).map((k) => title(k.trim())).filter(Boolean) : [],

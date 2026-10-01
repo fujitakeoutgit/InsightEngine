@@ -15,7 +15,7 @@ import { autotap, demand, formatCost, parseCost, type ManaType } from './mana'
 import { onBattlefield } from './match'
 import { identity, isCreature, manaSources } from './sources'
 import { find, inZone, mint, noted, relocate } from './state'
-import { hasKeyword, stats } from './stats'
+import { hasKeyword, snapshot } from './stats'
 import { isMain } from './turn'
 import type { GameState, Instance } from './types'
 
@@ -102,7 +102,7 @@ function complete(state: GameState, iid: string, index: number, sacrificed: stri
   const ability = abilitiesOf(inst)[index]
   const { cost } = ability
   // As they were when the cost was paid: the ability may ask after them.
-  const known = Object.fromEntries([iid, ...sacrificed].map((id) => [id, stats(find(state, id)!, state)]))
+  const known = Object.fromEntries([iid, ...sacrificed].map((id) => [id, snapshot(find(state, id)!, state)]))
   let next: GameState = { ...state, pending: null, paying: null }
 
   if (cost.mana) {

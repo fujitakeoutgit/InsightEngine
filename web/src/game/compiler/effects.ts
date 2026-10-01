@@ -13,8 +13,8 @@
  */
 
 import type { ManaType } from '../mana'
-import type { Aim, Count, Effect } from './ir'
-import { readCount, readFilter, readNumber, readToken } from './read'
+import type { Aim, Count, Effect, Signed, TokenSpec } from './ir'
+import { readAmount, readCount, readFilter, readNumber, readToken, type Speaking } from './read'
 import { readKeywords } from './statics'
 
 type Pattern = [RegExp, (m: RegExpExecArray) => Effect[] | null]
@@ -45,6 +45,50 @@ function referring<T>(to: Aim | null, read: () => T): T {
  *  sacrifice does not count — nobody says "it" of what is gone. */
 function referentOf(effects: readonly Effect[], otherwise: Aim | null): Aim | null {
   return effects.some((effect) => effect.op === 'choose' && !effect.must) ? { kind: 'chosen' } : otherwise
+}
+
+/** Something was sacrificed by an effect before this one, so "the sacrificed
+ *  creature" is what was chosen for that — rather than what paid an
+ *  ability's cost, which is the card the ability is about. */
+let sacrificed = false
+
+/** Whose numbers "its" and "the sacrificed creature's" are, just now. */
+const speaking = (): Speaking => ({
+  it: referent?.kind === 'chosen' ? 'chosen' : 'event',
+  sacrificed: sacrificed ? 'chosen' : 'event',
+})
+
+/** "+2", "-x" → the change it is. */
+function readSigned(text: string): Signed {
+  const sign = text.startsWith('-') ? -1 : 1
+  return /x$/.test(text) ? { sign, count: 'X' } : Number(text)
+}
+
+/** Put what "where X is …" says in place of X. */
+function withX(effect: Effect, n: Count): Effect {
+  const swap = (count: Count): Count => (count === 'X' ? n : count)
+  const change = (by: Signed): Signed => (typeof by === 'number' ? by : { ...by, count: swap(by.count) })
+  switch (effect.op) {
+    case 'draw': case 'life': case 'damage': case 'scry': case 'surveil': case 'mill':
+    case 'counters': case 'discard': case 'search':
+      return { ...effect, count: swap(effect.count) }
+    case 'token':
+      return { ...effect, count: swap(effect.count), ...(effect.size ? { size: swap(effect.size) } : {}) }
+    case 'boost':
+      return { ...effect, power: change(effect.power), toughness: change(effect.toughness) }
+    default:
+      return effect
+  }
+}
+
+/** A token effect: one printed X/X is sized as it is made. */
+const makes = (token: TokenSpec, count: Count, tapped: boolean): Effect =>
+  ({ op: 'token', count, token, tapped, ...(token.pt === 'X/X' ? { size: 'X' as Count } : {}) })
+
+/** An effect that takes an amount in words. */
+function counted(phrase: string, build: (count: Count) => Effect[] | null): Effect[] | null {
+  const count = readAmount(phrase, speaking())
+  return count === null ? null : build(count)
 }
 
 const nothing = (why: string): Effect[] => [{ op: 'nothing', why }]
@@ -95,6 +139,7 @@ const PATTERNS: Pattern[] = [
   [/^discard cards equal to (?:its|that creature's|the sacrificed creature's) (power|toughness)$/, (m) => (
     [{ op: 'discard', count: { stat: m[1] as 'power' | 'toughness', of: 'event' } }]
   )],
+  [/^draw cards equal to (.+)$/, (m) => counted(m[1], (count) => [{ op: 'draw', count }])],
   [/^(?:you )?draw a card for each (.+)$/, (m) => {
     const filter = readFilter(m[1])
     return filter ? [{ op: 'draw', count: { per: filter } }] : null
@@ -146,6 +191,13 @@ const PATTERNS: Pattern[] = [
     return onTarget(m[2], () => [{ op: 'life', who: 'you', sign: 1, count: { stat, of: 'chosen' } }])
   }],
 
+  [/^(?:you )?(gain|lose) life equal to (.+)$/, (m) => (
+    counted(m[2], (count) => [{ op: 'life', who: 'you', sign: m[1] === 'gain' ? 1 : -1, count }])
+  )],
+  [/^(?:each opponent|target opponent|target player) loses life equal to (.+)$/, (m) => (
+    counted(m[1], (count) => [{ op: 'life', who: 'opponent', sign: -1, count }])
+  )],
+
   // --- damage --------------------------------------------------------------
   [/^(~|it) deals (?:(\w+) damage|damage equal to its (power|toughness)) to (any target|target opponent|each opponent|target player|target player or planeswalker|target creature or player|target opponent or planeswalker|each player)$/, (m) => {
     const [, who, n, stat, to] = m
@@ -173,9 +225,13 @@ const PATTERNS: Pattern[] = [
     if (count === null || !token) return null
     if (m[4]) {
       const filter = readFilter(m[4])
-      return filter && count === 1 ? [{ op: 'token', count: { per: filter }, token, tapped: Boolean(m[2]) }] : null
+      return filter && count === 1 ? [makes(token, { per: filter }, Boolean(m[2]))] : null
     }
-    return [{ op: 'token', count, token, tapped: Boolean(m[2]) }]
+    return [makes(token, count, Boolean(m[2]))]
+  }],
+  [/^create a number of (.+? tokens?(?: with [a-z, ]+?)?) equal to (.+)$/, (m) => {
+    const token = readToken(m[1])
+    return token && counted(m[2], (count) => [makes(token, count, false)])
   }],
   [/^create ([a-z' -]+, an? legendary .+? tokens?(?: with [a-z, ]+?)?)$/, (m) => {
     const token = readToken(m[1])
@@ -193,11 +249,18 @@ const PATTERNS: Pattern[] = [
     const counter = m[2]
     return onPermanents(m[3], (to) => [{ op: 'counters', to, count, counter }])
   }],
+  [/^put a number of ([+-]\d\/[+-]\d|[a-z]+) counters on (.+?) equal to (.+)$/, (m) => (
+    counted(m[3], (count) => onPermanents(m[2], (to) => {
+      // On each of several, "that creature's toughness" is its own.
+      const own = to.kind === 'each' && typeof count === 'object' && 'of' in count && count.of === 'event'
+      return [{ op: 'counters', to, count: own ? { ...count, of: 'each' } as Count : count, counter: m[1] }]
+    }))
+  )],
 
   // --- the library ---------------------------------------------------------
   [/^search your library for (up to (\w+) |(\w+) )?(.+?) cards?(?:, reveal (?:it|them|that card|those cards))?,? (?:and )?put (?:it|them|that card|those cards) (into your hand|onto the battlefield( tapped)?|on top of your library)(?:,? then shuffle)?$/, (m) => {
     const [, , upCount, plainCount, noun, where, tapped] = m
-    const count = readNumber(upCount ?? plainCount ?? 'one')
+    const count = readCount(upCount ?? plainCount ?? 'one')
     const filter = readFilter(noun)
     if (count === null || !filter) return null
     return [{
@@ -264,9 +327,9 @@ const PATTERNS: Pattern[] = [
   }],
 
   // --- until end of turn --------------------------------------------------
-  [/^(.+?) gets? ([+-]\d+)\/([+-]\d+)(?: and gains? (.+?))? until end of turn$/, (m) => (
+  [/^(.+?) gets? ([+-](?:\d+|x))\/([+-](?:\d+|x))(?: and gains? (.+?))? until end of turn$/, (m) => (
     onPermanents(m[1], (to) => [{
-      op: 'boost', to, power: Number(m[2]), toughness: Number(m[3]), keywords: readKeywords(m[4] ?? ''),
+      op: 'boost', to, power: readSigned(m[2]), toughness: readSigned(m[3]), keywords: readKeywords(m[4] ?? ''),
     }])
   )],
   [/^(.+?) gains? (.+?) until end of turn$/, (m) => (
@@ -308,6 +371,23 @@ const PATTERNS: Pattern[] = [
  *  "… and …" and "…, then …" as two, when both halves read on their own. */
 export function readSentence(sentence: string): Effect[] | null {
   const s = sentence.trim().replace(/\.$/, '')
+    // Baldin's "up to one hundred target creatures each get": as many as
+    // you like.
+    .replace(/^up to one hundred target (.+?) each (?=gets?\b)/, 'up to 100 target $1 ')
+
+  // "…, where X is the number of lands you control": the sentence without
+  // it, and then that amount wherever it says X. It may sit in the middle —
+  // "up to X basic land cards, where X is …, put them onto the battlefield".
+  const where = /^(.+?),? where x is ([^,]+)(,.+)?$/.exec(s)
+  if (where) {
+    const n = readAmount(where[2], speaking())
+    const inner = n === null ? null : readSentence(where[1] + (where[3] ?? ''))
+    return inner && inner.map((effect) => withX(effect, n!))
+  }
+  // "When you do, …" follows from what the sentence before it had you do.
+  const reflexive = /^when you do, (.+)$/.exec(s)
+  if (reflexive) return readSentence(reflexive[1])
+
   for (const [pattern, build] of PATTERNS) {
     const m = pattern.exec(s)
     if (m) {
@@ -334,10 +414,22 @@ export function readSentence(sentence: string): Effect[] | null {
     const halves = joint.exec(s)
     if (!halves) continue
     const first = readSentence(halves[1])
-    const second = first && referring(referentOf(first, referent), () => readSentence(halves[2]))
+    const second = first && after(first, () => referring(referentOf(first, referent), () => readSentence(halves[2])))
     if (first && second) return [...first, ...second]
   }
   return null
+}
+
+/** Read what follows these effects: if one of them was a sacrifice, "the
+ *  sacrificed creature" is what it chose. */
+function after<T>(effects: readonly Effect[], read: () => T): T {
+  const before = sacrificed
+  sacrificed = before || effects.some((effect) => effect.op === 'choose' && effect.must === true)
+  try {
+    return read()
+  } finally {
+    sacrificed = before
+  }
 }
 
 /** Shapes that run across sentences, tried on an ability's whole text before
@@ -376,6 +468,10 @@ export function readAbility(text: string): { effects: Effect[]; complete: boolea
   let understood = true
   /** What "it" means so far. */
   let it: Aim | null = null
+  // A search that says where its cards go in the sentence after is one
+  // instruction: "…for up to X basic land cards. Reveal those cards, put
+  // them into your hand, then shuffle."
+  text = text.replace(/(search your library for [^.]+?)\. (reveal (?:those cards|them|it), put )/i, '$1, $2')
   /** A counterspell has been read: there was no spell, so what the card goes
    *  on to say about that spell and whoever cast it is nothing as well. */
   let countered = false
@@ -413,7 +509,9 @@ export function readAbility(text: string): { effects: Effect[]; complete: boolea
     // "If you do, …" hangs on the sentence before it. If that one was not
     // understood, neither is this: running it would hand out the reward
     // without the price.
-    const read: Effect[] | null = /^if you do,/.test(s) && !understood ? null : referring(it, () => readSentence(s))
+    const read: Effect[] | null = /^if you do,/.test(s) && !understood
+      ? null
+      : after(effects, () => referring(it, () => readSentence(s)))
     understood = read !== null
     if (read) {
       effects.push(...read)
