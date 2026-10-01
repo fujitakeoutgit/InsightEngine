@@ -187,9 +187,28 @@ function readCondition(text: string) {
   return m && condition ? { condition, rest: m[2] } : null
 }
 
+/** Ways to cast a card, or to pay for it, that the table does not offer.
+ *  The card is cast as printed and plays the same; these are set aside. */
+const NOT_OFFERED = [
+  /^(mayhem|encore|evoke|freerunning|kicker|multikicker|overload|unearth|embalm|eternalize|plot|suspend|mutate|flashback|escape|foretell|madness|buyback|bestow|dash|blitz|disturb|emerge|spectacle|surge|prowl|morph|megamorph|disguise|ninjutsu|entwine|replicate|retrace|jump-start|miracle|harmonize|warp|impending|offspring|squad|casualty|cleave|bargain|spree|web-slinging)\b/,
+  /^(convoke|delve|improvise)$/,
+  /^affinity for /,
+  /^you may .+ rather than pay (?:~'s|this spell's) mana cost\.?$/,
+  /^as an additional cost to cast (?:~|this spell), you may /,
+]
+
+interface Choice { head: string; min: number; max: number; more?: { test: Test; max: number } }
+
 /** "Choose one —", "choose up to one —", "choose one or more —": how few and
  *  how many of the bullets under it, or null if the line does not end so. */
-function readChoice(line: string, modes: number): { head: string; min: number; max: number } | null {
+function readChoice(line: string, modes: number): Choice | null {
+  // The Will cycle: one, or both with a commander of yours about.
+  if (/^choose one\. if you control a commander as you cast (?:~|this spell), you may choose both instead\.$/i.test(line)) {
+    return {
+      head: '', min: 1, max: 1,
+      more: { test: { control: { commander: true, controller: 'you' }, atLeast: 1 }, max: 2 },
+    }
+  }
   const m = /^(.*?)\bchoose (one|two|up to one|up to two|one or more|one or both) —$/i.exec(line)
   if (!m) return null
   const [min, max] = {
@@ -217,6 +236,7 @@ export function compile(card: Card): Compiled {
   let enchant: Filter | null = null
   const statics: Static[] = []
   const unread: string[] = []
+  const skipped: string[] = []
   const spellParts: Ability[] = []
   /** Per line: fully understood, partly, or not at all. */
   const grades: number[] = []
@@ -230,11 +250,21 @@ export function compile(card: Card): Compiled {
     const having: Test | null = granted
       ? { control: { types: ['creature'], commander: true, controller: 'you' }, atLeast: 1 }
       : null
-    const line = granted ? `${granted[1]}.` : printed
+    // "All Slivers have "When ~ enters, …"": every Sliver arriving does it,
+    // which is this card watching for Slivers.
+    const tribal = /^all (\w+?)s have "when ~ enters, (.+?)\.?"$/i.exec(printed)
+    const line = granted ? `${granted[1]}.`
+      : tribal ? `Whenever a ${tribal[1]} you control enters, ${tribal[2]}.`
+        : printed
     // Ability words are flavor: "Landfall — Whenever …" reads as "Whenever …".
     const lower = line.toLowerCase().replace(/^[a-z' ]+ — (?=(when|whenever|at) )/, '')
 
     if (isKeywordLine(lower) || isManaAbility(lower) || isLandEntry(lower) || isFetch(lower) || isInert(lower)) {
+      grades.push(1)
+      continue
+    }
+    if (NOT_OFFERED.some((pattern) => pattern.test(lower))) {
+      skipped.push(printed)
       grades.push(1)
       continue
     }
@@ -256,7 +286,9 @@ export function compile(card: Card): Compiled {
       const read = modes.some((m) => m.effects.length)
       modal = {
         text: [line, ...modes.map((m) => `• ${m.text}`)].join('\n'),
-        effects: read ? [{ op: 'mode', modes, min: choice.min, max: choice.max }] : [],
+        effects: read
+          ? [{ op: 'mode', modes, min: choice.min, max: choice.max, ...(choice.more ? { more: choice.more } : {}) }]
+          : [],
         complete: modes.every((m) => m.complete),
       }
       if (!choice.head.trim()) {
@@ -348,13 +380,23 @@ export function compile(card: Card): Compiled {
       grades.push(ability.complete ? 1 : ability.effects.length ? 0.5 : 0)
       continue
     }
+    // An ability whose cost this cannot pay, but which could only ever do
+    // nothing at this table: understood, and not offered.
+    const colon = isSpell || modal ? -1 : line.indexOf(': ')
+    if (colon > 0 && !/"/.test(line.slice(0, colon))) {
+      const does = readAbility(line.slice(colon + 2))
+      if (does.complete && does.effects.length && does.effects.every((effect) => effect.op === 'nothing')) {
+        grades.push(1)
+        continue
+      }
+    }
 
     if (isSpell && !/^[^"]*: /.test(lower)) {
       // An ability word is flavor here too: "Threshold — If there are…".
       const said = line.replace(/^[A-Z][a-z' ]* — (?=\S)/, '')
       // "…, instead search for up to three" replaces the line before it, so
       // the two are read as one.
-      const before = /\binstead\b/i.test(said) ? spellParts.pop() : undefined
+      const before = /\binstead\b/i.test(said) || /^if /i.test(said) ? spellParts.pop() : undefined
       if (before) grades.pop()
       const whole = before ? `${before.text} ${said}` : said
       const read = readAbility(whole)
@@ -380,7 +422,7 @@ export function compile(card: Card): Compiled {
     ? 'auto'
     : total === 0 ? 'manual' : 'partial'
 
-  const compiled: Compiled = { spell, triggers, activated, enchant, statics, unread, coverage }
+  const compiled: Compiled = { spell, triggers, activated, enchant, statics, unread, skipped, coverage }
   cache.set(key, compiled)
   return compiled
 }

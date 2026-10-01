@@ -22,10 +22,15 @@ export function readExcept(text: string): CopyChange | null {
   })
   const clauses = rest.split(/,? and (?=it\b|it's|the token|its|his|her)|, (?=it\b|it's|the token|its|his|her)/)
   for (const clause of clauses.map((c) => c.trim()).filter(Boolean)) {
-    const types = /^(?:it's|it is|the token is) an? (.+?) in addition to its other types$/.exec(clause)
+    // "It's a 1/1 Food Golem artifact creature in addition to its other
+    // types": a size as well, and "creature" is no news to a copy of one.
+    const types = /^(?:it's|it is|the token is) an? (?:(\d+\/\d+) )?(.+?) in addition to its other types$/.exec(clause)
     const has = /^(?:it|the token) has ([a-z, ]+)$/.exec(clause)
     const size = /^(?:the token|it) is (\d+\/\d+)$/.exec(clause)
-    if (types) change.types = [...(change.types ?? []), ...types[1].split(/\s+/).map(title)]
+    if (types) {
+      if (types[1]) [, change.pt] = types
+      change.types = [...(change.types ?? []), ...types[2].split(/\s+/).filter((t) => t !== 'creature').map(title)]
+    }
     else if (/^(?:it|the token) isn't legendary$/.test(clause)) change.notLegendary = true
     else if (has) change.keywords = [...(change.keywords ?? []), ...readKeywords(has[1])]
     else if (size) [, change.pt] = size

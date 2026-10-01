@@ -97,10 +97,22 @@ export function readTest(phrase: string, who: Speaking = NOBODY): Test | null {
     const filter = readFilter(control[3])
     return atLeast !== null && filter ? { control: { ...filter, controller: 'you' }, atLeast } : null
   }
-  const graveyard = /^there are (\w+) or more cards in your graveyard$/.exec(p)
+  // Always so, where every creature is yours — given that there is one.
+  if (/^you control each creature on the battlefield with the greatest power$/.test(p)) {
+    return { control: { types: ['creature'], controller: 'you' }, atLeast: 1 }
+  }
+  const graveyard = /^there are (\w+) or more (?:(.+?) )?cards in your graveyard$/.exec(p)
   if (graveyard) {
     const n = readNumber(graveyard[1])
-    return n === null ? null : { graveyard: n }
+    const filter = graveyard[2] ? readFilter(graveyard[2]) : undefined
+    return n === null || filter === null ? null : { graveyard: n, ...(filter ? { filter } : {}) }
+  }
+  // Of what the sentence before had you pick: "if another Desert was
+  // returned this way".
+  const done = /^(another |an? )(.+?) was (?:returned|sacrificed|exiled|destroyed|discarded) this way$/.exec(p)
+  if (done) {
+    const filter = readFilter(done[2])
+    return filter && { is: { ...filter, ...(done[1] === 'another ' ? { other: true } : {}) }, of: 'chosen' }
   }
   const is = /^(?:that land|that creature|that card|that permanent|it)(?: is|'s) an? (.+?)(?: card)?$/.exec(p)
   if (is) {
@@ -161,7 +173,7 @@ const COLOR = / (white|blue|black|red|green)\b(?:,| or| and)?/
  * filter is never quietly broader than what the card says.
  */
 export function readFilter(phrase: string): Filter | null {
-  let rest = ` ${phrase.trim().toLowerCase()} `
+  let rest = ` ${phrase.trim().toLowerCase().replace(/ and\/or /g, ' or ')} `
   const filter: Filter = {}
 
   const take = (pattern: RegExp) => {
@@ -182,7 +194,10 @@ export function readFilter(phrase: string): Filter | null {
       value,
     }
   }
-  if (take(/ (you control|under your control)\b/)) filter.controller = 'you'
+  if (take(/ except for commanders\b/)) filter.commander = false
+  if (take(/ named ~/)) filter.sameName = true
+  // The one player there is to mean is you.
+  if (take(/ (you control|under your control|target player controls)\b/)) filter.controller = 'you'
   else if (take(/ (an opponent controls|your opponents control|you don't control|that player controls|defending player controls)\b/)) filter.controller = 'opponent'
   if (take(/ (another|other)\b/)) filter.other = true
   if (take(/ nontoken\b/)) filter.nontoken = true
@@ -213,6 +228,7 @@ export function readFilter(phrase: string): Filter | null {
   const types: string[] = []
   const subtypes: string[] = []
   const either = / or /.test(rest)
+  const several = either || / and /.test(rest) || /,/.test(rest)
   const words = rest.replace(/,/g, ' ').split(/\s+/).filter(Boolean)
   for (const word of words) {
     const singular = word.replace(/s$/, '')
@@ -242,10 +258,15 @@ export function readFilter(phrase: string): Filter | null {
     }
   }
   // Types are any-of and subtypes are any-of, and a card must answer to
-  // both. So "creature or Vehicle" cannot be said here: it would come out as
-  // a creature that is also a Vehicle.
-  if (either && types.length && subtypes.length) return null
-  if (types.length) filter.types = types
+  // both — so "creature or Vehicle" is said as either of two filters, or it
+  // would come out as a creature that is also a Vehicle.
+  if (either && types.length && subtypes.length) return { ...filter, either: [{ types }, { subtypes }] }
+  // Two types with nothing between them are both wanted: an "artifact
+  // creature" is not any artifact or any creature.
+  if (types.length > 1 && !several) {
+    filter.types = [types[types.length - 1]]
+    filter.also = types.slice(0, -1)
+  } else if (types.length) filter.types = types
   if (subtypes.length) filter.subtypes = subtypes
   return filter
 }

@@ -14,7 +14,10 @@ export function holds(state: GameState, r: Asking, test: Test): boolean {
   if ('all' in test) return test.all.every((part) => holds(state, r, part))
   if ('tally' in test) return state.tally[test.tally] >= test.atLeast
   if ('control' in test) return onBattlefield(state, test.control, r.source).length >= test.atLeast
-  if ('graveyard' in test) return inZone(state, 'graveyard').length >= test.graveyard
+  if ('graveyard' in test) {
+    const { filter } = test
+    return inZone(state, 'graveyard').filter((c) => !filter || matches(c, filter, r.source)).length >= test.graveyard
+  }
   if ('is' in test) {
     const iid = test.of === 'chosen' ? r.chosen[0] : test.of === 'event' ? r.event : r.source
     const inst = iid ? find(state, iid) : undefined

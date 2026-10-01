@@ -19,6 +19,12 @@ import type { ManaType } from '../mana'
 export interface Filter {
   /** Card types, any of: `['creature']`, `['artifact', 'enchantment']`. */
   types?: string[]
+  /** Card types it must have as well: an "artifact creature" is a creature
+   *  that is also an artifact. */
+  also?: string[]
+  /** Any one of these: "creature or Vehicle", a type on one side and a
+   *  subtype on the other, which `types` and `subtypes` together cannot say. */
+  either?: Filter[]
   /** Card types it must not have: "nonland" is `['land']`. */
   not?: string[]
   /** Subtypes, any of: `['Forest']`, `['Plant']`. */
@@ -36,8 +42,13 @@ export interface Filter {
   /** "Of the chosen type": the creature type chosen for the permanent whose
    *  ability this is, as it entered. */
   chosenType?: boolean
-  /** One of your commanders. */
+  /** One of your commanders — or, false, anything but: "except for
+   *  commanders". */
   commander?: boolean
+  /** "Named ~": the same name as the permanent whose ability this is. */
+  sameName?: boolean
+  /** A name, exactly. What `sameName` becomes once it is known whose. */
+  name?: string
   nontoken?: boolean
   /** Not the source itself. */
   other?: boolean
@@ -150,8 +161,9 @@ export interface CopyChange {
 export type Test =
   /** "If you control a Bird", "…three or more creatures". */
   | { control: Filter; atLeast: number }
-  /** Threshold: this many cards in your graveyard. */
-  | { graveyard: number }
+  /** Threshold: this many cards in your graveyard — or this many of a
+   *  kind, for spell mastery's instants and sorceries. */
+  | { graveyard: number; filter?: Filter }
   /** "If that land is a Forest", "if it's a creature card". */
   | { is: Filter; of: Whose }
   /** "If the creature had power 4 or greater." */
@@ -231,8 +243,9 @@ export type Effect = (
     upTo: boolean
     to: 'hand' | 'battlefield' | 'top'
     tapped: boolean
-    /** Cultivate: the first found goes `to`, the rest into your hand. */
-    restToHand?: boolean
+    /** Cultivate: the first this-many found go `to`, the rest into your
+     *  hand. */
+    first?: number
   }
   /** The top card of your library, looked at. If it is what the card wants
    *  (`match`) it goes where `hit` says — asked first, when it is a "you
@@ -288,7 +301,7 @@ export type Effect = (
   | { op: 'pay'; cost: string }
   /** "Choose one —": the modes, each its own little ability. "Choose one
    *  or more" and "choose up to one" set how few and how many. */
-  | { op: 'mode'; modes: Ability[]; min: number; max: number }
+  | { op: 'mode'; modes: Ability[]; min: number; max: number; more?: { test: Test; max: number } }
   /** One outcome or another: "If that land is a Forest, put two counters on
    *  it instead." */
   | { op: 'if'; test: Test; then: Effect[]; otherwise: Effect[] }
@@ -444,5 +457,8 @@ export interface Compiled {
   statics: Static[]
   /** Lines nothing reads yet, as printed. */
   unread: string[]
+  /** Ways to cast or use the card that the table does not offer — evoke,
+   *  kicker, an alternative cost. The card plays as printed without them. */
+  skipped: string[]
   coverage: Coverage
 }

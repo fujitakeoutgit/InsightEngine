@@ -149,6 +149,20 @@ export function readStatic(line: string): Static | null {
     }
   }
 
+  // "Each creature you control that's a Food or a Golem gets +2/+2 and has
+  // trample."
+  const those = /^each creature you control that's an? (.+?) gets ([+-]\d+)\/([+-]\d+)(?: and has (.+))?$/.exec(l)
+  if (those) {
+    const kinds = readFilter(those[1].replace(/ or an? /g, ' or '))
+    if (kinds?.subtypes && !kinds.types) {
+      return {
+        kind: 'boost',
+        to: { types: ['creature'], subtypes: kinds.subtypes, controller: 'you' },
+        boost: { power: Number(those[2]), toughness: Number(those[3]), keywords: readKeywords(those[4] ?? '') },
+      }
+    }
+  }
+
   // "~ gets +1/+1 for each land you control", "… as long as you control ten
   // or more lands", "equipped creature gets +1/-1", "… has hexproof and
   // haste".

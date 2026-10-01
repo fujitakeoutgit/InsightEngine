@@ -14,6 +14,7 @@
 
 import type { ManaType } from '../mana'
 import type { Aim, Count, Effect, Signed, TokenSpec } from './ir'
+import { subtypeOf } from './subtypes'
 import {
   readAmount, readCount, readFilter, readKeywords, readNumber, readTest, readToken, type Speaking,
 } from './read'
@@ -30,7 +31,7 @@ const SELF = /^(~|it|itself|he|she|him|her|them)$/
  *  and then "it" is the card itself. */
 let referent: Aim | null = null
 
-const PRONOUN = /^(it|that creature|that permanent|that land|that artifact|that card|them|they|those creatures|those permanents)$/
+const PRONOUN = /^(it|that creature|that permanent|that land|that artifact|that card|them|they|those creatures|those permanents|those lands|those cards)$/
 
 /** Read with "it" meaning this. */
 function referring<T>(to: Aim | null, read: () => T): T {
@@ -49,7 +50,9 @@ function referentOf(effects: readonly Effect[], otherwise: Aim | null): Aim | nu
   const gone = effects.some((effect) => (
     effect.op === 'move' && effect.what.kind === 'chosen' && effect.to === 'graveyard'
   ))
-  return effects.some((effect) => effect.op === 'choose' && (!effect.must || !gone)) ? { kind: 'chosen' } : otherwise
+  // What was taken from the top of the library is "those lands" afterwards.
+  const picked = effects.some((effect) => (effect.op === 'choose' && (!effect.must || !gone)) || effect.op === 'dig')
+  return picked ? { kind: 'chosen' } : otherwise
 }
 
 /** Something was sacrificed by an effect before this one, so "the sacrificed
@@ -120,6 +123,8 @@ function onPermanents(phrase: string, act: (what: Aim) => Effect[]): Effect[] | 
   if (SELF.test(phrase)) return act({ kind: 'self' })
   if (/^that creature$/.test(phrase)) return act({ kind: 'event' })
   if (/^(equipped|enchanted) (creature|permanent|land)$/.test(phrase)) return act({ kind: 'host' })
+  // The player a spell is aimed at, where it helps, is you.
+  if (/^creatures target player controls$/.test(phrase)) return act({ kind: 'each', filter: { types: ['creature'], controller: 'you' } })
   const each = /^(?:each|all) (.+)$/.exec(phrase) ?? /^((?:other )?[a-z]+s you control)$/.exec(phrase)
   if (each) {
     const filter = readFilter(each[1])
@@ -151,6 +156,8 @@ const PATTERNS: Pattern[] = [
     const filter = readFilter(m[1])
     return filter ? [{ op: 'draw', count: { per: filter } }] : null
   }],
+  // After "each other player discards a card": as many as that came to.
+  [/^(?:you )?draw a card for each card discarded this way$/, () => [{ op: 'draw', count: 'thatMany' }]],
   [/^(?:you )?scry (\w+)$/, (m) => {
     const count = readCount(m[1])
     return count === null ? null : [{ op: 'scry', count }]
@@ -206,6 +213,7 @@ const PATTERNS: Pattern[] = [
   )],
 
   // --- damage --------------------------------------------------------------
+  [/^(?:~|it) deals? damage to target (?:player|opponent) equal to the number of cards in that player's hand$/, () => nothing('No hand on the other side to count')],
   [/^(~|it) deals (?:(\w+) damage|damage equal to its (power|toughness)) to (any target|target opponent|each opponent|target player|target player or planeswalker|target creature or player|target opponent or planeswalker|each player)$/, (m) => {
     const [, who, n, stat, to] = m
     const count: Count | null = stat
@@ -248,7 +256,7 @@ const PATTERNS: Pattern[] = [
     return token ? [{ op: 'token', count: 1, token, tapped: false }] : null
   }],
   // On the only creatures there are, its controller is you.
-  [/^(?:its controller|that creature's controller|that permanent's controller) creates (.+)$/, (m) => readSentence(`create ${m[1]}`)],
+  [/^(?:its controller|that creature's controller|that permanent's controller|target player) creates (.+)$/, (m) => readSentence(`create ${m[1]}`)],
   // A token that is a copy of something, with what is different about it.
   [/^create (an?|\w+) (tapped )?tokens? that(?:'s| are) (?:a copy|copies) of (.+?)(?:, except (.+))?$/, (m) => {
     const count = readCount(m[1])
@@ -292,10 +300,15 @@ const PATTERNS: Pattern[] = [
       tapped: Boolean(tapped),
     }]
   }],
-  // Cultivate and Kodama's Reach: one to the battlefield, one to hand.
-  [/^search your library for up to two (.+?) cards, reveal those cards, put one onto the battlefield( tapped)? and the other into your hand,? then shuffle$/, (m) => {
-    const filter = readFilter(m[1])
-    return filter ? [{ op: 'search', filter, count: 2, upTo: true, to: 'battlefield', tapped: Boolean(m[2]), restToHand: true }] : null
+  // Cultivate and Kodama's Reach: one to the battlefield, one to hand —
+  // and Viewpoint Synchronization, two and one.
+  [/^search your library for up to (\w+) (.+?) cards?(?:, reveal those cards,| and reveal them,) put (\w+)(?: of them)? onto the battlefield( tapped)? and the others? into your hand,? then shuffle$/, (m) => {
+    const count = readNumber(m[1])
+    const filter = readFilter(m[2])
+    const first = readNumber(m[3])
+    return filter && count !== null && first !== null
+      ? [{ op: 'search', filter, count, upTo: true, to: 'battlefield', tapped: Boolean(m[4]), first }]
+      : null
   }],
   [/^put (an?|up to (\w+)) (.+?) cards? from your hand onto the battlefield( tapped)?$/, (m) => {
     const filter = readFilter(m[3])
@@ -341,6 +354,17 @@ const PATTERNS: Pattern[] = [
           { op: 'move', what: { kind: 'chosen' }, to: 'graveyard' }]
       : null
   }],
+  // "…except for Krakens, Leviathans, Octopuses, and Serpents."
+  [/^return all (.+?) to their owners' hands except for (.+)$/, (m) => {
+    const filter = readFilter(m[1])
+    const spared = m[2].split(/,\s*(?:and\s+)?|\s+and\s+/).map((word) => subtypeOf(word.trim()))
+    return filter && spared.every(Boolean)
+      ? [{ op: 'move', what: { kind: 'each', filter: { ...filter, notSubtypes: spared as string[] } }, to: 'hand' }]
+      : null
+  }],
+  [/^return to their owners' hands all (.+)$/, (m) => onPermanents(`all ${m[1]}`, (what) => [{ op: 'move', what, to: 'hand' }])],
+  // Nobody else casts anything: "that player" is you.
+  [/^that player returns an? (.+?) they control to its owner's hand$/, (m) => readSentence(`return a ${m[1]} you control to its owner's hand`)],
   [/^return (.+?) to (?:its owner's hand|their owner's hand|their owners' hands)$/, (m) => {
     // Bounce lands: "return a land you control to its owner's hand".
     const owned = /^an? (.+)$/.exec(m[1])
@@ -414,6 +438,12 @@ const PATTERNS: Pattern[] = [
   }],
   // One opponent.
   [/^for each opponent, (?:you )?(.+)$/, (m) => readSentence(m[1])],
+  [/^any number of target opponents each sacrifice [^.]+? and lose (\w+) life$/, (m) => {
+    const count = readCount(m[1])
+    return count === null ? null : [{ op: 'life', who: 'opponent', sign: -1, count }]
+  }],
+  [/^goad (target .+)$/, (m) => onTarget(m[1], () => [])],
+  [/^(?:~|he|she|it) gets? [+-]\d+\/[+-]\d+ until end of turn for each [^.]*(?:defending player|an opponent|your opponents) controls?$/, () => nothing('Nothing on the other side to count')],
   // A tempting offer nobody is there to take.
   [/^each opponent may search their library [^.]+$/, () => []],
   [/^for each opponent who [^,]+, [^.]+$/, () => []],
@@ -650,6 +680,7 @@ export function readAbility(
   // instruction: "…for up to X basic land cards. Reveal those cards, put
   // them into your hand, then shuffle."
   text = text.replace(/(search your library for [^.]+?)\. (reveal (?:those cards|them|it), put )/i, '$1, $2')
+    .replace(/(search your library for [^.]+? and reveal them)\. (put \w+ of them )/i, '$1, $2')
   /** A counterspell has been read: there was no spell, so what the card goes
    *  on to say about that spell and whoever cast it is nothing as well. */
   let countered = false
@@ -668,10 +699,29 @@ export function readAbility(
   }
   /** Where the sentence before this one's effects begin, for an "instead". */
   let previous = 0
+  /** The sentence before aimed at something only the other side could have,
+   *  so there is no "it" for what follows to be about. */
+  let nobody = false
   for (const sentence of parts) {
     let s = sentence.trim().replace(/\.$/, '').toLowerCase()
     if (!s) continue
     if (countered && /\b(that spell|that spell's|its controller|that player)\b/.test(s)) continue
+    if (nobody && /\b(it|its|they|them|that (?:creature|permanent|player)|those creatures)\b/.test(s)) continue
+
+    // "If you control a Bird, draw a card": done or not, as it resolves.
+    const plain = /^if (?!you do\b|you don't\b)(.+?), (.+)$/.exec(s)
+    if (plain && !/\binstead\b/.test(s)) {
+      // What it asks about may be what the sentence before did, so one that
+      // did not read leaves this in words too.
+      const test = understood ? referring(it, () => readTest(plain[1], speaking())) : null
+      const then = test && after(effects, () => referring(it, () => readSentence(plain[2])))
+      if (test && then) {
+        previous = effects.length
+        effects.push({ op: 'if', test, then, otherwise: [] })
+      } else complete = false
+      understood = Boolean(test && then)
+      continue
+    }
 
     // "If that land is a Forest, put two counters on ~ instead": this, in
     // place of what the sentence before it said, when the condition holds.
@@ -749,6 +799,7 @@ export function readAbility(
       ? null
       : after(effects, () => referring(it, () => readSentence(s)))
     understood = read !== null
+    nobody = Boolean(read?.length === 1 && read[0].op === 'nothing')
     if (read) {
       previous = effects.length
       effects.push(...read.map((effect) => (

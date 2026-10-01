@@ -74,7 +74,7 @@ describe('compiling cards', () => {
   it('reads Cultivate whole', () => {
     expect(named('Cultivate')).toMatchObject({
       coverage: 'auto',
-      spell: { complete: true, effects: [{ op: 'search', count: 2, upTo: true, to: 'battlefield', tapped: true, restToHand: true }] },
+      spell: { complete: true, effects: [{ op: 'search', count: 2, upTo: true, to: 'battlefield', tapped: true, first: 1 }] },
     })
   })
 
@@ -95,7 +95,7 @@ describe('compiling cards', () => {
 
   it('grades a card it only partly reads, and one it cannot read at all', () => {
     expect(named('Swords to Plowshares').coverage).toBe('auto')
-    expect(named('Search for Tomorrow').coverage).toBe('partial')
+    expect(named('Hornet Nest').coverage).toBe('partial')
     expect(named('Abundance').coverage).toBe('manual')
   })
 
@@ -126,9 +126,6 @@ describe('creature types', () => {
     expect(readFilter('attacking creature')).toEqual({ attacking: true, types: ['creature'] })
   })
 
-  it('refuses a type "or" a subtype, which one filter cannot say', () => {
-    expect(readFilter('creature or Vehicle')).toBeNull()
-  })
 })
 
 describe('what cannot happen at this table', () => {

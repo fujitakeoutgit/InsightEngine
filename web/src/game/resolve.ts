@@ -42,7 +42,7 @@ function aimed(state: GameState, r: Resolution, aim: Aim): Instance[] {
     case 'self': return one(r.source)
     case 'event': return one(r.event)
     case 'chosen': return r.chosen.flatMap((iid) => one(iid))
-    case 'each': return onBattlefield(state, aim.filter, r.source)
+    case 'each': return onBattlefield(state, settled(state, r, aim.filter), r.source)
     // What it is on — or, once that has gone, the card the ability is about.
     case 'host': return one(find(state, r.source)?.attachedTo ?? r.event)
     default: return []
@@ -347,7 +347,8 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
           kind: 'pick',
           zone: 'library',
           prompt: `${r.name}: search for ${asked(effect.filter, n, effect.upTo, 'card')}${
-            effect.restToHand ? ' — the first goes onto the battlefield, the other into your hand' : ''}`,
+            effect.first === 1 ? ' — the first goes onto the battlefield, the rest into your hand'
+              : effect.first ? ` — the first ${effect.first} go onto the battlefield, the rest into your hand` : ''}`,
           options,
           // A search of a hidden zone may always come up empty (CR 701.19b).
           min: 0,
@@ -534,10 +535,11 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
     }
 
     case 'mode': {
-      const many = effect.max > 1
-      const said = !many ? (effect.min ? 'choose one' : 'choose up to one')
-        : effect.min === effect.max ? `choose ${effect.max}`
-          : effect.min ? 'choose one or more' : `choose up to ${effect.max}`
+      const max = modeLimit(state, r, effect)
+      const said = max <= 1 ? (effect.min ? 'choose one' : 'choose up to one')
+        : effect.min === max ? `choose ${max}`
+          : effect.more ? 'choose one, or both'
+            : effect.min ? 'choose one or more' : `choose up to ${max}`
       return {
         state,
         wait: {
@@ -561,6 +563,11 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       return { state: noted(state, `${r.name}: ${effect.why.charAt(0).toLowerCase()}${effect.why.slice(1)}`) }
   }
 }
+
+/** How many modes may be taken: more than usual, for a spell that allows
+ *  it while some condition holds — both, with a commander about. */
+const modeLimit = (state: GameState, r: Resolution, effect: Extract<Effect, { op: 'mode' }>) =>
+  (effect.more && holds(state, r, effect.more.test) ? effect.more.max : effect.max)
 
 type TopCard = Extract<Effect, { op: 'topCard' }>
 
@@ -637,7 +644,9 @@ function finishDig(state: GameState, r: Resolution, effect: Extract<Effect, { op
   if (effect.to === 'hand' && taken.length) next = { ...next, drawn: [...taken] }
   next = putAway(next, looked.map((c) => c.iid).filter((iid) => !taken.includes(iid)), effect.rest)
   const where = effect.to === 'hand' ? 'into your hand' : `onto the battlefield${effect.tapped ? ' tapped' : ''}`
-  return acted(noted(next, took.length
+  // What was taken is what the card goes on to call "those lands".
+  const taking: GameState = next.resolving ? { ...next, resolving: { ...next.resolving, chosen: [...taken] } } : next
+  return acted(noted(taking, took.length
     ? `${r.name}: looked at ${looked.length} — ${names(took)} ${where}`
     : `${r.name}: looked at ${looked.length}, and took nothing`), took.length)
 }
@@ -731,7 +740,7 @@ export function answer(state: GameState, action: Action): GameState {
     if (stop ? r.modes.length < effect.min : !effect.modes[action.index] || r.modes.includes(action.index)) return state
     const taken = stop ? r.modes : [...r.modes, action.index]
     // More may be chosen: ask again, with this one taken.
-    if (!stop && taken.length < effect.max && taken.length < effect.modes.length) {
+    if (!stop && taken.length < modeLimit(answered, r, effect) && taken.length < effect.modes.length) {
       return carryOn({ ...answered, resolving: { ...r, modes: taken } })
     }
     // The chosen modes' effects take the place of the choice, in the order
@@ -764,7 +773,7 @@ function applyPick(state: GameState, r: Resolution, effect: Effect, picked: stri
     case 'search': {
       let next = state
       picked.forEach((iid, i) => {
-        const toHand = effect.to === 'hand' || (effect.restToHand && i > 0)
+        const toHand = effect.to === 'hand' || (effect.first !== undefined && i >= effect.first)
         if (toHand) next = { ...next, cards: relocate(next.cards, iid, 'hand') }
         else if (effect.to === 'battlefield') next = enterBattlefield(next, iid, { forceTapped: effect.tapped }).state
       })
@@ -773,7 +782,7 @@ function applyPick(state: GameState, r: Resolution, effect: Effect, picked: stri
       if (effect.to === 'top') next = { ...next, cards: arrange(next.cards, picked, []) }
       const where = effect.to === 'hand' ? 'into your hand' : effect.to === 'top' ? 'on top' : `onto the battlefield${effect.tapped ? ' tapped' : ''}`
       return noted(next, picked.length
-        ? `${r.name}: found ${names(cards)} — ${where}${effect.restToHand && picked.length > 1 ? ', the other into your hand' : ''}, then shuffled`
+        ? `${r.name}: found ${names(cards)} — ${where}${effect.first !== undefined && picked.length > effect.first ? ', the rest into your hand' : ''}, then shuffled`
         : `${r.name}: took nothing, then shuffled`)
     }
 
