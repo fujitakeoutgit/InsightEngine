@@ -352,7 +352,7 @@ export function readToken(phrase: string): TokenSpec | null {
     }
   }
 
-  const creature = /^(\d+|x)\/(\d+|x) ((?:(?:white|blue|black|red|green|colorless)(?:,? and |, | ))*(?:white|blue|black|red|green|colorless)) ((?:artifact |enchantment )*)([a-z ]+?) ((?:artifact |enchantment )*)creature(?: with ([a-z, ]+?))?$/.exec(text)
+  const creature = /^(?:(\d+|x)\/(\d+|x) )?((?:(?:white|blue|black|red|green|colorless)(?:,? and |, | ))*(?:white|blue|black|red|green|colorless)) ((?:artifact |enchantment )*)([a-z ]+?) ((?:artifact |enchantment )*)creature(?: with ([a-z, ]+?))?$/.exec(text)
   if (!creature) return null
   // "Phyrexian Horror artifact creature" now; "artifact Soldier creature"
   // once. The other types sit on either side of the creature types.
@@ -362,8 +362,9 @@ export function readToken(phrase: string): TokenSpec | null {
   const sub = subtypes.trim().split(/\s+/).map(title).join(' ')
   return {
     name: sub,
-    // "X/X" is worked out as it is made.
-    pt: `${power}/${toughness}`.toUpperCase(),
+    // "X/X" is worked out as it is made; one printed with no size at all
+    // has it from its own words.
+    pt: power ? `${power}/${toughness}`.toUpperCase() : '*/*',
     colors,
     typeLine: `Token ${[...types, 'Creature'].join(' ')} — ${sub}`,
     keywords: keywords ? keywords.split(/,? and |, /).map((k) => title(k.trim())).filter(Boolean) : [],

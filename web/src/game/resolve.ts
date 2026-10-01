@@ -130,7 +130,7 @@ function makeCopy(
 /** A token, made and seated where its type belongs. `size` is what an X/X
  *  one comes to. */
 function makeToken(
-  state: GameState, spec: TokenSpec, tapped: boolean, size?: number, fleeting = false,
+  state: GameState, spec: TokenSpec, tapped: boolean, size?: number, fleeting = false, source?: string,
 ): GameState {
   const slug = spec.name.toLowerCase().replace(/\W+/g, '-')
   const [iid, minted] = mint(state, `token-${slug}-`)
@@ -151,7 +151,12 @@ function makeToken(
     mana_cost: null,
     // "This token" — "~", once normalized — is the card's own name to the
     // compiler, and to whoever reads the token.
-    oracle_text: spec.text ? sentenceCase(spec.text.replace(/this token|~/gi, spec.name)) : null,
+    // …but "the number of slime counters on ~" is about what made it.
+    oracle_text: spec.text
+      ? sentenceCase(spec.text
+        .replace(/(number of [a-z+/\d-]+ counters on) ~/gi, (_, said: string) => `${said} ${source ?? spec.name}`)
+        .replace(/this token|~/gi, spec.name))
+      : null,
     cmc: 0,
   } as unknown as Card
   const made: Instance = {
@@ -207,7 +212,8 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       const options = effect.zone
         ? (effect.zone === 'exile' ? exiledWith(state, r.source) : inZone(state, effect.zone))
             .filter((c) => matches(c, wanted, r.source)).map((c) => c.iid)
-        : onBattlefield(state, wanted, r.source).map((c) => c.iid)
+        // The second of two targets is not the first again.
+        : onBattlefield(state, wanted, r.source).map((c) => c.iid).filter((iid) => !r.kept.includes(iid))
       const set = (chosen: string[]): GameState => ({
         ...state,
         resolving: {
@@ -251,6 +257,35 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       }
     }
 
+    case 'exileUntil': {
+      const library = inZone(state, 'library')
+      const wanted = settled(state, r, effect.filter)
+      const at = library.findIndex((c) => matches(c, wanted, r.source, state))
+      const gone = at < 0 ? library : library.slice(0, at + 1)
+      if (!gone.length) return { state: noted({ ...state, resolving: { ...r, chosen: [] } }, `${r.name}: no cards to exile`) }
+      let cards = state.cards
+      for (const c of gone) cards = relocate(cards, c.iid, 'exile')
+      const taken = new Set(gone.map((c) => c.iid))
+      cards = cards.map((c) => (taken.has(c.iid) ? { ...c, exiledBy: r.source } : c))
+      const found = at < 0 ? null : library[at]
+      return {
+        state: acted(noted({
+          ...state,
+          cards,
+          resolving: { ...r, chosen: found ? [found.iid] : [], known: found ? { ...r.known, [found.iid]: snapshot(found, state) } : r.known },
+        }, found ? `${r.name}: exiled ${plural(gone.length, 'card')}, down to ${found.card.name}` : `${r.name}: exiled the whole library`), gone.length),
+      }
+    }
+
+    case 'castCopy': {
+      const inst = find(state, r.source)
+      if (!inst) return { state }
+      const [id, minted] = mint(state, 's')
+      return {
+        state: noted({ ...minted, stack: [...minted.stack, { id, iid: inst.iid, x: 0, copy: true }] }, `Cast a copy of ${inst.card.name}`),
+      }
+    }
+
     case 'mayPlay': {
       const who = aimed(state, r, effect.who).filter((c) => c.zone === 'exile')
       if (!who.length) return { state }
@@ -264,6 +299,17 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
     }
 
     case 'castFree': {
+      if (effect.from === 'event') {
+        const inst = r.event ? find(state, r.event) : undefined
+        if (!inst || inst.zone !== 'exile') return { state }
+        const cast = castFreely(state, inst.iid, r.name)
+        // "If it's a creature, it has haste": for the turn it arrives in.
+        return {
+          state: effect.haste
+            ? { ...cast, boosts: [...cast.boosts, { iids: [inst.iid], power: 0, toughness: 0, keywords: ['Haste'] }] }
+            : cast,
+        }
+      }
       const wanted = settled(state, r, effect.filter)
       const from = effect.from === 'hand' ? inZone(state, 'hand') : aimed(state, r, { kind: 'chosen' })
       const options = from.filter((c) => !isLand(c.card) && matches(c, wanted, r.source)).map((c) => c.iid)
@@ -556,7 +602,7 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
     case 'token': {
       const size = effect.size === undefined ? undefined : amount(state, r, effect.size)
       let next = state
-      for (let i = 0; i < n; i += 1) next = makeToken(next, effect.token, effect.tapped, size, effect.fleeting)
+      for (let i = 0; i < n; i += 1) next = makeToken(next, effect.token, effect.tapped, size, effect.fleeting, r.name)
       const what = `${size === undefined ? '' : `${size}/${size} `}${effect.token.name}`
       return { state: n > 0 ? noted(next, `Created ${n > 1 ? `${n} ${what} tokens` : `a ${what} token`}`) : state }
     }
@@ -610,6 +656,17 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
     }
 
     case 'counters': {
+      if (effect.counter === 'time') {
+        const waiting = aimed(state, r, effect.to).filter((c) => c.zone === 'exile')
+        if (waiting.length) {
+          return {
+            state: noted(
+              change(state, waiting.map((c) => c.iid), (c) => ({ ...c, suspended: (c.suspended ?? 0) + n })),
+              `${names(waiting)} suspended — ${plural(n, 'time counter')}`,
+            ),
+          }
+        }
+      }
       const on = aimed(state, r, effect.to).filter((c) => c.zone === 'battlefield')
       const { count } = effect
       if (typeof count === 'object' && 'of' in count && count.of === 'each') {
@@ -792,7 +849,10 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
         cards = cards.map((c) => (gone.has(c.iid) && c.zone === 'exile' ? { ...c, exiledBy: r.source } : c))
       }
       const verb = effect.to === 'graveyard' ? 'to the graveyard' : effect.to === 'exile' ? 'exiled' : 'returned to hand'
-      return { state: acted(noted({ ...state, cards }, `${names(what)} ${verb}`), what.length) }
+      // A spell taken off the stack is no longer waiting there to resolve.
+      const spells = new Set(what.filter((c) => c.zone === 'stack').map((c) => c.iid))
+      const stack = spells.size ? state.stack.filter((item) => item.ability || item.copy || !spells.has(item.iid)) : state.stack
+      return { state: acted(noted({ ...state, cards, stack }, `${names(what)} ${verb}`), what.length) }
     }
 
     case 'reanimate': {
@@ -1054,8 +1114,17 @@ const advance = (state: GameState): GameState => {
 function finish(state: GameState): GameState {
   const r = state.resolving!
   let next: GameState = { ...state, resolving: null }
-  if (r.spell && find(next, r.source)?.zone === 'stack') {
-    next = { ...next, cards: relocate(next.cards, r.source, 'graveyard') }
+  const spell = r.spell ? find(next, r.source) : undefined
+  if (spell?.zone === 'stack') {
+    // Paradigm: exiled instead — and the first of its name to be is the one
+    // a copy is cast from, each first main phase after.
+    if (compile(spell.card).statics.some((fixed) => fixed.kind === 'paradigm')) {
+      const first = !next.cards.some((c) => c.paradigm && c.card.name === spell.card.name)
+      next = {
+        ...next,
+        cards: relocate(next.cards, r.source, 'exile').map((c) => (c.iid === r.source && first ? { ...c, paradigm: true } : c)),
+      }
+    } else next = { ...next, cards: relocate(next.cards, r.source, 'graveyard') }
   }
   return r.leftover ? remind(next, r.source, r.name, r.leftover) : next
 }
@@ -1169,15 +1238,23 @@ export function answer(state: GameState, action: Action): GameState {
 function applyPick(state: GameState, r: Resolution, effect: Effect, picked: string[]): GameState {
   const cards = picked.map((iid) => find(state, iid)!)
   switch (effect.op) {
-    case 'choose':
+    case 'choose': {
+      // What a spell is aimed at is something abilities watch for — an Aura
+      // arriving is aimed at what it goes on.
+      const source = find(state, r.source)
+      const aimedAt = !effect.zone && picked.length > 0 && (
+        (r.spell && !effect.must)
+        || (r.effects[r.at + 1]?.op === 'attach' && /\bAura\b/.test(source?.card.type_line ?? ''))
+      )
       return {
-        ...state,
+        ...(aimedAt ? happen(state, { on: 'targets', iids: picked }) : state),
         resolving: {
           ...r,
           chosen: picked,
           known: { ...r.known, ...Object.fromEntries(cards.map((c) => [c.iid, snapshot(c, state)])) },
         },
       }
+    }
 
     case 'search': {
       let next = state
@@ -1318,6 +1395,9 @@ export function resolveTop(state: GameState): GameState {
     })
   }
   if (!inst) return { ...state, stack }
+  // A spell that has left the stack — exiled out from under itself — does
+  // not resolve.
+  if (!top.copy && inst.zone !== 'stack') return { ...state, stack }
 
   if (isPermanentSpell(inst.card)) {
     const copying = enterAsCopy(noted({ ...state, stack }, `${inst.card.name} resolves`), inst.iid, top.x)

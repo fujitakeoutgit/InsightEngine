@@ -56,6 +56,15 @@ export function stateBased(state: GameState): GameState {
       }
     }
 
+    // A Saga whose last chapter has been told is sacrificed (704.5s) — once
+    // that chapter is off the stack.
+    const saga = compile(c.card).statics.find((fixed) => fixed.kind === 'saga')
+    if (saga?.kind === 'saga' && (c.counters?.lore ?? 0) >= saga.last
+      && !next.stack.some((item) => item.iid === c.iid) && next.resolving?.source !== c.iid) {
+      next = noted({ ...next, cards: relocate(next.cards, c.iid, 'graveyard') }, `${c.card.name} is finished, and sacrificed`)
+      continue
+    }
+
     // A planeswalker with no loyalty goes to the graveyard (704.5i).
     if (isWalker(c.card.type_line) && (c.loyalty ?? 0) <= 0) {
       next = noted({ ...next, cards: relocate(next.cards, c.iid, 'graveyard') }, `${c.card.name} has no loyalty left`)

@@ -67,7 +67,9 @@ export function relocate(
         }
       : {}
     // What a card in exile was allowed, and by what, ends when it leaves.
-    const moved = c.zone !== zone ? { mayPlay: undefined, exiledBy: undefined, fell: undefined } : {}
+    const moved = c.zone !== zone
+      ? { mayPlay: undefined, exiledBy: undefined, fell: undefined, suspended: undefined, paradigm: undefined }
+      : {}
     return {
       ...c,
       zone,

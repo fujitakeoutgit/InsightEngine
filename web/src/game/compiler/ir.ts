@@ -74,7 +74,7 @@ export interface Filter {
  *  is about, the source — or `each`, the permanent the effect is acting on,
  *  one at a time: "counters on each creature equal to that creature's
  *  toughness". */
-export type Whose = 'chosen' | 'event' | 'self' | 'each'
+export type Whose = 'chosen' | 'event' | 'self' | 'each' | 'kept'
 
 /** A permanent's number, read off the one an effect refers to. `gap` is the
  *  difference between its power and its toughness. */
@@ -107,6 +107,9 @@ export type Count =
   /** Something counted over the turn: the creatures that died, the life
    *  you gained. */
   | { tally: TallyKey }
+  /** The difference between two cards' numbers: "between that spell's mana
+   *  value and that nonland card's mana value". */
+  | { between: [Stat, Stat] }
 
 /** What the game counts as a turn goes by, for the cards that ask. */
 export type TallyKey =
@@ -234,6 +237,9 @@ export interface Boost {
 export type Measure =
   | { per: Filter }
   | { devotion: string }
+  /** Counters of one kind on permanents with a name: the slime counters on
+   *  Gutter Grime, for the Oozes it makes. */
+  | { counters: string; named: string }
   /** Cards in your graveyard or hand: "each land card in your graveyard". */
   | { zone: 'hand' | 'graveyard'; filter?: Filter }
   /** Several of these, added up. */
@@ -258,6 +264,11 @@ export type Effect = (
   /** Exile cards from the top of your library: they are what was chosen,
    *  for what the card says of them next. */
   | { op: 'exileTop'; count: Count }
+  /** Exile cards from the top of your library until one matches: that one
+   *  is what was chosen. */
+  | { op: 'exileUntil'; filter: Filter }
+  /** Cast a copy of the source, from where it waits in exile: paradigm. */
+  | { op: 'castCopy' }
   /** Cards in exile that you may play, for a while: this turn, through the
    *  end of your next, or for as long as they stay there — `free`, without
    *  paying their mana costs. */
@@ -265,7 +276,7 @@ export type Effect = (
   /** "You may cast a spell from your hand without paying its mana cost" —
    *  or any number, from among the cards just exiled; what is not cast is
    *  what stays chosen. */
-  | { op: 'castFree'; from: 'hand' | 'chosen'; filter: Filter; count: number }
+  | { op: 'castFree'; from: 'hand' | 'chosen' | 'event'; filter: Filter; count: number; haste?: boolean }
   /** The cards the source has exiled leave exile — all but the one the
    *  ability is about, with `except`. */
   | { op: 'unexile'; to: 'graveyard' | 'battlefield'; except?: boolean }
@@ -521,6 +532,8 @@ export type TriggerEvent =
   | { on: 'milled'; filter: Filter }
   /** "Whenever a card is put into your graveyard from anywhere." */
   | { on: 'buried' }
+  /** "Whenever you cast a spell that targets a creature you control." */
+  | { on: 'targets'; filter: Filter }
 
 export interface TriggeredAbility extends Ability {
   when: TriggerEvent
@@ -624,6 +637,15 @@ export type Static =
   | { kind: 'counterShield' }
   /** Echo: pay this at the upkeep after it arrives, or sacrifice it. */
   | { kind: 'echo'; cost: string }
+  /** Cumulative upkeep: an age counter each upkeep, and this for each of
+   *  them, or it is sacrificed. */
+  | { kind: 'cumulativeUpkeep'; cost: string }
+  /** A Saga: a lore counter as it enters and after each draw step, and
+   *  sacrificed once its last chapter has been told. */
+  | { kind: 'saga'; last: number }
+  /** Paradigm: exiled as it resolves, to be cast again as a copy at the
+   *  beginning of each first main phase. */
+  | { kind: 'paradigm' }
   /** "~'s power and toughness are each equal to the number of lands you
    *  control": what it is in place of the `*` it prints. */
   | { kind: 'size'; stats: ('power' | 'toughness')[]; plus: number; measure: Measure }

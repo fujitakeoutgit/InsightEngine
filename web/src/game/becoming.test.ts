@@ -74,7 +74,8 @@ describe('becoming a copy', () => {
     const first = run(start, { type: 'activate', iid: 'c0', index: 0 }, pass)
     expect(first.pending).toMatchObject({ kind: 'pick', options: ['c0'] })
     const second = reduce(first, { type: 'choose', iids: ['c0'] })
-    expect(second.pending).toMatchObject({ kind: 'pick', options: ['c0', 'c4'] })
+    // What it becomes a copy of is something else.
+    expect(second.pending).toMatchObject({ kind: 'pick', options: ['c4'] })
     const done = reduce(second, { type: 'choose', iids: ['c4'] })
     expect(at(done, 'c0').card.name).toBe('Old King')
     // Through this turn's cleanup, and gone as the next turn begins.

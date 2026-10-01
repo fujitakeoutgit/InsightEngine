@@ -51,6 +51,12 @@ function measure(state: GameState, of: Filter | 'colors' | Measure, source: Inst
   if ('zone' in of) {
     return state.cards.filter((c) => c.zone === of.zone && (!of.filter || fits(c, of.filter, source, state))).length
   }
+  if ('counters' in of) {
+    // On whatever has that name — "~" being the permanent that is asking.
+    return onBoard(state)
+      .filter((c) => (of.named === '~' ? c.iid === source.iid : c.card.name.toLowerCase() === of.named.toLowerCase()))
+      .reduce((n, c) => n + (c.counters?.[of.counters] ?? 0), 0)
+  }
   if ('devotion' in of) {
     // Devotion: that color's symbols in the costs of your permanents.
     return onBoard(state).reduce((n, c) => (

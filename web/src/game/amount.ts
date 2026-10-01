@@ -18,6 +18,9 @@ export interface Asking {
   x: number
   source: string
   chosen: readonly string[]
+  /** What was set aside before the last choice, for an effect with two
+   *  targets. */
+  kept?: readonly string[]
   event: string | null
   known: Record<string, Known>
   last: number
@@ -30,6 +33,7 @@ export function amount(state: GameState, r: Asking, count: Count): number {
   if (count === 'life') return state.life
   if (count === 'thatMany') return r.last
   if ('tally' in count) return state.tally[count.tally]
+  if ('between' in count) return Math.abs(amount(state, r, count.between[0]) - amount(state, r, count.between[1]))
   if ('per' in count) return onBattlefield(state, settled(state, r, count.per), r.source).length
   if ('zone' in count) {
     const { filter } = count
@@ -43,7 +47,9 @@ export function amount(state: GameState, r: Asking, count: Count): number {
   // event — see `counters` in resolve.ts. Asked any other way it has no
   // answer.
   if (count.of === 'each') return 0
-  const iid = count.of === 'chosen' ? r.chosen[0] : count.of === 'event' ? r.event : r.source
+  const iid = count.of === 'chosen' ? r.chosen[0]
+    : count.of === 'kept' ? r.kept?.[0]
+      : count.of === 'event' ? r.event : r.source
   if (!iid) return 0
   // The source is asked as it is now; anything else as it was when it was
   // picked or when the trigger saw it, since it may have left since.

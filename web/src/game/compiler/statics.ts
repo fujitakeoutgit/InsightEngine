@@ -96,6 +96,9 @@ export function readStatic(line: string): Static | null {
   }
   const echo = /^echo ((?:\{[^}]+\})+)$/.exec(l)
   if (echo) return { kind: 'echo', cost: echo[1].toUpperCase() }
+  const upkeep = /^cumulative upkeep ((?:\{[^}]+\})+)$/.exec(l)
+  if (upkeep) return { kind: 'cumulativeUpkeep', cost: upkeep[1].toUpperCase() }
+  if (/^paradigm$/.test(l)) return { kind: 'paradigm' }
 
   if (/^if a creature you control would connive, instead you draw a card, then that creature connives$/.test(l)) {
     return { kind: 'conniveDraw' }
@@ -273,6 +276,11 @@ export function readStatic(line: string): Static | null {
     return { kind: 'boost', to, boost }
   }
 
+  // Gutter Grime's Oozes: as big as the counters on what made them.
+  const counted = /^~'s power and toughness are each equal to the number of ([a-z]+) counters on (.+)$/.exec(l)
+  if (counted) {
+    return { kind: 'size', stats: ['power', 'toughness'], plus: 0, measure: { counters: counted[1], named: counted[2] } }
+  }
   // "~'s power and toughness are each equal to 1 plus the number of lands
   // you control."
   const cda = /^~'s power and toughness are each equal to (?:(\w+) plus )?the number of (.+)$/.exec(l)

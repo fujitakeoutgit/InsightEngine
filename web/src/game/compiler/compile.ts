@@ -123,6 +123,8 @@ function readTrigger(condition: string): TriggerEvent[] | null {
   return null
 }
 
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII']
+
 const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth']
 
 function readOneTrigger(condition: string): TriggerEvent | null {
@@ -162,6 +164,11 @@ function readOneTrigger(condition: string): TriggerEvent | null {
   if (leaving) {
     const filter = readFilter(leaving[1])
     if (filter) return { on: 'leaves', who: { ...filter, ...(/^another /.test(c) ? { other: true } : {}) } }
+  }
+  const targeting = /^you cast a spell that targets (?:an?|one or more) (.+)$/.exec(c)
+  if (targeting) {
+    const filter = readFilter(targeting[1])
+    if (filter) return { on: 'targets', filter }
   }
   const milled = /^one or more (.+?) cards are put into your graveyard from your library$/.exec(c)
   if (milled) {
@@ -307,6 +314,8 @@ export function compile(card: Card): Compiled {
   /** A Class: how much had been read when its next level's line was met.
    *  What is under that line is read for the grade and is not yet had. */
   let reached: { triggers: number; activated: number; statics: number; unread: number } | null = null
+  /** A Saga's last chapter. */
+  let sagaLast = 0
   /** The lines that belong to one side of a Siege, and which. */
   const sideAt = new Map<number, string>()
 
@@ -325,6 +334,21 @@ export function compile(card: Card): Compiled {
     }
     const side = sideAt.get(i)
     const printed = lines[i]
+    // A Saga's chapters: "I, II — Draw a card." Each is told as the lore
+    // counter that numbers it is put on.
+    const chapter = /\bSaga\b/.test(card.type_line ?? '') ? /^([IVX]+(?:, [IVX]+)*) — (.+)$/.exec(printed) : null
+    if (chapter) {
+      const told = readAbility(chapter[2])
+      for (const numeral of chapter[1].split(', ')) {
+        const count = ROMAN.indexOf(numeral) + 1
+        sagaLast = Math.max(sagaLast, count)
+        triggers.push({
+          text: printed, when: { on: 'counters', counter: 'lore', count }, effects: told.effects, complete: told.complete,
+        })
+      }
+      grades.push(told.complete ? 1 : told.effects.length ? 0.5 : 0)
+      continue
+    }
     // A Background: `Commander creatures you own have "…"`. The ability is
     // read as this card's own, for as long as a commander of yours is there
     // to have it.
@@ -447,9 +471,14 @@ export function compile(card: Card): Compiled {
       continue
     }
 
-    const trig = /^(when|whenever|at) (.+?), (.+)$/.exec(headed !== null ? `${headed} …` : lower)
+    // "Your first instant, sorcery, or Villain spell each turn" has commas
+    // of its own, before the one that ends the condition.
+    const trig = (headed === null ? /^(whenever) (you cast your first .+? spell each turn), (.+)$/.exec(lower) : null)
+      ?? /^(when|whenever|at) (.+?), (.+)$/.exec(headed !== null ? `${headed} …` : lower)
     if (trig) {
-      const events = readTrigger(trig[2])
+      // "Your first instant spell each turn" is an instant spell, once.
+      const first = /^you cast your first (.+?) spell each turn$/.exec(trig[2])
+      const events = readTrigger(first ? `you cast a ${first[1]} spell` : trig[2])
       // "…, if you control five or more lands, …": checked as it triggers.
       // An "if" this cannot check leaves the line in words.
       const conditional = readCondition(trig[3])
@@ -459,8 +488,11 @@ export function compile(card: Card): Compiled {
         // control enters" — "it" is that card.
         // …and so it is in one about a card going somewhere: discarded,
         // milled, put into the graveyard.
+        // A spell being cast is "it" only where the words are plainly
+        // about the spell: most cast triggers say "it" of themselves.
         const about: Aim | null = events.some((when) => (
           ('who' in when && when.who !== 'self') || when.on === 'discard' || when.on === 'milled' || when.on === 'buried'
+          || (when.on === 'cast' && /^exile it\b|\bthat spell\b/.test(body))
         )) ? { kind: 'event' } : null
         const { effects, complete, once } = reading(body, about)
         const conditions = [having, conditional?.condition].filter((test): test is Test => Boolean(test))
@@ -468,10 +500,11 @@ export function compile(card: Card): Compiled {
           triggers.push({
             text: shown, when, effects, complete,
             ...(conditions.length ? { condition: conditions.length > 1 ? { all: conditions } : conditions[0] } : {}),
-            ...(once ? { oncePerTurn: true } : {}),
+            ...(once || first ? { oncePerTurn: true } : {}),
             // Milled cards each answer for themselves: "put them onto the
             // battlefield" is each of them.
-            ...(/\bone or more\b/.test(trig[2]) && when.on !== 'milled' ? { batch: true } : {}),
+            // …and a spell with two targets is still one spell.
+            ...((/\bone or more\b/.test(trig[2]) && when.on !== 'milled') || when.on === 'targets' ? { batch: true } : {}),
             ...(side ? { side } : {}),
             // What returns itself from the graveyard works from there.
             ...(/\breturn ~ from your graveyard\b/.test(body) ? { from: 'graveyard' as const } : {}),
@@ -545,6 +578,7 @@ export function compile(card: Card): Compiled {
     grades.push(0)
   }
 
+  if (sagaLast) statics.push({ kind: 'saga', last: sagaLast })
   if (reached) {
     triggers.length = reached.triggers
     activated.length = reached.activated

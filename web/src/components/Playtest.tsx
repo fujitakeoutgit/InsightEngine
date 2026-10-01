@@ -288,6 +288,9 @@ export function Playtest({
     const top = revealedTop(game)
     return [
       ...cards.filter((c) => c.zone === 'exile' && c.mayPlay).map((c) => ({ inst: c, from: 'Exile' })),
+      // Suspended: not yet playable, and worth seeing count down.
+      ...cards.filter((c) => c.zone === 'exile' && c.suspended)
+        .map((c) => ({ inst: c, from: `Suspended · ${c.suspended}` })),
       ...(top ? [{ inst: top, from: 'Top of library' }] : []),
     ]
   }, [game, cards])

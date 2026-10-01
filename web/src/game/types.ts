@@ -77,6 +77,12 @@ export interface Instance {
   fell?: number
   /** If it is put into your graveyard this turn, it returns: Saffi. */
   returns?: { turn: number; by: string }
+  /** Suspended in exile, with this many time counters: one comes off each
+   *  upkeep, and with the last it may be cast for nothing. */
+  suspended?: number
+  /** A paradigm spell, resolved and exiled: a copy of it may be cast at the
+   *  beginning of each first main phase. */
+  paradigm?: boolean
 }
 
 /** A change to size and keywords that lasts until end of turn, on the
@@ -115,6 +121,8 @@ export type GameEvent =
   /** A permanent that left and came straight back: it has entered, though
    *  it is on the battlefield before and after. */
   | { on: 'enters'; iid: string }
+  /** A spell picked these as its targets. */
+  | { on: 'targets'; iids: string[] }
 
 /** Counts kept over a turn, for the cards that ask what has happened in it. */
 export type Tally = Record<TallyKey, number>

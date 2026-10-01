@@ -19,7 +19,7 @@
 import { remind } from './cast'
 import { combatDamage } from './combat'
 import { compile } from './compiler/compile'
-import type { TriggeredAbility, TriggerEvent } from './compiler/ir'
+import type { Effect, TriggeredAbility, TriggerEvent } from './compiler/ir'
 import { holds } from './holds'
 import { matches } from './match'
 import { isCreature } from './sources'
@@ -39,6 +39,8 @@ type Happened =
   /** A Class has become this level. */
   | { on: 'level'; card: Instance; level: number }
   | { on: 'lifeGain' | 'landPlay' | 'attack' | 'scry' }
+  /** A spell was aimed at this. */
+  | { on: 'targets'; card: Instance }
   /** One card drawn: the `nth` this turn. */
   | { on: 'draw'; nth: number }
 
@@ -126,6 +128,13 @@ function happened(before: GameState, after: GameState): { events: Happened[]; ta
       out.push({ on: 'scry' })
       continue
     }
+    if (event.on === 'targets') {
+      for (const iid of event.iids) {
+        const aimedAt = is.get(iid)
+        if (aimedAt) out.push({ on: 'targets', card: aimedAt })
+      }
+      continue
+    }
     const card = is.get(event.iid)
     if (!card) continue
     out.push(event.on === 'level' ? { on: 'level', card, level: event.level }
@@ -153,6 +162,7 @@ function sees(when: TriggerEvent, event: Happened, source: Instance, state: Game
   if (when.on === 'enters' && when.from && when.from !== (event as { from?: string }).from) return false
   if (when.on === 'cast') return matches(card, when.filter, source.iid, state)
   if (when.on === 'milled') return matches(card, when.filter, source.iid)
+  if (when.on === 'targets') return matches(card, when.filter, source.iid, state)
   if (when.on === 'discard') return !when.filter || matches(card, when.filter, source.iid, state)
   if ('who' in when) {
     if (when.who === 'self') return card.iid === source.iid
@@ -305,6 +315,58 @@ function askOrder(before: GameState, after: GameState): GameState {
  *  yet is posted, so an upkeep the engine cannot do is not one you forget. */
 export function stepTriggers(state: GameState, step: 'upkeep' | 'main' | 'combat' | 'end'): GameState {
   let next = state
+  /** Put an ability made up here on the stack. */
+  const push = (iid: string, text: string, effects: Effect[], event: string | null = null) => {
+    const [id, minted] = mint(next, 's')
+    next = { ...minted, stack: [...minted.stack, { id, iid, x: 0, ability: { text, effects, complete: true, event, known: {} } }] }
+  }
+  if (step === 'upkeep') {
+    for (const c of state.cards) {
+      // Suspended: a time counter comes off, and with the last the card may
+      // be cast for nothing.
+      if (c.zone === 'exile' && c.suspended) {
+        const left = c.suspended - 1
+        next = noted(
+          { ...next, cards: next.cards.map((x) => (x.iid === c.iid ? { ...x, suspended: left || undefined } : x)) },
+          `${c.card.name}: ${left ? `${left} time counter${left === 1 ? '' : 's'} left` : 'its last time counter is gone'}`,
+        )
+        if (!left) {
+          push(c.iid, `Cast ${c.card.name} without paying its mana cost.`, [
+            { op: 'castFree', from: 'event', filter: {}, count: 1, haste: true, optional: true },
+          ], c.iid)
+        }
+      }
+      // Cumulative upkeep: an age counter, and the cost once for each.
+      const upkeep = c.zone === 'battlefield'
+        ? compile(c.card).statics.find((fixed) => fixed.kind === 'cumulativeUpkeep')
+        : undefined
+      if (upkeep?.kind === 'cumulativeUpkeep') {
+        const age = (c.counters?.age ?? 0) + 1
+        next = { ...next, cards: next.cards.map((x) => (x.iid === c.iid ? { ...x, counters: { ...x.counters, age } } : x)) }
+        const cost = upkeep.cost.repeat(age)
+        push(c.iid, `Cumulative upkeep — pay ${cost}, or sacrifice ${c.card.name}.`, [
+          { op: 'pay', cost, optional: true },
+          { op: 'move', what: { kind: 'self' }, to: 'graveyard', ifNot: true },
+        ])
+      }
+    }
+  }
+  if (step === 'main') {
+    for (const c of state.cards) {
+      // A Saga's next chapter, after the draw step.
+      if (c.zone === 'battlefield' && compile(c.card).statics.some((fixed) => fixed.kind === 'saga')) {
+        const lore = (c.counters?.lore ?? 0) + 1
+        next = noted(
+          { ...next, cards: next.cards.map((x) => (x.iid === c.iid ? { ...x, counters: { ...x.counters, lore } } : x)) },
+          `${c.card.name}: chapter ${lore}`,
+        )
+      }
+      // Paradigm: a copy of the exiled spell, if you like.
+      if (c.zone === 'exile' && c.paradigm) {
+        push(c.iid, `Paradigm — cast a copy of ${c.card.name} without paying its mana cost.`, [{ op: 'castCopy', optional: true }])
+      }
+    }
+  }
   // What was put off until "the beginning of the next end step".
   if (step === 'end' && state.delayed.length) {
     next = { ...next, delayed: [] }
@@ -327,6 +389,7 @@ export function stepTriggers(state: GameState, step: 'upkeep' | 'main' | 'combat
         }
       }
     })
+    // Cumulative upkeep in something other than mana is yours to pay.
     const unread = compiled.unread.filter((line) => opening.test(line) || (step === 'upkeep' && /^cumulative upkeep\b/i.test(line)))
     if (unread.length) {
       next = remind(next, source.iid, source.card.name, unread.join('\n').split('~').join(source.card.name))

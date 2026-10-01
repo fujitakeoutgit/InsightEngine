@@ -93,6 +93,10 @@ export function enterBattlefield(
     const n = amount(state, { x, source: iid, chosen: [], event: null, known: {}, last: 0 }, fixed.count)
     counters = { ...counters, [fixed.counter]: (counters?.[fixed.counter] ?? 0) + n }
   }
+  // A Saga begins with its first chapter.
+  if (state.rules && compile(inst.card).statics.some((fixed) => fixed.kind === 'saga')) {
+    counters = { ...counters, lore: (counters?.lore ?? 0) + 1 }
+  }
   const cards = state.cards.map((c) => (
     c.iid === iid
       ? {

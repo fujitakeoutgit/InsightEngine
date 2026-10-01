@@ -54,7 +54,7 @@ function referentOf(effects: readonly Effect[], otherwise: Aim | null): Aim | nu
   // — and a card picked out of exile is still "it" in the graveyard.
   const picked = effects.some((effect) => (
     (effect.op === 'choose' && (!effect.must || !gone || Boolean(effect.zone)))
-    || effect.op === 'dig' || effect.op === 'exileTop' || effect.op === 'reanimate'
+    || effect.op === 'dig' || effect.op === 'exileTop' || effect.op === 'exileUntil' || effect.op === 'reanimate'
   ))
   return picked ? { kind: 'chosen' } : otherwise
 }
@@ -235,6 +235,14 @@ const PATTERNS: Pattern[] = [
   [/^~ deals (\w+) damage to (each .+|.*target creature.*)$/, (m) => {
     const count = readCount(m[1])
     return count === null ? null : onPermanents(m[2], (what) => [{ op: 'damage', to: what, count }])
+  }],
+
+  // One of yours hits another creature: the first target is set aside
+  // while the second is picked.
+  [/^(target .+?) deals damage equal to its power to (another target .+)$/, (m) => {
+    const first = onTarget(m[1], () => [{ op: 'keep' }])
+    const second = onTarget(m[2], (to) => [{ op: 'damage', to, count: { stat: 'power', of: 'kept' } }])
+    return first && second && first.some((effect) => effect.op === 'choose') ? [...first, ...second] : null
   }],
 
   // --- tokens --------------------------------------------------------------
@@ -454,6 +462,18 @@ const PATTERNS: Pattern[] = [
     const count = readCount(m[1] ?? 'one')
     return count === null ? null : [{ op: 'exileTop', count }]
   }],
+  [/^exile cards from the top of your library until you exile an? (.+?) card$/, (m) => {
+    const filter = readFilter(m[1])
+    return filter && [{ op: 'exileUntil', filter }]
+  }],
+  // Lady Loki: the spell she took, against the card she found.
+  [/^~ deals damage to each opponent equal to the difference between that spell's mana value and that nonland card's mana value$/, () => [{
+    op: 'damage', to: { kind: 'opponent' },
+    count: { between: [{ stat: 'manaValue', of: 'event' }, { stat: 'manaValue', of: 'chosen' }] },
+  }]],
+  [/^you may cast (?:that card|it) without paying its mana cost$/, () => (
+    [{ op: 'castFree', from: 'chosen', count: 1, filter: { not: ['land'] } }]
+  )],
   // Extract Power: yours is the only library there is.
   [/^look at the top card of each player's library, then exile those cards face down$/, () => [{ op: 'exileTop', count: 1 }]],
   [/^exile that card from your graveyard$/, () => [{ op: 'move', what: { kind: 'event' }, to: 'exile', only: 'graveyard' }]],
@@ -506,12 +526,16 @@ const PATTERNS: Pattern[] = [
     return filter && [{ op: 'seek', filter, ...(m[2] ? { prevalent: true } : {}) }]
   }],
   // A card in your graveyard, exiled: targeted, or simply picked.
-  [/^exile (target |an? )(.+?) cards? from your graveyard$/, (m) => {
+  [/^exile (target |an? )(.+?) cards? from your graveyard(?: with (\w+) time counters on it)?$/, (m) => {
     const filter = readFilter(m[2])
-    return filter && [
+    const time = m[3] ? readNumber(m[3]) : 0
+    if (!filter || time === null) return null
+    const exiled: Effect[] = [
       { op: 'choose', filter, count: 1, upTo: false, zone: 'graveyard', ...(m[1] === 'target ' ? {} : { must: true }) },
       { op: 'move', what: { kind: 'chosen' }, to: 'exile' },
     ]
+    // Suspended: the counters come off one an upkeep.
+    return time ? [...exiled, { op: 'counters', to: { kind: 'chosen' }, count: time, counter: 'time' }] : exiled
   }],
   [/^(destroy|exile) (.+)$/, (m) => {
     const to = m[1] === 'destroy' ? 'graveyard' : 'exile'
@@ -597,6 +621,14 @@ const PATTERNS: Pattern[] = [
       op: 'boost', to, power: readSigned(m[2]), toughness: readSigned(m[3]), keywords: readKeywords(m[4] ?? ''),
     }])
   )],
+  // "+1/+1 until end of turn for each card in your hand".
+  [/^(.+?) gets? \+1\/\+1 until end of turn for each (.+?)(?: and can't be blocked this turn)?$/, (m) => {
+    const per = readFilter(m[2])
+    const count: Count | null = /^cards? in your hand$/.test(m[2]) ? { zone: 'hand' } : per && { per }
+    return count && onPermanents(m[1], (to) => [{
+      op: 'boost', to, power: { sign: 1, count }, toughness: { sign: 1, count }, keywords: [],
+    }])
+  }],
   [/^(.+?) gains? your choice of ([a-z ]+?) or ([a-z ]+?) until end of turn$/, (m) => (
     onPermanents(m[1], (to) => [{
       op: 'mode', min: 1, max: 1,
@@ -987,6 +1019,11 @@ export function readAbility(
     if (countered && /\b(that spell|that spell's|its controller|that player)\b/.test(s)) continue
     if (nobody && /\b(it|its|they|them|that (?:creature|permanent|player)|those creatures)\b/.test(s)) continue
 
+    // Suspend given by the effect that exiled it: the counters are the
+    // whole of it here.
+    if (/^if it doesn't have suspend, it gains suspend$/.test(s)) continue
+    // An additional cost that is not offered was not paid.
+    if (/^if (?:~|this spell)'s additional cost was paid, /.test(s)) continue
     // An emblem carries its words as printed, to be read when it exists.
     const emblem = /^you get an emblem with "(.+?)\.?"(?: and "(.+?)\.?")?$/i.exec(sentence.trim())
     if (emblem) {

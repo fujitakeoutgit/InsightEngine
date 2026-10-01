@@ -21,7 +21,9 @@ describe('ways to cast a card that are not offered', () => {
 
   it('does not set aside a keyword that does something on its own', () => {
     expect(text('Echo {1}{R}\nWhen ~ enters, draw a card.', 'Creature — Goblin').skipped).toEqual([])
-    expect(text('Cumulative upkeep {1}').coverage).toBe('manual')
+    expect(text('Cumulative upkeep {1}').statics).toEqual([{ kind: 'cumulativeUpkeep', cost: '{1}' }])
+    // …and one paid in something other than mana is still yours to pay.
+    expect(text('Cumulative upkeep—Pay 2 life.').coverage).toBe('manual')
   })
 
   it('sets aside a cost that may be added and is not', () => {
