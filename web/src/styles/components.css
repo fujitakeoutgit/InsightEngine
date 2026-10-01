@@ -2816,7 +2816,18 @@
 .pt-zones,
 .pt-corner { position: relative; top: 10px; }
 
-.pt-shuffle { width: 100%; }
+/* Undo and Shuffle share the row above the deck. Both labels fit the column
+   at a tighter side padding than a small button's own; Shuffle takes what
+   Undo leaves. */
+.pt-corner-row {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.pt-corner-row .btn { padding-inline: 6px; }
+.pt-undo { flex: none; }
+.pt-shuffle { flex: 1 1 auto; }
 
 /* The zone block: three actions sitting directly over the three zones they
    share their columns with, and stretching to fill whatever height the deck

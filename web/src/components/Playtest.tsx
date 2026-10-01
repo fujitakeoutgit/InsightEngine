@@ -1,8 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
+import { canFetch, fetchFinds, obviousFetch, type Fetch } from '../game/fetch'
+import { randomSeed } from '../game/random'
+import { deal } from '../game/reducer'
+import type { Instance, Zone } from '../game/types'
+import { freshTable, reduceTable } from '../game/undo'
 import { useCardFace } from '../lib/faces'
-import { entersTapped } from '../lib/landTiming'
 import { useEscape } from '../lib/usePersisted'
 import { sleeveFor } from '../lib/sleeves'
 import { readCoinSkin, readD20Skin, readDieSkin, readMatSkin, skinVars } from '../lib/skins'
@@ -16,8 +20,7 @@ import { canAnimate, gsap } from '../lib/motion'
 import { type DeckToken } from '../lib/api'
 import { type DeckCard } from '../lib/deckModel'
 import {
-  deckSignature, makeDie, MAX_DICE, recallGame, rememberGame,
-  type DieState, type Instance, type Zone,
+  deckSignature, makeDie, MAX_DICE, recallGame, rememberGame, type DieState,
 } from '../lib/playtestCache'
 
 /** A card being looked at, and the rect it grew from. */
@@ -27,55 +30,13 @@ interface ZoomView {
   from: DOMRect
 }
 
-const BASIC_TYPES = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest']
-
-/** What a fetch land can go and get, or null if this is not one.
+/** Draws the hand has already animated in.
  *
- * Read off the oracle text rather than kept as a list of card names, because
- * the list is long, it grows every set, and the text already says exactly what
- * the card can find — "search your library for a Plains or Island card" names
- * its own two types. `types` empty means it is unrestricted by subtype, which
- * is Evolving Wilds and friends: any basic, or any land at all.
- */
-function fetchFinds(card: { type_line?: string | null; oracle_text?: string | null }) {
-  if (!/\bLand\b/.test(card.type_line ?? '')) return null
-  const text = card.oracle_text ?? ''
-  /* The whole clause, not just up to the first "card". Krosan Verge fetches
-   * "a Forest card and a Plains card", and stopping at the first one offered
-   * you half of what the land actually finds. Cut at the "put …"/"then …"
-   * that follows, so the tail of the sentence cannot contribute type names. */
-  const said = /search your library for (.+?)(?:,\s*(?:put|then)\b|\.)/i.exec(text)
-  if (!said) return null
-  const phrase = said[1]
-  if (!/\bland\b/i.test(phrase) && !BASIC_TYPES.some((t) => new RegExp(`\\b${t}\\b`, 'i').test(phrase))) {
-    return null
-  }
-  return {
-    types: BASIC_TYPES.filter((t) => new RegExp(`\\b${t}\\b`, 'i').test(phrase)),
-    basicOnly: /\bbasic\b/i.test(phrase),
-    /** The fetch says so itself — Terramorphic Expanse and nearly all of its
-     *  kin put what they find onto the battlefield tapped. */
-    tapped: /onto the battlefield tapped/i.test(text),
-    /** Cracking it costs it. Nearly always true, but Krosan Verge-style lands
-     *  that tap instead exist, so it is read rather than assumed. */
-    sacrifices: /\bsacrifice\b/i.test(text),
-  }
-}
-
-type Fetch = NonNullable<ReturnType<typeof fetchFinds>>
-
-/** Is this card something the fetch is allowed to find?
- *
- * Subtypes are matched against the type line, which is where a Tundra keeps
- * its Plains and its Island — the reason a fetch finds duals at all, and the
- * reason this is not a filter on the word "basic". */
-function canFetch(fetch: Fetch, card: { type_line?: string | null }) {
-  const line = card.type_line ?? ''
-  if (!/\bLand\b/.test(line)) return false
-  if (fetch.basicOnly && !/\bBasic\b/.test(line)) return false
-  if (!fetch.types.length) return true
-  return fetch.types.some((t) => new RegExp(`\\b${t}\\b`).test(line))
-}
+ * Kept by identity, and outside the component: a game's `drawn` is the same
+ * array for as long as nothing new is drawn, so undoing back to an earlier
+ * state, or closing the mat and resuming, hands back a draw that has already
+ * been shown — and it is not shown twice. */
+const animated = new WeakSet<readonly string[]>()
 
 /**
  * The loyalty shield, drawn from the supplied artwork.
@@ -111,31 +72,11 @@ function LoyaltyShield() {
   )
 }
 
-/** A planeswalker's printed starting loyalty, or null if it is not one.
- *
- * Scryfall gives loyalty as a string because some of them are not numbers --
- * X on Chandra, Awakened Inferno, and the double-faced walkers that print it
- * on the back only. Those come back as 0 and are then yours to set. */
-function startingLoyalty(card: { type_line?: string | null; loyalty?: string | null }) {
-  if (!/\bPlaneswalker\b/.test(card.type_line ?? '')) return null
-  const printed = Number.parseInt(card.loyalty ?? '', 10)
-  return Number.isFinite(printed) ? printed : 0
-}
-
 const ZONE_LABEL: Record<Zone, string> = {
   library: 'Library', hand: 'Hand', battlefield: 'Battlefield',
   graveyard: 'Graveyard', exile: 'Exile', command: 'Command',
 }
 
-/**
- * Where a permanent is dealt, as fractions of the mat.
- *
- * The left two thirds is the board proper -- creatures and planeswalkers up
- * top where combat happens, lands along the bottom where you tap them. The
- * right third holds artifacts and enchantments, which sit to one side and are
- * rarely touched once they are down. Nothing is enforced: this is only where a
- * card *lands*, and dragging it elsewhere is always allowed.
- */
 /** How long an armed Reset stays armed. Long enough to mean it, short enough
  *  that it never outlives the moment you pressed it. */
 const RESET_WINDOW_MS = 5000
@@ -144,58 +85,14 @@ const RESET_WINDOW_MS = 5000
  *  instead of playing it. */
 const READ_ZONE = 0.42
 
-const REGIONS = {
-  creatures: { x: 0.02, y: 0.03, dx: 0.105, dy: 0.20, cols: 6 },
-  lands: { x: 0.02, y: 0.52, dx: 0.105, dy: 0.20, cols: 6 },
-  sides: { x: 0.68, y: 0.03, dx: 0.105, dy: 0.20, cols: 3 },
-} as const
-
-/** Land wins over Creature, so an Artifact Land is a land and an Artifact
- *  Creature is a creature. */
-function regionFor(line: string): keyof typeof REGIONS {
-  if (/\bLand\b/.test(line)) return 'lands'
-  if (/\b(Creature|Planeswalker|Battle)\b/.test(line)) return 'creatures'
-  return 'sides'
-}
-
-/** Fisher-Yates. A biased shuffle would quietly invalidate every draw. */
-function shuffle<T>(items: T[]): T[] {
-  const out = [...items]
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[out[i], out[j]] = [out[j], out[i]]
-  }
-  return out
-}
-
-/** Expand quantities into individual copies. */
-function build(deck: DeckCard[]): Instance[] {
-  const out: Instance[] = []
-  for (const entry of deck) {
-    if (entry.section === 'sideboard' || entry.section === 'maybeboard') continue
-    for (let i = 0; i < entry.quantity; i++) {
-      out.push({
-        iid: `${entry.uid}-${i}`,
-        card: entry.card,
-        zone: entry.section === 'commander' ? 'command' : 'library',
-        tapped: false,
-        x: 0.5,
-        y: 0.5,
-        ...(startingLoyalty(entry.card) !== null
-          ? { loyalty: startingLoyalty(entry.card) as number }
-          : {}),
-      })
-    }
-  }
-  return out
-}
-
 /**
  * Goldfishing.
  *
- * Deliberately not a rules engine: it shuffles, draws, and lets you move cards
- * around and tap them. Nothing is enforced or prevented, which is the point --
- * you are checking whether the deck does anything, not adjudicating a game.
+ * The game itself is `game/` — a reducer this component dispatches to and
+ * renders, so every change to the board is one action, and undo is handing
+ * back the state before it. Nothing is enforced yet: it shuffles, draws, and
+ * lets you move cards around and tap them, and the rules arrive in the engine
+ * rather than in here.
  *
  * The battlefield is a bare playmat rather than a set of labelled lanes. A real
  * table has no lines on it, and where you put a permanent carries meaning that
@@ -227,10 +124,13 @@ export function Playtest({
   // invocation and could observe what this component had itself just written.
   const [resumed] = useState(() => recallGame(gameKey, signature))
 
-  const [cards, setCards] = useState<Instance[]>(resumed?.cards ?? [])
-  const [turn, setTurn] = useState(resumed?.turn ?? 1)
-  const [life, setLife] = useState(resumed?.life ?? 40)
-  const [log, setLog] = useState<string[]>(resumed?.log ?? [])
+  /* The game, and the states undo can return to. A resumed game comes back
+   * with its undo intact; anything else is dealt here, so the first frame the
+   * table draws already has a hand in it. */
+  const [table, dispatch] = useReducer(reduceTable, undefined, () => (
+    resumed?.table ?? freshTable(deal(deck, randomSeed()))
+  ))
+  const { cards, turn, life, log, drawn } = table.game
   /* Dice and the coin start fresh every time the mat is opened. They are what
    * is on the table right now rather than what the game is, so they are not
    * part of what a resumed game restores. */
@@ -295,8 +195,6 @@ export function Playtest({
    *  ref because dataTransfer only yields its payload on drop, and the grab
    *  offset is needed to stop cards jumping to their corner. */
   const drag = useRef<{ iid: string; dx: number; dy: number } | null>(null)
-  /** Cards drawn by the last action, so only they animate in. */
-  const [entering, setEntering] = useState<string[]>([])
   const [zoomed, setZoomed] = useState<ZoomView | null>(null)
   /** The library search. `fetch` is set when a fetch land opened it, and
    *  narrows the list to what that land is actually allowed to find. */
@@ -304,35 +202,16 @@ export function Playtest({
     null | { fetch?: Fetch & { source: string; iid: string } }
   >(null)
 
-  const note = useCallback((line: string) => setLog((l) => [line, ...l].slice(0, 40)), [])
-
-  const newGame = useCallback(() => {
-    const pool = shuffle(build(deck))
-    const library = pool.filter((c) => c.zone === 'library')
-    const command = pool.filter((c) => c.zone === 'command')
-    const hand = library.slice(0, 7).map((c) => ({ ...c, zone: 'hand' as Zone }))
-    const rest = library.slice(7)
-    setCards([...command, ...hand, ...rest])
-    setTurn(1)
-    setLife(40)
-    setEntering(hand.map((c) => c.iid))
-    setLog(['New game — drew 7'])
-  }, [deck])
-
-  // Only when there is nothing to come back to. Editing the deck changes its
-  // signature, so a stale board is discarded rather than resumed as if it
-  // still described the deck.
-  useEffect(() => {
-    if (resumed) return
-    newGame()
-  }, [resumed, newGame])
+  const note = useCallback((line: string) => dispatch({ type: 'note', line }), [])
+  const undo = useCallback(() => dispatch({ type: 'undo' }), [])
+  const canUndo = table.past.length > 0
 
   // Written on every change rather than on the way out: unmount is too late to
   // read state in an effect cleanup that has closed over an older render, and
   // this is cheap -- a Map assignment against state React has already built.
   useEffect(() => {
-    rememberGame(gameKey, { cards, turn, life, log, signature })
-  }, [gameKey, signature, cards, turn, life, log])
+    rememberGame(gameKey, { table, signature })
+  }, [gameKey, signature, table])
 
   const inZone = useMemo(() => {
     const map: Record<Zone, Instance[]> = {
@@ -342,40 +221,28 @@ export function Playtest({
     return map
   }, [cards])
 
-  const move = (
-    iid: string, zone: Zone, at?: { x: number; y: number }, tapped?: boolean,
-  ) => {
-    setCards((cs) => cs.map((c) => {
-      if (c.iid !== iid) return c
-      /* Leaving the battlefield resets a planeswalker's loyalty to its
-       * printed number. Counters do not travel with a card between zones —
-       * the walker that comes back is a new object, and one returning from
-       * the graveyard on three loyalty because that is where it died would
-       * be quietly wrong every time. */
-      const reset = zone !== 'battlefield' && startingLoyalty(c.card) !== null
-        ? { loyalty: startingLoyalty(c.card) as number }
-        : {}
-      return {
-        ...c, zone,
-        tapped: zone === 'battlefield' ? (tapped ?? c.tapped) : false,
-        ...reset, ...(at ?? {}),
-      }
-    }))
-  }
+  const move = (iid: string, zone: Exclude<Zone, 'battlefield'>) =>
+    dispatch({ type: 'move', iid, zone })
 
-  const draw = (count = 1) => {
-    let drawn: string[] = []
-    setCards((cs) => {
-      const library = cs.filter((c) => c.zone === 'library')
-      drawn = library.slice(0, count).map((c) => c.iid)
-      const taking = new Set(drawn)
-      return cs.map((c) => (taking.has(c.iid) ? { ...c, zone: 'hand' } : c))
-    })
-    // Only the new cards animate. Re-revealing the whole hand every turn made
-    // it impossible to see which card had actually arrived.
-    setEntering(drawn)
-    note(count === 1 ? 'Drew a card' : `Drew ${count} cards`)
-  }
+  const draw = (count = 1) => dispatch({ type: 'draw', count })
+
+  /* Ctrl+Z takes back the last thing you did to the game — a play, a tap, a
+   * draw, a whole new deal. Not while typing, where it belongs to the field,
+   * and not while a dialog is up: Tutor is showing you the library as it is,
+   * and undoing underneath it would leave it showing a library that is not. */
+  useEffect(() => {
+    if (tutoring || zoomed) return
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return
+      if (event.key.toLowerCase() !== 'z') return
+      const { target } = event
+      if (target instanceof Element && target.closest('input, textarea, select, [contenteditable="true"]')) return
+      event.preventDefault()
+      undo()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [tutoring, zoomed, undo])
 
   /* The wheel scrolls the hand.
    *
@@ -416,9 +283,13 @@ export function Playtest({
     return () => strip.removeEventListener('wheel', onWheel)
   }, [])
 
+  // Only the new cards animate. Re-revealing the whole hand every turn made it
+  // impossible to see which card had actually arrived.
   useEffect(() => {
-    if (!handRef.current || !entering.length || !canAnimate()) return
-    const tiles = entering
+    if (animated.has(drawn)) return
+    animated.add(drawn)
+    if (!handRef.current || !drawn.length || !canAnimate()) return
+    const tiles = drawn
       .map((iid) => handRef.current!.querySelector(`[data-iid="${iid}"]`))
       .filter(Boolean) as Element[]
     if (!tiles.length) return
@@ -427,10 +298,21 @@ export function Playtest({
       { opacity: 1, y: 0, rotateX: 0, filter: 'blur(0px)', duration: 0.5,
         ease: 'power3.out', stagger: { amount: 0.22 } },
     )
-  }, [entering])
+  }, [drawn])
 
-  const untapAll = () =>
-    setCards((cs) => cs.map((c) => (c.zone === 'battlefield' ? { ...c, tapped: false } : c)))
+  /** Start over: a fresh deal *and* the dice swept back into their trays.
+   *
+   * The only way back to a new opening hand now that Mulligan is gone, which
+   * is why it also sweeps the table — it is a new game, not the same one
+   * re-dealt, so a die still tracking something from the last one would be
+   * tracking nothing. The deal itself can be undone; the dice cannot, being
+   * no part of the game. */
+  const resetGame = () => {
+    disarmReset()
+    setDice([makeDie('d20'), makeDie('d6')])
+    setCoin('heads')
+    dispatch({ type: 'deal', deck, seed: randomSeed() })
+  }
 
   /* Dice come out of a tray rather than there being exactly one of them.
    *
@@ -438,19 +320,6 @@ export function Playtest({
    * place -- you reach for a die and there is always a die to reach for.
    * Dropping a loose one back on the tray puts it away again, which is the
    * only tidying gesture needed because the replacement is already there. */
-  /** Start over: a fresh deal *and* the dice swept back into their trays.
-   *
-   * The only way back to a new opening hand now that Mulligan is gone, which
-   * is why it also sweeps the table — it is a new game, not the same one
-   * re-dealt, so a die still tracking something from the last one would be
-   * tracking nothing. */
-  const resetGame = () => {
-    disarmReset()
-    setDice([makeDie('d20'), makeDie('d6')])
-    setCoin('heads')
-    newGame()
-  }
-
   const updateDie = (id: string, next: Partial<DieState>, backInTray = false) => {
     setDice((current) => {
       const after = current.map((d) => (d.id === id ? { ...d, ...next } : d))
@@ -486,209 +355,38 @@ export function Playtest({
     })
   }
 
-  /** Reorder the library in place.
-   *
-   * The library's order *is* its array order, so the shuffled sequence is
-   * poured back into the slots the library cards already occupy. Rebuilding the
-   * whole list would move the other zones around too, and the battlefield's
-   * order is the order things were played. */
-  const shuffleLibrary = (silent = false) => {
-    setCards((cs) => {
-      const shuffled = shuffle(cs.filter((c) => c.zone === 'library'))
-      let next = 0
-      return cs.map((c) => (c.zone === 'library' ? shuffled[next++] : c))
-    })
-    if (!silent) note('Shuffled the library')
-  }
+  const shuffleLibrary = () => dispatch({ type: 'shuffle' })
 
-  const nextTurn = () => {
-    untapAll()
-    setTurn((t) => t + 1)
-    draw(1)
-    note(`Turn ${turn + 1}`)
-  }
+  const nextTurn = () => dispatch({ type: 'nextTurn' })
 
-  /** Crack a fetch: the land it found arrives (tapped, if the fetch said so),
-   *  the fetch itself is sacrificed, and the library is shuffled. Doing only
-   *  the search left the fetch sitting on the battlefield having paid nothing
-   *  and the land arriving untapped, which is two pieces of bookkeeping wrong
-   *  in the one place the goldfish was supposed to get them right. */
-  const crack = (source: Instance, pickedIid: string, finds: Fetch) => {
-    const found = cards.find((c) => c.iid === pickedIid)
-    /* The land takes the square the fetch is vacating. Only when the fetch
-     * actually leaves, though: one that taps instead of sacrificing is still
-     * standing there, so its seat is not going spare and the land is dealt a
-     * fresh one. A second card from the same fetch takes the next free square
-     * on its own, because `play` counts the board live. */
-    const seat = finds.sacrifices ? { x: source.x, y: source.y } : undefined
-    play(pickedIid, finds.tapped, seat)
-    if (finds.sacrifices) move(source.iid, 'graveyard')
-    shuffleLibrary(true)
-    note(`${source.card.name}: found ${found?.card.name ?? 'a land'}${
-      finds.sacrifices ? ', sacrificed' : ''}, then shuffled`)
-  }
-
-  /**
-   * Put a token onto the battlefield.
-   *
-   * Tokens have no home zone: they are created, not drawn, so this does not
-   * move anything -- it adds an instance that was never in the library. Each
-   * gets its own iid, because a deck that makes six Soldiers wants six cards
-   * on the mat and not one it has to remember is six.
-   *
-   * They land in the middle rather than at a slot, and can be dragged like
-   * anything else. Trashing one removes it for good, which is what a token
-   * leaving the battlefield does.
-   */
-  const makeToken = (token: DeckToken) => {
-    const iid = `token-${token.oracle_id}-${Date.now().toString(36)}-${
-      Math.random().toString(36).slice(2, 7)}`
-    setCards((prev) => [...prev, {
-      iid,
-      card: {
-        oracle_id: token.oracle_id,
-        name: token.name,
-        type_line: token.type_line,
-        image_normal: token.image,
-        image_small: token.image,
-        mana_cost: null,
-        color_identity: token.color_identity,
-      } as unknown as Instance['card'],
-      zone: 'battlefield' as Zone,
-      tapped: false,
-      x: 0.5,
-      y: 0.5,
-    }])
-    note(`Created ${token.name}`)
-  }
+  const makeToken = (token: DeckToken) => dispatch({ type: 'token', token })
 
   const tap = (iid: string) => {
     /* A fetch land is not a thing you tap, it is a thing you crack — so the
      * tap opens the search already narrowed to what this particular land can
-     * find, rather than toggling a state the card does not really have. */
+     * find, rather than toggling a state the card does not really have. When
+     * the land can only want one thing, it takes it without asking. */
     const inst = cards.find((c) => c.iid === iid)
     const finds = inst && fetchFinds(inst.card)
     if (inst && finds) {
-      /* Named exactly one type — "search your library for a Forest card" —
-       * so there is no decision to hand over. Take one and get on with it;
-       * a picker offering you a choice you do not have is just a click. A
-       * basic is preferred over a dual carrying the same subtype, which is
-       * what "fetch a Forest" means when you say it out loud. */
-      const options = inZone.library.filter((c) => canFetch(finds, c.card))
-      if (finds.types.length === 1 && options.length) {
-        const basicFirst = [...options].sort((a, b) =>
-          Number(/\bBasic\b/.test(b.card.type_line ?? '')) -
-          Number(/\bBasic\b/.test(a.card.type_line ?? '')))
-        crack(inst, basicFirst[0].iid, finds)
+      const pick = obviousFetch(finds, inZone.library)
+      if (pick) {
+        dispatch({ type: 'crack', iid: inst.iid, pick: pick.iid })
         return
       }
       setTutoring({ fetch: { ...finds, source: inst.card.name, iid: inst.iid } })
       return
     }
-    setCards((cs) => cs.map((c) => (c.iid === iid ? { ...c, tapped: !c.tapped } : c)))
+    dispatch({ type: 'tap', iid })
   }
 
-  /** Step a planeswalker's loyalty. Floored at zero — a walker on nought is
-   *  already gone, and negative loyalty is not a state the game has. */
-  const stepLoyalty = (iid: string, by: number) =>
-    setCards((cs) => cs.map((c) => (
-      c.iid === iid ? { ...c, loyalty: Math.max(0, (c.loyalty ?? 0) + by) } : c
-    )))
+  const stepLoyalty = (iid: string, by: number) => dispatch({ type: 'loyalty', iid, by })
 
-  /** Play a card: instants and sorceries resolve to the graveyard, permanents
-   *  are dealt into the region their type belongs to. */
-  const play = (iid: string, forceTapped = false, seat?: { x: number; y: number }) => {
-    const inst = cards.find((c) => c.iid === iid)
-    if (!inst) return
-    const line = inst.card.type_line ?? ''
+  const play = (iid: string) => dispatch({ type: 'play', iid })
 
-    // Instants and sorceries resolve and are done; they never sit on a
-    // battlefield, and leaving one there inflates the board you are reading.
-    if (/\b(Instant|Sorcery)\b/.test(line)) {
-      move(iid, 'graveyard')
-      note(`Cast ${inst.card.name}`)
-      return
-    }
-
-    const name = regionFor(line)
-    const region = REGIONS[name]
-
-    /* Lands may arrive tapped, and which ones depends on the board you have
-     * built by now. Working it out here saves the one piece of bookkeeping a
-     * goldfish otherwise gets wrong every time -- a check land coming down
-     * untapped on turn four is the whole reason it is in the deck. */
-    const verdict = entersTapped(
-      inst.card,
-      inZone.battlefield.map((c) => c.card),
-      inZone.hand.filter((c) => c.iid !== iid).map((c) => c.card),
-    )
-    /* `forceTapped` is the fetch land talking: "put it onto the battlefield
-     * tapped" is an instruction from the card that found it, and it overrides
-     * what the land would have done arriving under its own steam. */
-    const tapped = forceTapped || verdict.tapped
-    setCards((cs) => {
-      /* The slot is counted here, inside the updater, against the board as it
-       * stands *now* rather than as it stood when this render happened.
-       *
-       * Cracking a fetch plays a land and sacrifices the fetch in the same
-       * tick. Counting from the render's snapshot gave both of them the same
-       * answer, so a two-card fetch dealt its second land exactly on top of
-       * its first. Counting from `cs` means each play sees the one before it.
-       *
-       * `seat` is the square the card is told to take: a fetch hands over the
-       * one it is vacating, so the land arrives where the fetch stood instead
-       * of at the end of the row. Cards are only *dealt* here — drag one
-       * anywhere you like once it is down. */
-      /* Every card on the board, not just this region's.
-       *
-       * A permanent dragged out of the creature rows and parked among the
-       * lands is in the way of the lands now, whatever its type line says. The
-       * regions decide where a card is *dealt*; they do not own the squares. */
-      const taken = cs.filter((c) => c.zone === 'battlefield' && c.iid !== iid)
-
-      const square = (i: number) => ({
-        x: region.x + (i % region.cols) * region.dx,
-        y: region.y + Math.floor(i / region.cols) * region.dy,
-      })
-
-      /* The first square in this region that nothing is sitting on.
-       *
-       * This used to deal to index `taken.length` — the number of cards the
-       * region held — which assumes every one of them is still in the square
-       * it was dealt. Drag a creature out of the front row and that assumption
-       * breaks for the rest of the game: the square stays empty, the count
-       * stays the same, and every later creature is dealt past the gap.
-       *
-       * Occupied means "near enough to collide with", not "was dealt here". A
-       * card claims the square it is nearest to, so nudging one a few pixels
-       * keeps its place, and a card dragged clear across the mat gives up its
-       * old square and takes whichever one it landed on — which is what stops
-       * the next play being dealt on top of it. */
-      const vacant = () => {
-        for (let i = 0; i < region.cols * 6; i += 1) {
-          const at = square(i)
-          const clash = taken.some((c) => (
-            Math.abs(c.x - at.x) < region.dx / 2 && Math.abs(c.y - at.y) < region.dy / 2
-          ))
-          if (!clash) return at
-        }
-        // Nowhere left. Deal past the end rather than refuse to play the card.
-        return square(taken.length)
-      }
-
-      const free = seat ?? vacant()
-      return cs.map((c) => (
-        c.iid === iid ? { ...c, zone: 'battlefield' as Zone, tapped, ...free } : c
-      ))
-    })
-
-    const because = forceTapped ? '' : verdict.why ? ` — ${verdict.why}` : ''
-    note(tapped
-      ? `Played ${inst.card.name} tapped${because}`
-      : `Played ${inst.card.name}${because}`)
-  }
-
-  /** Drop onto the mat: place the card where the pointer released it. */
+  /** Drop onto the mat: place the card where the pointer released it. A land
+   *  arriving this way obeys its own enters-tapped text exactly as one
+   *  clicked in hand does — see `place` in the engine. */
   const onMatDrop = (event: React.DragEvent) => {
     event.preventDefault()
     const mat = matRef.current
@@ -698,35 +396,11 @@ export function Playtest({
     const rect = mat.getBoundingClientRect()
     const x = (event.clientX - rect.left - (held?.dx ?? 0)) / rect.width
     const y = (event.clientY - rect.top - (held?.dy ?? 0)) / rect.height
-    /* A land dragged onto the mat has to obey its own text.
-     *
-     * Only `play` consulted `entersTapped`, so a land *clicked* in hand came
-     * down tapped when it should and a land *dragged* to the same place came
-     * down untapped — same card, same board, different answer depending on
-     * which gesture you happened to use. Rootbound Crag with no Mountain and
-     * no Forest was the report; every check land, shock land and fast land had
-     * it too.
-     *
-     * Only when it is arriving. Nudging a permanent that is already on the
-     * battlefield must not re-roll its tapped state. */
-    const inst = cards.find((c) => c.iid === iid)
-    const arriving = inst && inst.zone !== 'battlefield'
-    const verdict = arriving
-      ? entersTapped(
-          inst.card,
-          inZone.battlefield.map((c) => c.card),
-          inZone.hand.filter((c) => c.iid !== iid).map((c) => c.card),
-        )
-      : null
-
-    move(iid, 'battlefield', {
-      x: Math.min(0.97, Math.max(0, x)),
-      y: Math.min(0.94, Math.max(0, y)),
-    }, verdict ? verdict.tapped : undefined)
-
-    if (verdict?.tapped && inst) {
-      note(`Played ${inst.card.name} tapped${verdict.why ? ` — ${verdict.why}` : ''}`)
-    }
+    dispatch({
+      type: 'place',
+      iid,
+      at: { x: Math.min(0.97, Math.max(0, x)), y: Math.min(0.94, Math.max(0, y)) },
+    })
     drag.current = null
   }
 
@@ -896,7 +570,7 @@ export function Playtest({
           <div className="pt-life">
             <button
               className="pt-life-step"
-              onClick={() => setLife((l) => l - 1)}
+              onClick={() => dispatch({ type: 'life', by: -1 })}
               aria-label="Lose a life"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
@@ -906,7 +580,7 @@ export function Playtest({
             <span className="pt-life-value mono">{life}</span>
             <button
               className="pt-life-step"
-              onClick={() => setLife((l) => l + 1)}
+              onClick={() => dispatch({ type: 'life', by: 1 })}
               aria-label="Gain a life"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
@@ -951,16 +625,33 @@ export function Playtest({
         </div>
 
         <div className="pt-corner">
-          {/* Shuffling is something you do *to the library*, so it is attached
-              to the library rather than filed with the turn actions. */}
-          <button
-            className="btn btn-ghost sm pt-shuffle"
-            onClick={() => shuffleLibrary()}
-            disabled={inZone.library.length < 2}
-            title="Shuffle the library"
-          >
-            Shuffle
-          </button>
+          {/* One row, so neither costs the board any height: a row of its
+              own made the tray 20px taller, and that came out of the mat. */}
+          <div className="pt-corner-row">
+            {/* Takes back the last thing done to the game, as Ctrl+Z does.
+                Not among the turn actions: it is a step out of the game
+                rather than a move in it, and it should never be what you hit
+                reaching for Next turn. */}
+            <button
+              className="btn btn-ghost sm pt-undo"
+              onClick={undo}
+              disabled={!canUndo}
+              title="Undo the last action (Ctrl+Z)"
+            >
+              Undo
+            </button>
+            {/* Shuffling is something you do *to the library*, so it is
+                attached to the library rather than filed with the turn
+                actions. */}
+            <button
+              className="btn btn-ghost sm pt-shuffle"
+              onClick={() => shuffleLibrary()}
+              disabled={inZone.library.length < 2}
+              title="Shuffle the library"
+            >
+              Shuffle
+            </button>
+          </div>
 
           {/* The deck sits at the end of your hand, where it does on a table,
               and drawing is clicking it rather than hunting for a button. */}
@@ -1017,20 +708,11 @@ export function Playtest({
           }}
           onPick={(iid) => {
             const from = tutoring.fetch
-            const source = from && cards.find((c) => c.iid === from.iid)
-            if (from && source) {
-              // A fetch does not put the land in your hand: it puts it onto
-              // the battlefield, and cracks the land that went looking.
-              crack(source, iid, from)
-              setTutoring(null)
-              return
-            }
-            move(iid, 'hand')
-            // Searching your library shuffles it. Skipping that would leave the
-            // order you just read still in place, which is not the same game.
-            shuffleLibrary(true)
-            const found = cards.find((c) => c.iid === iid)
-            note(`Tutored ${found?.card.name ?? 'a card'}, then shuffled`)
+            // A fetch does not put the land in your hand: it puts it onto the
+            // battlefield, and cracks the land that went looking.
+            dispatch(from && cards.some((c) => c.iid === from.iid)
+              ? { type: 'crack', iid: from.iid, pick: iid }
+              : { type: 'tutor', iid })
             setTutoring(null)
           }}
         />
@@ -1148,10 +830,10 @@ type DragRef = React.MutableRefObject<{ iid: string; dx: number; dy: number } | 
 function Pile({
   name, cards, drag, onMove, onPlay, onZoom,
 }: {
-  name: Zone
+  name: Exclude<Zone, 'battlefield'>
   cards: Instance[]
   drag: DragRef
-  onMove: (iid: string, zone: Zone, at?: { x: number; y: number }) => void
+  onMove: (iid: string, zone: Exclude<Zone, 'battlefield'>) => void
   onPlay?: (iid: string) => void
   onZoom: (view: ZoomView) => void
 }) {

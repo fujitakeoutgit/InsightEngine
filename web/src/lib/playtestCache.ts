@@ -11,25 +11,8 @@
  * is open.
  */
 
-import type { Card } from './api'
+import type { Table } from '../game/undo'
 import type { DeckCard } from './deckModel'
-
-export type Zone = 'library' | 'hand' | 'battlefield' | 'graveyard' | 'exile' | 'command'
-
-export interface Instance {
-  iid: string
-  card: Card
-  zone: Zone
-  tapped: boolean
-  /** Position on the playmat, as a fraction of its size. Only meaningful on
-   *  the battlefield; kept as fractions so the board survives a resize. */
-  x: number
-  y: number
-  /** Loyalty, for planeswalkers only. Seeded from the printed number when the
-   *  game is built, so a walker arrives on the battlefield already carrying
-   *  the counters it starts with rather than at zero. */
-  loyalty?: number
-}
 
 /**
  * The die, as it sits on the mat.
@@ -62,9 +45,6 @@ export interface DieState {
   home: boolean
 }
 
-/** Fractional position of something on the mat. */
-export interface Spot { x: number; y: number }
-
 /** Enough to track a board state, few enough that the mat stays a board. */
 export const MAX_DICE = 10
 
@@ -88,10 +68,9 @@ export function makeDie(kind: DieKind): DieState {
 }
 
 export interface SavedGame {
-  cards: Instance[]
-  turn: number
-  life: number
-  log: string[]
+  /** The game, and the states undo can still return to — closing the mat
+   *  and coming back does not cost you your undo. */
+  table: Table
   /* The dice and the coin are deliberately absent.
    *
    * They are what is on the table right now, not what the game is: a board
