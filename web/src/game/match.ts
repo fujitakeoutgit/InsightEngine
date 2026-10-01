@@ -4,14 +4,14 @@
  */
 
 import type { Filter } from './compiler/ir'
-import { hasKeyword } from './sources'
-import { power, toughness } from './stats'
+import { hasKeyword, power, toughness } from './stats'
 import type { GameState, Instance } from './types'
 
 const word = (line: string, w: string) => new RegExp(`\\b${w}\\b`, 'i').test(line)
 
-/** `source` is the card whose ability is asking, which "another" excludes. */
-export function matches(inst: Instance, filter: Filter, source?: string): boolean {
+/** `source` is the card whose ability is asking, which "another" excludes.
+ *  With the game, size and keywords are what the board makes them. */
+export function matches(inst: Instance, filter: Filter, source?: string, state?: GameState): boolean {
   // The other side of the table has nothing on it.
   if (filter.controller === 'opponent') return false
   const line = inst.card.type_line ?? ''
@@ -22,10 +22,11 @@ export function matches(inst: Instance, filter: Filter, source?: string): boolea
   if (filter.basic && !word(line, 'Basic')) return false
   if (filter.nontoken && inst.token) return false
   if (filter.other && inst.iid === source) return false
-  if (filter.keyword && !hasKeyword(inst, filter.keyword)) return false
+  if (filter.keyword && !hasKeyword(inst, filter.keyword, state)) return false
   if (filter.compare) {
     const { stat, op, value } = filter.compare
-    const n = stat === 'power' ? power(inst) : stat === 'toughness' ? toughness(inst) : (inst.card.cmc ?? 0)
+    const n = stat === 'power' ? power(inst, state)
+      : stat === 'toughness' ? toughness(inst, state) : (inst.card.cmc ?? 0)
     if (op === '<=' ? n > value : n < value) return false
   }
   return true
@@ -33,5 +34,5 @@ export function matches(inst: Instance, filter: Filter, source?: string): boolea
 
 /** Everything on the battlefield a filter means. */
 export function onBattlefield(state: GameState, filter: Filter, source?: string): Instance[] {
-  return state.cards.filter((c) => c.zone === 'battlefield' && matches(c, filter, source))
+  return state.cards.filter((c) => c.zone === 'battlefield' && matches(c, filter, source, state))
 }

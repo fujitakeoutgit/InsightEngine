@@ -15,6 +15,7 @@
 import type { ManaType } from '../mana'
 import type { Aim, Count, Effect } from './ir'
 import { readCount, readFilter, readNumber, readToken } from './read'
+import { readKeywords } from './statics'
 
 type Pattern = [RegExp, (m: RegExpExecArray) => Effect[] | null]
 
@@ -37,11 +38,12 @@ function onTarget(phrase: string, act: (what: Aim) => Effect[]): Effect[] | null
   return [{ op: 'choose', filter, count, upTo: Boolean(upTo) }, ...act({ kind: 'chosen' })]
 }
 
-/** "~", "each creature you control", or "target creature": what an effect
- *  that acts on permanents acts on. */
+/** "~", "each creature you control", "creatures you control", or "target
+ *  creature": what an effect that acts on permanents acts on. */
 function onPermanents(phrase: string, act: (what: Aim) => Effect[]): Effect[] | null {
   if (SELF.test(phrase)) return act({ kind: 'self' })
-  const each = /^(?:each|all) (.+)$/.exec(phrase)
+  if (/^(that creature|equipped creature|enchanted creature)$/.test(phrase)) return act({ kind: 'event' })
+  const each = /^(?:each|all) (.+)$/.exec(phrase) ?? /^((?:other )?[a-z]+s you control)$/.exec(phrase)
   if (each) {
     const filter = readFilter(each[1])
     return filter ? act({ kind: 'each', filter }) : null
@@ -56,6 +58,17 @@ const PATTERNS: Pattern[] = [
     return count === null ? null : [{ op: 'draw', count }]
   }],
   [/^that creature's controller may draw a card$/, () => [{ op: 'draw', count: 1, optional: true }]],
+  // Felothar: as many as the creature that paid for it was tough.
+  [/^draw cards equal to (?:the sacrificed creature's|that creature's|its|~'s) (power|toughness)$/, (m) => (
+    [{ op: 'draw', count: { stat: m[1] as 'power' | 'toughness', of: 'event' } }]
+  )],
+  [/^discard (\w+) cards?$/, (m) => {
+    const count = readCount(m[1])
+    return count === null ? null : [{ op: 'discard', count }]
+  }],
+  [/^discard cards equal to (?:its|that creature's|the sacrificed creature's) (power|toughness)$/, (m) => (
+    [{ op: 'discard', count: { stat: m[1] as 'power' | 'toughness', of: 'event' } }]
+  )],
   [/^(?:you )?draw a card for each (.+)$/, (m) => {
     const filter = readFilter(m[1])
     return filter ? [{ op: 'draw', count: { per: filter } }] : null
@@ -90,6 +103,9 @@ const PATTERNS: Pattern[] = [
     const count = readCount(m[1])
     return count === null ? null : [{ op: 'life', who: 'opponent', sign: -1, count }]
   }],
+  [/^(?:each opponent|target opponent|target player) loses x life, where x is ~'s (power|toughness)$/, (m) => (
+    [{ op: 'life', who: 'opponent', sign: -1, count: { stat: m[1] as 'power' | 'toughness', of: 'self' } }]
+  )],
   // Swords to Plowshares, on the only creatures there are: yours.
   [/^its controller gains life equal to its (power|toughness)$/, (m) => (
     [{ op: 'life', who: 'you', sign: 1, count: { stat: m[1] as 'power' | 'toughness', of: 'chosen' } }]
@@ -215,6 +231,18 @@ const PATTERNS: Pattern[] = [
     return onPermanents(m[2], (what) => [{ op, what }])
   }],
 
+  // --- until end of turn --------------------------------------------------
+  [/^(.+?) gets? ([+-]\d+)\/([+-]\d+)(?: and gains? (.+?))? until end of turn$/, (m) => (
+    onPermanents(m[1], (to) => [{
+      op: 'boost', to, power: Number(m[2]), toughness: Number(m[3]), keywords: readKeywords(m[4] ?? ''),
+    }])
+  )],
+  [/^(.+?) gains? (.+?) until end of turn$/, (m) => (
+    onPermanents(m[1], (to) => [{ op: 'boost', to, power: 0, toughness: 0, keywords: readKeywords(m[2]) }])
+  )],
+  // No blockers at this table: evasion is already total.
+  [/^(?:target creature(?: with [a-z0-9 ]+)?|~|it) can't be blocked this turn$/, () => nothing('Nothing blocks at this table')],
+
   // --- the turn -----------------------------------------------------------
   [/^you may play (an|two|three) additional lands? this turn$/, (m) => {
     const count = readNumber(m[1])
@@ -284,4 +312,46 @@ export function readCompound(text: string): Effect[] | null {
     if (pattern.test(t)) return build()
   }
   return null
+}
+
+/** Riders on a triggered ability rather than effects of it. */
+const ONCE = /^this ability triggers only once each turn$/
+
+/**
+ * The text of one ability, compiled: every sentence that reads, and whether
+ * all of them did. A sentence that does not read leaves the ability
+ * incomplete; it still runs what was understood, and its words are posted.
+ */
+export function readAbility(text: string): { effects: Effect[]; complete: boolean; once: boolean } {
+  const compound = readCompound(text)
+  if (compound) return { effects: compound, complete: true, once: false }
+  const effects: Effect[] = []
+  let complete = true
+  let once = false
+  let understood = true
+  for (const sentence of text.split(/(?<=\.)\s+/)) {
+    const s = sentence.trim().replace(/\.$/, '').toLowerCase()
+    if (!s) continue
+    if (ONCE.test(s)) {
+      once = true
+      continue
+    }
+    // What a token is made with, in quotes after it: "It has "Sacrifice this
+    // token: Add {C}."" The token carries those words, and they are compiled
+    // when it exists.
+    const rider = /^(?:it has|they have) "(.+?)\.?"$/.exec(sentence.trim().replace(/\.$/, ''))
+    const made = effects[effects.length - 1]
+    if (rider && made?.op === 'token') {
+      effects[effects.length - 1] = { ...made, token: { ...made.token, text: rider[1] } }
+      continue
+    }
+    // "If you do, …" hangs on the sentence before it. If that one was not
+    // understood, neither is this: running it would hand out the reward
+    // without the price.
+    const read: Effect[] | null = /^if you do,/.test(s) && !understood ? null : readSentence(s)
+    understood = read !== null
+    if (read) effects.push(...read)
+    else complete = false
+  }
+  return { effects, complete, once }
 }

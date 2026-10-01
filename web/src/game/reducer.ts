@@ -17,6 +17,7 @@ import type { DeckCard } from '../lib/deckModel'
 import {
   castSpell, enterBattlefield, isLand, isPermanentSpell, landProblem, playLand, tapForMana,
 } from './cast'
+import { activate, paid } from './activate'
 import { declareAttackers } from './combat'
 import { fetchFinds } from './fetch'
 import { emptyPool } from './mana'
@@ -87,6 +88,8 @@ export function deal(
     extraLands: 0,
     resolving: null,
     triggered: [],
+    boosts: [],
+    paying: null,
     tokenArt: Object.fromEntries(tokens.map((t) => [t.name.toLowerCase(), t.image])),
   }
 }
@@ -268,6 +271,9 @@ function apply(state: GameState, action: Action): GameState {
       return declared.stack.length || declared.pending ? declared : toNextStop(declared)
     }
 
+    case 'activate':
+      return state.rules ? activate(state, action.iid, action.index) : state
+
     case 'opponentLife':
       return { ...state, opponent: { ...state.opponent, life: state.opponent.life + action.by } }
 
@@ -331,6 +337,8 @@ function apply(state: GameState, action: Action): GameState {
 
     case 'choose': {
       const { pending } = state
+      // A pick that is a cost — what to sacrifice — rather than an effect.
+      if (pending?.kind === 'pick' && state.paying) return paid(state, action.iids)
       if (pending?.kind === 'pick') return answer(state, action)
       if (pending?.kind !== 'bottom' && pending?.kind !== 'discard') return state
       const picked = [...new Set(action.iids)]

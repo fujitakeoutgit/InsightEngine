@@ -48,7 +48,9 @@ export function relocate(
     const loyalty = zone !== 'battlefield' ? startingLoyalty(c.card) : null
     // Nor does damage, or any other counter: off the battlefield it is a
     // card again, as printed.
-    const left = zone !== 'battlefield' ? { sick: false, counters: undefined, damage: undefined } : {}
+    const left = zone !== 'battlefield'
+      ? { sick: false, counters: undefined, damage: undefined, attachedTo: undefined }
+      : {}
     return {
       ...c,
       zone,

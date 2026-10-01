@@ -12,11 +12,13 @@
  */
 
 import type { Card } from '../../lib/api'
-import { readCompound, readSentence } from './effects'
+import { readActivated, readKeywordAbility } from './activated'
+import { readAbility } from './effects'
 import type {
-  Ability, Compiled, Coverage, Effect, Static, TriggerEvent, TriggeredAbility,
+  Ability, ActivatedAbility, Compiled, Coverage, Filter, Static, TriggerEvent, TriggeredAbility,
 } from './ir'
-import { readCount, readFilter, readNumber } from './read'
+import { readFilter, readNumber } from './read'
+import { isInert, readStatic } from './statics'
 
 /** Keywords with nothing to do at resolution: evasion, protection, combat
  *  abilities the attack step will read, and flash, which casting already
@@ -30,7 +32,6 @@ const STATIC_KEYWORDS = new Set([
 
 const isKeywordLine = (line: string) => line.split(/,\s*/).every((part) => (
   STATIC_KEYWORDS.has(part)
-  || part === 'partner'
   || /^(ward|protection from|hexproof from|landwalk)\b/.test(part)
   || /^(forest|island|swamp|mountain|plains)walk$/.test(part)
 ))
@@ -43,9 +44,6 @@ const isManaAbility = (line: string) =>
 /** A fetch land's search, which the table cracks when it is tapped. */
 const isFetch = (line: string) =>
   /^(\{[^}]+\}, )*\{t\}, (pay \d+ life, )?sacrifice ~: search your library for /.test(line)
-
-/** Said of the card, and nothing to do: it can't be countered. */
-const isInert = (line: string) => /^~ can't be countered\.?$/.test(line)
 
 /** A land's own arrival, which `landTiming` reads. */
 const isLandEntry = (line: string) =>
@@ -95,6 +93,8 @@ function readOneTrigger(condition: string): TriggerEvent | null {
   if (/^~ (enters|enters the battlefield)$/.test(c)) return { on: 'enters', who: 'self' }
   if (/^~ dies$/.test(c)) return { on: 'dies', who: 'self' }
   if (/^~ attacks$/.test(c)) return { on: 'attacks', who: 'self' }
+  if (/^(equipped|enchanted) creature dies$/.test(c)) return { on: 'dies', who: 'attached' }
+  if (/^(equipped|enchanted) creature attacks$/.test(c)) return { on: 'attacks', who: 'attached' }
   if (/^you attack$/.test(c)) return { on: 'attack' }
   if (/^~ deals combat damage to (a player|an opponent)$/.test(c)) return { on: 'combatDamage', who: 'self' }
   if (/^the beginning of combat on your turn$/.test(c)) return { on: 'step', step: 'combat' }
@@ -138,35 +138,6 @@ function readOneTrigger(condition: string): TriggerEvent | null {
   return null
 }
 
-/** Riders on a triggered ability rather than effects of it. */
-const ONCE = /^this ability triggers only once each turn$/
-
-/** Sentences of an ability's effect, compiled. `complete` when all read. */
-function readEffects(text: string): { effects: Effect[]; complete: boolean; once: boolean } {
-  const compound = readCompound(text)
-  if (compound) return { effects: compound, complete: true, once: false }
-  const effects: Effect[] = []
-  let complete = true
-  let once = false
-  let understood = true
-  for (const sentence of text.split(/(?<=\.)\s+/)) {
-    const s = sentence.trim().replace(/\.$/, '').toLowerCase()
-    if (!s) continue
-    if (ONCE.test(s)) {
-      once = true
-      continue
-    }
-    // "If you do, …" hangs on the sentence before it. If that one was not
-    // understood, neither is this: running it would hand out the reward
-    // without the price.
-    const read: Effect[] | null = /^if you do,/.test(s) && !understood ? null : readSentence(s)
-    understood = read !== null
-    if (read) effects.push(...read)
-    else complete = false
-  }
-  return { effects, complete, once }
-}
-
 /** "if you control five or more lands, …", the condition some triggers
  *  check as they trigger. */
 function readCondition(text: string) {
@@ -177,40 +148,22 @@ function readCondition(text: string) {
   return atLeast !== null && filter ? { condition: { atLeast, filter: { ...filter, controller: 'you' as const } }, rest: m[3] } : null
 }
 
-function readStatic(line: string): Static | null {
-  if (/^you may play an additional land on each of your turns\.?$/.test(line)) {
-    return { kind: 'extraLand', count: 1 }
-  }
-  if (/^if you would gain life, you gain twice that much life instead\.?$/.test(line)) {
-    return { kind: 'doubleLifeGain' }
-  }
-  if (/^you have no maximum hand size\.?$/.test(line)) return { kind: 'noMaxHandSize' }
-  if (/^(during your turn, )?each creature( you control)? assigns combat damage equal to its toughness rather than its power\.?$/.test(line)) {
-    return { kind: 'toughnessDamage' }
-  }
-  if (/^creatures you control can attack as though they didn't have defender\.?$/.test(line)) {
-    return { kind: 'defendersAttack' }
-  }
-  const counters = /^~ enters with (\w+) ([+-]\d\/[+-]\d) counters? on it\.?$/.exec(line)
-  if (counters) {
-    const count = readCount(counters[1])
-    if (count !== null) return { kind: 'entersWithCounters', counter: counters[2], count }
-  }
-  return null
-}
-
 const cache = new Map<string, Compiled>()
 
 export function compile(card: Card): Compiled {
-  const key = `${card.oracle_id}|${card.name}`
+  const text = card.oracle_text ?? (card.card_faces?.[0]?.oracle_text ?? '')
+  // The text is in the key: two tokens of one name can be made with
+  // different words.
+  const key = `${card.oracle_id}|${card.name}|${text.length}`
   const known = cache.get(key)
   if (known) return known
 
-  const text = card.oracle_text ?? (card.card_faces?.[0]?.oracle_text ?? '')
   const lines = normalize(card, text)
   const isSpell = /\b(Instant|Sorcery)\b/.test(card.type_line ?? '')
 
   const triggers: TriggeredAbility[] = []
+  const activated: ActivatedAbility[] = []
+  let enchant: Filter | null = null
   const statics: Static[] = []
   const unread: string[] = []
   const spellParts: Ability[] = []
@@ -233,7 +186,7 @@ export function compile(card: Card): Compiled {
       while (i + 1 < lines.length && lines[i + 1].startsWith('•')) {
         i += 1
         const body = lines[i].replace(/^•\s*/, '')
-        modes.push({ text: body, ...readEffects(body) })
+        modes.push({ text: body, ...readAbility(body) })
       }
       const read = modes.filter((m) => m.effects.length)
       spellParts.push({
@@ -253,7 +206,7 @@ export function compile(card: Card): Compiled {
       const conditional = readCondition(trig[3])
       const body = conditional ? conditional.rest : trig[3]
       if (events && !/^if /.test(body)) {
-        const { effects, complete, once } = readEffects(body)
+        const { effects, complete, once } = readAbility(body)
         for (const when of events) {
           triggers.push({
             text: line, when, effects, complete,
@@ -276,8 +229,24 @@ export function compile(card: Card): Compiled {
       continue
     }
 
+    // "Enchant creature": what an Aura goes on as it arrives.
+    const aura = /^enchant (.+)$/.exec(lower)
+    if (aura) {
+      enchant = readFilter(aura[1])
+      grades.push(enchant ? 1 : 0)
+      if (!enchant) unread.push(line)
+      continue
+    }
+
+    const ability = isSpell ? null : readKeywordAbility(lower, line) ?? readActivated(line.replace(/−/g, '-'), line)
+    if (ability) {
+      activated.push(ability)
+      grades.push(ability.complete ? 1 : ability.effects.length ? 0.5 : 0)
+      continue
+    }
+
     if (isSpell && !/^[^"]*: /.test(lower)) {
-      const read = readEffects(line)
+      const read = readAbility(line)
       spellParts.push({ text: line, ...read })
       grades.push(read.complete ? 1 : read.effects.length ? 0.5 : 0)
       continue
@@ -300,7 +269,7 @@ export function compile(card: Card): Compiled {
     ? 'auto'
     : total === 0 ? 'manual' : 'partial'
 
-  const compiled: Compiled = { spell, triggers, statics, unread, coverage }
+  const compiled: Compiled = { spell, triggers, activated, enchant, statics, unread, coverage }
   cache.set(key, compiled)
   return compiled
 }

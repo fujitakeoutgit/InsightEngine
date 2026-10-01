@@ -500,3 +500,50 @@ export function ArrangeDialog({
     </div>
   )
 }
+
+/** One ability, as the menu offers it. */
+export interface Offer {
+  index: number
+  cost: string
+  text: string
+  /** Why it cannot be activated now; null when it can. */
+  problem: string | null
+}
+
+/** A permanent's activated abilities: what each costs, what it does, and —
+ *  for the ones that cannot be used right now — why not. */
+export function AbilityMenu({
+  name, offers, onActivate, onCancel,
+}: {
+  name: string
+  offers: Offer[]
+  onActivate: (index: number) => void
+  onCancel: () => void
+}) {
+  useEffect(() => {
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', escape)
+    return () => window.removeEventListener('keydown', escape)
+  }, [onCancel])
+  return (
+    <div className="pt-decision pt-abilities" role="dialog" aria-label={`Abilities of ${name}`}>
+      <h3>{name}</h3>
+      <div className="pt-modes">
+        {offers.map((offer) => (
+          <button
+            key={offer.index}
+            className="btn btn-ghost sm"
+            onClick={() => onActivate(offer.index)}
+            disabled={Boolean(offer.problem)}
+            title={offer.problem ?? 'Activate'}
+          >
+            <span className="mono pt-ability-cost">{offer.cost}</span>
+            <span>{offer.text}</span>
+            {offer.problem && <span className="pt-ability-problem">{offer.problem}</span>}
+          </button>
+        ))}
+      </div>
+      <button className="btn btn-ghost sm" onClick={onCancel}>Cancel</button>
+    </div>
+  )
+}

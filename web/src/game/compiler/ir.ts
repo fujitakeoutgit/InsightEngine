@@ -78,7 +78,24 @@ export interface TokenSpec {
   colors: string
   typeLine: string
   keywords: string[]
+  /** Rules text it is created with — a Treasure's, or what follows "It has"
+   *  in quotes — compiled like any card's once it exists. */
+  text?: string
 }
+
+/** A change to size and keywords, from a static ability or until end of
+ *  turn. */
+export interface Boost {
+  power: number
+  toughness: number
+  keywords: string[]
+  /** Counted once for each of these: "for each land you control", or for
+   *  each color among your permanents. */
+  per?: Filter | 'colors'
+}
+
+/** What a characteristic-defining ability counts. */
+export type Measure = { per: Filter } | { devotion: string }
 
 export type Effect = (
   /** Pick permanents for the effects after it. A target may be declined —
@@ -117,6 +134,12 @@ export type Effect = (
   | { op: 'tap'; what: Aim }
   | { op: 'extraLand'; count: number }
   | { op: 'addMana'; makes: ManaType[][] }
+  /** "Gets +3/+3 and gains trample until end of turn." */
+  | { op: 'boost'; to: Aim; power: number; toughness: number; keywords: string[] }
+  /** Attach the source — an Equipment, an Aura — to what was chosen. */
+  | { op: 'attach' }
+  /** Discard from your hand: your choice of which. */
+  | { op: 'discard'; count: Count }
   /** Pay mana, as part of an effect: "you may pay {1}. If you do, …". Paid
    *  the way a spell is; if it cannot be, it counts as declined. */
   | { op: 'pay'; cost: string }
@@ -146,10 +169,12 @@ export type TriggerEvent =
   | { on: 'enters'; who: 'self' }
   | { on: 'enters'; who: Filter }
   | { on: 'dies'; who: 'self' }
+  /** "Whenever equipped creature dies": what this is attached to. */
+  | { on: 'dies'; who: 'attached' }
   | { on: 'dies'; who: Filter }
   | { on: 'step'; step: 'upkeep' | 'combat' | 'end' }
   /** "Whenever ~ attacks", "whenever a creature you control attacks". */
-  | { on: 'attacks'; who: 'self' | Filter }
+  | { on: 'attacks'; who: 'self' | 'attached' | Filter }
   /** "Whenever you attack": once, however many attack. */
   | { on: 'attack' }
   /** "Whenever ~ deals combat damage to a player". */
@@ -182,6 +207,43 @@ export type Static =
   | { kind: 'toughnessDamage' }
   /** "Creatures you control can attack as though they didn't have defender." */
   | { kind: 'defendersAttack' }
+  /** "Creatures you control get +1/+1", "~ gets +1/+1 for each land you
+   *  control", "equipped creature has haste": a standing change to size and
+   *  keywords, for itself, what it is attached to, or everything matching. */
+  | { kind: 'boost'; to: 'self' | 'attached' | Filter; boost: Boost; condition?: { atLeast: number; filter: Filter } }
+  /** "~'s power and toughness are each equal to the number of lands you
+   *  control": what it is in place of the `*` it prints. */
+  | { kind: 'size'; stats: ('power' | 'toughness')[]; plus: number; measure: Measure }
+
+/** What an ability costs to activate, beyond tapping. */
+export interface AbilityCost {
+  /** A mana cost, as printed: `{2}{G}`. */
+  mana: string | null
+  tap: boolean
+  life: number
+  /** Sacrifice the permanent itself. */
+  sacrificeSelf: boolean
+  /** Sacrifice something else: "a creature", "another creature". */
+  sacrifice: Filter | null
+  /** Discard this card — cycling, from hand. */
+  discardSelf: boolean
+  /** Counters taken off the permanent. */
+  remove: { counter: string; count: number } | null
+  /** Loyalty added (or, negative, removed): a planeswalker's ability. */
+  loyalty: number | null
+}
+
+export interface ActivatedAbility extends Ability {
+  cost: AbilityCost
+  /** Only when a sorcery could be cast. Loyalty abilities and Equip are. */
+  sorcery: boolean
+  oncePerTurn: boolean
+  /** Activated from your hand rather than the battlefield: cycling. */
+  fromHand: boolean
+  /** A mana ability with a cost beyond {T}: it resolves at once, into the
+   *  pool, and never touches the stack (CR 605). */
+  mana: ManaType[][] | null
+}
 
 /** How much of a card the engine carries out for you. */
 export type Coverage = 'auto' | 'partial' | 'manual'
@@ -190,6 +252,9 @@ export interface Compiled {
   /** What resolving an instant or sorcery does. */
   spell: Ability | null
   triggers: TriggeredAbility[]
+  activated: ActivatedAbility[]
+  /** What an Aura enchants: "Enchant creature". */
+  enchant: Filter | null
   statics: Static[]
   /** Lines nothing reads yet, as printed. */
   unread: string[]

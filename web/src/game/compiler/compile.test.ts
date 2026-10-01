@@ -66,7 +66,7 @@ describe('reading sentences', () => {
   })
 
   it('returns null for what it does not know', () => {
-    expect(readSentence('target creature gets +3/+3 until end of turn')).toBeNull()
+    expect(readSentence('each player shuffles their hand into their library')).toBeNull()
   })
 })
 

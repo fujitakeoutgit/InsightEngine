@@ -27,14 +27,14 @@ export function eligibleAttackers(state: GameState): Instance[] {
   return inZone(state, 'battlefield').filter((c) => (
     isCreature(c)
     && !c.tapped
-    && (!c.sick || hasKeyword(c, 'Haste'))
-    && (!hasKeyword(c, 'Defender') || wallsAttack)
+    && (!c.sick || hasKeyword(c, 'Haste', state))
+    && (!hasKeyword(c, 'Defender', state) || wallsAttack)
   ))
 }
 
 /** What one hit from this creature is worth. */
 export function combatDamage(state: GameState, inst: Instance): number {
-  const amount = anyStatic(state, 'toughnessDamage') ? toughness(inst) : power(inst)
+  const amount = anyStatic(state, 'toughnessDamage') ? toughness(inst, state) : power(inst, state)
   return Math.max(0, amount)
 }
 
@@ -43,7 +43,7 @@ export function expectedDamage(state: GameState, iids: readonly string[]): numbe
   return iids.reduce((total, iid) => {
     const inst = find(state, iid)
     if (!inst) return total
-    return total + combatDamage(state, inst) * (hasKeyword(inst, 'Double strike') ? 2 : 1)
+    return total + combatDamage(state, inst) * (hasKeyword(inst, 'Double strike', state) ? 2 : 1)
   }, 0)
 }
 
@@ -60,7 +60,7 @@ export function declareAttackers(state: GameState, iids: readonly string[]): Gam
   const attacking = [...new Set(iids)].filter((iid) => allowed.has(iid))
   const set = new Set(attacking)
   const cards = state.cards.map((c) => (
-    set.has(c.iid) && !hasKeyword(c, 'Vigilance') ? { ...c, tapped: true } : c
+    set.has(c.iid) && !hasKeyword(c, 'Vigilance', state) ? { ...c, tapped: true } : c
   ))
   const names = attacking.map((iid) => find(state, iid)!.card.name).join(', ')
   return noted({ ...state, cards, attacking, pending: null }, attacking.length ? `Attacked with ${names}` : 'No attack')
@@ -80,9 +80,9 @@ export function dealCombatDamage(state: GameState): GameState {
     if (!inst || inst.zone !== 'battlefield') continue
     const amount = combatDamage(next, inst)
     if (amount <= 0) continue
-    const hits = hasKeyword(inst, 'Double strike') ? 2 : 1
+    const hits = hasKeyword(inst, 'Double strike', next) ? 2 : 1
     for (let hit = 0; hit < hits; hit += 1) {
-      const infect = hasKeyword(inst, 'Infect')
+      const infect = hasKeyword(inst, 'Infect', next)
       const opponent = {
         ...next.opponent,
         life: infect ? next.opponent.life : next.opponent.life - amount,
@@ -92,7 +92,7 @@ export function dealCombatDamage(state: GameState): GameState {
           : next.opponent.commander,
       }
       next = noted({ ...next, opponent }, `${inst.card.name} deals ${amount} ${infect ? 'poison' : 'damage'} to the opponent`)
-      if (hasKeyword(inst, 'Lifelink')) next = { ...next, life: next.life + amount * lifeGainFactor(next) }
+      if (hasKeyword(inst, 'Lifelink', next)) next = { ...next, life: next.life + amount * lifeGainFactor(next) }
       dealt.push(iid)
     }
   }

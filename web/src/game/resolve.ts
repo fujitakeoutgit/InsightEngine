@@ -36,8 +36,8 @@ function amount(state: GameState, r: Resolution, count: Count): number {
   // The source is asked as it is now; anything else as it was when it was
   // picked or when the trigger saw it, since it may have left since.
   const live = find(state, iid)
-  if (count.of === 'self' && live) return stats(live)[count.stat]
-  return r.known[iid]?.[count.stat] ?? (live ? stats(live)[count.stat] : 0)
+  if (count.of === 'self' && live?.zone === 'battlefield') return stats(live, state)[count.stat]
+  return r.known[iid]?.[count.stat] ?? (live ? stats(live, state)[count.stat] : 0)
 }
 
 /** The permanents an effect acts on. */
@@ -96,7 +96,8 @@ function makeToken(state: GameState, spec: TokenSpec, tapped: boolean): GameStat
     image_small: art,
     image_normal: art,
     mana_cost: null,
-    oracle_text: null,
+    // "This token" is the card's own name to the compiler.
+    oracle_text: spec.text ? spec.text.replace(/this token/gi, spec.name) : null,
     cmc: 0,
   } as unknown as Card
   const made: Instance = { iid, card, zone: 'battlefield', tapped, x: 0.5, y: 0.5, token: true }
@@ -139,7 +140,7 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
         resolving: {
           ...r,
           chosen,
-          known: { ...r.known, ...Object.fromEntries(chosen.map((iid) => [iid, stats(find(state, iid)!)])) },
+          known: { ...r.known, ...Object.fromEntries(chosen.map((iid) => [iid, stats(find(state, iid)!, state)])) },
         },
       })
       if (!options.length) return { state: noted(set([]), `${r.name}: nothing to choose`) }
@@ -300,6 +301,43 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       return { state: { ...state, pool } }
     }
 
+    case 'boost': {
+      const on = effect.to.kind === 'you' || effect.to.kind === 'opponent' ? [] : aimed(state, r, effect.to)
+      if (!on.length) return { state }
+      const boosts = [...state.boosts, {
+        iids: on.map((c) => c.iid), power: effect.power, toughness: effect.toughness, keywords: effect.keywords,
+      }]
+      const what = [
+        effect.power || effect.toughness ? `${effect.power >= 0 ? '+' : ''}${effect.power}/${effect.toughness >= 0 ? '+' : ''}${effect.toughness}` : '',
+        effect.keywords.join(', ').toLowerCase(),
+      ].filter(Boolean).join(' and ')
+      return { state: noted({ ...state, boosts }, `${names(on)}: ${what} until end of turn`) }
+    }
+
+    case 'attach': {
+      const host = r.chosen[0] ? find(state, r.chosen[0]) : undefined
+      const source = find(state, r.source)
+      if (!host || !source || host.zone !== 'battlefield' || source.zone !== 'battlefield') return { state }
+      // Tucked behind what it is on, a little up and to the right.
+      const cards = state.cards.map((c) => (
+        c.iid === r.source ? { ...c, attachedTo: host.iid, x: Math.min(0.97, host.x + 0.022), y: Math.max(0, host.y - 0.035) } : c
+      ))
+      return { state: noted({ ...state, cards }, `${source.card.name} attached to ${host.card.name}`) }
+    }
+
+    case 'discard': {
+      const hand = inZone(state, 'hand').map((c) => c.iid)
+      const owed = Math.min(amount(state, r, effect.count), hand.length)
+      if (owed <= 0) return { state }
+      return {
+        state,
+        wait: {
+          kind: 'pick', zone: 'hand', prompt: `${r.name}: discard ${plural(owed, 'card')}`,
+          options: hand, min: owed, max: owed,
+        },
+      }
+    }
+
     case 'pay': {
       const paid = autotap(parseCost(effect.cost), manaSources(state), { pool: state.pool, life: state.life })
       if (!paid) {
@@ -443,7 +481,7 @@ function applyPick(state: GameState, r: Resolution, effect: Effect, picked: stri
         resolving: {
           ...r,
           chosen: picked,
-          known: { ...r.known, ...Object.fromEntries(cards.map((c) => [c.iid, stats(c)])) },
+          known: { ...r.known, ...Object.fromEntries(cards.map((c) => [c.iid, stats(c, state)])) },
         },
       }
 
@@ -467,6 +505,12 @@ function applyPick(state: GameState, r: Resolution, effect: Effect, picked: stri
       let next = state
       for (const iid of picked) next = enterBattlefield(next, iid, { forceTapped: effect.tapped }).state
       return picked.length ? noted(next, `${r.name}: put ${names(cards)} onto the battlefield${effect.tapped ? ' tapped' : ''}`) : next
+    }
+
+    case 'discard': {
+      let hand = state.cards
+      for (const iid of picked) hand = relocate(hand, iid, 'graveyard')
+      return noted({ ...state, cards: hand }, `${r.name}: discarded ${names(cards)}`)
     }
 
     case 'reanimate': {
@@ -520,7 +564,24 @@ export function resolveTop(state: GameState): GameState {
 
   if (isPermanentSpell(inst.card)) {
     const entered = enterBattlefield({ ...state, stack }, inst.iid, { x: top.x }).state
-    return remindUnread(noted(entered, `${inst.card.name} resolves`), inst)
+    const arrived = remindUnread(noted(entered, `${inst.card.name} resolves`), inst)
+    // An Aura goes onto something as it arrives.
+    const enchant = /\bAura\b/.test(inst.card.type_line ?? '') ? compile(inst.card).enchant : null
+    if (!enchant) return arrived
+    return carryOn({
+      ...arrived,
+      resolving: {
+        ...blank,
+        source: inst.iid,
+        name: inst.card.name,
+        text: rulesText(inst.card),
+        effects: [{ op: 'choose', filter: enchant, count: 1, upTo: false, must: true }, { op: 'attach' }],
+        event: null,
+        known: {},
+        spell: false,
+        leftover: null,
+      },
+    })
   }
 
   const spell = compile(inst.card).spell

@@ -302,15 +302,40 @@ describe('paying inside an effect', () => {
   })
 })
 
-describe('a creature the engine cannot size', () => {
-  it('is left alive: a printed 0/0 lives on something, modelled or not', () => {
+describe('sizes the board decides', () => {
+  it('sizes a creature by its own text, and lets it die of that', () => {
     const elder = card('Faeburrow Elder', 'Creature — Treefolk Druid', {
-      power: '0', toughness: '0', oracle_text: 'Vigilance\nThis creature gets +1/+1 for each color among permanents you control.',
+      power: '0', toughness: '0', colors: 'GW',
+      oracle_text: 'Vigilance\nThis creature gets +1/+1 for each color among permanents you control.',
     })
-    const grower = card('Crash of Rhino Beetles', 'Creature — Insect', {
-      power: '5', toughness: '5', oracle_text: 'Trample\nThis creature gets +10/+10 as long as you control ten or more lands.',
+    const alive = reduce(ruled([[elder, 'battlefield']]), { type: 'life', by: 1 })
+    expect([power(at(alive, 'c0'), alive), toughness(at(alive, 'c0'), alive)]).toEqual([2, 2])
+    // Two -1/-1 counters undo both colors' worth.
+    const shrunk = reduce(alive, { type: 'counter', iid: 'c0', counter: '-1/-1', by: 2 })
+    expect(at(shrunk, 'c0').zone).toBe('graveyard')
+  })
+
+  it('leaves alone a creature whose size is in words nothing reads', () => {
+    const odd = card('Oddsize', 'Creature — Thing', {
+      power: '0', toughness: '0', oracle_text: 'This creature gets +1/+1 for each card in your hand.',
     })
-    const state = reduce(ruled([[elder, 'battlefield'], [grower, 'battlefield', { damage: 6 }]]), { type: 'life', by: 1 })
-    expect(zone(state, 'battlefield')).toHaveLength(2)
+    const state = reduce(ruled([[odd, 'battlefield', { damage: 3 }]]), { type: 'life', by: 1 })
+    expect(at(state, 'c0').zone).toBe('battlefield')
+  })
+
+  it('applies an anthem to the others', () => {
+    const lord = card('Lord', 'Creature — Spirit', { power: '2', toughness: '2', oracle_text: 'Other creatures you control get +1/+1.' })
+    const state = ruled([[lord, 'battlefield'], [BEARS, 'battlefield']])
+    expect(power(at(state, 'c0'), state)).toBe(2)
+    expect([power(at(state, 'c1'), state), toughness(at(state, 'c1'), state)]).toEqual([3, 3])
+  })
+
+  it('reads a size defined by counting', () => {
+    const rider = card('Allosaurus Rider', 'Creature — Elf Warrior', {
+      power: '1+*', toughness: '1+*',
+      oracle_text: "Allosaurus Rider's power and toughness are each equal to 1 plus the number of lands you control.",
+    })
+    const state = ruled([[rider, 'battlefield'], [FOREST, 'battlefield'], [FOREST, 'battlefield']])
+    expect([power(at(state, 'c0'), state), toughness(at(state, 'c0'), state)]).toEqual([3, 3])
   })
 })

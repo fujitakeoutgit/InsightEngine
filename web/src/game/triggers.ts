@@ -18,7 +18,7 @@ import { matches, onBattlefield } from './match'
 import { isCreature } from './sources'
 import { inZone, mint, noted } from './state'
 import { stats } from './stats'
-import type { GameState, Instance } from './types'
+import type { GameState, Instance, Known } from './types'
 
 type Happened =
   | { on: 'enters' | 'dies' | 'cast' | 'attacks' | 'combatDamage'; card: Instance }
@@ -65,7 +65,10 @@ function sees(when: TriggerEvent, event: Happened, source: Instance): boolean {
   if (when.on !== event.on) return false
   if (when.on === 'enters' || when.on === 'dies' || when.on === 'attacks' || when.on === 'combatDamage') {
     const { card } = event as Extract<Happened, { card: Instance }>
-    return when.who === 'self' ? card.iid === source.iid : matches(card, when.who, source.iid)
+    if (when.who === 'self') return card.iid === source.iid
+    // "Equipped creature": what this is on.
+    if (when.who === 'attached') return source.attachedTo === card.iid
+    return matches(card, when.who, source.iid)
   }
   if (when.on === 'cast') {
     return matches((event as Extract<Happened, { card: Instance }>).card, when.filter, source.iid)
@@ -76,7 +79,8 @@ function sees(when: TriggerEvent, event: Happened, source: Instance): boolean {
 /** Put one ability on the stack — or, if nothing of it was understood, post
  *  its words straight away: there is nothing for the stack to resolve. */
 function fire(
-  state: GameState, source: Instance, index: number, ability: TriggeredAbility, about: Instance | null,
+  state: GameState, source: Instance, index: number, ability: TriggeredAbility,
+  about: Instance | null, known: Known | null,
 ): GameState {
   if (ability.condition
     && onBattlefield(state, ability.condition.filter, source.iid).length < ability.condition.atLeast) {
@@ -103,7 +107,7 @@ function fire(
         effects: ability.effects,
         complete: ability.complete,
         event: about?.iid ?? null,
-        known: about ? { [about.iid]: stats(about) } : {},
+        known: about && known ? { [about.iid]: known } : {},
       },
     }],
   }, `${source.card.name} triggers`)
@@ -121,7 +125,10 @@ export function collectTriggers(before: GameState, after: GameState): GameState 
     for (const source of watching) {
       compile(source.card).triggers.forEach((ability, index) => {
         if (sees(ability.when, event, source)) {
-          next = fire(next, source, index, ability, 'card' in event ? event.card : null)
+          // What it was as it left, for a death; what it is, for the rest.
+          const about = 'card' in event ? event.card : null
+          const known = about ? stats(about, event.on === 'dies' ? before : next) : null
+          next = fire(next, source, index, ability, about, known)
         }
       })
     }
@@ -140,7 +147,7 @@ export function stepTriggers(state: GameState, step: 'upkeep' | 'combat' | 'end'
     const compiled = compile(source.card)
     compiled.triggers.forEach((ability, index) => {
       if (ability.when.on === 'step' && ability.when.step === step) {
-        next = fire(next, source, index, ability, null)
+        next = fire(next, source, index, ability, null, null)
       }
     })
     const unread = compiled.unread.filter((line) => opening.test(line))

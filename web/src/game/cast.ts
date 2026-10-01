@@ -242,7 +242,7 @@ export function manaProblem(state: GameState, iid: string): string | null {
   if (!inst || inst.zone !== 'battlefield') return 'It is not on the battlefield'
   if (inst.tapped) return 'It is already tapped'
   if (!manaAbilities(inst, state).length) return 'It does not make mana'
-  if (!canTapForMana(inst)) return 'Summoning sick — it has not been yours since your turn began'
+  if (!canTapForMana(inst, state)) return 'Summoning sick — it has not been yours since your turn began'
   return null
 }
 

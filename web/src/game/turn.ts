@@ -62,8 +62,9 @@ function enter(state: GameState): GameState {
       return state.attacking.length || state.dealt.length ? { ...state, attacking: [], dealt: [] } : state
     case 'cleanup': {
       // Damage wears off (CR 514.2).
-      const healed = state.cards.some((c) => c.damage)
-        ? { ...state, cards: state.cards.map((c) => (c.damage ? { ...c, damage: undefined } : c)) }
+      // … and "until end of turn" ends with it.
+      const healed = state.cards.some((c) => c.damage) || state.boosts.length
+        ? { ...state, boosts: [], cards: state.cards.map((c) => (c.damage ? { ...c, damage: undefined } : c)) }
         : state
       if (noMaximumHandSize(healed)) return healed
       const over = inZone(healed, 'hand').length - MAX_HAND

@@ -83,6 +83,8 @@ export function game(
     extraLands: 0,
     resolving: null,
     triggered: [],
+    boosts: [],
+    paying: null,
     tokenArt: {},
     ...extra,
   }
@@ -95,6 +97,10 @@ export const BEARS = card('Grizzly Bears', 'Creature — Bear', {
 })
 export const GROWTH = card('Giant Growth', 'Instant', {
   mana_cost: '{G}', oracle_text: 'Target creature gets +3/+3 until end of turn.',
+})
+/** An instant nothing reads, for the cases where a spell is left to you. */
+export const RIDDLE = card('Riddle', 'Instant', {
+  mana_cost: '{G}', oracle_text: 'Each player shuffles their hand into their library.',
 })
 export const TAPLAND = card('Guildless Commons', 'Land', {
   oracle_text: 'Guildless Commons enters tapped.\n{T}: Add {C}.',

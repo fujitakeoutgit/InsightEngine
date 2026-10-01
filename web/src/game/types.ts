@@ -45,6 +45,17 @@ export interface Instance {
   counters?: Record<string, number>
   /** Damage marked on it this turn. It wears off in cleanup. */
   damage?: number
+  /** The permanent this Equipment or Aura is attached to. */
+  attachedTo?: string
+}
+
+/** A change to size and keywords that lasts until end of turn, on the
+ *  permanents it was given to. */
+export interface TurnBoost {
+  iids: string[]
+  power: number
+  toughness: number
+  keywords: string[]
 }
 
 /** Power and toughness as they stood, for an effect that asks after the
@@ -202,6 +213,11 @@ export interface GameState {
   resolving: Resolution | null
   /** Once-a-turn abilities that have had their turn's trigger. */
   triggered: string[]
+  /** "Until end of turn" changes to size and keywords. Gone in cleanup. */
+  boosts: TurnBoost[]
+  /** An ability being activated, while its cost waits on a choice — what to
+   *  sacrifice. */
+  paying: { iid: string; index: number } | null
   /** Pictures for the tokens this deck makes, by name. */
   tokenArt: Record<string, string | null>
 }
@@ -257,6 +273,8 @@ export type Action =
   | { type: 'opponentLife'; by: number }
   /** Declare these attackers — none, to attack with nothing. */
   | { type: 'attack'; iids: string[] }
+  /** Activate a permanent's ability — or a card's, from hand: cycling. */
+  | { type: 'activate'; iid: string; index: number }
   /** Done resolving a reminder by hand. */
   | { type: 'done'; id: string }
   | { type: 'rules'; on: boolean }

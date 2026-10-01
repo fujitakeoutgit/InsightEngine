@@ -4,7 +4,7 @@ import type { Card } from '../lib/api'
 import { checkCast, landProblem, manaOptions, playable } from './cast'
 import { deal, reduce } from './reducer'
 import {
-  BEARS, card, COMMANDER, ELVES, entry, FOREST, game, GROWTH, ORZHOV_SIGNET, PLAINS,
+  BEARS, card, COMMANDER, ELVES, entry, FOREST, game, GROWTH, ORZHOV_SIGNET, PLAINS, RIDDLE,
   SOL_RING, SURGE, SWAMP, TAPLAND, TOWER, TOWER_OF_RELICS, WALKER,
 } from './testing'
 import type { Action, GameState, Instance, Zone } from './types'
@@ -105,10 +105,10 @@ describe('casting', () => {
   })
 
   it('resolves an instant to the graveyard, with its words to carry out', () => {
-    const done = run(ruled([[GROWTH, 'hand'], [FOREST, 'battlefield']]), { type: 'play', iid: 'c0' }, { type: 'pass' })
+    const done = run(ruled([[RIDDLE, 'hand'], [FOREST, 'battlefield']]), { type: 'play', iid: 'c0' }, { type: 'pass' })
     expect(at(done, 'c0').zone).toBe('graveyard')
     expect(done.reminders).toHaveLength(1)
-    expect(done.reminders[0]).toMatchObject({ iid: 'c0', name: 'Giant Growth' })
+    expect(done.reminders[0]).toMatchObject({ iid: 'c0', name: 'Riddle' })
     expect(reduce(done, { type: 'done', id: done.reminders[0].id }).reminders).toEqual([])
   })
 

@@ -9,7 +9,10 @@
  */
 
 import { COLORS, sourcePenalty, type Color, type ManaPool, type ManaSource, type ManaType } from './mana'
+import { hasKeyword } from './stats'
 import type { GameState, Instance } from './types'
+
+export { hasKeyword }
 
 export interface ManaAbility {
   /** One entry per mana it makes, each listing the kinds that mana may be. */
@@ -38,9 +41,6 @@ const lines = (card: Instance['card']) =>
 
 export const isCreature = (inst: Instance) => /\bCreature\b/.test(inst.card.type_line ?? '')
 
-export const hasKeyword = (inst: Instance, keyword: string) =>
-  (inst.card.keywords ?? []).some((k) => k.toLowerCase() === keyword.toLowerCase())
-
 /** "Your commander's color identity". Every color when there is no
  *  commander to ask, since then nothing narrows it. */
 export function identity(state: GameState): Color[] {
@@ -60,7 +60,7 @@ function countControlled(state: GameState, phrase: string): number | null {
   return state.cards.filter((c) => (
     c.zone === 'battlefield'
     && (!kind || new RegExp(`\\b${kind}\\b`, 'i').test(c.card.type_line ?? ''))
-    && (!keyword || hasKeyword(c, keyword))
+    && (!keyword || hasKeyword(c, keyword, state))
   )).length
 }
 
@@ -184,10 +184,10 @@ function hasOtherAbilities(inst: Instance) {
 }
 
 /** May it be tapped for mana now? */
-export function canTapForMana(inst: Instance) {
+export function canTapForMana(inst: Instance, state?: GameState) {
   if (inst.zone !== 'battlefield' || inst.tapped) return false
   // Summoning sickness stops {T} on creatures, haste excepted (CR 302.6).
-  return !(isCreature(inst) && inst.sick && !hasKeyword(inst, 'Haste'))
+  return !(isCreature(inst) && inst.sick && !hasKeyword(inst, 'Haste', state))
 }
 
 /**
@@ -204,7 +204,7 @@ export function manaSources(
 ): ManaSource[] {
   const out: ManaSource[] = []
   for (const inst of state.cards) {
-    if (except.has(inst.iid) || !canTapForMana(inst)) continue
+    if (except.has(inst.iid) || !canTapForMana(inst, state)) continue
     const abilities = manaAbilities(inst, state)
     if (!abilities.length) continue
 

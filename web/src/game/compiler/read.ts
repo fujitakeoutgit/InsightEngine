@@ -101,9 +101,16 @@ const COLOR_WORDS: Record<string, string> = {
 const NAMED_TOKENS: Record<string, TokenSpec> = {
   treasure: {
     name: 'Treasure', pt: null, colors: '', typeLine: 'Token Artifact — Treasure', keywords: [],
+    text: '{T}, Sacrifice this token: Add one mana of any color.',
   },
-  food: { name: 'Food', pt: null, colors: '', typeLine: 'Token Artifact — Food', keywords: [] },
-  clue: { name: 'Clue', pt: null, colors: '', typeLine: 'Token Artifact — Clue', keywords: [] },
+  food: {
+    name: 'Food', pt: null, colors: '', typeLine: 'Token Artifact — Food', keywords: [],
+    text: '{2}, {T}, Sacrifice this token: You gain 3 life.',
+  },
+  clue: {
+    name: 'Clue', pt: null, colors: '', typeLine: 'Token Artifact — Clue', keywords: [],
+    text: '{2}, Sacrifice this token: Draw a card.',
+  },
   blood: { name: 'Blood', pt: null, colors: '', typeLine: 'Token Artifact — Blood', keywords: [] },
   gold: { name: 'Gold', pt: null, colors: '', typeLine: 'Token Artifact — Gold', keywords: [] },
   map: { name: 'Map', pt: null, colors: '', typeLine: 'Token Artifact — Map', keywords: [] },

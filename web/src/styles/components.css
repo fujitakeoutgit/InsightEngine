@@ -5971,3 +5971,56 @@
 .pt-mat .pt-card.attacking:not(.tapped) { transform: translateY(-10px); }
 
 .pt-poison { color: var(--ok); margin-left: 4px; }
+
+/* --- Playtest: abilities -------------------------------------------------- */
+
+/* Opens the card's abilities. Beside the top-right controls, where the eye
+   already goes for what a card can do. */
+.pt-act {
+  position: absolute;
+  top: 4px;
+  right: 27px;
+  z-index: 2;
+  width: 19px;
+  height: 19px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in oklab, var(--aether) 55%, transparent);
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--bg-hi) 86%, transparent);
+  color: var(--aether-hi);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.pt-act:hover { background: color-mix(in oklab, var(--aether) 30%, var(--bg-hi)); border-color: var(--aether); }
+
+/* On a mat card nothing sits to its right, so it takes the corner. */
+.pt-mat .pt-card:not(:has(.pt-info)) .pt-act { right: 4px; }
+.pt-mat .pt-card:has(.pt-flip):not(:has(.pt-info)) .pt-act { right: 27px; }
+
+.pt-abilities { width: min(460px, 88%); text-align: left; }
+.pt-abilities h3 { text-align: center; }
+.pt-abilities > .btn { display: block; margin: 12px auto 0; }
+
+.pt-abilities .pt-modes .btn {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  align-items: baseline;
+}
+
+.pt-ability-cost { color: var(--aether-hi); white-space: nowrap; }
+
+/* The words of an ability are prose, not a label. */
+.pt-abilities .pt-modes .btn > span:not(.mono),
+.pt-decision .pt-modes .btn { font-family: var(--font-b); }
+
+.pt-ability-problem {
+  grid-column: 2;
+  font-size: 10.5px;
+  color: var(--warn);
+}

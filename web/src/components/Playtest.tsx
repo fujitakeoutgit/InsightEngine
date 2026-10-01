@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
+import { abilitiesOf, activationProblem, costLabel } from '../game/activate'
 import {
   checkCast, isLand, landDrops, landProblem, manaOptions, manaProblem, playable,
 } from '../game/cast'
@@ -25,8 +26,8 @@ import { PlayCoin, type CoinFace } from './PlayCoin'
 
 import { PlayDie } from './PlayDie'
 import {
-  ArrangeDialog, DecisionPrompt, ManaPicker, PhaseBar, PickDialog, Reminders, StackPanel, XPrompt,
-  type Offered,
+  AbilityMenu, ArrangeDialog, DecisionPrompt, ManaPicker, PhaseBar, PickDialog, Reminders,
+  StackPanel, XPrompt, type Offered,
 } from './PlaytestHud'
 import { canAnimate, gsap } from '../lib/motion'
 import { type DeckToken } from '../lib/api'
@@ -260,6 +261,8 @@ export function Playtest({
   const [pickingMana, setPickingMana] = useState<
     { iid: string; at: Spot; options: { ability: number; kinds: ManaType[] }[] } | null
   >(null)
+  /** The permanent whose abilities are being chosen from. */
+  const [abilitiesFor, setAbilitiesFor] = useState<string | null>(null)
   /** The card in hand under the pointer, whose payment is previewed. */
   const [previewing, setPreviewing] = useState<string | null>(null)
   /** The loss already acknowledged, so its banner stays down. */
@@ -308,7 +311,7 @@ export function Playtest({
    * and undoing underneath it would leave it showing a library that is not. */
   /* Space passes priority, as it does at most digital tables. Never when a
    * control has focus, which already answers Space by pressing itself. */
-  const dialogOpen = Boolean(tutoring || zoomed || choosingX || pickingMana)
+  const dialogOpen = Boolean(tutoring || zoomed || choosingX || pickingMana || abilitiesFor)
   useEffect(() => {
     if (dialogOpen) return
     const onKey = (event: KeyboardEvent) => {
@@ -653,10 +656,12 @@ export function Playtest({
             onLoyalty={stepLoyalty} placed willTap={wouldTap.has(c.iid)}
             tapHint={game.rules ? ' — click to tap for mana, Shift+click to turn it by hand' : undefined}
             rules={game.rules}
+            size={game.rules && isCreature(c) && (resized(c, game) || !c.card.image_normal) ? sizeLabel(c, game) : ''}
             onCounter={(iid, by) => dispatch({ type: 'counter', iid, counter: '+1/+1', by })}
             onPick={candidates.has(c.iid) ? pick : undefined}
             selected={selected.includes(c.iid)}
             attacking={game.attacking.includes(c.iid)}
+            onAbilities={game.rules && abilitiesOf(c).some((a) => !a.fromHand) ? setAbilitiesFor : undefined}
           />
         ))}
 
@@ -726,6 +731,33 @@ export function Playtest({
             onMode={(index) => dispatch({ type: 'mode', index })}
           />
         )}
+
+        {abilitiesFor && (() => {
+          const source = cards.find((c) => c.iid === abilitiesFor)
+          if (!source) return null
+          // From hand, only what is used from hand — cycling; on the
+          // battlefield, the rest.
+          const offers = abilitiesOf(source)
+            .map((ability, index) => ({ ability, index }))
+            .filter(({ ability }) => ability.fromHand === (source.zone === 'hand'))
+            .map(({ ability, index }) => ({
+              index,
+              cost: costLabel(ability),
+              text: ability.text.split('~').join(source.card.name).replace(/^[^:]*:\s*/, ''),
+              problem: activationProblem(game, source.iid, index),
+            }))
+          return (
+            <AbilityMenu
+              name={source.card.name}
+              offers={offers}
+              onActivate={(index) => {
+                dispatch({ type: 'activate', iid: source.iid, index })
+                setAbilitiesFor(null)
+              }}
+              onCancel={() => setAbilitiesFor(null)}
+            />
+          )
+        })()}
 
         {choosingX && (
           <XPrompt
@@ -853,6 +885,7 @@ export function Playtest({
                 selected={selected.includes(c.iid)}
                 onHover={setPreviewing}
                 rules={game.rules}
+                onAbilities={game.rules && abilitiesOf(c).some((a) => a.fromHand) ? setAbilitiesFor : undefined}
               />
             ))}
             {!inZone.hand.length && <p className="faint" style={{ fontSize: 12 }}>Empty hand.</p>}
@@ -1209,7 +1242,7 @@ function Pile({
 function PlayCard({
   inst, drag, onTap, onPlay, onZoom, onLoyalty, placed, splitRead, style,
   playable, selected, willTap, tax = 0, onHover, tapHint = ' — click to tap',
-  rules, onCounter, onPick, attacking,
+  rules, onCounter, onPick, attacking, size = '', onAbilities,
 }: {
   inst: Instance
   drag: DragRef
@@ -1247,6 +1280,10 @@ function PlayCard({
   onPick?: (iid: string) => void
   /** Declared as an attacker, this combat. */
   attacking?: boolean
+  /** Its size as the board has it, when that is worth showing. */
+  size?: string
+  /** It has abilities to activate: open the menu of them. */
+  onAbilities?: (iid: string) => void
 }) {
   const face = useCardFace(inst.card)
 
@@ -1362,11 +1399,21 @@ function PlayCard({
       )}
 
       {/* Its size, once the board has changed it, with its counters to hand. */}
-      {creature && rules && (resized(inst) || !face.src) && sizeLabel(inst) && (
-        <span className="pt-size mono" title={`${sizeLabel(inst)}${inst.damage ? `, ${inst.damage} damage` : ''}`}>
-          {sizeLabel(inst)}
+      {creature && size && (
+        <span className="pt-size mono" title={`${size}${inst.damage ? `, ${inst.damage} damage` : ''}`}>
+          {size}
           {inst.damage ? <span className="pt-size-damage">−{inst.damage}</span> : null}
         </span>
+      )}
+      {onAbilities && (
+        <button
+          className="pt-act"
+          title={`${inst.card.name}: abilities`}
+          aria-label={`Abilities of ${inst.card.name}`}
+          onClick={(e) => { e.stopPropagation(); onAbilities(inst.iid) }}
+        >
+          ⚡
+        </button>
       )}
       {creature && rules && onCounter && (
         <span className="pt-counter-step">

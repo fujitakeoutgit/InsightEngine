@@ -43,12 +43,13 @@ export function stateBased(state: GameState): GameState {
     // for the engine's ignorance.
     if (isCreature(c) && sizeKnown(c)) {
       // Toughness 0 or less: into the graveyard (704.5f).
-      if (toughness(c) <= 0) {
-        next = noted({ ...next, cards: relocate(next.cards, c.iid, 'graveyard') }, `${c.card.name} dies — toughness ${toughness(c)}`)
+      const tough = toughness(c, next)
+      if (tough <= 0) {
+        next = noted({ ...next, cards: relocate(next.cards, c.iid, 'graveyard') }, `${c.card.name} dies — toughness ${tough}`)
         continue
       }
       // Lethal damage destroys it (704.5g), unless nothing can.
-      if ((c.damage ?? 0) > 0 && (c.damage ?? 0) >= toughness(c) && !hasKeyword(c, 'Indestructible')) {
+      if ((c.damage ?? 0) > 0 && (c.damage ?? 0) >= tough && !hasKeyword(c, 'Indestructible', next)) {
         next = noted({ ...next, cards: relocate(next.cards, c.iid, 'graveyard') }, `${c.card.name} dies — lethal damage`)
         continue
       }
@@ -57,6 +58,22 @@ export function stateBased(state: GameState): GameState {
     // A planeswalker with no loyalty goes to the graveyard (704.5i).
     if (isWalker(c.card.type_line) && (c.loyalty ?? 0) <= 0) {
       next = noted({ ...next, cards: relocate(next.cards, c.iid, 'graveyard') }, `${c.card.name} has no loyalty left`)
+    }
+  }
+
+  // What is attached to something no longer there comes off: an Equipment
+  // stays, unattached, and an Aura with nothing to enchant goes to the
+  // graveyard (704.5m, 704.5n).
+  for (const c of next.cards) {
+    if (c.zone !== 'battlefield') continue
+    const aura = /\bAura\b/.test(c.card.type_line ?? '')
+    const host = c.attachedTo ? next.cards.find((h) => h.iid === c.attachedTo) : undefined
+    if (c.attachedTo && host?.zone !== 'battlefield') {
+      next = aura
+        ? noted({ ...next, cards: relocate(next.cards, c.iid, 'graveyard') }, `${c.card.name} has nothing to enchant`)
+        : { ...next, cards: next.cards.map((x) => (x.iid === c.iid ? { ...x, attachedTo: undefined } : x)) }
+    } else if (aura && !c.attachedTo && !next.resolving) {
+      next = noted({ ...next, cards: relocate(next.cards, c.iid, 'graveyard') }, `${c.card.name} has nothing to enchant`)
     }
   }
 
