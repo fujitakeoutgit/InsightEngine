@@ -163,6 +163,12 @@ function readOneTrigger(condition: string): TriggerEvent | null {
     const filter = readFilter(leaving[1])
     if (filter) return { on: 'leaves', who: { ...filter, ...(/^another /.test(c) ? { other: true } : {}) } }
   }
+  const milled = /^one or more (.+?) cards are put into your graveyard from your library$/.exec(c)
+  if (milled) {
+    const filter = readFilter(milled[1])
+    if (filter) return { on: 'milled', filter }
+  }
+  if (/^a card is put into your graveyard from anywhere$/.test(c)) return { on: 'buried' }
   // Dying, said the long way.
   const buried = /^(?:a|an|another) (.+?) is put into (?:your|a) graveyard from the battlefield$/.exec(c)
   if (buried) {
@@ -451,7 +457,11 @@ export function compile(card: Card): Compiled {
       if (events && !/^if /.test(body)) {
         // In an ability about another card — "whenever a creature you
         // control enters" — "it" is that card.
-        const about: Aim | null = events.some((when) => 'who' in when && when.who !== 'self') ? { kind: 'event' } : null
+        // …and so it is in one about a card going somewhere: discarded,
+        // milled, put into the graveyard.
+        const about: Aim | null = events.some((when) => (
+          ('who' in when && when.who !== 'self') || when.on === 'discard' || when.on === 'milled' || when.on === 'buried'
+        )) ? { kind: 'event' } : null
         const { effects, complete, once } = reading(body, about)
         const conditions = [having, conditional?.condition].filter((test): test is Test => Boolean(test))
         for (const when of events) {
@@ -459,7 +469,9 @@ export function compile(card: Card): Compiled {
             text: shown, when, effects, complete,
             ...(conditions.length ? { condition: conditions.length > 1 ? { all: conditions } : conditions[0] } : {}),
             ...(once ? { oncePerTurn: true } : {}),
-            ...(/\bone or more\b/.test(trig[2]) ? { batch: true } : {}),
+            // Milled cards each answer for themselves: "put them onto the
+            // battlefield" is each of them.
+            ...(/\bone or more\b/.test(trig[2]) && when.on !== 'milled' ? { batch: true } : {}),
             ...(side ? { side } : {}),
             // What returns itself from the graveyard works from there.
             ...(/\breturn ~ from your graveyard\b/.test(body) ? { from: 'graveyard' as const } : {}),

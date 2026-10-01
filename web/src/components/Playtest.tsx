@@ -1435,7 +1435,8 @@ function PlayCard({
     playable && 'playable',
     selected && 'selected',
     willTap && 'will-tap',
-    inst.sick && placed && 'sick',
+    // Only a creature is held back by having just arrived.
+    inst.sick && placed && isCreature(inst) && 'sick',
   ].filter(Boolean).join(' ')
 
   return (
@@ -1460,7 +1461,7 @@ function PlayCard({
         }
       }}
       onClick={onCardClick}
-      title={`${inst.card.name}${inst.sick && placed ? ' (summoning sick)' : ''}${hint}`}
+      title={`${inst.card.name}${inst.sick && placed && isCreature(inst) ? ' (summoning sick)' : ''}${hint}`}
       style={placed
         ? { ...style, left: `${inst.x * 100}%`, top: `${inst.y * 100}%` }
         : style}

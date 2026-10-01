@@ -304,6 +304,24 @@ export type Effect = (
   /** "Copy that spell": a permanent spell's copy arrives as a token; any
    *  other resolves a second time. */
   | { op: 'copySpell' }
+  /** Permanents become something else while staying what they are: a land
+   *  that is a 2/2 Elemental creature as well, a Vehicle that is a creature
+   *  until end of turn. The change is to the card they already are. */
+  | { op: 'animate'; who: Aim; change: CopyChange; until?: 'end' | 'turn' }
+  /** "You get an emblem with …": its words, standing for the rest of the
+   *  game. */
+  | { op: 'emblem'; text: string }
+  /** Put cards onto the battlefield from wherever they are — `attach`ed to
+   *  the card the ability is about: an Aura coming back to its creature. */
+  | { op: 'put'; what: Aim; tapped?: boolean; attach?: boolean }
+  /** "…at the beginning of the next end step": these, then. */
+  | { op: 'later'; effects: Effect[] }
+  /** "When target creature is put into your graveyard this turn, return
+   *  that card to the battlefield": marked now, returned if it dies. */
+  | { op: 'saveFromGrave'; who: Aim }
+  /** Cards shuffled into your library: the permanents aimed at, or whole
+   *  zones — "shuffle your graveyard and hand into your library". */
+  | { op: 'shuffleIn'; what?: Aim; zones?: ('graveyard' | 'hand')[] }
   | { op: 'counters'; to: Aim; count: Count; counter: string }
   /** Connive: draw a card, then discard a card; if it was not a land, a
    *  +1/+1 counter on the creature that connived. "Connives X" is that many
@@ -323,6 +341,8 @@ export type Effect = (
     /** Cultivate: the first this-many found go `to`, the rest into your
      *  hand. */
     first?: number
+    /** "With different names": no two alike. */
+    distinct?: boolean
   }
   /** The top card of your library, looked at. If it is what the card wants
    *  (`match`) it goes where `hit` says — asked first, when it is a "you
@@ -379,6 +399,8 @@ export type Effect = (
      *  there, with nothing to choose. */
     top?: boolean
     budget?: Budget
+    /** "…that were put there from the battlefield this turn." */
+    fell?: boolean
   }
   /** A Class gains its next level. */
   | { op: 'levelUp' }
@@ -423,6 +445,8 @@ export type Effect = (
     fresh?: boolean
     /** "Choose one at random" — unless this holds, and then it is yours. */
     random?: { unless: Test }
+    /** A villainous choice: the opponent's to make, so made for them. */
+    who?: 'opponent'
   }
   /** One outcome or another: "If that land is a Forest, put two counters on
    *  it instead." */
@@ -492,6 +516,11 @@ export type TriggerEvent =
   | { on: 'leaves'; who: Filter }
   /** "When the sixth plan counter is put on ~." */
   | { on: 'counters'; counter: string; count: number }
+  /** "Whenever one or more land cards are put into your graveyard from your
+   *  library": each such card, as it is. */
+  | { on: 'milled'; filter: Filter }
+  /** "Whenever a card is put into your graveyard from anywhere." */
+  | { on: 'buried' }
 
 export interface TriggeredAbility extends Ability {
   when: TriggerEvent
@@ -622,6 +651,9 @@ export interface AbilityCost {
   tapOther: Filter | null
   /** Loyalty added (or, negative, removed): a planeswalker's ability. */
   loyalty: number | null
+  /** Crew: tap untapped creatures you control with this much power between
+   *  them. */
+  crew?: number
 }
 
 export interface ActivatedAbility extends Ability {

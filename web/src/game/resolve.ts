@@ -120,7 +120,7 @@ function makeCopy(
   const seat = seatFor(minted.cards, made)
   return {
     ...minted,
-    cards: [...minted.cards, { ...made, ...seat, sick: isCreature(made) }],
+    cards: [...minted.cards, { ...made, ...seat, sick: true }],
     // "Tapped and attacking": it joins an attack that is under way, without
     // having been declared — so nothing that watches for attacks sees it.
     attacking: attacking && minted.attacking.length ? [...minted.attacking, iid] : minted.attacking,
@@ -159,7 +159,7 @@ function makeToken(
     ...(fleeting ? { fleeting: 'end' as const } : {}),
   }
   const seat = seatFor(minted.cards, made)
-  return { ...minted, cards: [...minted.cards, { ...made, ...seat, sick: isCreature(made) }] }
+  return { ...minted, cards: [...minted.cards, { ...made, ...seat, sick: true }] }
 }
 
 /** A filter back in words, for a question: "up to 2 basic land cards",
@@ -332,6 +332,93 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       const [id, minted] = mint(state, 's')
       return {
         state: noted({ ...minted, stack: [...minted.stack, { id, iid: spell.iid, x: cast?.x ?? 0, copy: true }] }, `${r.name}: copied ${spell.card.name}`),
+      }
+    }
+
+    case 'animate': {
+      const who = aimed(state, r, effect.who).filter((c) => c.zone === 'battlefield')
+      if (!who.length) return { state }
+      const { until } = effect
+      // The card it is, with this as well. For a while, what it was is kept
+      // to go back to; for good, what it was printed as, for when it leaves.
+      const next = change(state, who.map((c) => c.iid), (c) => {
+        const card = copyOf(c.card, effect.change)
+        return until
+          ? { ...c, card, was: c.was ?? c.card, revert: until }
+          : { ...c, card, original: c.original ?? c.card }
+      })
+      const what = [
+        effect.change.pt ?? '',
+        (effect.change.types ?? []).filter((type) => type !== 'Creature').join(' '),
+        'creature',
+      ].filter(Boolean).join(' ')
+      const span = until === 'end' ? ' until end of turn' : until === 'turn' ? ' until your next turn' : ''
+      return { state: noted(next, `${names(who)}: ${who.length > 1 ? `${what}s` : `a ${what}`}${span}`) }
+    }
+
+    case 'emblem': {
+      const walker = r.name.split(/[, ]/)[0]
+      const made = makeToken(state, {
+        name: `${walker} emblem`, pt: null, colors: '', typeLine: 'Emblem', keywords: [], text: effect.text,
+      }, false)
+      return { state: noted(made, `You get an emblem: ${effect.text.split('\n').join(' ')}`) }
+    }
+
+    case 'put': {
+      const what = aimed(state, r, effect.what).filter((c) => c.zone !== 'battlefield' && c.zone !== 'stack' && !c.token)
+      if (!what.length) return { state }
+      let next = state
+      for (const c of what) next = enterBattlefield(next, c.iid, { forceTapped: effect.tapped }).state
+      // An Aura coming back goes onto the creature the ability is about.
+      const host = effect.attach && r.event ? find(next, r.event) : undefined
+      if (host?.zone === 'battlefield') {
+        next = change(next, what.map((c) => c.iid), (c) => ({
+          ...c, attachedTo: host.iid, x: Math.min(0.97, host.x + 0.022), y: Math.max(0, host.y - 0.035),
+        }))
+      }
+      return {
+        state: acted(noted(next, `${names(what)} returned to the battlefield${effect.tapped ? ' tapped' : ''}${
+          host?.zone === 'battlefield' ? `, attached to ${host.card.name}` : ''}`), what.length),
+      }
+    }
+
+    case 'later':
+      return {
+        state: noted({
+          ...state,
+          delayed: [...state.delayed, {
+            iid: r.source,
+            ability: {
+              text: r.text, effects: effect.effects, complete: true, event: r.event, known: r.known, chosen: r.chosen,
+            },
+          }],
+        }, `${r.name}: more at the beginning of the next end step`),
+      }
+
+    case 'saveFromGrave': {
+      const who = aimed(state, r, effect.who).filter((c) => c.zone === 'battlefield')
+      if (!who.length) return { state }
+      return {
+        state: noted(
+          change(state, who.map((c) => c.iid), (c) => ({ ...c, returns: { turn: state.turn, by: r.source } })),
+          `${r.name}: ${names(who)} will return if it dies this turn`,
+        ),
+      }
+    }
+
+    case 'shuffleIn': {
+      const what = effect.what
+        ? aimed(state, r, effect.what)
+        : state.cards.filter((c) => (effect.zones ?? []).some((zone) => c.zone === zone))
+      if (!what.length) return { state: shuffleLibrary(state) }
+      let cards = state.cards
+      for (const c of what) cards = relocate(cards, c.iid, 'library')
+      // A token shuffled away is gone, not in the library.
+      cards = cards.filter((c) => !(c.token && c.zone === 'library'))
+      return {
+        state: noted(shuffleLibrary({ ...state, cards }), effect.what
+          ? `${names(what)} shuffled into your library`
+          : `Shuffled ${plural(what.length, 'card')} into your library`),
       }
     }
 
@@ -581,7 +668,11 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
     }
 
     case 'search': {
-      const options = inZone(state, 'library').filter((c) => matches(c, effect.filter, r.source)).map((c) => c.iid)
+      const found = inZone(state, 'library').filter((c) => matches(c, effect.filter, r.source))
+      // "With different names": one of each is all there is to choose from.
+      const options = found
+        .filter((c, i) => !effect.distinct || found.findIndex((other) => other.card.name === c.card.name) === i)
+        .map((c) => c.iid)
       if (!options.length || n <= 0) {
         return { state: noted(shuffleLibrary(state), `${r.name}: found nothing, then shuffled`) }
       }
@@ -706,7 +797,9 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
 
     case 'reanimate': {
       const wanted = settled(state, r, effect.filter)
-      const options = inZone(state, 'graveyard').filter((c) => matches(c, wanted, r.source)).map((c) => c.iid)
+      const options = inZone(state, 'graveyard')
+        .filter((c) => matches(c, wanted, r.source) && (!effect.fell || c.fell === state.turn))
+        .map((c) => c.iid)
       if (!options.length) return { state: noted(state, `${r.name}: nothing in your graveyard to return`) }
       // Every one of them: nothing to ask.
       if (effect.all) return { state: applyPick(state, r, effect, options) }
@@ -839,7 +932,7 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
         state,
         wait: {
           kind: 'mode',
-          prompt: `${r.name}: ${said}`,
+          prompt: effect.who === 'opponent' ? `${r.name}: the opponent chooses — pick for them` : `${r.name}: ${said}`,
           modes: effect.modes.map((m) => m.text.split('~').join(r.name)),
           taken: [...used, ...r.modes],
           canStop: r.modes.length >= effect.min,
@@ -1156,6 +1249,8 @@ function applyPick(state: GameState, r: Resolution, effect: Effect, picked: stri
       }
       // "Exile those creatures at the beginning of your next upkeep."
       if (effect.until && effect.to === 'battlefield') next = change(next, picked, (c) => ({ ...c, fleeting: effect.until }))
+      // What came back is "it" for what the card says next.
+      next = { ...next, resolving: { ...r, chosen: picked } }
       return picked.length ? noted(next, `${r.name}: returned ${names(cards)} ${effect.to === 'hand' ? 'to your hand' : 'to the battlefield'}`) : next
     }
 
@@ -1215,6 +1310,7 @@ export function resolveTop(state: GameState): GameState {
         effects: top.ability.effects,
         event: top.ability.event,
         known: top.ability.known,
+        chosen: top.ability.chosen ?? [],
         last: top.ability.amount ?? 0,
         spell: false,
         leftover: top.ability.complete ? null : top.ability.text,

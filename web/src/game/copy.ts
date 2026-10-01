@@ -20,6 +20,11 @@ const has = (line: string, word: string) => new RegExp(`\\b${word}\\b`, 'i').tes
 
 const SUPERTYPES = ['Legendary', 'Basic', 'Snow', 'World', 'Kindred']
 
+/** Card types in the order a type line prints them: "Artifact Creature",
+ *  "Land Creature". */
+const PRINTED = ['Enchantment', 'Artifact', 'Land', 'Creature', 'Planeswalker', 'Battle']
+const inPrintedOrder = (kinds: string[]) => [...kinds].sort((a, b) => PRINTED.indexOf(a) - PRINTED.indexOf(b))
+
 /** The type line with a type added: supertypes first, then card types,
  *  before the dash; anything else after it. */
 function withType(line: string, type: string): string {
@@ -29,7 +34,9 @@ function withType(line: string, type: string): string {
   const supers = words.filter((w) => SUPERTYPES.includes(w))
   const kinds = words.filter((w) => !SUPERTYPES.includes(w))
   if (SUPERTYPES.includes(type)) return [[...supers, type, ...kinds].join(' '), right].filter(Boolean).join(' — ')
-  if (CARD_TYPES.includes(type)) return [[...supers, type, ...kinds].join(' '), right].filter(Boolean).join(' — ')
+  if (CARD_TYPES.includes(type)) {
+    return [[...supers, ...inPrintedOrder([...kinds, type])].join(' '), right].filter(Boolean).join(' — ')
+  }
   return `${left} — ${[right, type].filter(Boolean).join(' ')}`
 }
 

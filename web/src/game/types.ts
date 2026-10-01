@@ -73,6 +73,10 @@ export interface Instance {
   exiledBy?: string
   /** The side chosen for it as it entered: Khans, or Dragons. */
   chosenMode?: string
+  /** The turn it was put into the graveyard from the battlefield. */
+  fell?: number
+  /** If it is put into your graveyard this turn, it returns: Saffi. */
+  returns?: { turn: number; by: string }
 }
 
 /** A change to size and keywords that lasts until end of turn, on the
@@ -154,6 +158,9 @@ export interface StackItem {
     /** An amount the trigger is about: the damage that was dealt, for
      *  "create that many". */
     amount?: number
+    /** What had been chosen when this was set up, for an ability that
+     *  waited: "exile it at the beginning of the next end step". */
+    chosen?: string[]
   }
 }
 
@@ -223,8 +230,9 @@ export type Decision =
     /** Cards looked at with the options that cannot be taken: the rest of
      *  the top five, shown so the choice is made knowing them. */
     seen?: string[]
-    /** What the picked may add up to: each option's cost, and the most. */
-    budget?: { max: number; cost: Record<string, number>; of: string }
+    /** What the picked may add up to: each option's cost, and the most —
+     *  or, with `min`, the least: the power it takes to crew a Vehicle. */
+    budget?: { max: number; cost: Record<string, number>; of: string; min?: number }
   }
   /** "Choose a number between 0 and 10." */
   | { kind: 'number'; prompt: string; min: number; max: number }
@@ -304,6 +312,8 @@ export interface GameState {
   /** A spell being cast, while the game asks whether it is the one cast
    *  without paying this turn. */
   casting: { iid: string; x: number } | null
+  /** Abilities waiting for the next end step to begin. */
+  delayed: { iid: string; ability: NonNullable<StackItem['ability']> }[]
   /** Pictures for the tokens this deck makes, by name. */
   tokenArt: Record<string, string | null>
   /** What has happened that triggers have yet to be asked about. */

@@ -16,7 +16,7 @@ import { autotap, demand, formatCost, parseCost } from './mana'
 import { onBattlefield } from './match'
 import { chooseKind, isCreature, manaSources } from './sources'
 import { find, inZone, mint, noted, relocate } from './state'
-import { hasKeyword, snapshot } from './stats'
+import { hasKeyword, power, snapshot } from './stats'
 import { isMain } from './turn'
 import type { GameState, Instance } from './types'
 
@@ -34,6 +34,7 @@ export function costLabel(ability: ActivatedAbility): string {
     cost.sacrifice ? 'sacrifice another' : '',
     cost.sacrificeAny ? 'sacrifice any number' : '',
     cost.tapOther ? 'tap another' : '',
+    cost.crew ? `tap ${cost.crew} power` : '',
     cost.discardSelf ? 'discard' : '',
     cost.remove ? `−${cost.remove.count} ${cost.remove.counter}` : '',
     cost.add ? `+${cost.add.count} ${cost.add.counter}` : '',
@@ -45,6 +46,12 @@ export function costLabel(ability: ActivatedAbility): string {
  *  other. */
 function payable(state: GameState, inst: Instance, ability: ActivatedAbility): Instance[] {
   const { cost } = ability
+  // Crew: any untapped creature of yours but the Vehicle itself — summoning
+  // sick or not, since crewing is not a {T} ability of theirs.
+  if (cost.crew) {
+    return onBattlefield(state, { types: ['creature'], controller: 'you', tapped: false }, inst.iid)
+      .filter((c) => c.iid !== inst.iid)
+  }
   if (cost.tapOther) return onBattlefield(state, cost.tapOther, inst.iid)
   if (cost.sacrificeAny) return onBattlefield(state, cost.sacrificeAny, inst.iid).filter((c) => c.iid !== inst.iid)
   if (!cost.sacrifice) return []
@@ -89,6 +96,9 @@ export function activationProblem(state: GameState, iid: string, index: number, 
     return `Not enough ${cost.remove.counter} counters`
   }
   if (cost.tapOther && !payable(state, inst, ability).length) return 'Nothing to tap for it'
+  if (cost.crew && payable(state, inst, ability).reduce((n, c) => n + Math.max(0, power(c, state)), 0) < cost.crew) {
+    return `Not enough power to crew it — it takes ${cost.crew}`
+  }
   if (cost.sacrifice && !payable(state, inst, ability).length) return 'Nothing to sacrifice'
   if (cost.mana && !autotap(parseCost(cost.mana), payers(state, inst, ability), { x, pool: state.pool, life: state.life })) {
     return `Not enough mana — it costs ${formatCost(parseCost(cost.mana))}`
@@ -102,13 +112,14 @@ function complete(state: GameState, iid: string, index: number, picked: string[]
   const inst = find(state, iid)!
   const ability = abilitiesOf(inst)[index]
   const { cost } = ability
-  const sacrificed = cost.tapOther ? [] : picked
+  const tapping = Boolean(cost.tapOther || cost.crew)
+  const sacrificed = tapping ? [] : picked
   // As they were when the cost was paid: the ability may ask after them.
   const known = Object.fromEntries([iid, ...sacrificed].map((id) => [id, snapshot(find(state, id)!, state)]))
   let next: GameState = { ...state, pending: null, paying: null }
   // What is tapped as the cost is tapped first, so it is not also tapped
   // for the mana.
-  if (cost.tapOther) {
+  if (tapping) {
     next = { ...next, cards: next.cards.map((c) => (picked.includes(c.iid) ? { ...c, tapped: true } : c)) }
   }
 
@@ -186,6 +197,26 @@ export function activate(state: GameState, iid: string, index: number, x = 0): G
   const inst = find(state, iid)!
   const ability = abilitiesOf(inst)[index]
   const options = payable(state, inst, ability)
+  // Crew: as many as it takes to add up to enough power.
+  if (ability.cost.crew) {
+    const { crew } = ability.cost
+    return {
+      ...state,
+      paying: { iid, index, x },
+      pending: {
+        kind: 'pick',
+        zone: 'battlefield',
+        prompt: `${inst.card.name}: tap creatures with total power ${crew} or more to crew it`,
+        options: options.map((c) => c.iid),
+        min: 1,
+        max: options.length,
+        budget: {
+          min: crew, max: 9999, of: 'power',
+          cost: Object.fromEntries(options.map((c) => [c.iid, Math.max(0, power(c, state))])),
+        },
+      },
+    }
+  }
   // Any number of them: asked whenever there is one to give up, since none
   // is an answer too.
   if (ability.cost.sacrificeAny) {
@@ -227,6 +258,9 @@ export function paid(state: GameState, picked: string[]): GameState {
   const chosen = [...new Set(picked)]
   if (chosen.length < pending.min || chosen.length > pending.max) return state
   if (!chosen.every((iid) => pending.options.includes(iid))) return state
+  // Too little power between them to crew it.
+  const { budget } = pending
+  if (budget?.min && chosen.reduce((n, iid) => n + (budget.cost[iid] ?? 0), 0) < budget.min) return state
   return complete(state, paying.iid, paying.index, chosen, paying.x ?? 0)
 }
 

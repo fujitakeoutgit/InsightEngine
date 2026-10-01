@@ -345,7 +345,12 @@ export function DecisionPrompt({
       <div className="pt-decision low" role="dialog" aria-label="Choose">
         <p className="pt-decision-text">{decision.prompt}</p>
         <div className="row gap-2">
-          {decision.budget ? (
+          {decision.budget?.min ? (
+            // A total to reach rather than to stay under: crewing a Vehicle.
+            <span className={`mono ${spent < decision.budget.min ? 'pt-over' : 'faint'}`}>
+              total {decision.budget.of} {spent} — needs {decision.budget.min}
+            </span>
+          ) : decision.budget ? (
             <span className={`mono ${spent > decision.budget.max ? 'pt-over' : 'faint'}`}>
               total {decision.budget.of} {spent} of {decision.budget.max}
             </span>
@@ -355,7 +360,8 @@ export function DecisionPrompt({
           <button
             className="btn btn-primary sm"
             onClick={onConfirm}
-            disabled={chosen < decision.min || chosen > decision.max || (decision.budget ? spent > decision.budget.max : false)}
+            disabled={chosen < decision.min || chosen > decision.max
+              || (decision.budget ? spent > decision.budget.max || spent < (decision.budget.min ?? 0) : false)}
           >
             {chosen === 0 && decision.min === 0 ? 'None' : 'Choose'}
           </button>

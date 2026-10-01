@@ -80,7 +80,10 @@ export function enterBattlefield(
   )
   const tapped = forceTapped || verdict.tapped
   const seat = at ?? seatFor(state.cards, inst)
-  const sick = state.rules && isCreature(inst)
+  // Everything is new the turn it arrives, creature or not: a Vehicle
+  // crewed, or a land brought to life, cannot attack until it has been here
+  // since a turn began.
+  const sick = state.rules
   // Echo is owed at the upkeep after it arrives.
   const echo = state.rules && compile(inst.card).statics.some((fixed) => fixed.kind === 'echo')
   // "Enters with three +1/+1 counters on it" — or X of them, as it was cast.

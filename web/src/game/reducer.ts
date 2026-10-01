@@ -91,6 +91,7 @@ export function deal(
     boosts: [],
     paying: null,
     casting: null,
+    delayed: [],
     tokenArt: Object.fromEntries(tokens.map((t) => [t.name.toLowerCase(), t.image])),
     events: [],
     tally: emptyTally(),
@@ -327,7 +328,7 @@ function apply(state: GameState, action: Action): GameState {
       const [iid, minted] = mint(state, `token-${token.oracle_id}-`)
       const made: Instance = {
         iid, card, zone: 'battlefield', tapped: false, x: 0.5, y: 0.5, token: true,
-        ...(state.rules && /\bCreature\b/.test(token.type_line ?? '') ? { sick: true } : {}),
+        ...(state.rules ? { sick: true } : {}),
       }
       return noted({ ...minted, cards: [...minted.cards, made] }, `Created ${token.name}`)
     }

@@ -27,7 +27,7 @@ import { inZone, mint, noted } from './state'
 import { snapshot } from './stats'
 import type { GameState, Instance, Known, Tally } from './types'
 
-type About = 'enters' | 'dies' | 'leaves' | 'cast' | 'attacks' | 'combatDamage' | 'discard' | 'tapped' | 'untapped' | 'connives'
+type About = 'enters' | 'dies' | 'leaves' | 'milled' | 'buried' | 'cast' | 'attacks' | 'combatDamage' | 'discard' | 'tapped' | 'untapped' | 'connives'
 
 type Happened =
   | { on: About; card: Instance; from?: string }
@@ -58,6 +58,10 @@ function happened(before: GameState, after: GameState): { events: Happened[]; ta
       tally.died += 1
     }
     if (prev && prev.zone !== 'graveyard' && now.zone === 'graveyard' && isCreature(now) && !now.token) tally.binned += 1
+    if (prev && prev.zone !== 'graveyard' && now.zone === 'graveyard' && !now.token) {
+      out.push({ on: 'buried', card: now })
+      if (prev.zone === 'library') out.push({ on: 'milled', card: now })
+    }
     // From your hand to your graveyard, and not by way of the stack.
     if (prev?.zone === 'hand' && now.zone === 'graveyard') {
       out.push({ on: 'discard', card: now })
@@ -148,6 +152,7 @@ function sees(when: TriggerEvent, event: Happened, source: Instance, state: Game
   const { card } = event
   if (when.on === 'enters' && when.from && when.from !== (event as { from?: string }).from) return false
   if (when.on === 'cast') return matches(card, when.filter, source.iid, state)
+  if (when.on === 'milled') return matches(card, when.filter, source.iid)
   if (when.on === 'discard') return !when.filter || matches(card, when.filter, source.iid, state)
   if ('who' in when) {
     if (when.who === 'self') return card.iid === source.iid
@@ -221,6 +226,34 @@ export function collectTriggers(before: GameState, after: GameState): GameState 
   const { events, tally } = happened(before, after)
   if (!events.length && !after.events.length && sameTally(tally, after.tally)) return after
   let next: GameState = { ...after, tally, events: after.events.length ? [] : after.events }
+  // What went to the graveyard from the battlefield is marked with the turn
+  // it did, for the cards that ask what fell this turn.
+  const fallen = new Set(after.cards
+    .filter((now) => now.zone === 'graveyard' && before.cards.find((c) => c.iid === now.iid)?.zone === 'battlefield')
+    .map((c) => c.iid))
+  if (fallen.size) {
+    next = { ...next, cards: next.cards.map((c) => (fallen.has(c.iid) ? { ...c, fell: after.turn, returns: undefined } : c)) }
+  }
+  // Saffi: a creature marked to return this turn has died, and does.
+  for (const event of events) {
+    if (event.on !== 'dies' || event.card.returns?.turn !== after.turn || event.card.token) continue
+    const [id, minted] = mint(next, 's')
+    next = noted({
+      ...minted,
+      stack: [...minted.stack, {
+        id,
+        iid: event.card.returns.by,
+        x: 0,
+        ability: {
+          text: `Return ${event.card.card.name} to the battlefield.`,
+          effects: [{ op: 'put', what: { kind: 'event' } }],
+          complete: true,
+          event: event.card.iid,
+          known: {},
+        },
+      }],
+    }, `${event.card.card.name} will return`)
+  }
   /** "One or more": the abilities that have answered this time round. */
   const answered = new Set<string>()
   for (const event of events) {
@@ -272,6 +305,14 @@ function askOrder(before: GameState, after: GameState): GameState {
  *  yet is posted, so an upkeep the engine cannot do is not one you forget. */
 export function stepTriggers(state: GameState, step: 'upkeep' | 'main' | 'combat' | 'end'): GameState {
   let next = state
+  // What was put off until "the beginning of the next end step".
+  if (step === 'end' && state.delayed.length) {
+    next = { ...next, delayed: [] }
+    for (const waiting of state.delayed) {
+      const [id, minted] = mint(next, 's')
+      next = { ...minted, stack: [...minted.stack, { id, iid: waiting.iid, x: 0, ability: waiting.ability }] }
+    }
+  }
   const opening = step === 'upkeep' ? /^at the beginning of (your|each) upkeep\b/i
     : step === 'main' ? /^at the beginning of your (first|precombat) main phase\b/i
       : step === 'combat' ? /^at the beginning of combat\b/i

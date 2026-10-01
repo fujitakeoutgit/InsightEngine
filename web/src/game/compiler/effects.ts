@@ -54,7 +54,7 @@ function referentOf(effects: readonly Effect[], otherwise: Aim | null): Aim | nu
   // — and a card picked out of exile is still "it" in the graveyard.
   const picked = effects.some((effect) => (
     (effect.op === 'choose' && (!effect.must || !gone || Boolean(effect.zone)))
-    || effect.op === 'dig' || effect.op === 'exileTop'
+    || effect.op === 'dig' || effect.op === 'exileTop' || effect.op === 'reanimate'
   ))
   return picked ? { kind: 'chosen' } : otherwise
 }
@@ -390,6 +390,65 @@ const PATTERNS: Pattern[] = [
     return count === null ? null : [{ op: 'putBack', count }]
   }],
 
+  // --- becoming something else ---------------------------------------------
+  // "All lands you control become 2/2 Elemental creatures with reach": what
+  // they already are, and this as well.
+  [/^(?:until (your next turn|end of turn), )?(.+?) becomes? (?:an? )?(\d+)\/(\d+) ([a-z ]+?) creatures?(?: with (.+?))?( until end of turn)?(?: that's still a land| that are still lands)?$/, (m) => {
+    const until = m[1] === 'your next turn' ? 'turn' as const : m[1] || m[7] ? 'end' as const : undefined
+    const types = ['Creature', ...m[5].split(/\s+/).map((word) => word[0].toUpperCase() + word.slice(1))]
+    return onPermanents(m[2], (who) => [{
+      op: 'animate', who, change: { types, pt: `${m[3]}/${m[4]}`, keywords: readKeywords(m[6] ?? '') }, ...(until ? { until } : {}),
+    }])
+  }],
+  // Druid Class: a creature, with words of its own for how big.
+  [/^(.+?) becomes? a creature with ([a-z, ]+?) and "(.+?)\.?"$/, (m) => (
+    onPermanents(m[1], (who) => [{ op: 'animate', who, change: { types: ['Creature'], keywords: readKeywords(m[2]), text: m[3] } }])
+  )],
+  [/^(?:they're still lands|it's still a land)$/, () => []],
+  // Haste matters on the turn it arrives, which is this one.
+  [/^(it|they|that creature|those creatures) gains? haste$/, (m) => (
+    onPermanents(m[1], (to) => [{ op: 'boost', to, power: 0, toughness: 0, keywords: ['Haste'] }])
+  )],
+
+  // --- coming back ---------------------------------------------------------
+  [/^return (that card|it|them) to the battlefield(?: under (?:its|their) owners?'s? control)?( tapped)?$/, (m) => [{
+    op: 'put', what: referent ?? { kind: 'event' }, ...(m[2] ? { tapped: true } : {}),
+  }]],
+  [/^put (it|them|that card|those cards) onto the battlefield( tapped)?$/, (m) => [{
+    op: 'put', what: referent ?? { kind: 'event' }, ...(m[2] ? { tapped: true } : {}),
+  }]],
+  [/^return ~ to the battlefield attached to (?:that creature|it)$/, () => [{ op: 'put', what: { kind: 'self' }, attach: true }]],
+  [/^return to the battlefield all (.+?) cards in your graveyard that were put there from the battlefield this turn$/, (m) => {
+    const filter = readFilter(m[1])
+    return filter && [{ op: 'reanimate', filter, count: 0, upTo: false, all: true, to: 'battlefield', fell: true }]
+  }],
+  [/^when (target .+?) is put into (?:your|a) graveyard this turn, return that card to the battlefield$/, (m) => (
+    onTarget(m[1], (who) => [{ op: 'saveFromGrave', who }])
+  )],
+  // The opponent's choice between two evils, each read as its own ability.
+  [/^(?:that player|each opponent|target opponent|an opponent) faces a villainous choice — (.+?), or (.+)$/, (m) => {
+    const modes = [m[1], m[2]].map((option) => {
+      const said = option
+        .replace(/ of their choice\b/, '')
+        .replace(/^they sacrifice /, 'that player sacrifices ')
+        .replace(/^they lose /, 'target opponent loses ')
+        .replace(/^they discard /, 'target opponent discards ')
+        .replace(/^that player (loses|discards) /, 'target opponent $1 ')
+      return { text: option[0].toUpperCase() + option.slice(1), ...readAbility(said) }
+    })
+    return modes.some((mode) => mode.effects.length)
+      ? [{ op: 'mode', min: 1, max: 1, who: 'opponent', modes: modes.map(({ text, effects, complete }) => ({ text, effects, complete })) }]
+      : null
+  }],
+  [/^search your library for up to (\w+) (.+?) cards and\/or (.+?) cards with different names, put them (into your hand|onto the battlefield( tapped)?),? then shuffle$/, (m) => {
+    const count = readNumber(m[1])
+    const [one, other] = [readFilter(m[2]), readFilter(m[3])]
+    return count !== null && one && other ? [{
+      op: 'search', filter: { either: [one, other] }, count, upTo: true, distinct: true,
+      to: m[4] === 'into your hand' ? 'hand' : 'battlefield', tapped: Boolean(m[5]),
+    }] : null
+  }],
+
   // --- playing from elsewhere ----------------------------------------------
   [/^exile the top (?:(\w+) )?cards? of your library$/, (m) => {
     const count = readCount(m[1] ?? 'one')
@@ -477,7 +536,7 @@ const PATTERNS: Pattern[] = [
   [/^return to their owners' hands all (.+)$/, (m) => onPermanents(`all ${m[1]}`, (what) => [{ op: 'move', what, to: 'hand' }])],
   // Nobody else casts anything: "that player" is you.
   [/^that player returns an? (.+?) they control to its owner's hand$/, (m) => readSentence(`return a ${m[1]} you control to its owner's hand`)],
-  [/^return (.+?) to (?:its owner's hand|their owner's hand|their owners' hands)$/, (m) => {
+  [/^return (.+?) to (?:its owner's hand|their owner's hand|their owners' hands|your hand)$/, (m) => {
     // Bounce lands: "return a land you control to its owner's hand".
     const owned = /^an? (.+)$/.exec(m[1])
     if (owned) {
@@ -627,6 +686,18 @@ const PATTERNS: Pattern[] = [
   [/^(?:~|this spell) can't be countered$/, () => []],
 ]
 
+/** One instruction, by the patterns alone. */
+function readPlain(s: string): Effect[] | null {
+  for (const [pattern, build] of PATTERNS) {
+    const m = pattern.exec(s)
+    if (m) {
+      const effects = build(m)
+      if (effects) return effects
+    }
+  }
+  return null
+}
+
 /** The effects of one sentence, or null. Whole-sentence patterns first, so
  *  "you may play an additional land" is the permission it is rather than a
  *  question; then "you may …", "each player may …" and "if you do, …"; then
@@ -636,6 +707,7 @@ export function readSentence(sentence: string): Effect[] | null {
     // Baldin's "up to one hundred target creatures each get": as many as
     // you like.
     .replace(/^up to one hundred target (.+?) each (?=gets?\b)/, 'up to 100 target $1 ')
+    .replace(/^search your library for any number of /, 'search your library for up to 99 ')
 
   // "…, where X is the number of lands you control": the sentence without
   // it, and then that amount wherever it says X. It may sit in the middle —
@@ -650,13 +722,14 @@ export function readSentence(sentence: string): Effect[] | null {
   const reflexive = /^when you do, (.+)$/.exec(s)
   if (reflexive) return readSentence(reflexive[1])
 
-  for (const [pattern, build] of PATTERNS) {
-    const m = pattern.exec(s)
-    if (m) {
-      const effects = build(m)
-      if (effects) return effects
-    }
-  }
+  const plain = readPlain(s)
+  if (plain) return plain
+  // "…at the beginning of the next end step": the same thing, then. Only of
+  // one instruction, so that "do this and exile it at the end step" is not
+  // all put off.
+  const later = /^(.+?) at the beginning of the next end step$/.exec(s)
+  const then = later && readPlain(later[1])
+  if (then) return [{ op: 'later', effects: then }]
   const optional = /^(you|each player) may (?:have ~ )?(.+)$/.exec(s)
   if (optional) {
     // Asked once: the first effect carries the question, and the rest of
@@ -803,6 +876,18 @@ export function readCompound(text: string): Effect[] | null {
       ...(cast[3] ? { once: true } : {}),
     }]
   }
+  // Peer Pressure: whatever type is chosen, they are all yours already.
+  if (/^choose a creature type\. if you control more creatures of that type than each other player, you gain control of all creatures of that type\.$/.test(said)) {
+    return nothing('Everything here is already yours')
+  }
+  // Chaos Warp, on the only permanents there are.
+  if (/^the owner of target permanent shuffles it into their library, then reveals the top card of their library\. if it's a permanent card, they put it onto the battlefield\.$/.test(said)) {
+    return [
+      { op: 'choose', filter: {}, count: 1, upTo: false },
+      { op: 'shuffleIn', what: { kind: 'chosen' } },
+      { op: 'topCard', match: { not: ['instant', 'sorcery'] }, hit: 'battlefield', tapped: false, ask: false, miss: 'stay', missAsk: false },
+    ]
+  }
   const top = TOP_CARD.exec(said)
   if (!top) return null
   const [, kind, chosen, may, where, tapped, missMay, missWhere] = top
@@ -902,6 +987,12 @@ export function readAbility(
     if (countered && /\b(that spell|that spell's|its controller|that player)\b/.test(s)) continue
     if (nobody && /\b(it|its|they|them|that (?:creature|permanent|player)|those creatures)\b/.test(s)) continue
 
+    // An emblem carries its words as printed, to be read when it exists.
+    const emblem = /^you get an emblem with "(.+?)\.?"(?: and "(.+?)\.?")?$/i.exec(sentence.trim())
+    if (emblem) {
+      effects.push({ op: 'emblem', text: [emblem[1], emblem[2]].filter(Boolean).map((line) => `${line}.`).join('\n') })
+      continue
+    }
     // "If you control a Bird, draw a card": done or not, as it resolves.
     const plain = /^if (?!you do\b|you don't\b)(.+?), (.+)$/.exec(s)
     if (plain && !/\binstead\b/.test(s)) {

@@ -118,6 +118,17 @@ export function readKeywordAbility(line: string, shown: string): ActivatedAbilit
       complete: true,
     }
   }
+  // Crew: creatures tapped, and the Vehicle is one of them for the turn.
+  const crew = /^crew (\d+)$/.exec(line)
+  if (crew) {
+    return {
+      text: shown,
+      cost: { ...FREE, crew: Number(crew[1]) },
+      sorcery: false, oncePerTurn: false, fromHand: false, mana: null,
+      effects: [{ op: 'animate', who: { kind: 'self' }, change: { types: ['Creature'] }, until: 'end' }],
+      complete: true,
+    }
+  }
   const cycling = /^(?:(basic land|plains|island|swamp|mountain|forest))?cycling ((?:\{[^}]+\})+)$/.exec(line)
   if (cycling) {
     const kind = cycling[1]
