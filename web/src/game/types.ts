@@ -49,8 +49,11 @@ export interface Instance {
   attachedTo?: string
   /** The creature type chosen for it as it entered. */
   chosenType?: string
-  /** A token here only for the turn: exiled as the end step begins. */
-  fleeting?: boolean
+  /** Here for a while only: exiled as the end step begins, or as your next
+   *  upkeep does. */
+  fleeting?: 'end' | 'upkeep'
+  /** Echo is still owed: asked for at your next upkeep. */
+  echo?: boolean
   /** The card this is, while it is on the battlefield as a copy of another.
    *  `card` is then what it copies. */
   original?: Card
@@ -119,6 +122,9 @@ export interface StackItem {
     /** The card the trigger is about, when it is about one. */
     event: string | null
     known: Record<string, Known>
+    /** An amount the trigger is about: the damage that was dealt, for
+     *  "create that many". */
+    amount?: number
   }
 }
 
@@ -262,6 +268,9 @@ export interface GameState {
   events: GameEvent[]
   /** This turn's counts. */
   tally: Tally
+  /** You have the city's blessing — had ten permanents with something that
+   *  ascends — and keep it for the rest of the game. */
+  blessing: boolean
 }
 
 export type Action =

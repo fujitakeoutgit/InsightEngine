@@ -13,34 +13,46 @@ import type { GameState, Instance } from './types'
 
 const word = (line: string, w: string) => new RegExp(`\\b${w}\\b`, 'i').test(line)
 
+/** What the board makes true of whole kinds of card at once: every
+ *  creature every creature type (Maskwood Nexus), every land every basic
+ *  land type (Dryad of the Ilysian Grove). */
+export interface Sweeping { creatures: boolean; lands: boolean }
+
+const NOTHING: Sweeping = { creatures: false, lands: false }
+
+const BASIC_LAND_TYPES = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest']
+
 /**
  * Does it have this subtype? A changeling is every creature type; so is
- * every creature while something says they all are (`every`); and a
- * permanent that "is the chosen type" is the type chosen for it.
+ * every creature, and every land every basic land type, while something on
+ * the board says so; and a permanent that "is the chosen type" is the type
+ * chosen for it.
  */
-export function hasSubtype(inst: Instance, subtype: string, every = false): boolean {
+export function hasSubtype(inst: Instance, subtype: string, sweep: Sweeping = NOTHING): boolean {
   const line = inst.card.type_line ?? ''
   if (word(line, subtype)) return true
+  if (sweep.lands && BASIC_LAND_TYPES.includes(subtype) && word(line, 'Land')) return true
   if (!isCreatureType(subtype)) return false
   if (inst.chosenType === subtype && compile(inst.card).statics.some((fixed) => fixed.kind === 'isChosenType')) {
     return true
   }
   return word(line, 'Creature')
-    && (every || (inst.card.keywords ?? []).some((k) => k.toLowerCase() === 'changeling'))
+    && (sweep.creatures || (inst.card.keywords ?? []).some((k) => k.toLowerCase() === 'changeling'))
 }
 
-const everyTypes = new WeakMap<GameState, boolean>()
+const sweeps = new WeakMap<GameState, Sweeping>()
 
-/** Is something making every creature every creature type? Maskwood Nexus.
+/** What is true of every creature, and of every land, as the board stands.
  *  Asked once of each state. */
-export function everyType(state: GameState): boolean {
-  const known = everyTypes.get(state)
-  if (known !== undefined) return known
-  const every = state.cards.some((c) => (
-    c.zone === 'battlefield' && compile(c.card).statics.some((fixed) => fixed.kind === 'everyCreatureType')
+export function sweeping(state: GameState): Sweeping {
+  const known = sweeps.get(state)
+  if (known) return known
+  const has = (kind: 'everyCreatureType' | 'everyLandType') => state.cards.some((c) => (
+    c.zone === 'battlefield' && compile(c.card).statics.some((fixed) => fixed.kind === kind)
   ))
-  everyTypes.set(state, every)
-  return every
+  const sweep = { creatures: has('everyCreatureType'), lands: has('everyLandType') }
+  sweeps.set(state, sweep)
+  return sweep
 }
 
 /** A filter as one permanent's ability means it: "of the chosen type" is the
@@ -56,20 +68,20 @@ export function forSource(filter: Filter, source: Instance | undefined): Filter 
 }
 
 /** `source` is the card whose ability is asking, which "another" excludes. */
-export function isKind(inst: Instance, filter: Filter, source?: string, every = false): boolean {
+export function isKind(inst: Instance, filter: Filter, source?: string, sweep: Sweeping = NOTHING): boolean {
   // The other side of the table has nothing on it.
   if (filter.controller === 'opponent') return false
   // Whose chosen type, whose name? See `forSource`, which has to have
   // answered first.
   if (filter.chosenType || filter.sameName) return false
   if (filter.name && inst.card.name !== filter.name) return false
-  if (filter.either && !filter.either.some((one) => isKind(inst, one, source, every))) return false
+  if (filter.either && !filter.either.some((one) => isKind(inst, one, source, sweep))) return false
   const line = inst.card.type_line ?? ''
   if (filter.types && !filter.types.some((t) => word(line, t))) return false
   if (filter.also && !filter.also.every((t) => word(line, t))) return false
   if (filter.not?.some((t) => word(line, t))) return false
-  if (filter.subtypes && !filter.subtypes.some((t) => hasSubtype(inst, t, every))) return false
-  if (filter.notSubtypes?.some((t) => hasSubtype(inst, t, every))) return false
+  if (filter.subtypes && !filter.subtypes.some((t) => hasSubtype(inst, t, sweep))) return false
+  if (filter.notSubtypes?.some((t) => hasSubtype(inst, t, sweep))) return false
   if (filter.basic && !word(line, 'Basic')) return false
   if (filter.colors && !filter.colors.some((color) => (inst.card.colors ?? '').includes(color))) return false
   if (filter.colorless && inst.card.colors) return false

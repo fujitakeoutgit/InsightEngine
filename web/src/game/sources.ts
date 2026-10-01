@@ -8,7 +8,11 @@
  * a Treasure, a counter on Wall of Roots — are left for you to use by hand.
  */
 
-import { COLORS, sourcePenalty, type Color, type ManaPool, type ManaSource, type ManaType } from './mana'
+import { compile } from './compiler/compile'
+import { isKind, sweeping } from './kinds'
+import {
+  COLORS, demand, parseCost, sourcePenalty, type Color, type ManaPool, type ManaSource, type ManaType,
+} from './mana'
 import { hasKeyword } from './stats'
 import type { GameState, Instance } from './types'
 
@@ -130,10 +134,12 @@ function readOutput(phrase: string, state: GameState, self: Instance): ManaType[
 export function manaAbilities(inst: Instance, state: GameState): ManaAbility[] {
   const out: ManaAbility[] = []
 
-  // A land's basic types each grant "{T}: Add" their color (CR 305.6).
+  // A land's basic types each grant "{T}: Add" their color (CR 305.6) — all
+  // five of them, under Dryad of the Ilysian Grove.
   const line = inst.card.type_line ?? ''
   if (/\bLand\b/.test(line)) {
-    const kinds = LAND_TYPES.filter(([type]) => new RegExp(`\\b${type}\\b`).test(line)).map(([, c]) => c)
+    const sweep = sweeping(state)
+    const kinds = LAND_TYPES.filter(([type]) => sweep.lands || new RegExp(`\\b${type}\\b`).test(line)).map(([, c]) => c)
     if (kinds.length) {
       out.push({ makes: [kinds], input: 0, text: `{T}: Add ${kinds.map((k) => `{${k}}`).join(' or ')}.` })
     }
@@ -171,7 +177,34 @@ export function manaAbilities(inst: Instance, state: GameState): ManaAbility[] {
     const makes = readOutput(added[1], state, inst)
     if (makes?.length) out.push({ makes, input, text })
   }
-  return out
+  return out.map((ability) => ({ ...ability, makes: [...ability.makes, ...additional(inst, state, ability.makes)] }))
+}
+
+/** "Whenever you tap a Forest for mana, add an additional {G}": what a tap
+ *  for this much makes on top, from everything on the battlefield that says
+ *  so. One that asks for {C} answers only to a tap that makes nothing else. */
+function additional(inst: Instance, state: GameState, makes: readonly ManaType[][]): ManaType[][] {
+  const more: ManaType[][] = []
+  const sweep = sweeping(state)
+  for (const source of state.cards) {
+    if (source.zone !== 'battlefield') continue
+    for (const fixed of compile(source.card).statics) {
+      if (fixed.kind !== 'extraMana' || !isKind(inst, fixed.tapped, source.iid, sweep)) continue
+      if (fixed.of && !makes.every((unit) => unit.length === 1 && unit[0] === fixed.of)) continue
+      more.push([fixed.adds])
+    }
+  }
+  return more
+}
+
+/** Which of several kinds of mana to make, when nothing says: the one the
+ *  hand most wants, among the commander's colors. */
+export function chooseKind(state: GameState, kinds: readonly ManaType[]): ManaType {
+  if (kinds.length === 1) return kinds[0]
+  const allowed = kinds.filter((k) => (identity(state) as ManaType[]).includes(k))
+  const wanted = demand(state.cards.filter((c) => c.zone === 'hand').map((c) => parseCost(c.card.mana_cost)))
+  const from = allowed.length ? allowed : kinds
+  return from.reduce((best, k) => (wanted[k] > wanted[best] ? k : best), from[0])
 }
 
 /** Does it do anything besides make mana? Then tapping it for mana spends

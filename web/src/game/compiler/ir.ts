@@ -284,8 +284,22 @@ export type Effect = (
   | { op: 'fromHand'; filter: Filter; count: number; upTo: boolean; tapped: boolean }
   /** Move permanents: destroy, exile, return to hand, sacrifice. */
   | { op: 'move'; what: Aim; to: 'graveyard' | 'exile' | 'hand' }
-  /** Return cards from your graveyard. */
-  | { op: 'reanimate'; filter: Filter; count: number; upTo: boolean; to: 'hand' | 'battlefield' }
+  /** Return cards from your graveyard: ones you pick, or — `all` — every
+   *  one that matches. `until` is for those that go back into exile:
+   *  "exile those creatures at the beginning of your next upkeep". */
+  | {
+    op: 'reanimate'
+    filter: Filter
+    count: number
+    upTo: boolean
+    to: 'hand' | 'battlefield'
+    all?: boolean
+    until?: 'upkeep'
+  }
+  /** Your life total becomes a number. */
+  | { op: 'setLife'; count: Count }
+  /** Take every counter off: "remove all of them from it". */
+  | { op: 'removeCounters'; from: Aim }
   | { op: 'untap'; what: Aim }
   | { op: 'tap'; what: Aim }
   | { op: 'extraLand'; count: number }
@@ -314,6 +328,8 @@ export type Effect = (
   optional?: boolean
   /** "If you do, …": skipped when the "you may" before it was declined. */
   ifDone?: boolean
+  /** "If you don't, …": carried out only when it was declined. */
+  ifNot?: boolean
 }
 
 export interface Ability {
@@ -356,6 +372,8 @@ export type TriggerEvent =
   | { on: 'scry' }
   /** "Whenever a creature you control connives." */
   | { on: 'connives'; who: 'self' | Filter }
+  /** "Whenever ~ is dealt damage." */
+  | { on: 'damaged'; who: 'self' }
 
 export interface TriggeredAbility extends Ability {
   when: TriggerEvent
@@ -404,7 +422,30 @@ export type Static =
   /** "Creatures you control get +1/+1", "~ gets +1/+1 for each land you
    *  control", "equipped creature has haste": a standing change to size and
    *  keywords, for itself, what it is attached to, or everything matching. */
-  | { kind: 'boost'; to: 'self' | 'attached' | Filter; boost: Boost; condition?: { atLeast: number; filter: Filter } }
+  | {
+    kind: 'boost'
+    to: 'self' | 'attached' | Filter
+    boost: Boost
+    condition?: { atLeast: number; filter: Filter }
+    /** Where the card has to be for this to hold, when that is not the
+     *  battlefield: "as long as ~ is in your graveyard". */
+    from?: 'graveyard'
+  }
+  /** "Whenever you tap a Forest for mana, add an additional {G}": more mana
+   *  from the same tap. `of` narrows it to taps that make only that kind. */
+  | { kind: 'extraMana'; tapped: Filter; of?: ManaType; adds: ManaType }
+  /** "Lands you control are every basic land type in addition to their
+   *  other types." */
+  | { kind: 'everyLandType' }
+  /** Ascend: with ten permanents, you have the city's blessing for good. */
+  | { kind: 'ascend' }
+  /** "~ can't attack or block unless you have the city's blessing." */
+  | { kind: 'needsBlessing' }
+  /** "If damage would be dealt to ~ while it has a +1/+1 counter on it,
+   *  prevent that damage and remove a +1/+1 counter from ~." */
+  | { kind: 'counterShield' }
+  /** Echo: pay this at the upkeep after it arrives, or sacrifice it. */
+  | { kind: 'echo'; cost: string }
   /** "~'s power and toughness are each equal to the number of lands you
    *  control": what it is in place of the `*` it prints. */
   | { kind: 'size'; stats: ('power' | 'toughness')[]; plus: number; measure: Measure }

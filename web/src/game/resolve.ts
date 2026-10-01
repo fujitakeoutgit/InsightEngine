@@ -24,7 +24,7 @@ import { holds } from './holds'
 import { autotap, parseCost } from './mana'
 import { matches, onBattlefield } from './match'
 import { seatFor } from './seat'
-import { isCreature, manaSources } from './sources'
+import { chooseKind, isCreature, manaSources } from './sources'
 import { shuffle } from './random'
 import {
   draw, find, happen, inZone, mint, noted, relocate, shuffleLibrary, startingLoyalty, toBottom,
@@ -89,7 +89,7 @@ function makeCopy(state: GameState, of: Card, change: CopyChange, tapped: boolea
   const loyalty = startingLoyalty(card)
   const made: Instance = {
     iid, card, zone: 'battlefield', tapped, x: 0.5, y: 0.5, token: true,
-    ...(fleeting ? { fleeting } : {}),
+    ...(fleeting ? { fleeting: 'end' as const } : {}),
     ...(loyalty !== null ? { loyalty } : {}),
   }
   const seat = seatFor(minted.cards, made)
@@ -124,7 +124,8 @@ function makeToken(
     cmc: 0,
   } as unknown as Card
   const made: Instance = {
-    iid, card, zone: 'battlefield', tapped, x: 0.5, y: 0.5, token: true, ...(fleeting ? { fleeting } : {}),
+    iid, card, zone: 'battlefield', tapped, x: 0.5, y: 0.5, token: true,
+    ...(fleeting ? { fleeting: 'end' as const } : {}),
   }
   const seat = seatFor(minted.cards, made)
   return { ...minted, cards: [...minted.cards, { ...made, ...seat, sick: isCreature(made) }] }
@@ -214,10 +215,32 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       if (effect.to.kind === 'you') {
         return { state: noted({ ...state, life: state.life - n }, `${r.name} deals ${n} damage to you`) }
       }
-      const hit = aimed(state, r, effect.to)
+      const hit = aimed(state, r, effect.to).filter((c) => c.zone === 'battlefield')
       if (!hit.length) return { state }
-      const marked = change(state, hit.map((c) => c.iid), (c) => ({ ...c, damage: (c.damage ?? 0) + n }))
+      // Undergrowth Champion: a +1/+1 counter goes in place of the damage.
+      const shielded = (c: Instance) => (c.counters?.['+1/+1'] ?? 0) > 0
+        && compile(c.card).statics.some((fixed) => fixed.kind === 'counterShield')
+      const marked = change(state, hit.map((c) => c.iid), (c) => (
+        shielded(c)
+          ? { ...c, counters: { ...c.counters, '+1/+1': (c.counters?.['+1/+1'] ?? 0) - 1 } }
+          : { ...c, damage: (c.damage ?? 0) + n }
+      ))
       return { state: noted(marked, `${r.name} deals ${n} damage to ${names(hit)}`) }
+    }
+
+    case 'setLife': {
+      const to = amount(state, r, effect.count)
+      return { state: to === state.life ? state : noted({ ...state, life: to }, `Your life total becomes ${to}`) }
+    }
+
+    case 'removeCounters': {
+      const from = aimed(state, r, effect.from).filter((c) => c.zone === 'battlefield')
+      const removed = from.reduce((total, c) => total + Object.values(c.counters ?? {}).reduce((a, b) => a + b, 0), 0)
+      if (!removed) return { state: acted(state, 0) }
+      const cleared = change(state, from.map((c) => c.iid), (c) => ({
+        ...c, counters: Object.fromEntries(Object.keys(c.counters ?? {}).map((kind) => [kind, 0])),
+      }))
+      return { state: acted(noted(cleared, `${plural(removed, 'counter')} removed from ${names(from)}`), removed) }
     }
 
     case 'scry':
@@ -453,6 +476,8 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       const wanted = settled(state, r, effect.filter)
       const options = inZone(state, 'graveyard').filter((c) => matches(c, wanted, r.source)).map((c) => c.iid)
       if (!options.length) return { state: noted(state, `${r.name}: nothing in your graveyard to return`) }
+      // Every one of them: nothing to ask.
+      if (effect.all) return { state: applyPick(state, r, effect, options) }
       return {
         state,
         wait: {
@@ -477,8 +502,9 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
 
     case 'addMana': {
       const pool = { ...state.pool }
-      for (const unit of effect.makes) pool[unit[0]] += 1
-      return { state: { ...state, pool } }
+      const made = effect.makes.map((unit) => chooseKind(state, unit))
+      for (const kind of made) pool[kind] += 1
+      return { state: noted({ ...state, pool }, `${r.name}: added ${made.map((k) => `{${k}}`).join('')}`) }
     }
 
     case 'boost': {
@@ -509,6 +535,8 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       const hand = inZone(state, 'hand').map((c) => c.iid)
       const owed = Math.min(amount(state, r, effect.count), hand.length)
       if (owed <= 0) return { state }
+      // The whole hand: nothing to choose.
+      if (owed === hand.length) return { state: applyPick(state, r, effect, hand) }
       return {
         state,
         wait: {
@@ -676,11 +704,13 @@ export function carryOn(state: GameState): GameState {
     if (!r) return next
     if (r.at >= r.effects.length) return finish(next)
     const effect = r.effects[r.at]
-    if (effect.ifDone && r.declined) {
+    // "If you do" follows a yes, "if you don't" a no; anything else ends
+    // the matter of that question.
+    if ((effect.ifDone && r.declined) || (effect.ifNot && !r.declined)) {
       next = advance(next)
       continue
     }
-    if (!effect.ifDone && r.declined) {
+    if (!effect.ifDone && !effect.ifNot && r.declined) {
       next = { ...next, resolving: { ...r, declined: false } }
       continue
     }
@@ -826,6 +856,8 @@ function applyPick(state: GameState, r: Resolution, effect: Effect, picked: stri
           ? enterBattlefield(next, iid).state
           : { ...next, cards: relocate(next.cards, iid, 'hand') }
       }
+      // "Exile those creatures at the beginning of your next upkeep."
+      if (effect.until && effect.to === 'battlefield') next = change(next, picked, (c) => ({ ...c, fleeting: effect.until }))
       return picked.length ? noted(next, `${r.name}: returned ${names(cards)} ${effect.to === 'hand' ? 'to your hand' : 'to the battlefield'}`) : next
     }
 
@@ -885,6 +917,7 @@ export function resolveTop(state: GameState): GameState {
         effects: top.ability.effects,
         event: top.ability.event,
         known: top.ability.known,
+        last: top.ability.amount ?? 0,
         spell: false,
         leftover: top.ability.complete ? null : top.ability.text,
       },

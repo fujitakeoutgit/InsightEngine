@@ -148,6 +148,7 @@ const PATTERNS: Pattern[] = [
     const count = readCount(m[1])
     return count === null ? null : [{ op: 'discard', count }]
   }],
+  [/^discard (?:your|their) hand$/, () => [{ op: 'discard', count: { zone: 'hand' } }]],
   [/^discard cards equal to (?:its|that creature's|the sacrificed creature's) (power|toughness)$/, (m) => (
     [{ op: 'discard', count: { stat: m[1] as 'power' | 'toughness', of: 'event' } }]
   )],
@@ -205,6 +206,7 @@ const PATTERNS: Pattern[] = [
     return onTarget(m[2], () => [{ op: 'life', who: 'you', sign: 1, count: { stat, of: 'chosen' } }])
   }],
 
+  [/^(?:have )?your life total becomes? (.+)$/, (m) => counted(m[1], (count) => [{ op: 'setLife', count }])],
   [/^(?:you )?(gain|lose) life equal to (.+)$/, (m) => (
     counted(m[2], (count) => [{ op: 'life', who: 'you', sign: m[1] === 'gain' ? 1 : -1, count }])
   )],
@@ -213,7 +215,7 @@ const PATTERNS: Pattern[] = [
   )],
 
   // --- damage --------------------------------------------------------------
-  [/^(?:~|it) deals? damage to target (?:player|opponent) equal to the number of cards in that player's hand$/, () => nothing('No hand on the other side to count')],
+  [/^(?:(?:~|it) )?deals? damage to target (?:player|opponent) equal to the number of cards in that player's hand$/, () => nothing('No hand on the other side to count')],
   [/^(~|it) deals (?:(\w+) damage|damage equal to its (power|toughness)) to (any target|target opponent|each opponent|target player|target player or planeswalker|target creature or player|target opponent or planeswalker|each player)$/, (m) => {
     const [, who, n, stat, to] = m
     const count: Count | null = stat
@@ -247,6 +249,11 @@ const PATTERNS: Pattern[] = [
     }
     return [makes(token, count, Boolean(m[2]))]
   }],
+  // As many as the effect before it came to: counters removed, damage dealt.
+  [/^create that many (.+? tokens?(?: with [a-z, ]+?)?)$/, (m) => {
+    const token = readToken(m[1])
+    return token && [makes(token, 'thatMany', false)]
+  }],
   [/^create a number of (.+? tokens?(?: with [a-z, ]+?)?) equal to (.+)$/, (m) => {
     const token = readToken(m[1])
     return token && counted(m[2], (count) => [makes(token, count, false)])
@@ -274,6 +281,7 @@ const PATTERNS: Pattern[] = [
     const counter = m[2]
     return onPermanents(m[3], (to) => [{ op: 'counters', to, count, counter }])
   }],
+  [/^remove all (?:of them|[a-z+/\d-]+ counters) from (~|it)$/, () => [{ op: 'removeCounters', from: { kind: 'self' } }]],
   [/^(.+?) connives?$/, (m) => onPermanents(m[1], (who) => [{ op: 'connive', who }])],
   [/^have (it|~|that creature) connive$/, (m) => onPermanents(m[1], (who) => [{ op: 'connive', who }])],
   [/^double the number of ([+-]\d\/[+-]\d|[a-z]+) counters on ~$/, (m) => (
@@ -376,6 +384,13 @@ const PATTERNS: Pattern[] = [
     }
     return onPermanents(m[1], (what) => [{ op: 'move', what, to: 'hand' }])
   }],
+  // Every one of them, with no choosing: Rally the Ancestors.
+  [/^return each (.+?)(?: cards?)? from your graveyard to (your hand|the battlefield)$/, (m) => {
+    const filter = readFilter(m[1])
+    return filter && [{
+      op: 'reanimate', filter, count: 0, upTo: false, all: true, to: m[2] === 'your hand' ? 'hand' : 'battlefield',
+    }]
+  }],
   [/^return (up to (\w+) )?(?:target )?(.+?)(?: cards?)? from your graveyard to (your hand|the battlefield)(?: tapped)?$/, (m) => {
     const [, upTo, upCount, noun, where] = m
     const filter = readFilter(noun.replace(/^(a|an|one|two|three) /, ''))
@@ -416,6 +431,12 @@ const PATTERNS: Pattern[] = [
   [/^add ((?:\{[wubrgc]\})+)$/, (m) => {
     const makes = [...m[1].matchAll(/\{([wubrgc])\}/g)].map((s) => [s[1].toUpperCase() as ManaType])
     return [{ op: 'addMana', makes }]
+  }],
+  // Any color: which is worked out as it is added, from what the hand wants.
+  [/^add (one|two|three) mana of any (?:one )?color$/, (m) => {
+    const count = readNumber(m[1])
+    const any: ManaType[] = ['W', 'U', 'B', 'R', 'G']
+    return count === null ? null : [{ op: 'addMana', makes: Array.from({ length: count }, () => any) }]
   }],
 
   [/^pay ((?:\{[^}]+\})+)$/, (m) => [{ op: 'pay', cost: m[1].toUpperCase() }]],
@@ -753,6 +774,12 @@ export function readAbility(
         effects[effects.length - 1] = { ...made, fleeting: true }
         continue
       }
+    }
+    // …or about what was brought back: "exile those creatures at the
+    // beginning of your next upkeep".
+    if (made?.op === 'reanimate' && /^exile (?:those creatures|them|it) at the beginning of your next upkeep$/.test(s)) {
+      effects[effects.length - 1] = { ...made, until: 'upkeep' }
+      continue
     }
 
     // What a token is made with, in quotes: `…token with "~ can't block."`

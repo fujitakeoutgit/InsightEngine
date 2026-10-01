@@ -60,7 +60,8 @@ export function relocate(
     const left = zone !== 'battlefield'
       ? {
           sick: false, counters: undefined, damage: undefined, attachedTo: undefined,
-          chosenType: undefined, card: c.original ?? c.card, original: undefined,
+          chosenType: undefined, fleeting: undefined, echo: undefined,
+          card: c.original ?? c.card, original: undefined,
         }
       : {}
     return {

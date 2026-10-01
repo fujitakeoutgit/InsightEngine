@@ -12,7 +12,7 @@ import type { Card } from '../lib/api'
 import { amount } from './amount'
 import { compile } from './compiler/compile'
 import { holds } from './holds'
-import { everyType, forSource, isKind } from './kinds'
+import { forSource, isKind, sweeping } from './kinds'
 import { onBattlefield } from './match'
 import { autotap, demand, formatCost, parseCost, type Cost, type ManaType, type Payment } from './mana'
 import { seatFor } from './seat'
@@ -80,6 +80,8 @@ export function enterBattlefield(
   const tapped = forceTapped || verdict.tapped
   const seat = at ?? seatFor(state.cards, inst)
   const sick = state.rules && isCreature(inst)
+  // Echo is owed at the upkeep after it arrives.
+  const echo = state.rules && compile(inst.card).statics.some((fixed) => fixed.kind === 'echo')
   // "Enters with three +1/+1 counters on it" — or X of them, as it was cast.
   let counters = inst.counters
   for (const fixed of state.rules ? compile(inst.card).statics : []) {
@@ -89,7 +91,10 @@ export function enterBattlefield(
   }
   const cards = state.cards.map((c) => (
     c.iid === iid
-      ? { ...c, zone: 'battlefield' as const, tapped, sick, ...seat, ...(counters ? { counters } : {}) }
+      ? {
+          ...c, zone: 'battlefield' as const, tapped, sick, ...seat,
+          ...(counters ? { counters } : {}), ...(echo ? { echo } : {}),
+        }
       : c
   ))
   return { state: { ...state, cards }, tapped, why: forceTapped ? undefined : verdict.why }
@@ -164,7 +169,7 @@ function discount(state: GameState, inst: Instance): { generic: number; colored:
   for (const source of inZone(state, 'battlefield')) {
     for (const fixed of compile(source.card).statics) {
       if (fixed.kind !== 'costLess') continue
-      if (!isKind(inst, forSource(fixed.filter, source), source.iid, everyType(state))) continue
+      if (!isKind(inst, forSource(fixed.filter, source), source.iid, sweeping(state))) continue
       less += fixed.amount
       colored += fixed.colored ?? ''
     }

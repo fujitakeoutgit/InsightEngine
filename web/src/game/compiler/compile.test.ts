@@ -95,7 +95,7 @@ describe('compiling cards', () => {
 
   it('grades a card it only partly reads, and one it cannot read at all', () => {
     expect(named('Swords to Plowshares').coverage).toBe('auto')
-    expect(named('Hornet Nest').coverage).toBe('partial')
+    expect(named("Kari Zev's Expertise").coverage).toBe('partial')
     expect(named('Abundance').coverage).toBe('manual')
   })
 

@@ -12,9 +12,9 @@
 
 import { compile } from './compiler/compile'
 import type { ActivatedAbility } from './compiler/ir'
-import { autotap, demand, formatCost, parseCost, type ManaType } from './mana'
+import { autotap, demand, formatCost, parseCost } from './mana'
 import { onBattlefield } from './match'
-import { identity, isCreature, manaSources } from './sources'
+import { chooseKind, isCreature, manaSources } from './sources'
 import { find, inZone, mint, noted, relocate } from './state'
 import { hasKeyword, snapshot } from './stats'
 import { isMain } from './turn'
@@ -92,16 +92,6 @@ export function activationProblem(state: GameState, iid: string, index: number):
     return `Not enough mana — it costs ${formatCost(parseCost(cost.mana))}`
   }
   return null
-}
-
-/** Which of a mana ability's kinds to make, when it could make any: the
- *  color the hand most wants, among the commander's. */
-function chooseKind(state: GameState, kinds: ManaType[]): ManaType {
-  if (kinds.length === 1) return kinds[0]
-  const allowed = kinds.filter((k) => (identity(state) as ManaType[]).includes(k))
-  const wanted = demand(inZone(state, 'hand').map((c) => parseCost(c.card.mana_cost)))
-  const from = allowed.length ? allowed : kinds
-  return from.reduce((best, k) => (wanted[k] > wanted[best] ? k : best), from[0])
 }
 
 /** Pay everything, and put the ability on the stack. `picked` is what was

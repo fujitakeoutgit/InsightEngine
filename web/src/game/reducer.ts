@@ -93,6 +93,7 @@ export function deal(
     tokenArt: Object.fromEntries(tokens.map((t) => [t.name.toLowerCase(), t.image])),
     events: [],
     tally: emptyTally(),
+    blessing: false,
   }
 }
 

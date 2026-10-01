@@ -14,9 +14,9 @@ const cards = corpus as unknown as Entry[]
  *  just under where each stands: a change to the compiler may raise these,
  *  and must not quietly lower them. */
 const FLOOR: Record<string, number> = {
-  'Aristocrat': 0.54,
-  'Land & Draw': 0.5,
-  'Abzan Armor': 0.75,
+  'Aristocrat': 0.85,
+  'Land & Draw': 0.87,
+  'Abzan Armor': 0.93,
 }
 
 describe('coverage of the sample decks', () => {

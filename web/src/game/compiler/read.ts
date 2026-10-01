@@ -210,12 +210,13 @@ export function readFilter(phrase: string): Filter | null {
   for (let color = take(COLOR); color; color = take(COLOR)) {
     filter.colors = [...(filter.colors ?? []), COLOR_WORDS[color[1]]]
   }
-  const compare = take(/ with (power|toughness|mana value) (\d+) or (less|greater)\b/)
+  const compare = take(/ with (power|toughness|mana value) (\d+|x) or (less|greater)\b/)
   if (compare) {
     filter.compare = {
       stat: compare[1] === 'mana value' ? 'manaValue' : compare[1] as 'power' | 'toughness',
       op: compare[3] === 'less' ? '<=' : '>=',
-      value: Number(compare[2]),
+      // "…X or less": X as the spell was cast.
+      value: compare[2] === 'x' ? 'X' : Number(compare[2]),
     }
   }
   const keyword = take(/ with ([a-z ]+?) (?=$|\s)/)

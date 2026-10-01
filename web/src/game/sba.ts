@@ -8,6 +8,7 @@
  * looks for triggers between passes rather than after them all.
  */
 
+import { compile } from './compiler/compile'
 import { hasKeyword, isCreature } from './sources'
 import { noted, relocate } from './state'
 import { sizeKnown, toughness } from './stats'
@@ -85,6 +86,15 @@ export function stateBased(state: GameState): GameState {
   for (const c of state.cards) {
     if (c.commander && (c.zone === 'graveyard' || c.zone === 'exile')) {
       next = noted({ ...next, cards: relocate(next.cards, c.iid, 'command') }, `${c.card.name} returns to the command zone`)
+    }
+  }
+
+  // The city's blessing: with something that ascends and ten permanents,
+  // you have it — for the rest of the game (CR 702.131).
+  if (!next.blessing) {
+    const permanents = next.cards.filter((c) => c.zone === 'battlefield')
+    if (permanents.length >= 10 && permanents.some((c) => compile(c.card).statics.some((fixed) => fixed.kind === 'ascend'))) {
+      next = noted({ ...next, blessing: true }, "You have the city's blessing")
     }
   }
 

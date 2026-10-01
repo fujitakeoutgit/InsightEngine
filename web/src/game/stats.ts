@@ -15,7 +15,7 @@
 
 import { compile } from './compiler/compile'
 import type { Boost, Filter, Measure } from './compiler/ir'
-import { everyType, forSource, isKind } from './kinds'
+import { forSource, isKind, sweeping } from './kinds'
 import type { GameState, Instance, Known } from './types'
 
 const printed = (inst: Instance, field: 'power' | 'toughness') =>
@@ -36,7 +36,7 @@ function counted(inst: Instance, field: 'power' | 'toughness' = 'power'): number
  *  standing effect here asks about size, which would be asking this module
  *  about itself. */
 const fits = (inst: Instance, filter: Filter, source: Instance, state: GameState) =>
-  isKind(inst, forSource(filter, source), source.iid, everyType(state))
+  isKind(inst, forSource(filter, source), source.iid, sweeping(state))
 
 const onBoard = (state: GameState) => state.cards.filter((c) => c.zone === 'battlefield')
 
@@ -73,9 +73,11 @@ function applied(inst: Instance, state: GameState): Applied {
     out.toughness += boost.toughness * times
     out.keywords.push(...boost.keywords)
   }
-  for (const source of onBoard(state)) {
+  // What is on the board — and what works from the graveyard: Anger.
+  for (const source of state.cards) {
+    if (source.zone !== 'battlefield' && source.zone !== 'graveyard') continue
     for (const fixed of compile(source.card).statics) {
-      if (fixed.kind !== 'boost') continue
+      if (fixed.kind !== 'boost' || (fixed.from ?? 'battlefield') !== source.zone) continue
       const mine = fixed.to === 'self' ? source.iid === inst.iid
         : fixed.to === 'attached' ? source.attachedTo === inst.iid
           : fits(inst, fixed.to, source, state)

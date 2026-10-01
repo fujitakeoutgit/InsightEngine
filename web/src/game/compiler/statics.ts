@@ -5,6 +5,7 @@
  * those that are true and make no difference at a table with one player.
  */
 
+import type { ManaType } from '../mana'
 import type { Boost, Filter, Measure, Static } from './ir'
 import { readExcept } from './copies'
 import { readAmount, readCount, readFilter, readKeywords, readNumber, readTest } from './read'
@@ -81,6 +82,37 @@ export function readCostLess(sentence: string): Static | null {
 
 export function readStatic(line: string): Static | null {
   const l = line.replace(/\.$/, '')
+
+  if (/^lands you control are every basic land type in addition to their other types$/.test(l)) {
+    return { kind: 'everyLandType' }
+  }
+  if (/^ascend$/.test(l)) return { kind: 'ascend' }
+  if (/^~ can't attack or block unless you have the city's blessing$/.test(l)) return { kind: 'needsBlessing' }
+  if (/^if damage would be dealt to ~ while it has a \+1\/\+1 counter on it, prevent that damage and remove a \+1\/\+1 counter from ~$/.test(l)) {
+    return { kind: 'counterShield' }
+  }
+  const echo = /^echo ((?:\{[^}]+\})+)$/.exec(l)
+  if (echo) return { kind: 'echo', cost: echo[1].toUpperCase() }
+
+  // "Whenever you tap a Forest for mana, add an additional {G}."
+  const more = /^whenever you tap an? (.+?) for (mana|\{c\}), add an additional \{([wubrgc])\}$/.exec(l)
+  if (more) {
+    const tapped = readFilter(more[1])
+    return tapped && {
+      kind: 'extraMana', tapped, adds: more[3].toUpperCase() as ManaType,
+      ...(more[2] === 'mana' ? {} : { of: 'C' as ManaType }),
+    }
+  }
+
+  // Anger: a standing ability that works from the graveyard.
+  const buried = /^as long as ~ is in your graveyard and you control an? (.+?), (.+)$/.exec(l)
+  if (buried) {
+    const needs = readFilter(buried[1])
+    const inner = readStatic(buried[2])
+    return needs && inner?.kind === 'boost' && !inner.condition
+      ? { ...inner, from: 'graveyard', condition: { atLeast: 1, filter: { ...needs, controller: 'you' } } }
+      : null
+  }
 
   if (/^as ~ enters, choose a creature type$/.test(l)) return { kind: 'chooseType' }
   if (/^~ is the chosen type in addition to its other types$/.test(l)) return { kind: 'isChosenType' }

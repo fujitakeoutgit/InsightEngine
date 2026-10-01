@@ -129,6 +129,7 @@ function readOneTrigger(condition: string): TriggerEvent | null {
   if (tapping) return { on: tapping[1] as 'tapped' | 'untapped', who: 'self' }
   if (/^you (scry|surveil|scry or surveil)$/.test(c)) return { on: 'scry' }
   if (/^~ connives$/.test(c)) return { on: 'connives', who: 'self' }
+  if (/^~ is dealt damage$/.test(c)) return { on: 'damaged', who: 'self' }
   const conniving = /^(?:a|an|another) (.+?) connives$/.exec(c)
   if (conniving) {
     const filter = readFilter(conniving[1])
@@ -314,7 +315,9 @@ export function compile(card: Card): Compiled {
     }
 
     // A static that is worded like a trigger.
-    const early = /^at the beginning of each player's draw step\b/.test(lower) ? readStatic(lower) : null
+    const early = /^(at the beginning of each player's draw step|whenever you tap an? .+ for (mana|\{c\}), add)\b/.test(lower)
+      ? readStatic(lower)
+      : null
     if (early) {
       statics.push(early)
       grades.push(1)

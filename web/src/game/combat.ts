@@ -29,6 +29,8 @@ export function eligibleAttackers(state: GameState): Instance[] {
     && !c.tapped
     && (!c.sick || hasKeyword(c, 'Haste', state))
     && (!hasKeyword(c, 'Defender', state) || wallsAttack)
+    // Wayward Swordtooth stays home until you have the city's blessing.
+    && (state.blessing || !compile(c.card).statics.some((fixed) => fixed.kind === 'needsBlessing'))
   ))
 }
 

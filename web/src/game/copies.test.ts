@@ -43,7 +43,7 @@ describe('a token that is a copy', () => {
     const copied = run(start, cast('c0'), pass, pass, { type: 'confirm', yes: true })
     const [token] = tokens(copied)
     expect(token.card).toMatchObject({ name: 'Runeclaw Cub', power: '2', toughness: '2', type_line: 'Creature — Bear' })
-    expect(token).toMatchObject({ zone: 'battlefield', fleeting: true })
+    expect(token).toMatchObject({ zone: 'battlefield', fleeting: 'end' })
     expect(hasKeyword(token, 'Haste', copied)).toBe(true)
     // A token entering does not set the Conjuring off again.
     expect(copied.stack).toEqual([])
@@ -77,7 +77,7 @@ describe('a token that is a copy', () => {
     expect(asked.pending).toMatchObject({ kind: 'pick', zone: 'graveyard', options: ['c1'] })
     const done = reduce(asked, { type: 'choose', iids: ['c1'] })
     expect(at(done, 'c1').zone).toBe('exile')
-    expect(tokens(done)[0]).toMatchObject({ fleeting: true, card: { name: 'Grizzly Bears', type_line: 'Creature — Bear Spirit' } })
+    expect(tokens(done)[0]).toMatchObject({ fleeting: 'end', card: { name: 'Grizzly Bears', type_line: 'Creature — Bear Spirit' } })
   })
 })
 

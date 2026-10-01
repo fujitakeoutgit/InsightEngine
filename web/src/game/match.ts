@@ -4,7 +4,7 @@
  */
 
 import type { Filter } from './compiler/ir'
-import { everyType, forSource, isKind } from './kinds'
+import { forSource, isKind, sweeping } from './kinds'
 import { hasKeyword, power, toughness } from './stats'
 import type { GameState, Instance } from './types'
 
@@ -15,7 +15,7 @@ export function matches(inst: Instance, asked: Filter, source?: string, state?: 
   const filter = (asked.chosenType || asked.sameName) && state && source
     ? forSource(asked, state.cards.find((c) => c.iid === source))
     : asked
-  if (!isKind(inst, filter, source, state ? everyType(state) : false)) return false
+  if (!isKind(inst, filter, source, state ? sweeping(state) : undefined)) return false
   if (filter.attacking && !state?.attacking.includes(inst.iid)) return false
   if (filter.keyword && !hasKeyword(inst, filter.keyword, state)) return false
   if (filter.compare) {

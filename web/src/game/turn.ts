@@ -6,7 +6,7 @@
 import { dealCombatDamage, eligibleAttackers } from './combat'
 import { compile } from './compiler/compile'
 import { emptyPool, MANA_TYPES } from './mana'
-import { draw, emptyTally, inZone, noted } from './state'
+import { draw, emptyTally, inZone, noted, relocate } from './state'
 import type { GameState, Step } from './types'
 
 export const STEPS: readonly Step[] = [
@@ -31,6 +31,15 @@ function noMaximumHandSize(state: GameState) {
   return inZone(state, 'battlefield').some((c) => (
     compile(c.card).statics.some((fixed) => fixed.kind === 'noMaxHandSize')
   ))
+}
+
+/** What was here for a while only, exiled as its time comes. */
+function exileFleeting(state: GameState, when: 'end' | 'upkeep'): GameState {
+  const going = state.cards.filter((c) => c.fleeting === when && c.zone === 'battlefield')
+  if (!going.length) return state
+  let cards = state.cards
+  for (const c of going) cards = relocate(cards, c.iid, 'exile')
+  return noted({ ...state, cards }, `Exiled ${going.map((c) => c.card.name).join(', ')} — ${when === 'end' ? 'the end step' : 'your upkeep'}`)
 }
 
 /** What the game does as a step begins (CR 502–514). */
@@ -70,12 +79,11 @@ function enter(state: GameState): GameState {
       return state.attacking.length || state.dealt.length ? { ...state, attacking: [], dealt: [] } : state
     case 'end': {
       // Tokens made "until the beginning of the next end step" go now.
-      const going = state.cards.filter((c) => c.fleeting && c.zone === 'battlefield')
-      if (!going.length) return state
-      return noted({
-        ...state, cards: state.cards.map((c) => (going.includes(c) ? { ...c, zone: 'exile' as const } : c)),
-      }, `Exiled ${going.map((c) => c.card.name).join(', ')} — the end step`)
+      return exileFleeting(state, 'end')
     }
+    case 'upkeep':
+      // …and what was brought back "until your next upkeep" goes then.
+      return exileFleeting(state, 'upkeep')
     case 'cleanup': {
       // Damage wears off (CR 514.2).
       // … and "until end of turn" ends with it.

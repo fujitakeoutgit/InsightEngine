@@ -30,6 +30,8 @@ type About = 'enters' | 'dies' | 'cast' | 'attacks' | 'combatDamage' | 'discard'
 
 type Happened =
   | { on: About; card: Instance }
+  /** Damage marked on a creature: how much more than it had. */
+  | { on: 'damaged'; card: Instance; amount: number }
   | { on: 'lifeGain' | 'landPlay' | 'attack' | 'scry' }
   /** One card drawn: the `nth` this turn. */
   | { on: 'draw'; nth: number }
@@ -58,6 +60,8 @@ function happened(before: GameState, after: GameState): { events: Happened[]; ta
     if (prev?.zone === 'battlefield' && now.zone === 'battlefield' && prev.tapped !== now.tapped) {
       out.push({ on: now.tapped ? 'tapped' : 'untapped', card: now })
     }
+    const hurt = now.zone === 'battlefield' ? (now.damage ?? 0) - (prev?.zone === 'battlefield' ? prev.damage ?? 0 : 0) : 0
+    if (hurt > 0) out.push({ on: 'damaged', card: now, amount: hurt })
   }
   // Leaving is counted from what was there, since a token that has left is
   // soon nowhere at all.
@@ -127,7 +131,7 @@ function sees(when: TriggerEvent, event: Happened, source: Instance, state: Game
  *  its words straight away: there is nothing for the stack to resolve. */
 function fire(
   state: GameState, source: Instance, index: number, ability: TriggeredAbility,
-  about: Instance | null, known: Known | null,
+  about: Instance | null, known: Known | null, amount?: number,
 ): GameState {
   if (ability.condition) {
     const asking = {
@@ -158,6 +162,7 @@ function fire(
         complete: ability.complete,
         event: about?.iid ?? null,
         known: about && known ? { [about.iid]: known } : {},
+        ...(amount === undefined ? {} : { amount }),
       },
     }],
   }, `${source.card.name} triggers`)
@@ -185,7 +190,7 @@ export function collectTriggers(before: GameState, after: GameState): GameState 
         // What it was as it left, for a death; what it is, for the rest.
         const about = 'card' in event ? event.card : null
         const known = about ? snapshot(about, event.on === 'dies' ? before : next) : null
-        next = fire(next, source, index, ability, about, known)
+        next = fire(next, source, index, ability, about, known, event.on === 'damaged' ? event.amount : undefined)
       })
     }
   }
@@ -207,9 +212,33 @@ export function stepTriggers(state: GameState, step: 'upkeep' | 'main' | 'combat
         next = fire(next, source, index, ability, null, null)
       }
     })
-    const unread = compiled.unread.filter((line) => opening.test(line))
+    const unread = compiled.unread.filter((line) => opening.test(line) || (step === 'upkeep' && /^cumulative upkeep\b/i.test(line)))
     if (unread.length) {
       next = remind(next, source.iid, source.card.name, unread.join('\n').split('~').join(source.card.name))
+    }
+    // Echo, owed since it arrived: pay it now, or the permanent goes.
+    const echo = step === 'upkeep' && source.echo ? compiled.statics.find((fixed) => fixed.kind === 'echo') : undefined
+    if (echo?.kind === 'echo') {
+      const [id, minted] = mint(next, 's')
+      next = noted({
+        ...minted,
+        cards: minted.cards.map((c) => (c.iid === source.iid ? { ...c, echo: undefined } : c)),
+        stack: [...minted.stack, {
+          id,
+          iid: source.iid,
+          x: 0,
+          ability: {
+            text: `Echo ${echo.cost} — pay it, or sacrifice ${source.card.name}.`,
+            effects: [
+              { op: 'pay', cost: echo.cost, optional: true },
+              { op: 'move', what: { kind: 'self' }, to: 'graveyard', ifNot: true },
+            ],
+            complete: true,
+            event: null,
+            known: {},
+          },
+        }],
+      }, `${source.card.name}: echo`)
     }
   }
   return next
