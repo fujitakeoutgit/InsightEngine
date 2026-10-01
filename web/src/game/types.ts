@@ -47,6 +47,11 @@ export interface Instance {
   damage?: number
   /** The permanent this Equipment or Aura is attached to. */
   attachedTo?: string
+  /** A token here only for the turn: exiled as the end step begins. */
+  fleeting?: boolean
+  /** The card this is, while it is on the battlefield as a copy of another.
+   *  `card` is then what it copies. */
+  original?: Card
 }
 
 /** A change to size and keywords that lasts until end of turn, on the

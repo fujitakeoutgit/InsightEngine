@@ -18,14 +18,17 @@ import { amount, settled, signed } from './amount'
 import { enterBattlefield, isPermanentSpell, remind, remindUnread, rulesText } from './cast'
 import { lifeGainFactor } from './combat'
 import { compile } from './compiler/compile'
-import type { Aim, Effect, Filter, TokenSpec } from './compiler/ir'
+import type { Aim, CopyChange, Effect, Filter, TokenSpec } from './compiler/ir'
+import { copyOf } from './copy'
 import { holds } from './holds'
 import { autotap, parseCost } from './mana'
 import { matches, onBattlefield } from './match'
 import { seatFor } from './seat'
 import { isCreature, manaSources } from './sources'
 import { shuffle } from './random'
-import { draw, find, happen, inZone, mint, noted, relocate, shuffleLibrary, toBottom } from './state'
+import {
+  draw, find, happen, inZone, mint, noted, relocate, shuffleLibrary, startingLoyalty, toBottom,
+} from './state'
 import { snapshot } from './stats'
 import type { Action, Decision, GameState, Instance, Resolution } from './types'
 
@@ -40,6 +43,8 @@ function aimed(state: GameState, r: Resolution, aim: Aim): Instance[] {
     case 'event': return one(r.event)
     case 'chosen': return r.chosen.flatMap((iid) => one(iid))
     case 'each': return onBattlefield(state, aim.filter, r.source)
+    // What it is on — or, once that has gone, the card the ability is about.
+    case 'host': return one(find(state, r.source)?.attachedTo ?? r.event)
     default: return []
   }
 }
@@ -76,9 +81,26 @@ function arrange(cards: readonly Instance[], top: readonly string[], bottom: rea
 const sentenceCase = (text: string) =>
   `${text.charAt(0).toUpperCase()}${text.slice(1)}${/[.!?"]$/.test(text) ? '' : '.'}`
 
+/** A token that is a copy of a card, seated where its type belongs. */
+function makeCopy(state: GameState, of: Card, change: CopyChange, tapped: boolean, fleeting: boolean): GameState {
+  const card = copyOf(of, change)
+  const slug = card.name.toLowerCase().replace(/\W+/g, '-')
+  const [iid, minted] = mint(state, `token-${slug}-`)
+  const loyalty = startingLoyalty(card)
+  const made: Instance = {
+    iid, card, zone: 'battlefield', tapped, x: 0.5, y: 0.5, token: true,
+    ...(fleeting ? { fleeting } : {}),
+    ...(loyalty !== null ? { loyalty } : {}),
+  }
+  const seat = seatFor(minted.cards, made)
+  return { ...minted, cards: [...minted.cards, { ...made, ...seat, sick: isCreature(made) }] }
+}
+
 /** A token, made and seated where its type belongs. `size` is what an X/X
  *  one comes to. */
-function makeToken(state: GameState, spec: TokenSpec, tapped: boolean, size?: number): GameState {
+function makeToken(
+  state: GameState, spec: TokenSpec, tapped: boolean, size?: number, fleeting = false,
+): GameState {
   const slug = spec.name.toLowerCase().replace(/\W+/g, '-')
   const [iid, minted] = mint(state, `token-${slug}-`)
   const art = state.tokenArt[spec.name.toLowerCase()] ?? null
@@ -101,7 +123,9 @@ function makeToken(state: GameState, spec: TokenSpec, tapped: boolean, size?: nu
     oracle_text: spec.text ? sentenceCase(spec.text.replace(/this token|~/gi, spec.name)) : null,
     cmc: 0,
   } as unknown as Card
-  const made: Instance = { iid, card, zone: 'battlefield', tapped, x: 0.5, y: 0.5, token: true }
+  const made: Instance = {
+    iid, card, zone: 'battlefield', tapped, x: 0.5, y: 0.5, token: true, ...(fleeting ? { fleeting } : {}),
+  }
   const seat = seatFor(minted.cards, made)
   return { ...minted, cards: [...minted.cards, { ...made, ...seat, sick: isCreature(made) }] }
 }
@@ -139,7 +163,10 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
 
   switch (effect.op) {
     case 'choose': {
-      const options = onBattlefield(state, effect.filter, r.source).map((c) => c.iid)
+      const wanted = settled(state, r, effect.filter)
+      const options = effect.zone
+        ? inZone(state, effect.zone).filter((c) => matches(c, wanted, r.source)).map((c) => c.iid)
+        : onBattlefield(state, wanted, r.source).map((c) => c.iid)
       const set = (chosen: string[]): GameState => ({
         ...state,
         resolving: {
@@ -155,8 +182,10 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
         state,
         wait: {
           kind: 'pick',
-          zone: 'battlefield',
-          prompt: `${r.name}: choose ${asked(effect.filter, effect.count, effect.upTo, 'permanent')}`,
+          zone: effect.zone ?? 'battlefield',
+          prompt: effect.zone
+            ? `${r.name}: choose ${asked(effect.filter, effect.count, effect.upTo, 'card')} in your graveyard`
+            : `${r.name}: choose ${asked(effect.filter, effect.count, effect.upTo, 'permanent')}`,
           options,
           min: effect.must ? Math.min(effect.count, options.length) : 0,
           max: Math.min(effect.count, options.length),
@@ -208,9 +237,52 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
     case 'token': {
       const size = effect.size === undefined ? undefined : amount(state, r, effect.size)
       let next = state
-      for (let i = 0; i < n; i += 1) next = makeToken(next, effect.token, effect.tapped, size)
+      for (let i = 0; i < n; i += 1) next = makeToken(next, effect.token, effect.tapped, size, effect.fleeting)
       const what = `${size === undefined ? '' : `${size}/${size} `}${effect.token.name}`
       return { state: n > 0 ? noted(next, `Created ${n > 1 ? `${n} ${what} tokens` : `a ${what} token`}`) : state }
+    }
+
+    case 'copy': {
+      // Of the card wherever it is now: a creature that has died is still a
+      // card, in the graveyard or in exile.
+      const of = aimed(state, r, effect.of)
+      const times = amount(state, r, effect.count)
+      if (!of.length || times <= 0) return { state: noted(state, `${r.name}: nothing to copy`) }
+      let next = state
+      for (const source of of) {
+        for (let i = 0; i < times; i += 1) next = makeCopy(next, source.card, effect.change, effect.tapped, effect.fleeting)
+      }
+      const many = of.length * times
+      return { state: noted(next, `Created ${many > 1 ? `${many} tokens, copies` : 'a token, a copy'} of ${names(of)}`) }
+    }
+
+    case 'enterAs': {
+      const copied = r.chosen[0] ? find(state, r.chosen[0]) : undefined
+      const { change: how } = effect
+      // It becomes the copy first, so it arrives as one: what watches for
+      // the original arriving watches this.
+      const becoming = copied
+        ? change(state, [r.source], (c) => ({ ...c, original: c.original ?? c.card, card: copyOf(copied.card, how) }))
+        : state
+      const entered = enterBattlefield(becoming, r.source, { x: r.x, forceTapped: Boolean(copied && how.tapped) }).state
+      const arrived = copied
+        ? change(entered, [r.source], (c) => {
+            const loyalty = startingLoyalty(c.card)
+            return {
+              ...c,
+              ...(how.counters && isCreature(c)
+                ? { counters: { ...c.counters, '+1/+1': (c.counters?.['+1/+1'] ?? 0) + how.counters } } : {}),
+              ...(loyalty !== null ? { loyalty: loyalty + (how.loyalty ?? 0) } : {}),
+            }
+          })
+        : entered
+      const inst = find(arrived, r.source)!
+      return {
+        state: remindUnread(
+          noted(arrived, copied ? `${r.name} enters as a copy of ${copied.card.name}` : `${r.name} enters as itself`),
+          inst,
+        ),
+      }
     }
 
     case 'counters': {
@@ -754,6 +826,30 @@ function applyPick(state: GameState, r: Resolution, effect: Effect, picked: stri
 }
 
 /**
+ * A permanent that may enter as a copy of something — Clone — asks what, and
+ * then arrives. Null if it is not one: it arrives as any permanent does.
+ */
+export function enterAsCopy(state: GameState, iid: string, x = 0): GameState | null {
+  const inst = find(state, iid)
+  const as = inst && compile(inst.card).statics.find((fixed) => fixed.kind === 'enterAsCopy')
+  if (!inst || !as || as.kind !== 'enterAsCopy') return null
+  return carryOn({
+    ...state,
+    resolving: {
+      at: 0, x, chosen: [], agreed: false, declined: false, last: 0, modes: [], asked: 0,
+      source: iid,
+      name: inst.card.name,
+      text: rulesText(inst.card),
+      effects: [{ op: 'choose', filter: as.filter, count: 1, upTo: true }, { op: 'enterAs', change: as.change }],
+      event: null,
+      known: {},
+      spell: false,
+      leftover: null,
+    },
+  })
+}
+
+/**
  * The top of the stack resolves.
  *
  * A permanent spell becomes a permanent, and whatever it does on arrival
@@ -788,6 +884,8 @@ export function resolveTop(state: GameState): GameState {
   if (!inst) return { ...state, stack }
 
   if (isPermanentSpell(inst.card)) {
+    const copying = enterAsCopy(noted({ ...state, stack }, `${inst.card.name} resolves`), inst.iid, top.x)
+    if (copying) return copying
     const entered = enterBattlefield({ ...state, stack }, inst.iid, { x: top.x }).state
     const arrived = remindUnread(noted(entered, `${inst.card.name} resolves`), inst)
     // An Aura goes onto something as it arrives.

@@ -119,6 +119,27 @@ export type Aim =
   | { kind: 'event' }
   /** Every permanent matching. */
   | { kind: 'each'; filter: Filter }
+  /** What the source is attached to: "enchanted creature". */
+  | { kind: 'host' }
+
+/** How a copy differs from what it copies: "except it's a Spirit in addition
+ *  to its other types and it isn't legendary". */
+export interface CopyChange {
+  /** Types it has as well: `['Spirit']`, `['Artifact']`. */
+  types?: string[]
+  keywords?: string[]
+  notLegendary?: boolean
+  /** "Except the token is 1/1." */
+  pt?: string
+  /** Text it has as well, as printed in quotes. */
+  text?: string
+  /** +1/+1 counters it arrives with, if it is a creature. */
+  counters?: number
+  /** Loyalty it arrives with on top of its own, if it is a planeswalker. */
+  loyalty?: number
+  /** It enters tapped, if it copies something. */
+  tapped?: boolean
+}
 
 /** Something that is so or is not, as the game stands: what follows "if". */
 export type Test =
@@ -175,7 +196,7 @@ export type Effect = (
   /** Pick permanents for the effects after it. A target may be declined —
    *  nobody has to aim removal at their own board — but `must` is a cost or
    *  an instruction, like sacrificing a land, and is not optional. */
-  | { op: 'choose'; filter: Filter; count: number; upTo: boolean; must?: boolean }
+  | { op: 'choose'; filter: Filter; count: number; upTo: boolean; must?: boolean; zone?: 'graveyard' }
   | { op: 'draw'; count: Count }
   | { op: 'life'; who: 'you' | 'opponent'; sign: 1 | -1; count: Count }
   | { op: 'damage'; to: Aim; count: Count }
@@ -184,7 +205,12 @@ export type Effect = (
   | { op: 'mill'; count: Count }
   /** `size` is for a token printed as X/X: how big, worked out as it is
    *  made. */
-  | { op: 'token'; count: Count; token: TokenSpec; tapped: boolean; size?: Count }
+  | { op: 'token'; count: Count; token: TokenSpec; tapped: boolean; size?: Count; fleeting?: boolean }
+  /** Tokens that are copies of a card. `fleeting` ones are exiled as the
+   *  end step begins. */
+  | { op: 'copy'; of: Aim; count: Count; change: CopyChange; tapped: boolean; fleeting: boolean }
+  /** A permanent arrives — as a copy of what was chosen, if anything was. */
+  | { op: 'enterAs'; change: CopyChange }
   | { op: 'counters'; to: Aim; count: Count; counter: string }
   /** Connive: draw a card, then discard a card; if it was not a land, a
    *  +1/+1 counter on the creature that connived. */
@@ -332,6 +358,8 @@ export type Static =
   | { kind: 'doubleLifeGain' }
   /** "You have no maximum hand size." */
   | { kind: 'noMaxHandSize' }
+  /** "You may have ~ enter as a copy of any creature on the battlefield." */
+  | { kind: 'enterAsCopy'; filter: Filter; change: CopyChange }
   /** "If you would draw a card except the first one you draw in each of
    *  your draw steps, draw two cards instead." */
   | { kind: 'drawTwice' }

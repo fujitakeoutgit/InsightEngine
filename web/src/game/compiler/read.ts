@@ -133,6 +133,12 @@ const title = (word: string) => word[0].toUpperCase() + word.slice(1)
 
 const TYPES = ['creature', 'land', 'artifact', 'enchantment', 'planeswalker', 'battle', 'instant', 'sorcery']
 
+/** "trample and haste", "hexproof", "flying, vigilance, and lifelink". */
+export function readKeywords(phrase: string): string[] {
+  return phrase.split(/,? and |, /).map((k) => k.trim()).filter(Boolean)
+    .map((k) => k[0].toUpperCase() + k.slice(1))
+}
+
 /** Keywords a phrase may ask for: "creature with defender". */
 const KEYWORDS = new Set([
   'flying', 'first strike', 'double strike', 'deathtouch', 'defender', 'haste', 'hexproof',

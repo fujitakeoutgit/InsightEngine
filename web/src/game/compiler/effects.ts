@@ -15,9 +15,9 @@
 import type { ManaType } from '../mana'
 import type { Aim, Count, Effect, Signed, TokenSpec } from './ir'
 import {
-  readAmount, readCount, readFilter, readNumber, readTest, readToken, type Speaking,
+  readAmount, readCount, readFilter, readKeywords, readNumber, readTest, readToken, type Speaking,
 } from './read'
-import { readKeywords } from './statics'
+import { readExcept } from './copies'
 
 type Pattern = [RegExp, (m: RegExpExecArray) => Effect[] | null]
 
@@ -30,7 +30,7 @@ const SELF = /^(~|it|itself|he|she|him|her|them)$/
  *  and then "it" is the card itself. */
 let referent: Aim | null = null
 
-const PRONOUN = /^(it|that creature|that permanent|that land|that artifact|them|they|those creatures|those permanents)$/
+const PRONOUN = /^(it|that creature|that permanent|that land|that artifact|that card|them|they|those creatures|those permanents)$/
 
 /** Read with "it" meaning this. */
 function referring<T>(to: Aim | null, read: () => T): T {
@@ -43,10 +43,13 @@ function referring<T>(to: Aim | null, read: () => T): T {
   }
 }
 
-/** What these effects leave "it" meaning: the last thing targeted. A
- *  sacrifice does not count — nobody says "it" of what is gone. */
+/** What these effects leave "it" meaning: the last thing targeted or
+ *  picked. A sacrifice does not count — nobody says "it" of what is gone. */
 function referentOf(effects: readonly Effect[], otherwise: Aim | null): Aim | null {
-  return effects.some((effect) => effect.op === 'choose' && !effect.must) ? { kind: 'chosen' } : otherwise
+  const gone = effects.some((effect) => (
+    effect.op === 'move' && effect.what.kind === 'chosen' && effect.to === 'graveyard'
+  ))
+  return effects.some((effect) => effect.op === 'choose' && (!effect.must || !gone)) ? { kind: 'chosen' } : otherwise
 }
 
 /** Something was sacrificed by an effect before this one, so "the sacrificed
@@ -115,7 +118,8 @@ function onTarget(phrase: string, act: (what: Aim) => Effect[]): Effect[] | null
 function onPermanents(phrase: string, act: (what: Aim) => Effect[]): Effect[] | null {
   if (referent && PRONOUN.test(phrase)) return act(referent)
   if (SELF.test(phrase)) return act({ kind: 'self' })
-  if (/^(that creature|equipped creature|enchanted creature)$/.test(phrase)) return act({ kind: 'event' })
+  if (/^that creature$/.test(phrase)) return act({ kind: 'event' })
+  if (/^(equipped|enchanted) (creature|permanent|land)$/.test(phrase)) return act({ kind: 'host' })
   const each = /^(?:each|all) (.+)$/.exec(phrase) ?? /^((?:other )?[a-z]+s you control)$/.exec(phrase)
   if (each) {
     const filter = readFilter(each[1])
@@ -245,6 +249,13 @@ const PATTERNS: Pattern[] = [
   }],
   // On the only creatures there are, its controller is you.
   [/^(?:its controller|that creature's controller|that permanent's controller) creates (.+)$/, (m) => readSentence(`create ${m[1]}`)],
+  // A token that is a copy of something, with what is different about it.
+  [/^create (an?|\w+) (tapped )?tokens? that(?:'s| are) (?:a copy|copies) of (.+?)(?:, except (.+))?$/, (m) => {
+    const count = readCount(m[1])
+    const change = m[4] ? readExcept(m[4]) : {}
+    if (count === null || !change) return null
+    return onPermanents(m[3], (of) => [{ op: 'copy', of, count, change, tapped: Boolean(m[2]), fleeting: false }])
+  }],
   // The token's own abilities, in quotes. It is made; using them is yours.
   [/^(?:it has|they have|it gains|they gain) ".+"$/, () => []],
 
@@ -310,6 +321,14 @@ const PATTERNS: Pattern[] = [
   }],
 
   // --- permanents ----------------------------------------------------------
+  // A card in your graveyard, exiled: targeted, or simply picked.
+  [/^exile (target |an? )(.+?) cards? from your graveyard$/, (m) => {
+    const filter = readFilter(m[2])
+    return filter && [
+      { op: 'choose', filter, count: 1, upTo: false, zone: 'graveyard', ...(m[1] === 'target ' ? {} : { must: true }) },
+      { op: 'move', what: { kind: 'chosen' }, to: 'exile' },
+    ]
+  }],
   [/^(destroy|exile) (.+)$/, (m) => {
     const to = m[1] === 'destroy' ? 'graveyard' : 'exile'
     return onPermanents(m[2], (what) => [{ op: 'move', what, to }])
@@ -384,6 +403,11 @@ const PATTERNS: Pattern[] = [
   [/^gain control of target (?!.*until end of turn)[^.]+$/, () => nothing('Everything here is already yours')],
   [/^(?:that player|each opponent|target opponent|each other player|defending player) sacrifices (?!.* and you )[^.]+$/, () => nothing('Nothing on the other side to sacrifice')],
   [/^(?:it|that creature|they) can't be regenerated$/, () => []],
+  // Picked rather than targeted: "choose an artifact or creature you control".
+  [/^choose an? (.+ you control)$/, (m) => {
+    const filter = readFilter(m[1])
+    return filter && [{ op: 'choose', filter, count: 1, upTo: false, must: true }]
+  }],
   // One opponent.
   [/^for each opponent, (?:you )?(.+)$/, (m) => readSentence(m[1])],
   // A tempting offer nobody is there to take.
@@ -657,6 +681,22 @@ export function readAbility(
       continue
     }
 
+    // What follows a token being made and is about the token: haste, and
+    // how long it has.
+    const made = effects[effects.length - 1]
+    if (made && (made.op === 'copy' || made.op === 'token')) {
+      if (/^(?:that token|it|the token|they|those tokens) gains? haste$/.test(s)) {
+        effects[effects.length - 1] = made.op === 'copy'
+          ? { ...made, change: { ...made.change, keywords: [...(made.change.keywords ?? []), 'Haste'] } }
+          : { ...made, token: { ...made.token, keywords: [...made.token.keywords, 'Haste'] } }
+        continue
+      }
+      if (/^(?:exile|sacrifice) (?:it|them|that token|those tokens|the tokens?) at the beginning of the next end step$/.test(s)) {
+        effects[effects.length - 1] = { ...made, fleeting: true }
+        continue
+      }
+    }
+
     // What a token is made with, in quotes: `…token with "~ can't block."`
     // The token carries those words; here the sentence is read without them.
     const saying = /^(.*\btokens?) with "(.+?)\.?"$/.exec(sentence.trim().replace(/\.$/, ''))
@@ -683,7 +723,6 @@ export function readAbility(
     // token: Add {C}."" The token carries those words, and they are compiled
     // when it exists.
     const rider = /^(?:it has|they have) "(.+?)\.?"$/.exec(sentence.trim().replace(/\.$/, ''))
-    const made = effects[effects.length - 1]
     if (rider && made?.op === 'token') {
       effects[effects.length - 1] = { ...made, token: { ...made.token, text: rider[1] } }
       continue
@@ -691,7 +730,14 @@ export function readAbility(
     // "If you do, …" hangs on the sentence before it. If that one was not
     // understood, neither is this: running it would hand out the reward
     // without the price.
-    const read: Effect[] | null = /^if you do,/.test(s) && !understood
+    // …and so does a sentence about "it", when what "it" is was in a
+    // sentence that did not read: better left in words than aimed at the
+    // wrong thing.
+    const dangling = !understood && (
+      /^(if|when) you do,/.test(s)
+      || /\b(it|its|them|they|those|that (?:creature|card|permanent|land|token))\b/.test(s)
+    )
+    const read: Effect[] | null = dangling
       ? null
       : after(effects, () => referring(it, () => readSentence(s)))
     understood = read !== null

@@ -6,15 +6,10 @@
  */
 
 import type { Boost, Filter, Measure, Static } from './ir'
-import { readAmount, readCount, readFilter, readNumber } from './read'
+import { readExcept } from './copies'
+import { readAmount, readCount, readFilter, readKeywords, readNumber } from './read'
 
 const COLORS: Record<string, string> = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' }
-
-/** "trample and haste", "hexproof", "flying, vigilance, and lifelink". */
-export function readKeywords(phrase: string): string[] {
-  return phrase.split(/,? and |, /).map((k) => k.trim()).filter(Boolean)
-    .map((k) => k[0].toUpperCase() + k.slice(1))
-}
 
 /** "for each land you control" / "for each color among permanents you
  *  control" / "each land you control and each land card in your graveyard"
@@ -83,6 +78,17 @@ export function readStatic(line: string): Static | null {
   }
   if (/^creatures you control can attack as though they didn't have defender$/.test(l)) {
     return { kind: 'defendersAttack' }
+  }
+
+  // Clone and its kind. "On the battlefield" is everything here; what it
+  // may copy is the noun, and "except" is how it differs.
+  const clone = /^you may have ~ enter( tapped)? as a copy of (?:any|an?) (.+?)(?: on the battlefield)?(?:, except (.+))?$/.exec(l)
+  if (clone) {
+    const filter = readFilter(clone[2])
+    const change = clone[3] ? readExcept(clone[3]) : {}
+    return filter && change
+      ? { kind: 'enterAsCopy', filter, change: { ...change, ...(clone[1] ? { tapped: true } : {}) } }
+      : null
   }
 
   const counters = /^~ enters with (\w+) ([+-]\d\/[+-]\d|[a-z]+) counters? on it(?:, where x is (.+))?$/.exec(l)

@@ -68,6 +68,14 @@ function enter(state: GameState): GameState {
       return state.attacking.length ? dealCombatDamage(state) : state
     case 'combatEnd':
       return state.attacking.length || state.dealt.length ? { ...state, attacking: [], dealt: [] } : state
+    case 'end': {
+      // Tokens made "until the beginning of the next end step" go now.
+      const going = state.cards.filter((c) => c.fleeting && c.zone === 'battlefield')
+      if (!going.length) return state
+      return noted({
+        ...state, cards: state.cards.map((c) => (going.includes(c) ? { ...c, zone: 'exile' as const } : c)),
+      }, `Exiled ${going.map((c) => c.card.name).join(', ')} — the end step`)
+    }
     case 'cleanup': {
       // Damage wears off (CR 514.2).
       // … and "until end of turn" ends with it.

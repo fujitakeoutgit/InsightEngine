@@ -23,11 +23,11 @@ import { fetchFinds } from './fetch'
 import { emptyPool } from './mana'
 import { begin, pass, passTo, settle, toNextStop } from './priority'
 import { shuffle } from './random'
-import { answer } from './resolve'
+import { answer, enterAsCopy } from './resolve'
 import {
   draw, emptyTally, find, mint, noted, relocate, shuffleLibrary, startingLoyalty, toBottom,
 } from './state'
-import type { Action, GameState, Instance, Zone } from './types'
+import type { Action, GameState, Instance, Spot, Zone } from './types'
 
 export { startingLoyalty }
 
@@ -113,6 +113,19 @@ function playFreely(state: GameState, iid: string): GameState {
     : `Played ${inst.card.name}${because}`)
 }
 
+/** Play a land — which, for Vesuva and its kind, may be as a copy of one
+ *  already there: the turn's land drop is spent, and it asks which. */
+function playLandOrCopy(state: GameState, iid: string, at?: Spot): GameState {
+  const inst = find(state, iid)
+  if (inst && !landProblem(state, iid)) {
+    const copying = enterAsCopy(
+      noted({ ...state, landsPlayed: state.landsPlayed + 1 }, `Played ${inst.card.name}`), iid,
+    )
+    if (copying) return copying
+  }
+  return playLand(state, iid, at)
+}
+
 /** Crack a fetch: the land it found arrives (tapped, if the fetch said so),
  *  the fetch itself is sacrificed, and the library is shuffled. */
 function crack(state: GameState, iid: string, pick: string): GameState {
@@ -183,7 +196,7 @@ function apply(state: GameState, action: Action): GameState {
       if (!state.rules) return playFreely(state, action.iid)
       const inst = find(state, action.iid)
       if (!inst || waiting) return state
-      return isLand(inst.card) ? playLand(state, action.iid) : castSpell(state, action.iid, action.x ?? 0)
+      return isLand(inst.card) ? playLandOrCopy(state, action.iid) : castSpell(state, action.iid, action.x ?? 0)
     }
 
     case 'place': {
@@ -196,7 +209,7 @@ function apply(state: GameState, action: Action): GameState {
       if (inst.zone === 'stack') return state
       // A land from hand dragged to the mat is the turn's land, when it can be.
       if (state.rules && inst.zone === 'hand' && isLand(inst.card) && !landProblem(state, action.iid)) {
-        return playLand(state, action.iid, action.at)
+        return playLandOrCopy(state, action.iid, action.at)
       }
       const entered = enterBattlefield(state, action.iid, { at: action.at })
       const because = entered.why ? ` — ${entered.why}` : ''

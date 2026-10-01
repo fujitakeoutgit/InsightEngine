@@ -158,7 +158,8 @@ function readOneTrigger(condition: string): TriggerEvent | null {
   }
   if (/^you gain life$/.test(c)) return { on: 'lifeGain' }
   if (/^(a player|you) plays? a land$/.test(c)) return { on: 'landPlay' }
-  if (/^the beginning of your upkeep$/.test(c)) return { on: 'step', step: 'upkeep' }
+  // Yours is the only upkeep there is.
+  if (/^the beginning of (your|each) upkeep$/.test(c)) return { on: 'step', step: 'upkeep' }
   if (/^the beginning of your (first|precombat) main phase$/.test(c)) return { on: 'step', step: 'main' }
   if (/^the beginning of (your|each|the) end step$/.test(c)) return { on: 'step', step: 'end' }
   // Nobody else casts anything: "a player" is you.
