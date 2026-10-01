@@ -5779,6 +5779,10 @@
 .pt-modes { display: flex; flex-direction: column; gap: 6px; }
 .pt-modes .btn { white-space: normal; text-align: left; height: auto; padding: 8px 10px; line-height: 1.4; text-transform: none; letter-spacing: 0; font-size: 12px; }
 
+/* Creature types to choose from: short words, so they sit in rows. */
+.pt-modes.pt-types { flex-direction: row; flex-wrap: wrap; max-width: 360px; }
+.pt-modes.pt-types .btn { padding: 5px 10px; }
+
 /* The opponent's life, in the turn bar: a number you take from. */
 .pt-opponent {
   padding: 3px 8px;
@@ -5915,6 +5919,79 @@
   background: color-mix(in oklab, var(--aether) 16%, transparent);
   outline: 1px solid color-mix(in oklab, var(--aether) 55%, transparent);
 }
+
+/* How much of the deck plays itself: a bar in three parts, and the list it
+   opens. Green, amber and grey are the same three the dot on each card uses. */
+.pt-cover { gap: 7px; }
+
+.pt-cover-meter {
+  display: inline-flex;
+  width: 38px;
+  height: 5px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--line-soft);
+}
+
+.pt-cover-meter > span { flex: 1 1 0; min-width: 2px; }
+.pt-cover-meter .auto { background: var(--ok); }
+.pt-cover-meter .partial { background: var(--warn); }
+.pt-cover-meter .manual { background: var(--faint); }
+
+.pt-cover-report { width: min(560px, 100%); }
+.pt-cover-report > .pt-cover-meter { display: flex; width: 100%; height: 8px; margin: 4px 0 10px; }
+
+.pt-cover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pt-cover-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pt-cover-legend li::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.pt-cover-legend .auto::before { background: var(--ok); }
+.pt-cover-legend .partial::before { background: var(--warn); }
+.pt-cover-legend .mono { color: var(--ink); font-weight: 600; }
+
+.pt-cover-list {
+  max-height: min(56vh, 480px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-right: 4px;
+}
+
+.pt-cover-list h4 { margin: 0 0 2px; }
+.pt-cover-list section > p { margin: 0 0 8px; font-size: 11.5px; }
+
+.pt-cover-card {
+  padding: 7px 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.pt-cover-card strong { font-size: 13px; }
+.pt-cover-card p { margin: 3px 0 0; font-size: 12px; color: var(--muted); white-space: pre-line; }
 
 /* Looked at, and not for taking: there to be read, not clicked. */
 .pt-tutor-row.seen { opacity: 0.5; cursor: default; }

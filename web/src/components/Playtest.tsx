@@ -7,6 +7,7 @@ import {
 } from '../game/cast'
 import { eligibleAttackers, expectedDamage } from '../game/combat'
 import { compile } from '../game/compiler/compile'
+import { report } from '../game/compiler/report'
 import { canFetch, fetchFinds, obviousFetch, type Fetch } from '../game/fetch'
 import type { ManaType } from '../game/mana'
 import { randomSeed } from '../game/random'
@@ -26,7 +27,7 @@ import { PlayCoin, type CoinFace } from './PlayCoin'
 
 import { PlayDie } from './PlayDie'
 import {
-  AbilityMenu, ArrangeDialog, DecisionPrompt, ManaPicker, PhaseBar, PickDialog, Reminders,
+  AbilityMenu, ArrangeDialog, CoverageDialog, DecisionPrompt, ManaPicker, PhaseBar, PickDialog, Reminders,
   StackPanel, XPrompt, type Offered,
 } from './PlaytestHud'
 import { canAnimate, gsap } from '../lib/motion'
@@ -263,6 +264,11 @@ export function Playtest({
   >(null)
   /** The permanent whose abilities are being chosen from. */
   const [abilitiesFor, setAbilitiesFor] = useState<string | null>(null)
+  /** The list of what the engine does and does not do with this deck. */
+  const [showCoverage, setShowCoverage] = useState(false)
+  const coverage = useMemo(() => report(
+    deck.filter((entry) => entry.section !== 'sideboard' && entry.section !== 'maybeboard').map((entry) => entry.card),
+  ), [deck])
   /** The card in hand under the pointer, whose payment is previewed. */
   const [previewing, setPreviewing] = useState<string | null>(null)
   /** The loss already acknowledged, so its banner stays down. */
@@ -311,7 +317,7 @@ export function Playtest({
    * and undoing underneath it would leave it showing a library that is not. */
   /* Space passes priority, as it does at most digital tables. Never when a
    * control has focus, which already answers Space by pressing itself. */
-  const dialogOpen = Boolean(tutoring || zoomed || choosingX || pickingMana || abilitiesFor)
+  const dialogOpen = Boolean(tutoring || zoomed || choosingX || pickingMana || abilitiesFor || showCoverage)
   useEffect(() => {
     if (dialogOpen) return
     const onKey = (event: KeyboardEvent) => {
@@ -683,6 +689,8 @@ export function Playtest({
           waiting={Boolean(game.pending)}
           onPassTo={(step) => dispatch({ type: 'passTo', step })}
           onRules={setRules}
+          coverage={coverage}
+          onCoverage={() => setShowCoverage(true)}
         />
 
         {/* The stack and the jobs left to do by hand, down the right-hand
@@ -1062,6 +1070,8 @@ export function Playtest({
           onChoose={(iids) => dispatch({ type: 'choose', iids })}
         />
       )}
+
+      {showCoverage && <CoverageDialog report={coverage} onClose={() => setShowCoverage(false)} />}
 
       {pending?.kind === 'arrange' && (
         <ArrangeDialog

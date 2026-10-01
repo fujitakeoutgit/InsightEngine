@@ -7,6 +7,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import type { DeckReport } from '../game/compiler/report'
 import { MANA_TYPES, type ManaPool, type ManaType } from '../game/mana'
 import type { Decision, Reminder, Step } from '../game/types'
 import { ManaPip } from './ManaSprite'
@@ -40,8 +41,12 @@ function Pool({ pool }: { pool: ManaPool }) {
 }
 
 export function PhaseBar({
-  turn, step, rules, pool, landsPlayed, landDrops, opponent, poison, waiting, onPassTo, onRules, onOpponent,
+  turn, step, rules, pool, landsPlayed, landDrops, opponent, poison, waiting, coverage, onCoverage,
+  onPassTo, onRules, onOpponent,
 }: {
+  /** How much of the deck plays itself, for the button that opens the list. */
+  coverage: DeckReport
+  onCoverage: () => void
   turn: number
   step: Step
   rules: boolean
@@ -100,6 +105,16 @@ export function PhaseBar({
           </button>
         </>
       )}
+      {rules && coverage.total > 0 && (
+        <button
+          className="pt-rules pt-cover"
+          onClick={onCoverage}
+          title={`${coverage.auto} of ${coverage.total} cards play themselves — click for the rest`}
+        >
+          <CoverageMeter report={coverage} />
+          <span className="mono">{Math.round((coverage.auto / coverage.total) * 100)}%</span>
+        </button>
+      )}
       <button
         className={`pt-rules${rules ? ' on' : ''}`}
         onClick={() => onRules(!rules)}
@@ -111,6 +126,77 @@ export function PhaseBar({
         <span className="pt-rules-dot" aria-hidden />
         Rules
       </button>
+    </div>
+  )
+}
+
+/** The deck in three parts: plays itself, partly, by hand. */
+function CoverageMeter({ report }: { report: DeckReport }) {
+  return (
+    <span className="pt-cover-meter" aria-hidden>
+      {(['auto', 'partial', 'manual'] as const).map((grade) => (
+        report[grade] > 0 && <span key={grade} className={grade} style={{ flexGrow: report[grade] }} />
+      ))}
+    </span>
+  )
+}
+
+/**
+ * What the engine does with this deck, card by card: the ones it leaves to
+ * you, with the words it could not carry out, and the ways of casting a card
+ * it does not offer.
+ */
+export function CoverageDialog({ report, onClose }: { report: DeckReport; onClose: () => void }) {
+  useEffect(() => {
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    window.addEventListener('keydown', escape)
+    return () => window.removeEventListener('keydown', escape)
+  }, [onClose])
+  const manual = report.cards.filter((c) => c.coverage === 'manual')
+  const partial = report.cards.filter((c) => c.coverage === 'partial')
+  const skipped = report.cards.filter((c) => c.skipped.length > 0)
+  const groups: [string, string, typeof manual, 'left' | 'skipped'][] = [
+    ['By hand', 'Nothing of these is carried out. Their text is posted for you when they are played.', manual, 'left'],
+    ['Partly', 'What is understood happens; these lines are posted for you to finish.', partial, 'left'],
+    ['Not offered', 'These cards play as printed. The other ways to cast or use them are not available here.', skipped, 'skipped'],
+  ]
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <div
+        className="modal pt-cover-report"
+        role="dialog"
+        aria-modal
+        aria-label="What plays itself"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="pt-cover-head">
+          <h3>What plays itself</h3>
+          <button className="btn btn-ghost sm" onClick={onClose} aria-label="Close">Close</button>
+        </header>
+        <CoverageMeter report={report} />
+        <ul className="pt-cover-legend">
+          <li className="auto"><span className="mono">{report.auto}</span> play themselves</li>
+          <li className="partial"><span className="mono">{report.partial}</span> partly</li>
+          <li className="manual"><span className="mono">{report.manual}</span> by hand</li>
+        </ul>
+        <div className="pt-cover-list">
+          {groups.map(([title, blurb, cards, show]) => cards.length > 0 && (
+            <section key={title}>
+              <h4 className="label">{title} <span className="mono">{cards.length}</span></h4>
+              <p className="faint">{blurb}</p>
+              {cards.map((c) => (
+                <article key={c.name} className="pt-cover-card">
+                  <strong>{c.name}</strong>
+                  {c[show].map((line) => <p key={line}>{line}</p>)}
+                </article>
+              ))}
+            </section>
+          ))}
+          {!manual.length && !partial.length && !skipped.length && (
+            <p className="faint">Every card in this deck plays itself.</p>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
