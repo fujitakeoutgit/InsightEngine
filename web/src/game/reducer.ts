@@ -289,7 +289,7 @@ function apply(state: GameState, action: Action): GameState {
     }
 
     case 'activate':
-      return state.rules ? activate(state, action.iid, action.index) : state
+      return state.rules ? activate(state, action.iid, action.index, action.x ?? 0) : state
 
     case 'opponentLife':
       return { ...state, opponent: { ...state.opponent, life: state.opponent.life + action.by } }

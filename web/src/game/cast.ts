@@ -11,6 +11,7 @@ import { entersTapped } from '../lib/landTiming'
 import type { Card } from '../lib/api'
 import { amount } from './amount'
 import { compile } from './compiler/compile'
+import { isCreatureType } from './compiler/subtypes'
 import { holds } from './holds'
 import { forSource, isKind, sweeping } from './kinds'
 import { onBattlefield } from './match'
@@ -159,6 +160,16 @@ export function costOf(state: GameState, inst: Instance): Cost {
   return { ...cost, pips, generic: Math.max(0, cost.generic + tax - less.generic) }
 }
 
+/** How many creature types there are among creatures you control. One
+ *  changeling is all of them, which is more than anything asks for. */
+function creatureTypes(state: GameState): number {
+  const creatures = inZone(state, 'battlefield').filter(isCreature)
+  if (sweeping(state).creatures || creatures.some((c) => hasKeyword(c, 'Changeling', state))) return 300
+  return new Set(creatures.flatMap((c) => (
+    (c.card.type_line ?? '').split(/\s+—\s+/)[1]?.split(/\s+/).filter(isCreatureType) ?? []
+  ))).size
+}
+
 /** Generic mana taken off a spell: by permanents that say so ("blue spells
  *  you cast cost {1} less"), and by the spell itself ("costs {1} less to
  *  cast for each creature on the battlefield"). */
@@ -177,8 +188,11 @@ function discount(state: GameState, inst: Instance): { generic: number; colored:
   const asking = { x: 0, source: inst.iid, chosen: [], event: null, known: {}, last: 0 }
   for (const fixed of compile(inst.card).statics) {
     if (fixed.kind !== 'selfCostLess') continue
-    if (fixed.per) less += fixed.amount * onBattlefield(state, fixed.per, inst.iid).length
-    else if (!fixed.when || holds(state, asking, fixed.when)) less += fixed.amount
+    let mine = 0
+    if (fixed.per) mine = fixed.amount * onBattlefield(state, fixed.per, inst.iid).length
+    else if (fixed.perType) mine = fixed.amount * creatureTypes(state)
+    else if (!fixed.when || holds(state, asking, fixed.when)) mine = fixed.amount
+    less += fixed.max === undefined ? mine : Math.min(mine, fixed.max)
   }
   return { generic: less, colored }
 }

@@ -60,7 +60,7 @@ function payers(state: GameState, inst: Instance, ability: ActivatedAbility) {
 }
 
 /** Why this ability cannot be activated now, or null if it can. */
-export function activationProblem(state: GameState, iid: string, index: number): string | null {
+export function activationProblem(state: GameState, iid: string, index: number, x = 0): string | null {
   const inst = find(state, iid)
   const ability = inst && abilitiesOf(inst)[index]
   if (!inst || !ability) return 'There is no such ability'
@@ -90,7 +90,7 @@ export function activationProblem(state: GameState, iid: string, index: number):
   }
   if (cost.tapOther && !payable(state, inst, ability).length) return 'Nothing to tap for it'
   if (cost.sacrifice && !payable(state, inst, ability).length) return 'Nothing to sacrifice'
-  if (cost.mana && !autotap(parseCost(cost.mana), payers(state, inst, ability), { pool: state.pool, life: state.life })) {
+  if (cost.mana && !autotap(parseCost(cost.mana), payers(state, inst, ability), { x, pool: state.pool, life: state.life })) {
     return `Not enough mana — it costs ${formatCost(parseCost(cost.mana))}`
   }
   return null
@@ -98,7 +98,7 @@ export function activationProblem(state: GameState, iid: string, index: number):
 
 /** Pay everything, and put the ability on the stack. `picked` is what was
  *  chosen for the part of the cost that takes a choice. */
-function complete(state: GameState, iid: string, index: number, picked: string[]): GameState {
+function complete(state: GameState, iid: string, index: number, picked: string[], x = 0): GameState {
   const inst = find(state, iid)!
   const ability = abilitiesOf(inst)[index]
   const { cost } = ability
@@ -113,7 +113,7 @@ function complete(state: GameState, iid: string, index: number, picked: string[]
   }
 
   if (cost.mana) {
-    const paid = autotap(parseCost(cost.mana), payers(next, inst, ability), { pool: next.pool, life: next.life })
+    const paid = autotap(parseCost(cost.mana), payers(next, inst, ability), { x, pool: next.pool, life: next.life })
     if (!paid) return state
     const tapping = new Set(paid.taps.map((t) => t.id))
     next = {
@@ -164,7 +164,7 @@ function complete(state: GameState, iid: string, index: number, picked: string[]
     stack: [...minted.stack, {
       id,
       iid,
-      x: 0,
+      x,
       ability: {
         text: ability.text.split('~').join(inst.card.name),
         effects: ability.effects,
@@ -178,21 +178,21 @@ function complete(state: GameState, iid: string, index: number, picked: string[]
         amount: sacrificed.length + (cost.sacrificeSelf ? 1 : 0),
       },
     }],
-  }, `Activated ${inst.card.name} — ${costLabel(ability)}`)
+  }, `Activated ${inst.card.name} — ${costLabel(ability)}${x ? ` (X = ${x})` : ''}`)
 }
 
-export function activate(state: GameState, iid: string, index: number): GameState {
-  if (activationProblem(state, iid, index)) return state
+export function activate(state: GameState, iid: string, index: number, x = 0): GameState {
+  if (activationProblem(state, iid, index, x)) return state
   const inst = find(state, iid)!
   const ability = abilitiesOf(inst)[index]
   const options = payable(state, inst, ability)
   // Any number of them: asked whenever there is one to give up, since none
   // is an answer too.
   if (ability.cost.sacrificeAny) {
-    if (!options.length) return complete(state, iid, index, [])
+    if (!options.length) return complete(state, iid, index, [], x)
     return {
       ...state,
-      paying: { iid, index },
+      paying: { iid, index, x },
       pending: {
         kind: 'pick',
         zone: 'battlefield',
@@ -206,7 +206,7 @@ export function activate(state: GameState, iid: string, index: number): GameStat
   if (options.length > 1) {
     return {
       ...state,
-      paying: { iid, index },
+      paying: { iid, index, x },
       pending: {
         kind: 'pick',
         zone: 'battlefield',
@@ -217,7 +217,7 @@ export function activate(state: GameState, iid: string, index: number): GameStat
       },
     }
   }
-  return complete(state, iid, index, options.map((c) => c.iid))
+  return complete(state, iid, index, options.map((c) => c.iid), x)
 }
 
 /** What to sacrifice, or to tap, is chosen: now pay, and activate. */
@@ -227,6 +227,6 @@ export function paid(state: GameState, picked: string[]): GameState {
   const chosen = [...new Set(picked)]
   if (chosen.length < pending.min || chosen.length > pending.max) return state
   if (!chosen.every((iid) => pending.options.includes(iid))) return state
-  return complete(state, paying.iid, paying.index, chosen)
+  return complete(state, paying.iid, paying.index, chosen, paying.x ?? 0)
 }
 

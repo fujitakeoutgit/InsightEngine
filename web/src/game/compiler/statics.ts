@@ -71,6 +71,7 @@ export function readCostLess(sentence: string): Static | null {
   const m = /^(?:~|it)(?: also)? costs \{(\d+)\} less to cast(?: for each (.+?)(?: on the battlefield)?| if (.+))?$/.exec(sentence.replace(/\.$/, ''))
   if (!m) return null
   const amount = Number(m[1])
+  if (m[2] === 'creature type among creatures you control') return { kind: 'selfCostLess', amount, perType: true }
   if (m[2]) {
     const per = readFilter(m[2])
     return per && { kind: 'selfCostLess', amount, per }
@@ -128,6 +129,11 @@ export function readStatic(line: string): Static | null {
       : null
   }
 
+  const twice = /^if a triggered ability of another (.+?) triggers, it triggers an additional time$/.exec(l)
+  if (twice) {
+    const of = readFilter(twice[1])
+    return of && { kind: 'doubleTriggers', of: { ...of, other: true } }
+  }
   if (/^as ~ enters, choose a creature type$/.test(l)) return { kind: 'chooseType' }
   if (/^~ is the chosen type in addition to its other types$/.test(l)) return { kind: 'isChosenType' }
   if (/^creatures you control are every creature type\b/.test(l)) return { kind: 'everyCreatureType' }

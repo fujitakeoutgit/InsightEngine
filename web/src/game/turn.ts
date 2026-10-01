@@ -7,7 +7,7 @@ import { dealCombatDamage, eligibleAttackers } from './combat'
 import { compile } from './compiler/compile'
 import { emptyPool, MANA_TYPES } from './mana'
 import { draw, emptyTally, inZone, noted, relocate } from './state'
-import type { GameState, Step } from './types'
+import type { GameState, Instance, Step } from './types'
 
 export const STEPS: readonly Step[] = [
   'untap', 'upkeep', 'draw',
@@ -33,6 +33,11 @@ function noMaximumHandSize(state: GameState) {
   ))
 }
 
+/** What became a copy for a while is itself again. */
+const reverted = (cards: readonly Instance[], when: 'end' | 'turn'): Instance[] => cards.map((c) => (
+  c.revert === when && c.was ? { ...c, card: c.was, was: undefined, revert: undefined } : c
+))
+
 /** What was here for a while only, exiled as its time comes. */
 function exileFleeting(state: GameState, when: 'end' | 'upkeep'): GameState {
   const going = state.cards.filter((c) => c.fleeting === when && c.zone === 'battlefield')
@@ -51,7 +56,7 @@ function enter(state: GameState): GameState {
       // every creature you have.
       // …but for what was told it "doesn't untap during your next untap
       // step": that stays as it is, this once.
-      const cards = state.cards.map((c) => (
+      const cards = reverted(state.cards, 'turn').map((c) => (
         c.zone !== 'battlefield' ? c
           : c.frozen ? { ...c, sick: false, frozen: undefined }
             : c.tapped || c.sick ? { ...c, tapped: false, sick: false } : c
@@ -92,8 +97,13 @@ function enter(state: GameState): GameState {
     case 'cleanup': {
       // Damage wears off (CR 514.2).
       // … and "until end of turn" ends with it.
-      const healed = state.cards.some((c) => c.damage) || state.boosts.length
-        ? { ...state, boosts: [], cards: state.cards.map((c) => (c.damage ? { ...c, damage: undefined } : c)) }
+      // …and so does being a copy of something "until end of turn".
+      const healed = state.cards.some((c) => c.damage || c.revert === 'end') || state.boosts.length
+        ? {
+            ...state,
+            boosts: [],
+            cards: reverted(state.cards, 'end').map((c) => (c.damage ? { ...c, damage: undefined } : c)),
+          }
         : state
       if (noMaximumHandSize(healed)) return healed
       const over = inZone(healed, 'hand').length - MAX_HAND

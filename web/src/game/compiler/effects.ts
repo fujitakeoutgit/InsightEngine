@@ -266,6 +266,31 @@ const PATTERNS: Pattern[] = [
   }],
   // On the only creatures there are, its controller is you.
   [/^(?:its controller|that creature's controller|that permanent's controller|target player) creates (.+)$/, (m) => readSentence(`create ${m[1]}`)],
+  // "Choose target creature you control": aimed now, spoken of after.
+  [/^choose (target .+)$/, (m) => onTarget(m[1], () => [])],
+  // Becoming a copy. Who becomes one may be the card itself, everything of
+  // a kind, everything but what was chosen, or a target of its own — and
+  // then what it copies is a second target.
+  [/^(.+?) becomes? (?:a copy|copies) of (that creature|that permanent|it|target .+?)( until end of turn| until your next turn)?(?:, except (.+))?$/, (m) => {
+    const change = m[4] ? readExcept(m[4]) : {}
+    if (!change) return null
+    const until = m[3] ? (/end of turn/.test(m[3]) ? 'end' as const : 'turn' as const) : undefined
+    const becoming = (who: Aim): Effect[] => [{ op: 'become', who, change, ...(until ? { until } : {}) }]
+    const others = /^each (.+?) other than the chosen (?:creature|permanent)$/.exec(m[1])
+    const rest = others && readFilter(others[1])
+    // What is copied: already chosen, or a target named here.
+    const copied = /^target /.test(m[2]) ? onTarget(m[2], () => []) : []
+    if (!copied) return null
+    if (others) return rest ? [...copied, ...becoming({ kind: 'others', filter: rest })] : null
+    if (/^target /.test(m[1])) {
+      // Two targets: the first is set aside while the second is picked.
+      const first = onTarget(m[1], () => [{ op: 'keep' }])
+      return first && first.some((effect) => effect.op === 'choose') ? [...first, ...copied, ...becoming({ kind: 'kept' })] : null
+    }
+    const who = onPermanents(m[1], (aim) => becoming(aim))
+    return who && [...copied, ...who]
+  }],
+  [/^copy that spell(?:\. you may choose new targets for the copy)?$/, () => [{ op: 'copySpell' }]],
   // A token that is a copy of something, with what is different about it.
   [/^create (an?|\w+) (tapped (?:and attacking )?)?tokens? that(?:'s| are) (?:a copy|copies) of (.+?)(?:, except (.+))?$/, (m) => {
     const count = readCount(m[1])
@@ -483,6 +508,16 @@ const PATTERNS: Pattern[] = [
       })),
     }])
   )],
+  // "…have base power and toughness X/X": in place of what is printed.
+  [/^until end of turn, (.+?) (?:has|have) base power and toughness (\w+)\/(\w+)(?: and (?:gains? all creature types|becomes? an? ([a-z ]+?) in addition to its other types))?$/, (m) => {
+    const [power, toughness] = [readCount(m[2]), readCount(m[3])]
+    if (power === null || toughness === null) return null
+    return onPermanents(m[1], (to) => [{
+      op: 'boost', to, power: 0, toughness: 0, keywords: [], base: { power, toughness },
+      ...(m[4] ? { types: m[4].split(/\s+/).map((type) => type[0].toUpperCase() + type.slice(1)) } : {}),
+      ...(/all creature types/.test(m[0]) ? { allTypes: true } : {}),
+    }])
+  }],
   [/^until end of turn, (.+?) becomes? an? ([a-z ]+?) in addition to its other types(?: and gains? (.+))?$/, (m) => (
     onPermanents(m[1], (to) => [{
       op: 'boost', to, power: 0, toughness: 0, keywords: readKeywords(m[3] ?? ''),

@@ -55,15 +55,15 @@ export function relocate(
      * that comes back is a new object, and one returning from the graveyard
      * on three loyalty because that is where it died would be quietly wrong
      * every time. */
-    const loyalty = zone !== 'battlefield' ? startingLoyalty(c.original ?? c.card) : null
+    const loyalty = zone !== 'battlefield' ? startingLoyalty(c.original ?? c.was ?? c.card) : null
     // Nor does damage, or any other counter: off the battlefield it is a
     // card again, as printed.
     // …and a copy is itself again.
     const left = zone !== 'battlefield'
       ? {
           sick: false, counters: undefined, damage: undefined, attachedTo: undefined,
-          chosenType: undefined, fleeting: undefined, echo: undefined,
-          card: c.original ?? c.card, original: undefined,
+          chosenType: undefined, fleeting: undefined, echo: undefined, frozen: undefined,
+          card: c.original ?? c.was ?? c.card, original: undefined, was: undefined, revert: undefined,
         }
       : {}
     return {

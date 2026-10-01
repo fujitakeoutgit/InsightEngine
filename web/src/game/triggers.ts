@@ -185,6 +185,17 @@ function fire(
   }, `${source.card.name} triggers`)
 }
 
+/** How many more times a creature's ability triggers: once for each
+ *  permanent that says abilities of its kind trigger an additional time. */
+function extraTriggers(state: GameState, source: Instance): number {
+  if (source.zone !== 'battlefield' || !isCreature(source)) return 0
+  return inZone(state, 'battlefield').reduce((n, doubler) => (
+    n + compile(doubler.card).statics.filter((fixed) => (
+      fixed.kind === 'doubleTriggers' && matches(source, fixed.of, doubler.iid, state)
+    )).length
+  ), 0)
+}
+
 const sameTally = (a: Tally, b: Tally) => (Object.keys(a) as (keyof Tally)[]).every((key) => a[key] === b[key])
 
 /** Everything that triggered between two states, onto the stack. */
@@ -217,6 +228,10 @@ export function collectTriggers(before: GameState, after: GameState): GameState 
         const amount = event.on === 'damaged' ? event.amount
           : event.on === 'combatDamage' ? combatDamage(next, event.card) : undefined
         next = fire(next, source, index, ability, about, known, amount)
+        // Roaming Throne: again, for a creature of the type it names.
+        for (let again = extraTriggers(next, source); again > 0; again -= 1) {
+          next = fire(next, source, index, ability, about, known, amount)
+        }
       })
     }
   }
@@ -247,6 +262,9 @@ export function stepTriggers(state: GameState, step: 'upkeep' | 'main' | 'combat
     compiled.triggers.forEach((ability, index) => {
       if (ability.when.on === 'step' && ability.when.step === step) {
         next = fire(next, source, index, ability, null, null)
+        for (let again = extraTriggers(next, source); again > 0; again -= 1) {
+          next = fire(next, source, index, ability, null, null)
+        }
       }
     })
     const unread = compiled.unread.filter((line) => opening.test(line) || (step === 'upkeep' && /^cumulative upkeep\b/i.test(line)))

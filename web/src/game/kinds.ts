@@ -22,9 +22,11 @@ export interface Sweeping {
   /** Types given to particular permanents for the turn: "until end of turn,
    *  it becomes a Villain in addition to its other types". */
   granted: Record<string, string[]>
+  /** Permanents given every creature type for the turn. */
+  everything: readonly string[]
 }
 
-const NOTHING: Sweeping = { creatures: false, lands: false, granted: {} }
+const NOTHING: Sweeping = { creatures: false, lands: false, granted: {}, everything: [] }
 
 const BASIC_LAND_TYPES = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest']
 
@@ -40,6 +42,7 @@ export function hasSubtype(inst: Instance, subtype: string, sweep: Sweeping = NO
   if (sweep.granted[inst.iid]?.includes(subtype)) return true
   if (sweep.lands && BASIC_LAND_TYPES.includes(subtype) && word(line, 'Land')) return true
   if (!isCreatureType(subtype)) return false
+  if (sweep.everything.includes(inst.iid)) return true
   if (inst.chosenType === subtype && compile(inst.card).statics.some((fixed) => fixed.kind === 'isChosenType')) {
     return true
   }
@@ -61,7 +64,8 @@ export function sweeping(state: GameState): Sweeping {
   for (const boost of state.boosts) {
     for (const iid of boost.types ? boost.iids : []) granted[iid] = [...(granted[iid] ?? []), ...boost.types!]
   }
-  const sweep = { creatures: has('everyCreatureType'), lands: has('everyLandType'), granted }
+  const everything = state.boosts.flatMap((boost) => (boost.allTypes ? boost.iids : []))
+  const sweep = { creatures: has('everyCreatureType'), lands: has('everyLandType'), granted, everything }
   sweeps.set(state, sweep)
   return sweep
 }

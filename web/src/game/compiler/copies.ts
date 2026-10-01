@@ -20,16 +20,32 @@ export function readExcept(text: string): CopyChange | null {
     change.text = said
     return ''
   })
+    // "…and, if it's a creature, it enters with…": a clause of its own.
+    .replace(/ and, if it's a creature, /, ', ')
   const clauses = rest.split(/,? and (?=it\b|it's|the token|its|his|her)|, (?=it\b|it's|the token|its|his|her)/)
   for (const clause of clauses.map((c) => c.trim()).filter(Boolean)) {
     // "It's a 1/1 Food Golem artifact creature in addition to its other
     // types": a size as well, and "creature" is no news to a copy of one.
-    const types = /^(?:it's|it is|the token is) an? (?:(\d+\/\d+) )?(.+?) in addition to its other types$/.exec(clause)
+    const types = /^(?:it's|it is|the token is) (?:an? )?(?:(\d+\/\d+) )?(.+?) in addition to its other types$/.exec(clause)
+    const arrives = /^it enters with (\w+) additional \+1\/\+1 counters? on it(?: if it's a creature)?(?: and has ([a-z, ]+))?$/.exec(clause)
     const has = /^(?:it|the token) has ([a-z, ]+)$/.exec(clause)
     const size = /^(?:the token|it) is (\d+\/\d+)$/.exec(clause)
     if (types) {
       if (types[1]) [, change.pt] = types
-      change.types = [...(change.types ?? []), ...types[2].split(/\s+/).filter((t) => t !== 'creature').map(title)]
+      change.types = [
+        ...(change.types ?? []),
+        ...types[2].split(/\s+and\s+|\s+/).filter((t) => t && t !== 'creature').map(title),
+      ]
+    } else if (arrives) {
+      const count = { a: 1, an: 1, one: 1, two: 2, three: 3 }[arrives[1]]
+      if (!count) return null
+      change.counters = count
+      if (arrives[2]) change.keywords = [...(change.keywords ?? []), ...readKeywords(arrives[2])]
+    } else if (/^it has this ability$/.test(clause)) change.keepAbility = true
+    // Every creature a copy could be of is yours, so "if you control it" is
+    // always so.
+    else if (/^it enters with a shield counter on it(?: if you control that creature)?$/.test(clause)) {
+      change.enterWith = { ...change.enterWith, shield: 1 }
     }
     else if (/^(?:it|the token) isn't legendary$/.test(clause)) change.notLegendary = true
     else if (has) change.keywords = [...(change.keywords ?? []), ...readKeywords(has[1])]

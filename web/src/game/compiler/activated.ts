@@ -31,8 +31,7 @@ export function readCost(text: string): AbilityCost | null {
     const p = part.trim().toLowerCase()
     if (p === '{t}') cost.tap = true
     else if (/^(\{[^}]+\})+$/.test(p)) {
-      // X in an ability's cost wants asking for; not yet.
-      if (/\{x\}/.test(p)) return null
+      // X is asked for as the ability is activated.
       cost.mana = (cost.mana ?? '') + p.toUpperCase()
     } else if (/^sacrifice ~ and any number of /.test(p)) {
       // Emrakul's Evangel: itself, and as many others as you like.

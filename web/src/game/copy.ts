@@ -18,12 +18,18 @@ const sentenceCase = (text: string) =>
 
 const has = (line: string, word: string) => new RegExp(`\\b${word}\\b`, 'i').test(line)
 
-/** The type line with a type added: a card type before the dash, anything
- *  else after it. */
+const SUPERTYPES = ['Legendary', 'Basic', 'Snow', 'World', 'Kindred']
+
+/** The type line with a type added: supertypes first, then card types,
+ *  before the dash; anything else after it. */
 function withType(line: string, type: string): string {
   if (has(line, type)) return line
   const [left, right] = line.split(/\s+—\s+/)
-  if (CARD_TYPES.includes(type)) return [`${type} ${left}`.trim(), right].filter(Boolean).join(' — ')
+  const words = left.split(/\s+/).filter(Boolean)
+  const supers = words.filter((w) => SUPERTYPES.includes(w))
+  const kinds = words.filter((w) => !SUPERTYPES.includes(w))
+  if (SUPERTYPES.includes(type)) return [[...supers, type, ...kinds].join(' '), right].filter(Boolean).join(' — ')
+  if (CARD_TYPES.includes(type)) return [[...supers, type, ...kinds].join(' '), right].filter(Boolean).join(' — ')
   return `${left} — ${[right, type].filter(Boolean).join(' ')}`
 }
 

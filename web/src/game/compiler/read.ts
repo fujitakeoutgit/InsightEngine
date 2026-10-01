@@ -270,6 +270,9 @@ export function readFilter(phrase: string): Filter | null {
     } else if (word === 'legendary') {
       // A supertype, but it sits on the type line like any other word.
       subtypes.push('Legendary')
+    } else if (word === 'outlaw' || word === 'outlaws') {
+      // Five types under one name.
+      subtypes.push('Assassin', 'Mercenary', 'Pirate', 'Rogue', 'Warlock')
     } else {
       // "Plant creature", "Ally you control", "Zombies": a subtype, if it is
       // one there is.

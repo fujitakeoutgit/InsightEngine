@@ -145,6 +145,9 @@ export type Aim =
   | { kind: 'each'; filter: Filter }
   /** What the source is attached to: "enchanted creature". */
   | { kind: 'host' }
+  /** What an earlier `choose` picked and `keep` set aside, for an effect
+   *  with two targets. */
+  | { kind: 'kept' }
   /** Every permanent matching that was not chosen: "sacrifices all other
    *  creatures". */
   | { kind: 'others'; filter: Filter }
@@ -166,6 +169,11 @@ export interface CopyChange {
   loyalty?: number
   /** It enters tapped, if it copies something. */
   tapped?: boolean
+  /** Counters of other kinds it arrives with: a shield counter. */
+  enterWith?: Record<string, number>
+  /** "Except it has this ability": it keeps the ability that made it a
+   *  copy. */
+  keepAbility?: boolean
 }
 
 /** Something that is so or is not, as the game stands: what follows "if". */
@@ -267,6 +275,15 @@ export type Effect = (
   | { op: 'copy'; of: Aim; count: Count; change: CopyChange; tapped: boolean; fleeting: boolean; attacking?: boolean }
   /** A permanent arrives — as a copy of what was chosen, if anything was. */
   | { op: 'enterAs'; change: CopyChange }
+  /** Set what was chosen aside, so the next `choose` can pick something
+   *  else and both be spoken of. */
+  | { op: 'keep' }
+  /** Permanents become copies of what was chosen — for good, until end of
+   *  turn, or until your next turn. */
+  | { op: 'become'; who: Aim; change: CopyChange; until?: 'end' | 'turn' }
+  /** "Copy that spell": a permanent spell's copy arrives as a token; any
+   *  other resolves a second time. */
+  | { op: 'copySpell' }
   | { op: 'counters'; to: Aim; count: Count; counter: string }
   /** Connive: draw a card, then discard a card; if it was not a land, a
    *  +1/+1 counter on the creature that connived. "Connives X" is that many
@@ -351,7 +368,18 @@ export type Effect = (
   | { op: 'extraLand'; count: number }
   | { op: 'addMana'; makes: ManaType[][] }
   /** "Gets +3/+3 and gains trample until end of turn." */
-  | { op: 'boost'; to: Aim; power: Signed; toughness: Signed; keywords: string[]; types?: string[] }
+  | {
+    op: 'boost'
+    to: Aim
+    power: Signed
+    toughness: Signed
+    keywords: string[]
+    types?: string[]
+    /** "Has base power and toughness X/X": in place of what is printed. */
+    base?: { power: Count; toughness: Count }
+    /** "…and gain all creature types." */
+    allTypes?: boolean
+  }
   /** Attach the source — an Equipment, an Aura — to what was chosen. */
   | { op: 'attach' }
   /** Discard from your hand: your choice of which. */
@@ -471,7 +499,19 @@ export type Static =
   | { kind: 'everyCreatureType' }
   /** "This spell costs {1} less to cast for each creature on the
    *  battlefield", "…if you control a Spirit": on the spell itself. */
-  | { kind: 'selfCostLess'; amount: number; per?: Filter; when?: Test }
+  | {
+    kind: 'selfCostLess'
+    amount: number
+    per?: Filter
+    when?: Test
+    /** "For each creature type among creatures you control." */
+    perType?: boolean
+    /** "…can't reduce the amount of mana it costs by more than {5}." */
+    max?: number
+  }
+  /** "If a triggered ability of another creature you control of the chosen
+   *  type triggers, it triggers an additional time." */
+  | { kind: 'doubleTriggers'; of: Filter }
   /** "You may have ~ enter as a copy of any creature on the battlefield." */
   | { kind: 'enterAsCopy'; filter: Filter; change: CopyChange }
   /** "If you would draw a card except the first one you draw in each of

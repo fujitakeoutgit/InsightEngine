@@ -97,6 +97,10 @@ function applied(inst: Instance, state: GameState): Applied {
  *  it is in place of a printed `*`. */
 function base(inst: Instance, field: 'power' | 'toughness', state?: GameState) {
   if (state) {
+    // "Has base power and toughness X/X until end of turn": the last to say
+    // so has it.
+    const set = [...state.boosts].reverse().find((boost) => boost.base && boost.iids.includes(inst.iid))
+    if (set?.base) return set.base[field]
     for (const fixed of compile(inst.card).statics) {
       if (fixed.kind === 'size' && fixed.stats.includes(field)) {
         return fixed.plus + measure(state, fixed.measure, inst)

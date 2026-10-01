@@ -60,7 +60,9 @@ export function normalize(card: Card, text: string): string[] {
       // Legends are called by their first name: "Felothar" for Felothar the
       // Steadfast, "Baldin" for Baldin, Century Herdmaster.
       names.add(part.split(',')[0])
-      const epithet = /^(\w{3,}) the \w/.exec(part)
+      // …and "Arcanis" for Arcanis the Omnipotent, "Moritte" for Moritte
+      // of the Frost.
+      const epithet = /^(\w{3,}) (?:of the|the|of) \w/.exec(part)
       if (epithet && /\bLegendary\b/.test(card.type_line ?? '')) names.add(epithet[1])
     }
   }
@@ -192,6 +194,7 @@ function readOneTrigger(condition: string): TriggerEvent | null {
   if (/^the beginning of (your|each|the) end step$/.test(c)) return { on: 'step', step: 'end' }
   // Nobody else casts anything: "a player" is you.
   if (/^(?:you|a player) casts? a spell$/.test(c)) return { on: 'cast', filter: {} }
+  if (/^you cast a spell of the chosen type$/.test(c)) return { on: 'cast', filter: { chosenType: true } }
   const cast = /^you cast (?:a|an) (.+?) spell$/.exec(c)
   if (cast) {
     const filter = readFilter(cast[1])
@@ -383,7 +386,13 @@ export function compile(card: Card): Compiled {
 
     // A spell's own discount, which may run to two sentences.
     if (/^~ costs \{\d+\} less to cast\b/.test(lower)) {
-      const read = sentences(lower).map((sentence) => readCostLess(sentence))
+      // "This effect can't reduce the amount of mana ~ costs by more than
+      // {5}" is a cap on the discount before it, not one of its own.
+      const cap = /this effect can't reduce the amount of mana ~ costs by more than \{(\d+)\}/.exec(lower)
+      const read = sentences(lower)
+        .filter((sentence) => !/^this effect can't reduce\b/.test(sentence))
+        .map((sentence) => readCostLess(sentence))
+        .map((fixed) => (fixed?.kind === 'selfCostLess' && cap ? { ...fixed, max: Number(cap[1]) } : fixed))
       if (read.every((fixed): fixed is Static => fixed !== null)) statics.push(...read)
       else unread.push(printed)
       grades.push(read.every(Boolean) ? 1 : 0)

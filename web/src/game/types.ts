@@ -62,6 +62,10 @@ export interface Instance {
   /** The card this is, while it is on the battlefield as a copy of another.
    *  `card` is then what it copies. */
   original?: Card
+  /** What it was before it became a copy for a while, and when it stops
+   *  being one: at cleanup, or as your next turn begins. */
+  was?: Card
+  revert?: 'end' | 'turn'
 }
 
 /** A change to size and keywords that lasts until end of turn, on the
@@ -73,6 +77,10 @@ export interface TurnBoost {
   keywords: string[]
   /** Creature types they are as well, for the turn. */
   types?: string[]
+  /** Every creature type, for the turn. */
+  allTypes?: boolean
+  /** Power and toughness in place of what is printed, for the turn. */
+  base?: { power: number; toughness: number }
 }
 
 /** Power and toughness as they stood, for an effect that asks after the
@@ -125,6 +133,9 @@ export interface StackItem {
   iid: string
   /** What X was chosen as when it was cast. */
   x: number
+  /** A copy of the spell rather than the spell: it resolves, and the card
+   *  stays where it is. */
+  copy?: boolean
   /** Set when this is a triggered ability rather than a spell. */
   ability?: {
     text: string
@@ -153,6 +164,8 @@ export interface Resolution {
   x: number
   /** What the last `choose` picked. */
   chosen: string[]
+  /** What an earlier one picked, set aside for an effect with two targets. */
+  kept: string[]
   event: string | null
   known: Record<string, Known>
   /** The "you may" at `at` has been agreed to. */
@@ -279,7 +292,7 @@ export interface GameState {
   boosts: TurnBoost[]
   /** An ability being activated, while its cost waits on a choice — what to
    *  sacrifice. */
-  paying: { iid: string; index: number } | null
+  paying: { iid: string; index: number; x?: number } | null
   /** Pictures for the tokens this deck makes, by name. */
   tokenArt: Record<string, string | null>
   /** What has happened that triggers have yet to be asked about. */
@@ -356,7 +369,7 @@ export type Action =
   /** Declare these attackers — none, to attack with nothing. */
   | { type: 'attack'; iids: string[] }
   /** Activate a permanent's ability — or a card's, from hand: cycling. */
-  | { type: 'activate'; iid: string; index: number }
+  | { type: 'activate'; iid: string; index: number; x?: number }
   /** Done resolving a reminder by hand. */
   | { type: 'done'; id: string }
   | { type: 'rules'; on: boolean }

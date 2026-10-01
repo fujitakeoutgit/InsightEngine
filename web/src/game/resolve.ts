@@ -47,6 +47,7 @@ function aimed(state: GameState, r: Resolution, aim: Aim): Instance[] {
     case 'each': return onBattlefield(state, settled(state, r, aim.filter), r.source)
     // What it is on — or, once that has gone, the card the ability is about.
     case 'host': return one(find(state, r.source)?.attachedTo ?? r.event)
+    case 'kept': return r.kept.flatMap((iid) => one(iid))
     // The ones that were not kept.
     case 'others':
       return onBattlefield(state, settled(state, r, aim.filter), r.source).filter((c) => !r.chosen.includes(c.iid))
@@ -212,6 +213,48 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
           max: Math.min(effect.count, options.length),
           ...priced(state, effect.budget, options),
         },
+      }
+    }
+
+    case 'keep':
+      return { state: { ...state, resolving: { ...r, kept: r.chosen } } }
+
+    case 'become': {
+      const of = r.chosen[0] ? find(state, r.chosen[0]) : undefined
+      const who = aimed(state, r, effect.who).filter((c) => c.zone === 'battlefield' && c.iid !== of?.iid)
+      if (!of || !who.length) return { state: noted(state, `${r.name}: nothing becomes a copy`) }
+      const { until } = effect
+      const next = change(state, who.map((c) => c.iid), (c) => {
+        // "Except it has this ability": the line that did this goes along.
+        const kept = effect.change.keepAbility
+          ? rulesText(c.card).split('\n').find((line) => /\bbecomes a copy of\b/i.test(line))
+          : undefined
+        const card = copyOf(of.card, {
+          ...effect.change,
+          ...(kept ? { text: kept.split(c.card.name).join('~').replace(/\.$/, '') } : {}),
+        })
+        // For a while, what it was is kept to go back to; for good, what it
+        // was printed as, for when it leaves.
+        return until
+          ? { ...c, card, was: c.was ?? c.card, revert: until }
+          : { ...c, card, original: c.original ?? c.card }
+      })
+      const span = until === 'end' ? ' until end of turn' : until === 'turn' ? ' until your next turn' : ''
+      return { state: noted(next, `${names(who)}: ${who.length > 1 ? 'copies' : 'a copy'} of ${of.card.name}${span}`) }
+    }
+
+    case 'copySpell': {
+      const spell = r.event ? find(state, r.event) : undefined
+      if (!spell || spell.zone !== 'stack') return { state: noted(state, `${r.name}: no spell to copy`) }
+      // A permanent spell's copy becomes a token as it resolves — which, for
+      // a copy made just now, is at once.
+      if (isPermanentSpell(spell.card)) {
+        return { state: noted(makeCopy(state, spell.card, {}, false, false), `${r.name}: copied ${spell.card.name}`) }
+      }
+      const cast = state.stack.find((item) => item.iid === spell.iid && !item.ability)
+      const [id, minted] = mint(state, 's')
+      return {
+        state: noted({ ...minted, stack: [...minted.stack, { id, iid: spell.iid, x: cast?.x ?? 0, copy: true }] }, `${r.name}: copied ${spell.card.name}`),
       }
     }
 
@@ -384,8 +427,11 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
             const loyalty = startingLoyalty(c.card)
             return {
               ...c,
-              ...(how.counters && isCreature(c)
-                ? { counters: { ...c.counters, '+1/+1': (c.counters?.['+1/+1'] ?? 0) + how.counters } } : {}),
+              counters: {
+                ...c.counters,
+                ...how.enterWith,
+                ...(how.counters && isCreature(c) ? { '+1/+1': (c.counters?.['+1/+1'] ?? 0) + how.counters } : {}),
+              },
               ...(loyalty !== null ? { loyalty: loyalty + (how.loyalty ?? 0) } : {}),
             }
           })
@@ -621,14 +667,21 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
         .filter((c) => c.zone === 'battlefield')
       if (!on.length) return { state }
       const [power, toughness] = [signed(state, r, effect.power), signed(state, r, effect.toughness)]
+      const base = effect.base && {
+        power: amount(state, r, effect.base.power), toughness: amount(state, r, effect.base.toughness),
+      }
       const boosts = [...state.boosts, {
         iids: on.map((c) => c.iid), power, toughness, keywords: effect.keywords,
         ...(effect.types ? { types: effect.types } : {}),
+        ...(effect.allTypes ? { allTypes: true } : {}),
+        ...(base ? { base } : {}),
       }]
       const what = [
+        base ? `base ${base.power}/${base.toughness}` : '',
         power || toughness ? `${power >= 0 ? '+' : ''}${power}/${toughness >= 0 ? '+' : ''}${toughness}` : '',
         effect.keywords.join(', ').toLowerCase(),
         effect.types ? `${effect.types.join(' ')} as well` : '',
+        effect.allTypes ? 'every creature type' : '',
       ].filter(Boolean).join(' and ')
       return { state: noted({ ...state, boosts }, `${names(on)}: ${what} until end of turn`) }
     }
@@ -1022,7 +1075,7 @@ export function enterAsCopy(state: GameState, iid: string, x = 0): GameState | n
   return carryOn({
     ...state,
     resolving: {
-      at: 0, x, chosen: [], agreed: false, declined: false, last: 0, modes: [], asked: 0,
+      at: 0, x, chosen: [], kept: [], agreed: false, declined: false, last: 0, modes: [], asked: 0,
       source: iid,
       name: inst.card.name,
       text: rulesText(inst.card),
@@ -1048,7 +1101,7 @@ export function resolveTop(state: GameState): GameState {
   if (!top) return state
   const stack = state.stack.slice(0, -1)
   const inst = find(state, top.iid)
-  const blank = { at: 0, x: top.x, chosen: [], agreed: false, declined: false, last: 0, modes: [], asked: 0 }
+  const blank = { at: 0, x: top.x, chosen: [], kept: [], agreed: false, declined: false, last: 0, modes: [], asked: 0 }
 
   if (top.ability) {
     const name = inst?.card.name ?? 'An ability'
@@ -1095,9 +1148,11 @@ export function resolveTop(state: GameState): GameState {
   }
 
   const spell = compile(inst.card).spell
-  const begun = noted({ ...state, stack }, `${inst.card.name} resolves`)
+  const begun = noted({ ...state, stack }, `${inst.card.name}${top.copy ? ' (a copy)' : ''} resolves`)
   if (!spell?.effects.length) {
-    return remind({ ...begun, cards: relocate(begun.cards, inst.iid, 'graveyard') }, inst.iid, inst.card.name, rulesText(inst.card))
+    // A copy resolves and is gone; the card is still the spell under it.
+    const done = top.copy ? begun : { ...begun, cards: relocate(begun.cards, inst.iid, 'graveyard') }
+    return remind(done, inst.iid, inst.card.name, rulesText(inst.card))
   }
   return carryOn({
     ...begun,
@@ -1109,7 +1164,7 @@ export function resolveTop(state: GameState): GameState {
       effects: spell.effects,
       event: null,
       known: {},
-      spell: true,
+      spell: !top.copy,
       leftover: spell.complete ? null : rulesText(inst.card),
     },
   })

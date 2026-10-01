@@ -259,8 +259,10 @@ export function Playtest({
   /** Cards picked in hand for a pending bottom or discard. */
   const [selected, setSelected] = useState<string[]>([])
   useEffect(() => { setSelected([]) }, [game.pending])
-  /** A spell with X, waiting on how much. */
-  const [choosingX, setChoosingX] = useState<{ iid: string; name: string; max: number } | null>(null)
+  /** A spell with X — or, with `ability`, an ability — waiting on how much. */
+  const [choosingX, setChoosingX] = useState<
+    { iid: string; name: string; max: number; ability?: number } | null
+  >(null)
   /** A source that could make more than one kind of mana, waiting on which. */
   const [pickingMana, setPickingMana] = useState<
     { iid: string; at: Spot; options: { ability: number; kinds: ManaType[] }[] } | null
@@ -796,8 +798,15 @@ export function Playtest({
               name={source.card.name}
               offers={offers}
               onActivate={(index) => {
-                dispatch({ type: 'activate', iid: source.iid, index })
                 setAbilitiesFor(null)
+                // X in the cost is asked for before anything is paid.
+                if (/\{X\}/.test(abilitiesOf(source)[index]?.cost.mana ?? '')) {
+                  let max = 0
+                  while (max < 40 && !activationProblem(game, source.iid, index, max + 1)) max += 1
+                  setChoosingX({ iid: source.iid, name: source.card.name, max, ability: index })
+                  return
+                }
+                dispatch({ type: 'activate', iid: source.iid, index })
               }}
               onCancel={() => setAbilitiesFor(null)}
             />
@@ -809,7 +818,9 @@ export function Playtest({
             name={choosingX.name}
             max={choosingX.max}
             onCast={(x) => {
-              dispatch({ type: 'play', iid: choosingX.iid, x })
+              dispatch(choosingX.ability === undefined
+                ? { type: 'play', iid: choosingX.iid, x }
+                : { type: 'activate', iid: choosingX.iid, index: choosingX.ability, x })
               setChoosingX(null)
             }}
             onCancel={() => setChoosingX(null)}
