@@ -5755,3 +5755,198 @@
   color: var(--warn);
   pointer-events: none;
 }
+
+/* --- Playtest: effects that play themselves ----------------------------- */
+
+/* A question about cards on the table sits low, clear of the board it is
+   asking about. */
+.pt-decision.low {
+  top: auto;
+  bottom: 14px;
+  transform: translateX(-50%);
+  width: min(460px, 84%);
+  padding: 10px 14px;
+}
+
+.pt-decision-text {
+  color: var(--ink);
+  white-space: pre-line;
+}
+
+.pt-decision.low .pt-decision-text { margin-bottom: 8px; }
+.pt-decision.low .row { align-items: center; }
+
+.pt-modes { display: flex; flex-direction: column; gap: 6px; }
+.pt-modes .btn { white-space: normal; text-align: left; height: auto; padding: 8px 10px; line-height: 1.4; text-transform: none; letter-spacing: 0; font-size: 12px; }
+
+/* The opponent's life, in the turn bar: a number you take from. */
+.pt-opponent {
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.pt-opponent .mono { color: var(--danger); font-weight: 600; }
+.pt-opponent:hover { background: var(--glass-hi); color: var(--ink); }
+
+.pt-lost.won { border-color: color-mix(in oklab, var(--ok) 45%, transparent); }
+.pt-lost.won strong { color: var(--ok); }
+
+/* What the game is asking you to pick from. */
+.pt-card.candidate {
+  box-shadow:
+    0 0 0 2px var(--warn),
+    0 0 16px -3px var(--warn);
+  cursor: pointer;
+}
+
+.pt-mat .pt-card.selected { transform: scale(1.06); }
+.pt-mat .pt-card.selected.tapped { transform: rotate(90deg) scale(0.98); }
+
+/* How much of a card plays itself: green all, amber some, grey none. */
+.pt-coverage {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  z-index: 2;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  background: var(--faint);
+  pointer-events: auto;
+}
+
+.pt-coverage.auto { background: var(--ok); }
+.pt-coverage.partial { background: var(--warn); }
+
+/* A creature's size once the board has changed it. Bottom left: the right
+   side belongs to the tap and loyalty controls. */
+.pt-size {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  z-index: 2;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--bg-hi) 88%, transparent);
+  border: 1px solid var(--line-soft);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+  pointer-events: none;
+}
+
+.pt-size-damage { margin-left: 4px; color: var(--danger); }
+
+/* +1/+1 counters by hand: hidden until the card is hovered, like loyalty. */
+.pt-counter-step {
+  position: absolute;
+  left: 4px;
+  bottom: 26px;
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--dur-fast);
+}
+
+.pt-card:hover .pt-counter-step { opacity: 1; }
+
+.pt-counter-step button {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--bg-hi) 88%, transparent);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pt-counter-step button:hover { border-color: var(--aether); color: var(--aether-hi); }
+
+.pt-counters {
+  position: absolute;
+  left: 4px;
+  top: 16px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 9.5px;
+  pointer-events: none;
+}
+
+.pt-counters span {
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--bg-hi) 88%, transparent);
+  color: var(--warn);
+}
+
+/* An ability on the stack shows its words under the card it came from. */
+.pt-stack-ability {
+  display: block;
+  margin-top: 2px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--faint);
+}
+
+.pt-stack li { align-items: flex-start; }
+
+/* Picking in a list: the rows taken are marked. */
+.pt-tutor-row.picked {
+  background: color-mix(in oklab, var(--aether) 16%, transparent);
+  outline: 1px solid color-mix(in oklab, var(--aether) 55%, transparent);
+}
+
+/* Scry and surveil: the top of the library face up, each card kept or sent. */
+.pt-arrange { text-align: center; }
+.pt-arrange p { font-size: 12px; margin: 0 0 12px; }
+
+.pt-arrange-cards {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.pt-arrange-card {
+  position: relative;
+  width: 128px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  overflow: hidden;
+  cursor: pointer;
+  transition: opacity var(--dur-fast), transform var(--dur-fast);
+}
+
+.pt-arrange-card img { display: block; width: 100%; aspect-ratio: 488 / 680; object-fit: cover; }
+.pt-arrange-card.away { opacity: 0.45; transform: translateY(8px); }
+
+.pt-arrange-where {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--bg-hi) 90%, transparent);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}

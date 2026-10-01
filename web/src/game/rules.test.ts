@@ -4,7 +4,7 @@ import type { Card } from '../lib/api'
 import { checkCast, landProblem, manaOptions, playable } from './cast'
 import { deal, reduce } from './reducer'
 import {
-  BEARS, card, COMMANDER, ELVES, entry, FOREST, game, GROWTH, OMENS, ORZHOV_SIGNET, PLAINS,
+  BEARS, card, COMMANDER, ELVES, entry, FOREST, game, GROWTH, ORZHOV_SIGNET, PLAINS,
   SOL_RING, SURGE, SWAMP, TAPLAND, TOWER, TOWER_OF_RELICS, WALKER,
 } from './testing'
 import type { Action, GameState, Instance, Zone } from './types'
@@ -112,9 +112,12 @@ describe('casting', () => {
     expect(reduce(done, { type: 'done', id: done.reminders[0].id }).reminders).toEqual([])
   })
 
-  it('reminds you of what a permanent does as it enters', () => {
-    const done = run(ruled([[OMENS, 'hand'], ...lands]), { type: 'play', iid: 'c0' }, { type: 'pass' })
-    expect(done.reminders.map((r) => r.text)).toEqual(['When this creature enters, draw a card.'])
+  it('reminds you of what a permanent does as it enters, when nothing reads it', () => {
+    const odd = card('Oddity', 'Creature — Thing', {
+      mana_cost: '{G}', oracle_text: 'When this creature enters, do something nobody has written down.',
+    })
+    const done = run(ruled([[odd, 'hand'], ...lands]), { type: 'play', iid: 'c0' }, { type: 'pass' })
+    expect(done.reminders.map((r) => r.text)).toEqual(['When Oddity enters, do something nobody has written down.'])
   })
 
   it('spends floating mana before tapping anything', () => {

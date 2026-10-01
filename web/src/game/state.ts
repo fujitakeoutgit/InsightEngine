@@ -46,11 +46,14 @@ export function relocate(
      * on three loyalty because that is where it died would be quietly wrong
      * every time. */
     const loyalty = zone !== 'battlefield' ? startingLoyalty(c.card) : null
+    // Nor does damage, or any other counter: off the battlefield it is a
+    // card again, as printed.
+    const left = zone !== 'battlefield' ? { sick: false, counters: undefined, damage: undefined } : {}
     return {
       ...c,
       zone,
       tapped: zone === 'battlefield' ? (tapped ?? c.tapped) : false,
-      ...(zone !== 'battlefield' ? { sick: false } : {}),
+      ...left,
       ...(loyalty !== null ? { loyalty } : {}),
       ...(at ?? {}),
     }

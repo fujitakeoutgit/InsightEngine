@@ -3,6 +3,7 @@
  * passing stops to ask you something.
  */
 
+import { compile } from './compiler/compile'
 import { emptyPool, MANA_TYPES } from './mana'
 import { draw, inZone, noted } from './state'
 import type { GameState, Step } from './types'
@@ -16,8 +17,9 @@ export const STEPS: readonly Step[] = [
 ]
 
 /** Where passing with an empty stack stops: the two main phases, where
- *  nearly everything is done. The other steps happen and are recorded. */
-const STOPS: ReadonlySet<Step> = new Set(['main1', 'main2'])
+ *  nearly everything is done. The other steps happen and are recorded —
+ *  unless something triggers in one, which stops the turn there too. */
+export const STOPS: ReadonlySet<Step> = new Set(['main1', 'main2'])
 
 export const MAX_HAND = 7
 
@@ -25,8 +27,8 @@ export const isMain = (step: Step) => step === 'main1' || step === 'main2'
 
 /** Reliquary Tower and its kind. */
 function noMaximumHandSize(state: GameState) {
-  return state.cards.some((c) => (
-    c.zone === 'battlefield' && /you have no maximum hand size/i.test(c.card.oracle_text ?? '')
+  return inZone(state, 'battlefield').some((c) => (
+    compile(c.card).statics.some((fixed) => fixed.kind === 'noMaxHandSize')
   ))
 }
 
@@ -40,16 +42,20 @@ function enter(state: GameState): GameState {
       const cards = state.cards.map((c) => (
         c.zone === 'battlefield' && (c.tapped || c.sick) ? { ...c, tapped: false, sick: false } : c
       ))
-      return noted({ ...state, cards, landsPlayed: 0 }, `Turn ${state.turn}`)
+      return noted({ ...state, cards, landsPlayed: 0, extraLands: 0, triggered: [] }, `Turn ${state.turn}`)
     }
     case 'draw':
       // Turn 1 skips its draw, as the first player's does in a two-player
       // game (CR 103.8a) and as the table always has.
       return state.turn === 1 ? state : draw(state, 1)
     case 'cleanup': {
-      if (noMaximumHandSize(state)) return state
-      const over = inZone(state, 'hand').length - MAX_HAND
-      return over > 0 ? { ...state, pending: { kind: 'discard', count: over } } : state
+      // Damage wears off (CR 514.2).
+      const healed = state.cards.some((c) => c.damage)
+        ? { ...state, cards: state.cards.map((c) => (c.damage ? { ...c, damage: undefined } : c)) }
+        : state
+      if (noMaximumHandSize(healed)) return healed
+      const over = inZone(healed, 'hand').length - MAX_HAND
+      return over > 0 ? { ...healed, pending: { kind: 'discard', count: over } } : healed
     }
     default:
       return state
@@ -71,17 +77,7 @@ export function nextStep(state: GameState): GameState {
   })
 }
 
-/** On through the steps until one that needs you, or a choice. */
-export function toNextStop(state: GameState): GameState {
-  let next = state
-  do next = nextStep(next)
-  while (!next.pending && !STOPS.has(next.step))
-  return next
-}
-
-/** The opening hand is kept: turn 1 begins, and runs to its first main phase. */
-export function begin(state: GameState): GameState {
-  let next = enter({ ...state, pending: null, step: 'untap', turn: 1 })
-  while (!next.pending && !STOPS.has(next.step)) next = nextStep(next)
-  return next
+/** The opening hand is kept, and turn 1 begins. */
+export function firstTurn(state: GameState): GameState {
+  return enter({ ...state, pending: null, step: 'untap', turn: 1 })
 }

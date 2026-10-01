@@ -12,18 +12,19 @@
  * always was: cards go where you put them and nothing is paid.
  */
 
-import type { Card } from '../lib/api'
+import type { Card, DeckToken } from '../lib/api'
 import type { DeckCard } from '../lib/deckModel'
-import { castSpell, enterBattlefield, isLand, landProblem, playLand, resolveTop, tapForMana } from './cast'
+import {
+  castSpell, enterBattlefield, isLand, isPermanentSpell, landProblem, playLand, tapForMana,
+} from './cast'
 import { fetchFinds } from './fetch'
 import { emptyPool } from './mana'
-import { pass, passTo } from './priority'
+import { begin, pass, passTo, settle, toNextStop } from './priority'
 import { shuffle } from './random'
-import { stateBased } from './sba'
+import { answer } from './resolve'
 import {
   draw, find, mint, noted, relocate, shuffleLibrary, startingLoyalty, toBottom,
 } from './state'
-import { begin, toNextStop } from './turn'
 import type { Action, GameState, Instance, Zone } from './types'
 
 export { startingLoyalty }
@@ -54,7 +55,9 @@ function build(deck: readonly DeckCard[]): Instance[] {
 
 /** A new game: the library shuffled, seven in hand, the commander waiting.
  *  With the rules on it opens on the mulligan decision. */
-export function deal(deck: readonly DeckCard[], seed: number, rules = true): GameState {
+export function deal(
+  deck: readonly DeckCard[], seed: number, rules = true, tokens: readonly DeckToken[] = [],
+): GameState {
   const [everything, next] = shuffle(build(deck), seed)
   const library = everything.filter((c) => c.zone === 'library')
   const command = everything.filter((c) => c.zone === 'command')
@@ -76,6 +79,12 @@ export function deal(deck: readonly DeckCard[], seed: number, rules = true): Gam
     reminders: [],
     casts: {},
     lost: null,
+    opponent: { life: 40 },
+    won: null,
+    extraLands: 0,
+    resolving: null,
+    triggered: [],
+    tokenArt: Object.fromEntries(tokens.map((t) => [t.name.toLowerCase(), t.image])),
   }
 }
 
@@ -119,11 +128,22 @@ function crack(state: GameState, iid: string, pick: string): GameState {
     finds.sacrifices ? ', sacrificed' : ''}, then shuffled`)
 }
 
-/** Turning the rules off mid-stack lets everything on it land where it was
- *  going, without the ceremony. */
-function settleStack(state: GameState): GameState {
-  let next = state
-  while (next.stack.length) next = resolveTop(next)
+/** Turning the rules off mid-stack lets every spell on it land where it was
+ *  going, without the ceremony; abilities waiting there are dropped, and so
+ *  is whatever was half-resolved. */
+function clearStack(state: GameState): GameState {
+  let next: GameState = { ...state, stack: [], resolving: null, pending: null }
+  const spells = [
+    ...state.stack.filter((item) => !item.ability).map((item) => item.iid),
+    ...(state.resolving?.spell ? [state.resolving.source] : []),
+  ]
+  for (const iid of spells) {
+    const inst = find(next, iid)
+    if (inst?.zone !== 'stack') continue
+    next = isPermanentSpell(inst.card)
+      ? enterBattlefield(next, iid).state
+      : { ...next, cards: relocate(next.cards, iid, 'graveyard') }
+  }
   return next
 }
 
@@ -133,8 +153,11 @@ function apply(state: GameState, action: Action): GameState {
   const waiting = state.rules && state.pending
 
   switch (action.type) {
-    case 'deal':
-      return deal(action.deck, action.seed, state.rules)
+    case 'deal': {
+      const dealt = deal(action.deck, action.seed, state.rules, action.tokens)
+      // A reset keeps the pictures it already had.
+      return action.tokens ? dealt : { ...dealt, tokenArt: state.tokenArt }
+    }
 
     case 'draw':
       return draw(state, action.count ?? 1)
@@ -221,6 +244,22 @@ function apply(state: GameState, action: Action): GameState {
         )),
       }
 
+    case 'counter': {
+      const inst = find(state, action.iid)
+      if (!inst || inst.zone !== 'battlefield') return state
+      const n = Math.max(0, (inst.counters?.[action.counter] ?? 0) + action.by)
+      if (n === (inst.counters?.[action.counter] ?? 0)) return state
+      return {
+        ...state,
+        cards: state.cards.map((c) => (
+          c.iid === action.iid ? { ...c, counters: { ...c.counters, [action.counter]: n } } : c
+        )),
+      }
+    }
+
+    case 'opponentLife':
+      return { ...state, opponent: { ...state.opponent, life: state.opponent.life + action.by } }
+
     case 'token': {
       /* Tokens are created, not drawn, so this adds an instance that was never
        * in the library. Each gets its own iid — a deck that makes six Soldiers
@@ -274,9 +313,15 @@ function apply(state: GameState, action: Action): GameState {
       return begin(noted(state, state.pending.taken ? 'Kept seven — the first mulligan is free' : 'Kept'))
     }
 
+    case 'confirm':
+    case 'arrange':
+    case 'mode':
+      return answer(state, action)
+
     case 'choose': {
       const { pending } = state
-      if (!pending || pending.kind === 'mulligan') return state
+      if (pending?.kind === 'pick') return answer(state, action)
+      if (pending?.kind !== 'bottom' && pending?.kind !== 'discard') return state
       const picked = [...new Set(action.iids)]
       if (picked.length !== pending.count) return state
       if (!picked.every((iid) => find(state, iid)?.zone === 'hand')) return state
@@ -304,13 +349,20 @@ function apply(state: GameState, action: Action): GameState {
         // land you may or may not have played is taken on trust.
         return noted({ ...state, rules: true, step: 'main1', pending: null, pool: emptyPool() }, 'Rules on')
       }
-      return noted({ ...settleStack(state), rules: false, pending: null, pool: emptyPool() },
+      return noted({ ...clearStack(state), rules: false, pool: emptyPool() },
         'Rules off — the table is yours')
     }
   }
 }
 
+/** Actions that move the game on by themselves, settling as they go. The
+ *  rest are settled here, once, after they have happened. */
+const SETTLES_ITSELF = new Set<Action['type']>(['pass', 'passTo', 'keep', 'nextTurn'])
+
 export function reduce(state: GameState, action: Action): GameState {
   const next = apply(state, action)
-  return next === state ? state : stateBased(next)
+  if (next === state) return state
+  const stepped = SETTLES_ITSELF.has(action.type)
+    || (action.type === 'choose' && (state.pending?.kind === 'bottom' || state.pending?.kind === 'discard'))
+  return stepped ? next : settle(state, next)
 }

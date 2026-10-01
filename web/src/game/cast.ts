@@ -1,6 +1,7 @@
 /**
  * Playing cards by the rules: casting a spell onto the stack and paying for
- * it, resolving it, playing a land, tapping a permanent for mana.
+ * it, playing a land, tapping a permanent for mana, and what happens as a
+ * permanent arrives.
  *
  * Each check answers with the reason it fails, in words for the table, so the
  * same function decides what is allowed and explains why something is not.
@@ -8,6 +9,8 @@
 
 import { entersTapped } from '../lib/landTiming'
 import type { Card } from '../lib/api'
+import { compile } from './compiler/compile'
+import { onBattlefield } from './match'
 import { autotap, demand, formatCost, parseCost, type Cost, type ManaType, type Payment } from './mana'
 import { seatFor } from './seat'
 import { canTapForMana, hasKeyword, isCreature, manaAbilities, manaSources } from './sources'
@@ -22,20 +25,11 @@ export const manaCostOf = (card: Card) => card.mana_cost ?? card.card_faces?.[0]
 export const isLand = (card: Card) => /\bLand\b/.test(card.type_line ?? '')
 
 /** Lands are permanents too, but they are played rather than cast. */
-const isPermanentSpell = (card: Card) =>
+export const isPermanentSpell = (card: Card) =>
   /\b(Artifact|Creature|Enchantment|Planeswalker|Battle)\b/.test(card.type_line ?? '')
 
-const rulesText = (card: Card) =>
+export const rulesText = (card: Card) =>
   card.oracle_text ?? (card.card_faces ?? []).map((f) => f.oracle_text ?? '').filter(Boolean).join('\n')
-
-/** "When this creature enters, …" — the part of a permanent's text that
- *  happens on arrival, which nothing here does for you yet. */
-function entersText(card: Card) {
-  return rulesText(card)
-    .split('\n')
-    .filter((line) => /^When(ever)? [^.]*\benters\b/i.test(line.trim()))
-    .join('\n')
-}
 
 /** "Forest ×2, Plains" — what was tapped, for the record. */
 function listOf(names: string[]) {
@@ -44,10 +38,20 @@ function listOf(names: string[]) {
   return [...counts].map(([name, n]) => (n > 1 ? `${name} ×${n}` : name)).join(', ')
 }
 
-function remind(state: GameState, inst: Instance, text: string): GameState {
+/** Post words beside the board, for you to carry out. */
+export function remind(state: GameState, iid: string, name: string, text: string): GameState {
   if (!text.trim()) return state
   const [id, next] = mint(state, 'r')
-  return { ...next, reminders: [...next.reminders, { id, iid: inst.iid, name: inst.card.name, text }] }
+  return { ...next, reminders: [...next.reminders, { id, iid, name, text }] }
+}
+
+/** What a permanent says happens as it enters that nothing here reads yet.
+ *  The abilities the compiler did read go on the stack instead. */
+export function remindUnread(state: GameState, inst: Instance): GameState {
+  const lines = compile(inst.card).unread
+    .filter((line) => /^(when|whenever|as) [^,.]*\benters\b/i.test(line))
+    .map((line) => line.split('~').join(inst.card.name))
+  return remind(state, inst.iid, inst.card.name, lines.join('\n'))
 }
 
 /**
@@ -61,7 +65,7 @@ function remind(state: GameState, inst: Instance, text: string): GameState {
 export function enterBattlefield(
   state: GameState,
   iid: string,
-  { at, forceTapped = false }: { at?: Spot; forceTapped?: boolean } = {},
+  { at, forceTapped = false, x = 0 }: { at?: Spot; forceTapped?: boolean; x?: number } = {},
 ): { state: GameState; tapped: boolean; why?: string } {
   const inst = find(state, iid)
   if (!inst) return { state, tapped: false }
@@ -73,8 +77,19 @@ export function enterBattlefield(
   const tapped = forceTapped || verdict.tapped
   const seat = at ?? seatFor(state.cards, inst)
   const sick = state.rules && isCreature(inst)
+  // "Enters with three +1/+1 counters on it" — or X of them, as it was cast.
+  let counters = inst.counters
+  for (const fixed of state.rules ? compile(inst.card).statics : []) {
+    if (fixed.kind !== 'entersWithCounters') continue
+    const n = typeof fixed.count === 'number' ? fixed.count
+      : fixed.count === 'X' ? x
+        : 'per' in fixed.count ? onBattlefield(state, fixed.count.per, iid).length : 0
+    counters = { ...counters, [fixed.counter]: (counters?.[fixed.counter] ?? 0) + n }
+  }
   const cards = state.cards.map((c) => (
-    c.iid === iid ? { ...c, zone: 'battlefield' as const, tapped, sick, ...seat } : c
+    c.iid === iid
+      ? { ...c, zone: 'battlefield' as const, tapped, sick, ...seat, ...(counters ? { counters } : {}) }
+      : c
   ))
   return { state: { ...state, cards }, tapped, why: forceTapped ? undefined : verdict.why }
 }
@@ -88,8 +103,24 @@ export function landProblem(state: GameState, iid: string): string | null {
   if (!isMain(state.step) || state.stack.length) {
     return 'Lands are played in a main phase, with the stack empty'
   }
-  if (state.landsPlayed >= 1) return 'You have already played a land this turn'
+  if (state.landsPlayed >= landDrops(state)) {
+    return landDrops(state) > 1
+      ? 'You have played all your lands for this turn'
+      : 'You have already played a land this turn'
+  }
   return null
+}
+
+/** How many lands you may play this turn: one, plus what effects have
+ *  granted, plus one for each Exploration-like permanent you control. */
+export function landDrops(state: GameState): number {
+  let drops = 1 + state.extraLands
+  for (const inst of inZone(state, 'battlefield')) {
+    for (const fixed of compile(inst.card).statics) {
+      if (fixed.kind === 'extraLand') drops += fixed.count
+    }
+  }
+  return drops
 }
 
 /** Play a land: a special action, so no stack and no priority (CR 305). */
@@ -102,7 +133,7 @@ export function playLand(state: GameState, iid: string, at?: Spot): GameState {
     { ...entered.state, landsPlayed: state.landsPlayed + 1 },
     `Played ${inst.card.name}${entered.tapped ? ' tapped' : ''}${because}`,
   )
-  return remind(next, inst, entersText(inst.card))
+  return remindUnread(next, inst)
 }
 
 /** The cost as it is paid: the printed cost, plus two for each time a
@@ -180,34 +211,6 @@ export function castSpell(state: GameState, iid: string, x = 0): GameState {
     casts,
     stack: [...state.stack, { id, iid, x }],
   }, line)
-}
-
-/**
- * The top of the stack resolves.
- *
- * A permanent spell becomes a permanent. Anything else does what it says —
- * which nothing here can do for you yet, so it goes to the graveyard and its
- * words go up beside the board for you to carry out. A permanent that does
- * something as it enters gets the same treatment for that part.
- */
-export function resolveTop(state: GameState): GameState {
-  const top = state.stack[state.stack.length - 1]
-  if (!top) return state
-  const stack = state.stack.slice(0, -1)
-  const inst = find(state, top.iid)
-  if (!inst) return { ...state, stack }
-
-  if (isPermanentSpell(inst.card)) {
-    const entered = enterBattlefield({ ...state, stack }, inst.iid).state
-    const next = noted(entered, `${inst.card.name} resolves`)
-    return remind(next, inst, entersText(inst.card))
-  }
-
-  const next = noted(
-    { ...state, stack, cards: relocate(state.cards, inst.iid, 'graveyard') },
-    `${inst.card.name} resolves`,
-  )
-  return remind(next, inst, rulesText(inst.card))
 }
 
 /** The ways a permanent can be tapped for mana: one per choice of kinds. */

@@ -2,13 +2,15 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, u
 import { createPortal } from 'react-dom'
 
 import {
-  checkCast, isLand, landProblem, manaOptions, manaProblem, playable,
+  checkCast, isLand, landDrops, landProblem, manaOptions, manaProblem, playable,
 } from '../game/cast'
+import { compile } from '../game/compiler/compile'
 import { canFetch, fetchFinds, obviousFetch, type Fetch } from '../game/fetch'
 import type { ManaType } from '../game/mana'
 import { randomSeed } from '../game/random'
 import { deal } from '../game/reducer'
-import { manaAbilities } from '../game/sources'
+import { isCreature, manaAbilities } from '../game/sources'
+import { resized, sizeLabel } from '../game/stats'
 import type { GameState, Instance, Spot, Zone } from '../game/types'
 import { freshTable, reduceTable } from '../game/undo'
 import { useCardFace } from '../lib/faces'
@@ -22,7 +24,8 @@ import { PlayCoin, type CoinFace } from './PlayCoin'
 
 import { PlayDie } from './PlayDie'
 import {
-  DecisionPrompt, ManaPicker, PhaseBar, Reminders, StackPanel, XPrompt,
+  ArrangeDialog, DecisionPrompt, ManaPicker, PhaseBar, PickDialog, Reminders, StackPanel, XPrompt,
+  type Offered,
 } from './PlaytestHud'
 import { canAnimate, gsap } from '../lib/motion'
 import { type DeckToken } from '../lib/api'
@@ -158,7 +161,7 @@ export function Playtest({
    * with its undo intact; anything else is dealt here, so the first frame the
    * table draws already has a hand in it. */
   const [table, dispatch] = useReducer(reduceTable, undefined, () => (
-    resumed?.table ?? freshTable(deal(deck, randomSeed(), rulesByDefault))
+    resumed?.table ?? freshTable(deal(deck, randomSeed(), rulesByDefault, tokens))
   ))
   const game = table.game
   const { cards, turn, life, log, drawn } = game
@@ -259,6 +262,7 @@ export function Playtest({
   const [previewing, setPreviewing] = useState<string | null>(null)
   /** The loss already acknowledged, so its banner stays down. */
   const [seenLoss, setSeenLoss] = useState<string | null>(null)
+  const [seenWin, setSeenWin] = useState<string | null>(null)
 
   const canPlay = useMemo(() => playable(game), [game])
   /** What the tapper would tap for the card being previewed. */
@@ -392,7 +396,7 @@ export function Playtest({
     disarmReset()
     setDice([makeDie('d20'), makeDie('d6')])
     setCoin('heads')
-    dispatch({ type: 'deal', deck, seed: randomSeed() })
+    dispatch({ type: 'deal', deck, seed: randomSeed(), tokens })
   }
 
   /* Dice come out of a tray rather than there being exactly one of them.
@@ -497,20 +501,47 @@ export function Playtest({
 
   const stepLoyalty = (iid: string, by: number) => dispatch({ type: 'loyalty', iid, by })
 
+  /* What a pending choice lets you pick, where it is a choice of cards on
+   * the table: how many, and which. A search or a scry is answered in its
+   * own dialog instead. */
+  const pending = game.rules ? game.pending : null
+  const pickLimit = pending?.kind === 'bottom' || pending?.kind === 'discard' ? pending.count
+    : pending?.kind === 'pick' ? pending.max : 0
+  const candidates = useMemo(() => new Set(
+    pending?.kind === 'bottom' || pending?.kind === 'discard' ? inZone.hand.map((c) => c.iid)
+      : pending?.kind === 'pick' && (pending.zone === 'hand' || pending.zone === 'battlefield') ? pending.options
+        : [],
+  ), [pending, inZone.hand])
+
+  const pick = (iid: string) => {
+    if (!candidates.has(iid)) return
+    setSelected((picked) => (
+      picked.includes(iid) ? picked.filter((p) => p !== iid)
+        // One to pick: a second click moves the choice rather than refusing it.
+        : pickLimit === 1 ? [iid]
+          : picked.length < pickLimit ? [...picked, iid] : picked
+    ))
+  }
+
+  /** The cards a dialog offers, as it shows them. */
+  const offered = (iids: readonly string[]): Offered[] => iids.flatMap((iid) => {
+    const c = cards.find((x) => x.iid === iid)
+    return c ? [{
+      iid,
+      name: c.card.name,
+      cost: c.card.mana_cost,
+      type: c.card.type_line,
+      image: c.card.image_small ?? c.card.card_faces?.[0]?.image_uris?.small ?? null,
+    }] : []
+  })
+
   /** A card in hand, or a commander at home, clicked. With the rules on it is
-   *  played if it may be and refused with the reason if not; while a bottom
-   *  or discard is pending, the click picks it instead. */
+   *  played if it may be and refused with the reason if not; while the game
+   *  is waiting on a choice of cards, the click picks it instead. */
   const play = (iid: string) => {
-    const { pending } = game
-    if (game.rules && pending) {
-      if (pending.kind === 'mulligan') {
-        setHint('Keep this hand, or mulligan, first')
-        return
-      }
-      if (!inZone.hand.some((c) => c.iid === iid)) return
-      setSelected((picked) => (picked.includes(iid)
-        ? picked.filter((p) => p !== iid)
-        : picked.length < pending.count ? [...picked, iid] : picked))
+    if (pending) {
+      if (candidates.has(iid)) pick(iid)
+      else setHint(pending.kind === 'mulligan' ? 'Keep this hand, or mulligan, first' : 'Answer the question first')
       return
     }
     if (!game.rules) {
@@ -617,6 +648,10 @@ export function Playtest({
             key={c.iid} inst={c} drag={drag} onTap={tap} onZoom={setZoomed}
             onLoyalty={stepLoyalty} placed willTap={wouldTap.has(c.iid)}
             tapHint={game.rules ? ' — click to tap for mana, Shift+click to turn it by hand' : undefined}
+            rules={game.rules}
+            onCounter={(iid, by) => dispatch({ type: 'counter', iid, counter: '+1/+1', by })}
+            onPick={candidates.has(c.iid) ? pick : undefined}
+            selected={selected.includes(c.iid)}
           />
         ))}
 
@@ -626,6 +661,9 @@ export function Playtest({
           rules={game.rules}
           pool={game.pool}
           landsPlayed={game.landsPlayed}
+          landDrops={game.rules ? landDrops(game) : 1}
+          opponent={game.opponent.life}
+          onOpponent={(by) => dispatch({ type: 'opponentLife', by })}
           waiting={Boolean(game.pending)}
           onPassTo={(step) => dispatch({ type: 'passTo', step })}
           onRules={setRules}
@@ -644,6 +682,7 @@ export function Playtest({
                   name: spell?.card.name ?? '?',
                   image: spell?.card.image_small ?? spell?.card.card_faces?.[0]?.image_uris?.small ?? null,
                   x: item.x,
+                  ability: item.ability?.text ?? null,
                 }
               })}
               onResolve={pass}
@@ -659,13 +698,22 @@ export function Playtest({
           </div>
         )}
 
-        {game.rules && game.pending && (
+        {game.rules && game.won && game.won !== seenWin && (
+          <div className="pt-lost won" role="status">
+            <span><strong>Game won.</strong> {game.won}. Play on, or reset.</span>
+            <button className="btn btn-ghost sm" onClick={() => setSeenWin(game.won)}>OK</button>
+          </div>
+        )}
+
+        {pending && (
           <DecisionPrompt
-            decision={game.pending}
+            decision={pending}
             chosen={selected.length}
             onKeep={() => dispatch({ type: 'keep' })}
             onMulligan={() => dispatch({ type: 'mulligan' })}
             onConfirm={() => dispatch({ type: 'choose', iids: selected })}
+            onAnswer={(yes) => dispatch({ type: 'confirm', yes })}
+            onMode={(index) => dispatch({ type: 'mode', index })}
           />
         )}
 
@@ -794,6 +842,7 @@ export function Playtest({
                 playable={canPlay.has(c.iid)}
                 selected={selected.includes(c.iid)}
                 onHover={setPreviewing}
+                rules={game.rules}
               />
             ))}
             {!inZone.hand.length && <p className="faint" style={{ fontSize: 12 }}>Empty hand.</p>}
@@ -952,6 +1001,24 @@ export function Playtest({
           </div>
         </div>
       </div>
+
+      {pending?.kind === 'pick' && (pending.zone === 'library' || pending.zone === 'graveyard') && (
+        <PickDialog
+          prompt={pending.prompt}
+          cards={offered(pending.options)}
+          min={pending.min}
+          max={pending.max}
+          onChoose={(iids) => dispatch({ type: 'choose', iids })}
+        />
+      )}
+
+      {pending?.kind === 'arrange' && (
+        <ArrangeDialog
+          mode={pending.mode}
+          cards={offered(pending.cards)}
+          onDone={(keep, away) => dispatch({ type: 'arrange', keep, away })}
+        />
+      )}
 
       {tutoring && (
         <Tutor
@@ -1132,6 +1199,7 @@ function Pile({
 function PlayCard({
   inst, drag, onTap, onPlay, onZoom, onLoyalty, placed, splitRead, style,
   playable, selected, willTap, tax = 0, onHover, tapHint = ' — click to tap',
+  rules, onCounter, onPick,
 }: {
   inst: Instance
   drag: DragRef
@@ -1160,6 +1228,13 @@ function PlayCard({
   onHover?: (iid: string | null) => void
   /** What clicking it does, where that is a tap. */
   tapHint?: string
+  /** The rules are on: show how much of the card plays itself. */
+  rules?: boolean
+  /** Add or remove a +1/+1 counter by hand. */
+  onCounter?: (iid: string, by: number) => void
+  /** The game is asking for a card, and this is one it could be: a click
+   *  picks it, whatever a click would otherwise do. */
+  onPick?: (iid: string) => void
 }) {
   const face = useCardFace(inst.card)
 
@@ -1199,6 +1274,7 @@ function PlayCard({
    * the hand is fanned — it is also, conveniently, where the rules text is,
    * so "click the words to read the words" needs no explaining. */
   const onCardClick = (event: React.MouseEvent) => {
+    if (onPick) { onPick(inst.iid); return }
     if (readOnClick) { zoomFrom(event); return }
     if (splitRead) {
       const rect = event.currentTarget.getBoundingClientRect()
@@ -1209,9 +1285,16 @@ function PlayCard({
     else action?.(inst.iid)
   }
 
+  const coverage = rules ? compile(inst.card).coverage : null
+  const creature = Boolean(placed) && isCreature(inst)
+  /** Counters that are not the size-changing kind, which the size shows. */
+  const others = Object.entries(inst.counters ?? {})
+    .filter(([kind, n]) => n > 0 && kind !== '+1/+1' && kind !== '-1/-1')
+
   const flags = [
     inst.tapped && 'tapped',
-    action && 'actionable',
+    (action || onPick) && 'actionable',
+    onPick && 'candidate',
     playable && 'playable',
     selected && 'selected',
     willTap && 'will-tap',
@@ -1253,6 +1336,45 @@ function PlayCard({
           something you do mid-game; leaving the table to do it would end the
           game you are in the middle of. Absent where the card itself already
           zooms on click — a second way in would be one too many. */}
+      {/* How much of this card the engine carries out: all of it, some, or
+          none — so a card that needs doing by hand says so before it is on
+          the stack. Not on lands, which only make mana. */}
+      {coverage && !isLand && (placed || splitRead) && (
+        <span
+          className={`pt-coverage ${coverage}`}
+          title={coverage === 'auto' ? 'Plays itself'
+            : coverage === 'partial' ? 'Partly automatic — the rest is posted for you to do'
+              : 'By hand — its text is posted for you to do'}
+        />
+      )}
+
+      {/* Its size, once the board has changed it, with its counters to hand. */}
+      {creature && rules && (resized(inst) || !face.src) && sizeLabel(inst) && (
+        <span className="pt-size mono" title={`${sizeLabel(inst)}${inst.damage ? `, ${inst.damage} damage` : ''}`}>
+          {sizeLabel(inst)}
+          {inst.damage ? <span className="pt-size-damage">−{inst.damage}</span> : null}
+        </span>
+      )}
+      {creature && rules && onCounter && (
+        <span className="pt-counter-step">
+          <button
+            title="Remove a +1/+1 counter"
+            aria-label="Remove a +1/+1 counter"
+            onClick={(e) => { e.stopPropagation(); onCounter(inst.iid, -1) }}
+          >−</button>
+          <button
+            title="Add a +1/+1 counter"
+            aria-label="Add a +1/+1 counter"
+            onClick={(e) => { e.stopPropagation(); onCounter(inst.iid, 1) }}
+          >+</button>
+        </span>
+      )}
+      {others.length > 0 && placed && (
+        <span className="pt-counters mono">
+          {others.map(([kind, n]) => <span key={kind}>{kind} {n}</span>)}
+        </span>
+      )}
+
       {/* What the commander costs on top of itself, by now. */}
       {tax > 0 && <span className="pt-tax mono" title={`Commander tax: {${tax}} more each cast`}>+{tax}</span>}
 

@@ -76,13 +76,21 @@ export function game(
     reminders: [],
     casts: {},
     lost: null,
+    opponent: { life: 40 },
+    won: null,
+    extraLands: 0,
+    resolving: null,
+    triggered: [],
+    tokenArt: {},
     ...extra,
   }
 }
 
 export const FOREST = card('Forest', 'Basic Land — Forest')
 export const PLAINS = card('Plains', 'Basic Land — Plains')
-export const BEARS = card('Grizzly Bears', 'Creature — Bear', { mana_cost: '{1}{G}' })
+export const BEARS = card('Grizzly Bears', 'Creature — Bear', {
+  mana_cost: '{1}{G}', power: '2', toughness: '2',
+})
 export const GROWTH = card('Giant Growth', 'Instant', {
   mana_cost: '{G}', oracle_text: 'Target creature gets +3/+3 until end of turn.',
 })

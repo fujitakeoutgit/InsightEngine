@@ -5,7 +5,7 @@
  * `Playtest` turns it into an action.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { MANA_TYPES, type ManaPool, type ManaType } from '../game/mana'
 import type { Decision, Reminder, Step } from '../game/types'
@@ -40,13 +40,19 @@ function Pool({ pool }: { pool: ManaPool }) {
 }
 
 export function PhaseBar({
-  turn, step, rules, pool, landsPlayed, waiting, onPassTo, onRules,
+  turn, step, rules, pool, landsPlayed, landDrops, opponent, waiting, onPassTo, onRules, onOpponent,
 }: {
   turn: number
   step: Step
   rules: boolean
   pool: ManaPool
   landsPlayed: number
+  /** How many lands may be played this turn. */
+  landDrops: number
+  /** The opponent's life. */
+  opponent: number
+  /** Move the opponent's life by hand. */
+  onOpponent: (by: number) => void
   /** A choice is open, and nothing moves until it is made. */
   waiting: boolean
   onPassTo: (step: Step) => void
@@ -76,11 +82,20 @@ export function PhaseBar({
           </span>
           <Pool pool={pool} />
           <span
-            className={`pt-phase-land${landsPlayed ? ' used' : ''}`}
-            title={landsPlayed ? 'You have played your land this turn' : 'You may play a land this turn'}
+            className={`pt-phase-land${landsPlayed >= landDrops ? ' used' : ''}`}
+            title={landsPlayed >= landDrops ? 'You have played your land this turn' : 'You may play a land this turn'}
           >
-            Land {landsPlayed}/1
+            Land {landsPlayed}/{landDrops}
           </span>
+          {/* Theirs. A click takes one off, Shift+click puts one back: it is
+              mostly damage you are counting. */}
+          <button
+            className="pt-opponent"
+            onClick={(event) => onOpponent(event.shiftKey ? 1 : -1)}
+            title="The opponent's life. Click to take one off, Shift+click to add one."
+          >
+            Opp <span className="mono">{opponent}</span>
+          </button>
         </>
       )}
       <button
@@ -103,25 +118,30 @@ export interface StackEntry {
   name: string
   image: string | null
   x: number
+  /** The words of a triggered ability; null for a spell. */
+  ability: string | null
 }
 
 /** The stack, top first, and the one button that resolves it. */
 export function StackPanel({ items, onResolve }: { items: StackEntry[]; onResolve: () => void }) {
   if (!items.length) return null
-  const top = items[items.length - 1]
   return (
     <section className="pt-stack" aria-label="The stack">
       <header className="label">Stack</header>
       <ol>
         {[...items].reverse().map((item, i) => (
-          <li key={item.id} className={i === 0 ? 'top' : undefined}>
+          <li key={item.id} className={i === 0 ? 'top' : undefined} title={item.ability ?? item.name}>
             {item.image ? <img src={item.image} alt="" draggable={false} /> : <span className="pt-stack-blank" />}
-            <span className="nm">{item.name}{item.x ? <span className="mono faint"> X={item.x}</span> : null}</span>
+            <span className="nm">
+              {item.name}
+              {item.x ? <span className="mono faint"> X={item.x}</span> : null}
+              {item.ability && <span className="pt-stack-ability">{item.ability}</span>}
+            </span>
           </li>
         ))}
       </ol>
       <button className="btn btn-primary sm" onClick={onResolve} title="Pass priority: the opponent passes too, and the top resolves (Space)">
-        Resolve {top.name}
+        Resolve
       </button>
     </section>
   )
@@ -147,17 +167,65 @@ export function Reminders({ items, onDone }: { items: Reminder[]; onDone: (id: s
   )
 }
 
-/** The choice the game is waiting on, centered on the mat. */
+/** The choice the game is waiting on. Centered on the mat — except a pick
+ *  from the board or the hand, which sits low, out of the way of the cards
+ *  it is asking about. Searches and scrying have dialogs of their own. */
 export function DecisionPrompt({
-  decision, chosen, onKeep, onMulligan, onConfirm,
+  decision, chosen, onKeep, onMulligan, onConfirm, onAnswer, onMode,
 }: {
   decision: Decision
-  /** How many cards are picked so far, for bottom and discard. */
+  /** How many cards are picked so far. */
   chosen: number
   onKeep: () => void
   onMulligan: () => void
   onConfirm: () => void
+  /** Yes or no, to a "you may". */
+  onAnswer: (yes: boolean) => void
+  onMode: (index: number) => void
 }) {
+  if (decision.kind === 'confirm') {
+    return (
+      <div className="pt-decision" role="dialog" aria-label="You may">
+        <p className="pt-decision-text">{decision.prompt}</p>
+        <div className="row gap-2">
+          <button className="btn btn-primary sm" onClick={() => onAnswer(true)}>Yes</button>
+          <button className="btn btn-ghost sm" onClick={() => onAnswer(false)}>No</button>
+        </div>
+      </div>
+    )
+  }
+  if (decision.kind === 'mode') {
+    return (
+      <div className="pt-decision" role="dialog" aria-label="Choose one">
+        <h3>{decision.prompt}</h3>
+        <div className="pt-modes">
+          {decision.modes.map((mode, i) => (
+            <button key={mode} className="btn btn-ghost sm" onClick={() => onMode(i)}>{mode}</button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+  if (decision.kind === 'pick') {
+    // A search or a return from the graveyard has a dialog of its own.
+    if (decision.zone === 'library' || decision.zone === 'graveyard') return null
+    return (
+      <div className="pt-decision low" role="dialog" aria-label="Choose">
+        <p className="pt-decision-text">{decision.prompt}</p>
+        <div className="row gap-2">
+          <span className="mono faint">{chosen} of {decision.max}</span>
+          <button
+            className="btn btn-primary sm"
+            onClick={onConfirm}
+            disabled={chosen < decision.min || chosen > decision.max}
+          >
+            {chosen === 0 && decision.min === 0 ? 'None' : 'Choose'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+  if (decision.kind === 'arrange') return null
   if (decision.kind === 'mulligan') {
     // What keeping costs now, and what one more mulligan would make it.
     const owed = Math.max(0, decision.taken - 1)
@@ -266,6 +334,145 @@ export function ManaPicker({
           Search
         </button>
       )}
+    </div>
+  )
+}
+
+/** A card as a dialog shows it. */
+export interface Offered {
+  iid: string
+  name: string
+  cost: string | null
+  type: string | null
+  image: string | null
+}
+
+/**
+ * Cards to take from somewhere you cannot see on the mat — your library, for
+ * a search; your graveyard, for a return. Sorted by name, like Tutor, so the
+ * library's real order is not something you read off the screen, and copies
+ * of a card are one row with a count: thirteen Forests are one decision.
+ */
+export function PickDialog({
+  prompt, cards, min, max, onChoose,
+}: {
+  prompt: string
+  cards: Offered[]
+  min: number
+  max: number
+  onChoose: (iids: string[]) => void
+}) {
+  /** The names taken, in the order they were — which matters when the first
+   *  card found goes somewhere the second does not. */
+  const [picks, setPicks] = useState<string[]>([])
+  const groups = useMemo(() => {
+    const byName = new Map<string, Offered[]>()
+    for (const c of cards) byName.set(c.name, [...(byName.get(c.name) ?? []), c])
+    return [...byName.values()].sort((a, b) => a[0].name.localeCompare(b[0].name))
+  }, [cards])
+  const total = picks.length
+  const count = (name: string) => picks.filter((p) => p === name).length
+
+  const take = (name: string, available: number) => setPicks((now) => {
+    const mine = now.filter((p) => p === name).length
+    // One to pick: clicking another row moves the choice rather than
+    // refusing it. Otherwise each click takes one more copy, and a click
+    // past what there is, or what is allowed, puts them all back.
+    if (max === 1) return mine ? [] : [name]
+    return now.length >= max || mine >= available ? now.filter((p) => p !== name) : [...now, name]
+  })
+
+  const chosen = () => {
+    const used = new Map<string, number>()
+    return picks.map((name) => {
+      const n = used.get(name) ?? 0
+      used.set(name, n + 1)
+      return groups.find((group) => group[0].name === name)![n].iid
+    })
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <div className="modal pt-tutor" role="dialog" aria-modal aria-label={prompt}>
+        <h3>{prompt}</h3>
+        <div className="pt-tutor-list">
+          {groups.map((group) => {
+            const [c] = group
+            const mine = count(c.name)
+            return (
+              <button
+                key={c.name}
+                className={`pt-tutor-row${mine ? ' picked' : ''}`}
+                onClick={() => take(c.name, group.length)}
+                aria-pressed={mine > 0}
+              >
+                <span className="nm">
+                  {c.name}
+                  {group.length > 1 && <span className="mono faint"> ×{group.length}</span>}
+                </span>
+                <span className="mono faint">{c.cost ?? ''}</span>
+                <span className="faint">{mine ? `taking ${mine}` : c.type}</span>
+              </button>
+            )
+          })}
+        </div>
+        <div className="row gap-2" style={{ marginTop: 'var(--gap-2)' }}>
+          <button
+            className="btn btn-primary sm"
+            onClick={() => onChoose(chosen())}
+            disabled={total < min}
+          >
+            {total ? `Take ${total}` : 'Take nothing'}
+          </button>
+          <span className="faint" style={{ fontSize: 11 }}>{total} of {max}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Scry and surveil: the top cards, each kept or sent away. What is kept
+ *  stays on top in the order shown. */
+export function ArrangeDialog({
+  mode, cards, onDone,
+}: {
+  mode: 'scry' | 'surveil'
+  cards: Offered[]
+  onDone: (keep: string[], away: string[]) => void
+}) {
+  const [away, setAway] = useState<string[]>([])
+  const elsewhere = mode === 'scry' ? 'Bottom' : 'Graveyard'
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <div className="modal pt-arrange" role="dialog" aria-modal aria-label={mode}>
+        <h3>{mode === 'scry' ? 'Scry' : 'Surveil'} {cards.length}</h3>
+        <p className="faint">
+          The top of your library, first card first. Click a card to send it to the {elsewhere.toLowerCase()}.
+        </p>
+        <div className="pt-arrange-cards">
+          {cards.map((c) => {
+            const gone = away.includes(c.iid)
+            return (
+              <button
+                key={c.iid}
+                className={`pt-arrange-card${gone ? ' away' : ''}`}
+                onClick={() => setAway((now) => (gone ? now.filter((a) => a !== c.iid) : [...now, c.iid]))}
+                aria-pressed={gone}
+                title={c.name}
+              >
+                {c.image ? <img src={c.image} alt={c.name} draggable={false} /> : <span className="pt-fallback">{c.name}</span>}
+                <span className="pt-arrange-where mono">{gone ? elsewhere : 'Top'}</span>
+              </button>
+            )
+          })}
+        </div>
+        <button
+          className="btn btn-primary sm"
+          onClick={() => onDone(cards.filter((c) => !away.includes(c.iid)).map((c) => c.iid), away)}
+        >
+          Done
+        </button>
+      </div>
     </div>
   )
 }

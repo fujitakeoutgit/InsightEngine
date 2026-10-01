@@ -10,6 +10,7 @@
 
 import type { Card, DeckToken } from '../lib/api'
 import type { DeckCard } from '../lib/deckModel'
+import type { Effect } from './compiler/ir'
 import type { ManaPool, ManaType } from './mana'
 
 export type Zone = 'library' | 'hand' | 'battlefield' | 'graveyard' | 'exile' | 'command' | 'stack'
@@ -39,7 +40,17 @@ export interface Instance {
   /** Created rather than dealt. Anywhere but the battlefield it ceases to
    *  exist. */
   token?: boolean
+  /** Counters on it, by kind: `'+1/+1'`, `'charge'`. Loyalty is kept apart,
+   *  above, because a planeswalker's is set as it is dealt. */
+  counters?: Record<string, number>
+  /** Damage marked on it this turn. It wears off in cleanup. */
+  damage?: number
 }
+
+/** Power and toughness as they stood, for an effect that asks after the
+ *  card has moved on — "it deals damage equal to its power", of a creature
+ *  that just died. */
+export interface Known { power: number; toughness: number }
 
 /** The turn, step by step (CR 500–514). Declare blockers is absent: the
  *  opponent has nothing to block with. */
@@ -50,13 +61,49 @@ export type Step =
   | 'main2'
   | 'end' | 'cleanup'
 
-/** A spell waiting on the stack. */
+/** A spell or a triggered ability waiting on the stack. */
 export interface StackItem {
   id: string
-  /** The spell's card, in the stack zone while it waits. */
+  /** The spell's card, in the stack zone while it waits — or, for an
+   *  ability, the permanent it came from. */
   iid: string
   /** What X was chosen as when it was cast. */
   x: number
+  /** Set when this is a triggered ability rather than a spell. */
+  ability?: {
+    text: string
+    effects: Effect[]
+    complete: boolean
+    /** The card the trigger is about, when it is about one. */
+    event: string | null
+    known: Record<string, Known>
+  }
+}
+
+/** An ability part-way through resolving: the game stops here whenever it
+ *  needs an answer from you, and picks up from `at` once it has one. */
+export interface Resolution {
+  /** The card it came from. */
+  source: string
+  name: string
+  /** The words, for the questions it asks. */
+  text: string
+  effects: Effect[]
+  /** The next effect to carry out. */
+  at: number
+  x: number
+  /** What the last `choose` picked. */
+  chosen: string[]
+  event: string | null
+  known: Record<string, Known>
+  /** The "you may" at `at` has been agreed to. */
+  agreed: boolean
+  /** The last "you may" was declined, so its "if you do" is skipped. */
+  declined: boolean
+  /** A spell: its card goes to the graveyard when this is done. */
+  spell: boolean
+  /** Words left over for you to finish, when not all of it was understood. */
+  leftover: string | null
 }
 
 /** Something the engine cannot do for you yet, with the words to do it by. */
@@ -75,6 +122,22 @@ export type Decision =
   | { kind: 'bottom'; count: number }
   /** Cleanup, holding more than the maximum hand size. */
   | { kind: 'discard'; count: number }
+  /** "You may …" */
+  | { kind: 'confirm'; prompt: string }
+  /** Cards to pick for an effect — a target on the battlefield, a land in
+   *  your library, a creature in your graveyard. */
+  | {
+    kind: 'pick'
+    prompt: string
+    zone: 'battlefield' | 'library' | 'graveyard' | 'hand'
+    options: string[]
+    min: number
+    max: number
+  }
+  /** Scry or surveil: which of these stay on top. */
+  | { kind: 'arrange'; mode: 'scry' | 'surveil'; cards: string[] }
+  /** "Choose one —" */
+  | { kind: 'mode'; prompt: string; modes: string[] }
 
 export interface GameState {
   /** Every card in the game. A zone's order is the order of its cards here,
@@ -111,11 +174,25 @@ export interface GameState {
    *  this is a goldfish, and the turn you died on is worth knowing, not the
    *  end of the session. */
   lost: string | null
+
+  /** The other side of the table: a life total and nothing else. Effects
+   *  aimed at their permanents find none. */
+  opponent: { life: number }
+  /** How the opponent was beaten, once they have been. */
+  won: string | null
+  /** Extra land drops this turn, from effects that grant them. */
+  extraLands: number
+  /** The ability being carried out, while it waits on you. */
+  resolving: Resolution | null
+  /** Once-a-turn abilities that have had their turn's trigger. */
+  triggered: string[]
+  /** Pictures for the tokens this deck makes, by name. */
+  tokenArt: Record<string, string | null>
 }
 
 export type Action =
   /** A new game: shuffle, deal seven. */
-  | { type: 'deal'; deck: readonly DeckCard[]; seed: number }
+  | { type: 'deal'; deck: readonly DeckCard[]; seed: number; tokens?: readonly DeckToken[] }
   | { type: 'draw'; count?: number }
   /** Sandbox: untap, then draw. */
   | { type: 'nextTurn' }
@@ -151,8 +228,17 @@ export type Action =
   | { type: 'passTo'; step: Step }
   | { type: 'keep' }
   | { type: 'mulligan' }
-  /** The cards answering a pending bottom or discard. */
+  /** The cards answering a pending bottom, discard or pick. */
   | { type: 'choose'; iids: string[] }
+  /** Yes or no, to a "you may". */
+  | { type: 'confirm'; yes: boolean }
+  /** Scry or surveil answered: what stays on top, in order, and what goes. */
+  | { type: 'arrange'; keep: string[]; away: string[] }
+  | { type: 'mode'; index: number }
+  /** Add or remove counters by hand. */
+  | { type: 'counter'; iid: string; counter: string; by: number }
+  /** Set the opponent's life by hand. */
+  | { type: 'opponentLife'; by: number }
   /** Done resolving a reminder by hand. */
   | { type: 'done'; id: string }
   | { type: 'rules'; on: boolean }

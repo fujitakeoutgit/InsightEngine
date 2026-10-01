@@ -1,0 +1,4192 @@
+[
+ {
+  "oracle_id": "eccc9a54-2b56-4a02-9926-258d5b2e25fb",
+  "name": "Abundance",
+  "type_line": "Enchantment",
+  "mana_cost": "{2}{G}{G}",
+  "oracle_text": "If you would draw a card, you may instead choose land or nonland and reveal cards from the top of your library until you reveal a card of the chosen kind. Put that card into your hand and put all other cards revealed this way on the bottom of your library in any order.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "ed9cc560-f30b-4b60-a094-ccf93ed656a7",
+  "name": "Access Tunnel",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "{T}: Add {C}.\n{3}, {T}: Target creature with power 3 or less can't be blocked this turn.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [
+   "C"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "6511f317-bd38-46d0-b800-7125a3f420da",
+  "name": "Aesi, Tyrant of Gyre Strait",
+  "type_line": "Legendary Creature — Serpent",
+  "mana_cost": "{4}{G}{U}",
+  "oracle_text": "You may play an additional land on each of your turns.\nLandfall — Whenever a land you control enters, you may draw a card.",
+  "power": "5",
+  "toughness": "5",
+  "loyalty": null,
+  "colors": "GU",
+  "color_identity": "GU",
+  "keywords": [
+   "Landfall"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "176508ba-c107-4694-8dd7-ea34fca3b299",
+  "name": "Allosaurus Rider",
+  "type_line": "Creature — Elf Warrior",
+  "mana_cost": "{5}{G}{G}",
+  "oracle_text": "You may exile two green cards from your hand rather than pay this spell's mana cost.\nAllosaurus Rider's power and toughness are each equal to 1 plus the number of lands you control.",
+  "power": "1+*",
+  "toughness": "1+*",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "e23cd06d-1360-4e5d-aecc-adf902bede69",
+  "name": "Anax, Hardened in the Forge",
+  "type_line": "Legendary Enchantment Creature — Demigod",
+  "mana_cost": "{1}{R}{R}",
+  "oracle_text": "Anax's power is equal to your devotion to red. (Each {R} in the mana costs of permanents you control counts toward your devotion to red.)\nWhenever Anax or another nontoken creature you control dies, create a 1/1 red Satyr creature token with \"This token can't block.\" If the creature had power 4 or greater, create two of those tokens instead.",
+  "power": "*",
+  "toughness": "3",
+  "loyalty": null,
+  "colors": "R",
+  "color_identity": "R",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "eaabd151-2160-4bff-82c0-3fa88659be98",
+  "name": "Anger",
+  "type_line": "Creature — Incarnation",
+  "mana_cost": "{3}{R}",
+  "oracle_text": "Haste\nAs long as this card is in your graveyard and you control a Mountain, creatures you control have haste.",
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "colors": "R",
+  "color_identity": "R",
+  "keywords": [
+   "Haste"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "ad09b3c3-c8e7-481c-8c45-e7f234935117",
+  "name": "Anguished Unmaking",
+  "type_line": "Instant",
+  "mana_cost": "{1}{W}{B}",
+  "oracle_text": "Exile target nonland permanent. You lose 3 life.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "BW",
+  "color_identity": "BW",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "6f1bfe50-b61a-4fdd-963c-40d59117bdf4",
+  "name": "Animist's Awakening",
+  "type_line": "Sorcery",
+  "mana_cost": "{X}{G}",
+  "oracle_text": "Reveal the top X cards of your library. Put all land cards from among them onto the battlefield tapped and the rest on the bottom of your library in a random order.\nSpell mastery — If there are two or more instant and/or sorcery cards in your graveyard, untap those lands.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Spell mastery"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "9640225a-8f31-495f-b9de-53ed348ff24b",
+  "name": "Arbor Adherent",
+  "type_line": "Creature — Dog Druid",
+  "mana_cost": "{3}{G}",
+  "oracle_text": "{T}: Add one mana of any color.\n{T}: Add X mana of any one color, where X is the greatest toughness among other creatures you control.",
+  "power": "2",
+  "toughness": "4",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "d18a0815-59d3-4667-b52b-9acda741215e",
+  "name": "Arboreal Grazer",
+  "type_line": "Creature — Sloth Beast",
+  "mana_cost": "{G}",
+  "oracle_text": "Reach\nWhen this creature enters, you may put a land card from your hand onto the battlefield tapped.",
+  "power": "0",
+  "toughness": "3",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Reach"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "0bc7f093-bef0-4f1a-852c-4b75ebf54838",
+  "name": "Arcane Signet",
+  "type_line": "Artifact",
+  "mana_cost": "{2}",
+  "oracle_text": "{T}: Add one mana of any color in your commander's color identity.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "58257464-278e-45fa-8e0b-bcd9a7500bc1",
+  "name": "Ash Barrens",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "{T}: Add {C}.\nBasic landcycling {1} ({1}, Discard this card: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.)",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [
+   "Landcycling",
+   "Basic landcycling",
+   "Typecycling",
+   "Cycling"
+  ],
+  "produced_mana": [
+   "C"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "4d18bcba-a346-445e-a182-6cc30b7e066d",
+  "name": "Ashnod's Altar",
+  "type_line": "Artifact",
+  "mana_cost": "{3}",
+  "oracle_text": "Sacrifice a creature: Add {C}{C}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [
+   "C"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "b56cebe0-3752-4ce5-afbd-911543784015",
+  "name": "Atla Palani, Nest Tender",
+  "type_line": "Legendary Creature — Human Shaman",
+  "mana_cost": "{1}{R}{G}{W}",
+  "oracle_text": "{2}, {T}: Create a 0/1 green Egg creature token with defender.\nWhenever an Egg you control dies, reveal cards from the top of your library until you reveal a creature card. Put that card onto the battlefield and the rest on the bottom of your library in a random order.",
+  "power": "2",
+  "toughness": "3",
+  "loyalty": null,
+  "colors": "GRW",
+  "color_identity": "GRW",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "4ba5b3f6-503b-43e6-b66e-4f8c55cffed7",
+  "name": "Avenger of Zendikar",
+  "type_line": "Creature — Elemental",
+  "mana_cost": "{5}{G}{G}",
+  "oracle_text": "When this creature enters, create a 0/1 green Plant creature token for each land you control.\nLandfall — Whenever a land you control enters, you may put a +1/+1 counter on each Plant creature you control.",
+  "power": "5",
+  "toughness": "5",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Landfall"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "f955bc96-d602-4142-a9a2-87009cc7028c",
+  "name": "Awakening Zone",
+  "type_line": "Enchantment",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "At the beginning of your upkeep, you may create a 0/1 colorless Eldrazi Spawn creature token. It has \"Sacrifice this token: Add {C}.\"",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [
+   "C"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "060e0378-e335-4b3d-82aa-ae36639339f6",
+  "name": "Axebane Guardian",
+  "type_line": "Creature — Human Druid",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "Defender\n{T}: Add X mana in any combination of colors, where X is the number of creatures you control with defender.",
+  "power": "0",
+  "toughness": "3",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Defender"
+  ],
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "14493624-fdc7-4630-9b1e-f35668651108",
+  "name": "Baldin, Century Herdmaster",
+  "type_line": "Legendary Creature — Human Warrior",
+  "mana_cost": "{4}{W}{W}",
+  "oracle_text": "During your turn, each creature assigns combat damage equal to its toughness rather than its power.\nWhenever Baldin attacks, up to one hundred target creatures each get +0/+X until end of turn, where X is the number of cards in your hand.",
+  "power": "0",
+  "toughness": "7",
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "22c75ad5-237c-4dbd-bbc4-3058a3db408f",
+  "name": "Beanstalk Giant // Fertile Footsteps",
+  "type_line": "Creature — Giant // Sorcery — Adventure",
+  "mana_cost": "{6}{G} // {2}{G}",
+  "oracle_text": "",
+  "power": "*",
+  "toughness": "*",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": [
+   {
+    "name": "Beanstalk Giant",
+    "mana_cost": "{6}{G}",
+    "type_line": "Creature — Giant",
+    "oracle_text": "Beanstalk Giant's power and toughness are each equal to the number of lands you control.",
+    "power": "*",
+    "toughness": "*"
+   },
+   {
+    "name": "Fertile Footsteps",
+    "mana_cost": "{2}{G}",
+    "type_line": "Sorcery — Adventure",
+    "oracle_text": "Search your library for a basic land card, put it onto the battlefield, then shuffle. (Then exile this card. You may cast the creature later from exile.)",
+    "power": null,
+    "toughness": null
+   }
+  ],
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "e84837bd-4f94-43e1-876e-d82cae6ee247",
+  "name": "Behind the Scenes",
+  "type_line": "Enchantment",
+  "mana_cost": "{2}{B}",
+  "oracle_text": "Creatures you control have skulk. (They can't be blocked by creatures with greater power.)\n{4}{W}: Creatures you control get +1/+1 until end of turn.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "B",
+  "color_identity": "BW",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "990b5e12-6e04-4832-9d64-87278f12cbda",
+  "name": "Betor, Ancestor's Voice",
+  "type_line": "Legendary Creature — Spirit Dragon",
+  "mana_cost": "{2}{W}{B}{G}",
+  "oracle_text": "Flying, lifelink\nAt the beginning of your end step, put a number of +1/+1 counters on up to one other target creature you control equal to the amount of life you gained this turn. Return up to one target creature card with mana value less than or equal to the amount of life you lost this turn from your graveyard to the battlefield.",
+  "power": "3",
+  "toughness": "5",
+  "loyalty": null,
+  "colors": "BGW",
+  "color_identity": "BGW",
+  "keywords": [
+   "Flying",
+   "Lifelink"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "dca51281-fb21-45b6-beb4-1f13397caee2",
+  "name": "Blackblade Reforged",
+  "type_line": "Legendary Artifact — Equipment",
+  "mana_cost": "{2}",
+  "oracle_text": "Equipped creature gets +1/+1 for each land you control.\nEquip legendary creature {3}\nEquip {7}",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [
+   "Equip"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "02679a2e-303d-412f-87d8-0a37a8ca259c",
+  "name": "Blighted Woodland",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "{T}: Add {C}.\n{3}{G}, {T}, Sacrifice this land: Search your library for up to two basic land cards, put them onto the battlefield tapped, then shuffle.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [
+   "C"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat",
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "2a62b226-d317-4212-9781-9c1d72056f11",
+  "name": "Blisterpod",
+  "type_line": "Creature — Eldrazi Drone",
+  "mana_cost": "{G}",
+  "oracle_text": "Devoid (This card has no color.)\nWhen this creature dies, create a 1/1 colorless Eldrazi Scion creature token. It has \"Sacrifice this token: Add {C}.\"",
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "G",
+  "keywords": [
+   "Devoid"
+  ],
+  "produced_mana": [
+   "C"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "04b7362d-0490-4cb0-b5d7-2a7732f659ce",
+  "name": "Bojuka Bog",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped.\nWhen this land enters, exile target player's graveyard.\n{T}: Add {B}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "B",
+  "keywords": [],
+  "produced_mana": [
+   "B"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "e6acafb7-856f-4125-a908-a620635b8ba3",
+  "name": "Boundless Realms",
+  "type_line": "Sorcery",
+  "mana_cost": "{6}{G}",
+  "oracle_text": "Search your library for up to X basic land cards, where X is the number of lands you control, put them onto the battlefield tapped, then shuffle.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "d385c2e1-a62e-43ad-80ef-a6178deac82c",
+  "name": "Brindle Shoat",
+  "type_line": "Creature — Boar",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "When this creature dies, create a 3/3 green Boar creature token.",
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "858e12e9-3eaa-40cf-9e22-f9ccdfe485b3",
+  "name": "Broken Bond",
+  "type_line": "Sorcery",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "Destroy target artifact or enchantment. You may put a land card from your hand onto the battlefield.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "bd002797-a545-4bee-88bf-b878436e7cca",
+  "name": "Brokers Hideout",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "When this land enters, sacrifice it. When you do, search your library for a basic Forest, Plains, or Island card, put it onto the battlefield tapped, then shuffle and you gain 1 life.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "c35c39be-6db4-4a80-ace1-07932d1bb460",
+  "name": "Cabaretti Ascendancy",
+  "type_line": "Enchantment",
+  "mana_cost": "{R}{G}{W}",
+  "oracle_text": "At the beginning of your upkeep, look at the top card of your library. If it's a creature or planeswalker card, you may reveal it and put it into your hand. If you don't put the card into your hand, you may put it on the bottom of your library.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "GRW",
+  "color_identity": "GRW",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "d5b80895-621a-40df-bf48-6c7295658f21",
+  "name": "Cankerbloom",
+  "type_line": "Creature — Phyrexian Fungus",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "{1}, Sacrifice this creature: Choose one —\n• Destroy target artifact.\n• Destroy target enchantment.\n• Proliferate. (Choose any number of permanents and/or players, then give each another counter of each kind already there.)",
+  "power": "3",
+  "toughness": "2",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Proliferate"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "ec1e69b1-f664-494b-8da2-c7199872b08b",
+  "name": "Canopy Gargantuan",
+  "type_line": "Creature — Dragon",
+  "mana_cost": "{5}{G}{G}",
+  "oracle_text": "Flying, ward {2}\nAt the beginning of your upkeep, put a number of +1/+1 counters on each other creature you control equal to that creature's toughness.",
+  "power": "7",
+  "toughness": "7",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Flying",
+   "Ward"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "dcb7e046-f01b-497c-88e5-57794eb30ce5",
+  "name": "Canopy Vista",
+  "type_line": "Land — Forest Plains",
+  "mana_cost": "",
+  "oracle_text": "({T}: Add {G} or {W}.)\nThis land enters tapped unless you control two or more basic lands.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "GW",
+  "keywords": [],
+  "produced_mana": [
+   "G",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "bddf5e9a-7c41-45a8-8fa1-18093c408e15",
+  "name": "Carven Caryatid",
+  "type_line": "Creature — Spirit",
+  "mana_cost": "{1}{G}{G}",
+  "oracle_text": "Defender (This creature can't attack.)\nWhen this creature enters, draw a card.",
+  "power": "2",
+  "toughness": "5",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Defender"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "774dce79-67e0-4820-8013-c7a7347993ce",
+  "name": "Cathar Commando",
+  "type_line": "Creature — Human Soldier",
+  "mana_cost": "{1}{W}",
+  "oracle_text": "Flash\n{1}, Sacrifice this creature: Destroy target artifact or enchantment.",
+  "power": "3",
+  "toughness": "1",
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [
+   "Flash"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "69facbc7-3859-4716-b627-5199571fb3cf",
+  "name": "Chasm Skulker",
+  "type_line": "Creature — Squid Horror",
+  "mana_cost": "{2}{U}",
+  "oracle_text": "Whenever you draw a card, put a +1/+1 counter on this creature.\nWhen this creature dies, create X 1/1 blue Squid creature tokens with islandwalk, where X is the number of +1/+1 counters on this creature. (They can't be blocked as long as defending player controls an Island.)",
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "colors": "U",
+  "color_identity": "U",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "f898bf43-6a9c-46eb-b805-63cb12bab273",
+  "name": "Cloakwood Hermit",
+  "type_line": "Legendary Enchantment — Background",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "Commander creatures you own have \"At the beginning of your end step, if a creature card was put into your graveyard from anywhere this turn, create two tapped 1/1 green Squirrel creature tokens.\"",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "69fd4ddf-9ed8-4c56-bef3-9944daf05e4f",
+  "name": "Coiling Oracle",
+  "type_line": "Creature — Snake Elf Druid",
+  "mana_cost": "{G}{U}",
+  "oracle_text": "When this creature enters, reveal the top card of your library. If it's a land card, put it onto the battlefield. Otherwise, put that card into your hand.",
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "colors": "GU",
+  "color_identity": "GU",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "920c4df3-9517-44cd-8304-28b1ef69d60e",
+  "name": "Colfenor's Urn",
+  "type_line": "Artifact",
+  "mana_cost": "{3}",
+  "oracle_text": "Whenever a creature with toughness 4 or greater is put into your graveyard from the battlefield, you may exile it.\nAt the beginning of the end step, if three or more cards have been exiled with this artifact, sacrifice it. If you do, return those cards to the battlefield under their owner's control.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "0895c9b7-ae7d-4bb3-af17-3b75deb50a25",
+  "name": "Command Tower",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "{T}: Add one mana of any color in your commander's color identity.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat",
+   "Land & Draw",
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "f86b9a01-62fc-4120-8914-5054ed48d37e",
+  "name": "Confounding Conundrum",
+  "type_line": "Enchantment",
+  "mana_cost": "{1}{U}",
+  "oracle_text": "When this enchantment enters, draw a card.\nWhenever a land an opponent controls enters, if that player had another land enter the battlefield under their control this turn, they return a land they control to its owner's hand.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "U",
+  "color_identity": "U",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "61dd63b7-11dc-49db-8106-36d455a182be",
+  "name": "Crash of Rhino Beetles",
+  "type_line": "Creature — Insect",
+  "mana_cost": "{4}{G}",
+  "oracle_text": "Trample\nThis creature gets +10/+10 as long as you control ten or more lands.",
+  "power": "5",
+  "toughness": "5",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Trample"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "328d5ef0-b25e-4f2a-80fe-35c6ae419e8a",
+  "name": "Crashing Drawbridge",
+  "type_line": "Artifact Creature — Wall",
+  "mana_cost": "{2}",
+  "oracle_text": "Defender\n{T}: Creatures you control gain haste until end of turn.",
+  "power": "0",
+  "toughness": "4",
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [
+   "Defender"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "8b755881-a72d-4e21-a369-d2924eb4585a",
+  "name": "Cultivate",
+  "type_line": "Sorcery",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "9d3c7c96-056f-408e-a834-fa45a430d3d4",
+  "name": "Daxos, Blessed by the Sun",
+  "type_line": "Legendary Enchantment Creature — Demigod",
+  "mana_cost": "{W}{W}",
+  "oracle_text": "Daxos's toughness is equal to your devotion to white. (Each {W} in the mana costs of permanents you control counts toward your devotion to white.)\nWhenever another creature you control enters or dies, you gain 1 life.",
+  "power": "2",
+  "toughness": "*",
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "1831fe12-dbe0-437f-8fc8-f01bbb701fe1",
+  "name": "Deceptive Landscape",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "{T}: Add {C}.\n{T}, Sacrifice this land: Search your library for a basic Plains, Swamp, or Forest card, put it onto the battlefield tapped, then shuffle.\nCycling {W}{B}{G} ({W}{B}{G}, Discard this card: Draw a card.)",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "BGW",
+  "keywords": [
+   "Cycling"
+  ],
+  "produced_mana": [
+   "C"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "bd16434d-55ea-4c5a-a9ef-752971a4af16",
+  "name": "Despark",
+  "type_line": "Instant",
+  "mana_cost": "{W}{B}",
+  "oracle_text": "Exile target permanent with mana value 4 or greater.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "BW",
+  "color_identity": "BW",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "82cdd612-3322-4372-810f-1ff106ea8e6a",
+  "name": "Dragonlord Dromoka",
+  "type_line": "Legendary Creature — Elder Dragon",
+  "mana_cost": "{4}{G}{W}",
+  "oracle_text": "This spell can't be countered.\nFlying, lifelink\nYour opponents can't cast spells during your turn.",
+  "power": "5",
+  "toughness": "7",
+  "loyalty": null,
+  "colors": "GW",
+  "color_identity": "GW",
+  "keywords": [
+   "Flying",
+   "Lifelink"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "dcbcbf42-4654-487a-acad-21f2606d229b",
+  "name": "Druid Class",
+  "type_line": "Enchantment — Class",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "(Gain the next level as a sorcery to add its ability.)\nLandfall — Whenever a land you control enters, you gain 1 life.\n{2}{G}: Level 2\nYou may play an additional land on each of your turns.\n{4}{G}: Level 3\nWhen this Class becomes level 3, target land you control becomes a creature with haste and \"This creature's power and toughness are each equal to the number of lands you control.\" It's still a land.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Landfall"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "bdbde5d0-f5e4-44da-b27c-b4ad6f374cc9",
+  "name": "Dryad of the Ilysian Grove",
+  "type_line": "Enchantment Creature — Nymph Dryad",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "You may play an additional land on each of your turns.\nLands you control are every basic land type in addition to their other types.",
+  "power": "2",
+  "toughness": "4",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "7bc3f92f-68a2-4934-afc4-89f6d0e8cf98",
+  "name": "Dusk // Dawn",
+  "type_line": "Sorcery // Sorcery",
+  "mana_cost": "{2}{W}{W} // {3}{W}{W}",
+  "oracle_text": "",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [
+   "Aftermath"
+  ],
+  "produced_mana": [],
+  "card_faces": [
+   {
+    "name": "Dusk",
+    "mana_cost": "{2}{W}{W}",
+    "type_line": "Sorcery",
+    "oracle_text": "Destroy all creatures with power 3 or greater.",
+    "power": null,
+    "toughness": null
+   },
+   {
+    "name": "Dawn",
+    "mana_cost": "{3}{W}{W}",
+    "type_line": "Sorcery",
+    "oracle_text": "Aftermath (Cast this spell only from your graveyard. Then exile it.)\nReturn all creature cards with power 2 or less from your graveyard to your hand.",
+    "power": null,
+    "toughness": null
+   }
+  ],
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "99eb572b-85b1-4d78-aea8-4400a5b7e508",
+  "name": "Emrakul's Evangel",
+  "type_line": "Creature — Human Horror",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "{T}, Sacrifice this creature and any number of other non-Eldrazi creatures: Create a 3/2 colorless Eldrazi Horror creature token for each creature sacrificed this way.",
+  "power": "3",
+  "toughness": "2",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "a3d4ed7c-c586-4581-96dc-977636d27583",
+  "name": "Engulf the Shore",
+  "type_line": "Instant",
+  "mana_cost": "{3}{U}",
+  "oracle_text": "Return to their owners' hands all creatures with toughness less than or equal to the number of Islands you control.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "U",
+  "color_identity": "U",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "c8fa1319-6623-4999-acb5-a5e15e6d868c",
+  "name": "Eternity Vessel",
+  "type_line": "Artifact",
+  "mana_cost": "{6}",
+  "oracle_text": "This artifact enters with X charge counters on it, where X is your life total.\nLandfall — Whenever a land you control enters, you may have your life total become the number of charge counters on this artifact.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [
+   "Landfall"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "a75445d3-1303-4bb5-89ad-26ea93fecd48",
+  "name": "Evolving Wilds",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat",
+   "Land & Draw",
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "27b047e3-0d41-45e2-98e9-9391d7923a1e",
+  "name": "Exotic Orchard",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "{T}: Add one mana of any color that a land an opponent controls could produce.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat",
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "744b7e93-c893-4770-a3bb-6a45b7f8e4f7",
+  "name": "Expel the Interlopers",
+  "type_line": "Sorcery",
+  "mana_cost": "{3}{W}{W}",
+  "oracle_text": "Choose a number between 0 and 10. Destroy all creatures with power greater than or equal to the chosen number.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "b8f566ea-8283-4afa-9ac8-737e26419283",
+  "name": "Explore",
+  "type_line": "Sorcery",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "You may play an additional land this turn.\nDraw a card.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat",
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "a0abd957-01a0-4aa9-8fc8-0e6840d21606",
+  "name": "Explosive Vegetation",
+  "type_line": "Sorcery",
+  "mana_cost": "{3}{G}",
+  "oracle_text": "Search your library for up to two basic land cards, put them onto the battlefield tapped, then shuffle.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "70a6f08e-854d-4e2f-9d8c-c45ec3231157",
+  "name": "Faeburrow Elder",
+  "type_line": "Creature — Treefolk Druid",
+  "mana_cost": "{1}{G}{W}",
+  "oracle_text": "Vigilance\nThis creature gets +1/+1 for each color among permanents you control.\n{T}: For each color among permanents you control, add one mana of that color.",
+  "power": "0",
+  "toughness": "0",
+  "loyalty": null,
+  "colors": "GW",
+  "color_identity": "GW",
+  "keywords": [
+   "Vigilance"
+  ],
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "2ef797ef-c05f-4309-85c7-1bd151dac3fa",
+  "name": "Far Wanderings",
+  "type_line": "Sorcery",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.\nThreshold — If there are seven or more cards in your graveyard, instead search your library for up to three basic land cards, put them onto the battlefield tapped, then shuffle.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Threshold"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "ffa64ac6-fe55-48b8-b015-849982cd7ad8",
+  "name": "Fecundity",
+  "type_line": "Enchantment",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "Whenever a creature dies, that creature's controller may draw a card.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "5825997b-10d7-4a36-972c-a80ddd90b8ed",
+  "name": "Feed the Swarm",
+  "type_line": "Sorcery",
+  "mana_cost": "{1}{B}",
+  "oracle_text": "Destroy target creature or enchantment an opponent controls. You lose life equal to that permanent's mana value.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "B",
+  "color_identity": "B",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "2b3f791a-d672-46fb-a03a-96e19f2c3121",
+  "name": "Felothar the Steadfast",
+  "type_line": "Legendary Creature — Human Warrior",
+  "mana_cost": "{1}{W}{B}{G}",
+  "oracle_text": "Each creature you control assigns combat damage equal to its toughness rather than its power.\nCreatures you control can attack as though they didn't have defender.\n{3}, {T}, Sacrifice another creature: Draw cards equal to the sacrificed creature's toughness, then discard cards equal to its power.",
+  "power": "0",
+  "toughness": "5",
+  "loyalty": null,
+  "colors": "BGW",
+  "color_identity": "BGW",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "343460ea-7999-4d9e-b425-97fa1621f9d6",
+  "name": "Flameshadow Conjuring",
+  "type_line": "Enchantment",
+  "mana_cost": "{3}{R}",
+  "oracle_text": "Whenever a nontoken creature you control enters, you may pay {R}. If you do, create a token that's a copy of that creature. That token gains haste. Exile it at the beginning of the next end step.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "R",
+  "color_identity": "R",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "56f1a16a-9f41-41fb-b580-c200bca27cd6",
+  "name": "Fortified Village",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "As this land enters, you may reveal a Forest or Plains card from your hand. If you don't, this land enters tapped.\n{T}: Add {G} or {W}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "GW",
+  "keywords": [],
+  "produced_mana": [
+   "G",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "fb431500-152c-4524-b76b-de62922ff57f",
+  "name": "Foster",
+  "type_line": "Enchantment",
+  "mana_cost": "{2}{G}{G}",
+  "oracle_text": "Whenever a creature you control dies, you may pay {1}. If you do, reveal cards from the top of your library until you reveal a creature card. Put that card into your hand and the rest into your graveyard.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "3be6e78f-f9ec-4bf4-b70f-40ba677aaa48",
+  "name": "Fresh Meat",
+  "type_line": "Instant",
+  "mana_cost": "{3}{G}",
+  "oracle_text": "Create a 3/3 green Beast creature token for each creature put into your graveyard from the battlefield this turn.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "31b27775-196b-4022-bff5-25b34290ff7f",
+  "name": "From Beyond",
+  "type_line": "Enchantment",
+  "mana_cost": "{3}{G}",
+  "oracle_text": "Devoid (This card has no color.)\nAt the beginning of your upkeep, create a 1/1 colorless Eldrazi Scion creature token. It has \"Sacrifice this token: Add {C}.\"\n{1}{G}, Sacrifice this enchantment: Search your library for an Eldrazi card, reveal it, put it into your hand, then shuffle.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "G",
+  "keywords": [
+   "Devoid"
+  ],
+  "produced_mana": [
+   "C"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "8a1e8435-16f2-475b-a8a9-7b9f0cf4594a",
+  "name": "Gerrard, Weatherlight Hero",
+  "type_line": "Legendary Creature — Human Soldier",
+  "mana_cost": "{2}{R}{W}",
+  "oracle_text": "First strike\nWhen Gerrard dies, exile it and return to the battlefield all artifact and creature cards in your graveyard that were put there from the battlefield this turn.",
+  "power": "3",
+  "toughness": "3",
+  "loyalty": null,
+  "colors": "RW",
+  "color_identity": "RW",
+  "keywords": [
+   "First strike"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "f2c861d3-b302-4e84-b647-099551007269",
+  "name": "Ghost Town",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "{T}: Add {C}.\n{0}: Return this land to its owner's hand. Activate only if it's not your turn.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [
+   "C"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "2c11c72f-5b04-47d8-bdf8-8d9d197ebc1b",
+  "name": "Gift of Immortality",
+  "type_line": "Enchantment — Aura",
+  "mana_cost": "{2}{W}",
+  "oracle_text": "Enchant creature\nWhen enchanted creature dies, return that card to the battlefield under its owner's control. Return this card to the battlefield attached to that creature at the beginning of the next end step.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [
+   "Enchant"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "1eb9e401-8975-447b-839d-f7cd23897465",
+  "name": "Gleaming Barrier",
+  "type_line": "Artifact Creature — Wall",
+  "mana_cost": "{2}",
+  "oracle_text": "Defender\nWhen this creature dies, create a Treasure token. (It's an artifact with \"{T}, Sacrifice this token: Add one mana of any color.\")",
+  "power": "0",
+  "toughness": "4",
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [
+   "Treasure",
+   "Defender"
+  ],
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "60b36821-0fad-423c-98c4-f64d991719f3",
+  "name": "Graypelt Refuge",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped.\nWhen this land enters, you gain 1 life.\n{T}: Add {G} or {W}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "GW",
+  "keywords": [],
+  "produced_mana": [
+   "G",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "34bcc217-dd91-45a0-90d7-a94d02f1f317",
+  "name": "Growth Spiral",
+  "type_line": "Instant",
+  "mana_cost": "{G}{U}",
+  "oracle_text": "Draw a card. You may put a land card from your hand onto the battlefield.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "GU",
+  "color_identity": "GU",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "0b8adb9e-97a5-43d9-87d6-993f22edaf3b",
+  "name": "Gutter Grime",
+  "type_line": "Enchantment",
+  "mana_cost": "{4}{G}",
+  "oracle_text": "Whenever a nontoken creature you control dies, put a slime counter on this enchantment, then create a green Ooze creature token with \"This token's power and toughness are each equal to the number of slime counters on Gutter Grime.\"",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "705509e9-a034-4a5a-9c65-66f58748b8a2",
+  "name": "Harrow",
+  "type_line": "Instant",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "As an additional cost to cast this spell, sacrifice a land.\nSearch your library for up to two basic land cards, put them onto the battlefield, then shuffle.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "749d2994-44e7-40d3-8630-7bebed239e9e",
+  "name": "Haywire Mite",
+  "type_line": "Artifact Creature — Insect",
+  "mana_cost": "{1}",
+  "oracle_text": "When this creature dies, you gain 2 life.\n{G}, Sacrifice this creature: Exile target noncreature artifact or noncreature enchantment.",
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "f22665cd-4710-48df-83c1-3c9081097cb5",
+  "name": "Hedge Shredder",
+  "type_line": "Artifact — Vehicle",
+  "mana_cost": "{2}{G}{G}",
+  "oracle_text": "Whenever this Vehicle attacks, you may mill two cards.\nWhenever one or more land cards are put into your graveyard from your library, put them onto the battlefield tapped.\nCrew 1 (Tap any number of creatures you control with total power 1 or more: This Vehicle becomes an artifact creature until end of turn.)",
+  "power": "5",
+  "toughness": "5",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Crew",
+   "Mill"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "86fb3749-37d6-48a6-8524-71e996850307",
+  "name": "High Market",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "{T}: Add {C}.\n{T}, Sacrifice a creature: You gain 1 life.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [
+   "C"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "663d451b-f848-41cc-b541-0c6fe37d3d54",
+  "name": "Hofri Ghostforge",
+  "type_line": "Legendary Creature — Dwarf Cleric",
+  "mana_cost": "{3}{R}{W}",
+  "oracle_text": "Spirits you control get +1/+1 and have trample and haste.\nWhenever another nontoken creature you control dies, exile it. If you do, create a token that's a copy of that creature, except it's a Spirit in addition to its other types and it has \"When this token leaves the battlefield, return the exiled card to its owner's graveyard.\"",
+  "power": "4",
+  "toughness": "5",
+  "loyalty": null,
+  "colors": "RW",
+  "color_identity": "RW",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "b8181d53-1954-4f46-8670-8696440208e8",
+  "name": "Horn of Greed",
+  "type_line": "Artifact",
+  "mana_cost": "{3}",
+  "oracle_text": "Whenever a player plays a land, that player draws a card.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "123d2b6e-114e-4767-860d-50790382ca4a",
+  "name": "Hornet Nest",
+  "type_line": "Creature — Insect",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "Defender (This creature can't attack.)\nWhenever this creature is dealt damage, create that many 1/1 green Insect creature tokens with flying and deathtouch. (Any amount of damage a creature with deathtouch deals to a creature is enough to destroy it.)",
+  "power": "0",
+  "toughness": "2",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Defender"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "3b1f8108-6911-49e9-8f78-f950bb58cb6c",
+  "name": "Hornet Queen",
+  "type_line": "Creature — Insect",
+  "mana_cost": "{4}{G}{G}{G}",
+  "oracle_text": "Flying, deathtouch\nWhen this creature enters, create four 1/1 green Insect creature tokens with flying and deathtouch.",
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Deathtouch",
+   "Flying"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "a1a1761c-88e5-40b4-ba4c-60735c054b09",
+  "name": "Ikra Shidiqi, the Usurper",
+  "type_line": "Legendary Creature — Snake Wizard",
+  "mana_cost": "{3}{B}{G}",
+  "oracle_text": "Menace\nWhenever a creature you control deals combat damage to a player, you gain life equal to that creature's toughness.\nPartner (You can have two commanders if both have partner.)",
+  "power": "3",
+  "toughness": "7",
+  "loyalty": null,
+  "colors": "BG",
+  "color_identity": "BG",
+  "keywords": [
+   "Partner",
+   "Menace"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "9242cd3e-1a71-4700-8182-9c1005616033",
+  "name": "Impact Tremors",
+  "type_line": "Enchantment",
+  "mana_cost": "{1}{R}",
+  "oracle_text": "Whenever a creature you control enters, this enchantment deals 1 damage to each opponent.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "R",
+  "color_identity": "R",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "2764741c-1f3e-459a-a487-54cbac2c84a6",
+  "name": "Indomitable Ancients",
+  "type_line": "Creature — Treefolk Warrior",
+  "mana_cost": "{2}{W}{W}",
+  "oracle_text": "",
+  "power": "2",
+  "toughness": "10",
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "94f0a572-e91c-4b56-a5d1-6cbbeabd210d",
+  "name": "Infernal Grasp",
+  "type_line": "Instant",
+  "mana_cost": "{1}{B}",
+  "oracle_text": "Destroy target creature. You lose 2 life.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "B",
+  "color_identity": "B",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "70d6cd9c-6311-4d8e-b74a-8edc11d1c05e",
+  "name": "Into the Wilds",
+  "type_line": "Enchantment",
+  "mana_cost": "{3}{G}",
+  "oracle_text": "At the beginning of your upkeep, look at the top card of your library. If it's a land card, you may put it onto the battlefield.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "7e5d9efe-48a9-434b-bb09-056e0e09cc9a",
+  "name": "Isolated Chapel",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped unless you control a Plains or a Swamp.\n{T}: Add {W} or {B}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "BW",
+  "keywords": [],
+  "produced_mana": [
+   "B",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "20faefbd-059c-4aae-81e3-31683bf9f7bf",
+  "name": "Jaddi Offshoot",
+  "type_line": "Creature — Plant",
+  "mana_cost": "{G}",
+  "oracle_text": "Defender\nLandfall — Whenever a land you control enters, you gain 1 life.",
+  "power": "0",
+  "toughness": "3",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Defender",
+   "Landfall"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw",
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "46327e52-b04a-4155-bda6-9559e46fb9ed",
+  "name": "Jaws of Defeat",
+  "type_line": "Enchantment",
+  "mana_cost": "{3}{B}",
+  "oracle_text": "Whenever a creature you control enters, target opponent loses life equal to the difference between that creature's power and its toughness.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "B",
+  "color_identity": "B",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "2e69537c-c898-4e13-a72d-ce3957a90304",
+  "name": "Jungle Shrine",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped.\n{T}: Add {R}, {G}, or {W}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "GRW",
+  "keywords": [],
+  "produced_mana": [
+   "G",
+   "R",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "e0de0121-6185-45c5-9d88-a415b07347e0",
+  "name": "Kari Zev's Expertise",
+  "type_line": "Sorcery",
+  "mana_cost": "{1}{R}{R}",
+  "oracle_text": "Gain control of target creature or Vehicle until end of turn. Untap it. It gains haste until end of turn.\nYou may cast a spell with mana value 2 or less from your hand without paying its mana cost.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "R",
+  "color_identity": "R",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "be6155de-c5b2-415c-ad83-142f9926462a",
+  "name": "Khalni Heart Expedition",
+  "type_line": "Enchantment",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "Landfall — Whenever a land you control enters, you may put a quest counter on this enchantment.\nRemove three quest counters from this enchantment and sacrifice it: Search your library for up to two basic land cards, put them onto the battlefield tapped, then shuffle.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Landfall"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "1593ea18-2f2f-4ab4-83fb-6ccc0bec8a90",
+  "name": "Kodama's Reach",
+  "type_line": "Sorcery — Arcane",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "1ebf2142-f171-40cd-8143-15f50084b707",
+  "name": "Koma, World-Eater",
+  "type_line": "Legendary Creature — Serpent",
+  "mana_cost": "{3}{G}{G}{U}{U}",
+  "oracle_text": "This spell can't be countered.\nTrample, ward {4}\nWhenever Koma deals combat damage to a player, create four 3/3 blue Serpent creature tokens named Koma's Coil.",
+  "power": "8",
+  "toughness": "12",
+  "loyalty": null,
+  "colors": "GU",
+  "color_identity": "GU",
+  "keywords": [
+   "Trample",
+   "Ward"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "e8065e1d-e937-4b56-8011-78f0d07328a0",
+  "name": "Krenko, Tin Street Kingpin",
+  "type_line": "Legendary Creature — Goblin",
+  "mana_cost": "{2}{R}",
+  "oracle_text": "Whenever Krenko attacks, put a +1/+1 counter on it, then create a number of 1/1 red Goblin creature tokens equal to Krenko's power.",
+  "power": "1",
+  "toughness": "2",
+  "loyalty": null,
+  "colors": "R",
+  "color_identity": "R",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "d9a10971-f32b-4978-952d-fed0a5bc9e36",
+  "name": "Krosan Verge",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped.\n{T}: Add {C}.\n{2}, {T}, Sacrifice this land: Search your library for a Forest card and a Plains card, put them onto the battlefield tapped, then shuffle.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [
+   "C"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "bbb16f23-fdb1-444b-bef8-ce3e177c2678",
+  "name": "Lightning Coils",
+  "type_line": "Artifact",
+  "mana_cost": "{3}",
+  "oracle_text": "Whenever a nontoken creature you control dies, put a charge counter on this artifact.\nAt the beginning of your upkeep, if this artifact has five or more charge counters on it, remove all of them from it and create that many 3/1 red Elemental creature tokens with haste. Exile them at the beginning of the next end step.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "f6476884-f73f-465f-8e7f-ea312a5b306d",
+  "name": "Loot, Exuberant Explorer",
+  "type_line": "Legendary Creature — Beast Noble",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "You may play an additional land on each of your turns.\n{4}{G}{G}, {T}: Look at the top six cards of your library. You may reveal a creature card with mana value less than or equal to the number of lands you control from among them and put it onto the battlefield. Put the rest on the bottom in a random order.",
+  "power": "1",
+  "toughness": "4",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "221d0305-94db-4791-9dc7-89ee96c7fcd6",
+  "name": "Mana Breach",
+  "type_line": "Enchantment",
+  "mana_cost": "{2}{U}",
+  "oracle_text": "Whenever a player casts a spell, that player returns a land they control to its owner's hand.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "U",
+  "color_identity": "U",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "b9f4f96b-6e54-4fe6-8df7-623e0fc72409",
+  "name": "Mentor of the Meek",
+  "type_line": "Creature — Human Soldier",
+  "mana_cost": "{2}{W}",
+  "oracle_text": "Whenever another creature you control with power 2 or less enters, you may pay {1}. If you do, draw a card.",
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "ec73863f-417b-45d7-a6b7-97a69ce0196a",
+  "name": "Might Makes Right",
+  "type_line": "Enchantment",
+  "mana_cost": "{5}{R}",
+  "oracle_text": "At the beginning of combat on your turn, if you control each creature on the battlefield with the greatest power, gain control of target creature an opponent controls until end of turn. Untap that creature. It gains haste until end of turn. (It can attack and {T} this turn.)",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "R",
+  "color_identity": "R",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "6ebdc9f3-6b23-4716-8011-48f00d7e30c8",
+  "name": "Mimic Vat",
+  "type_line": "Artifact",
+  "mana_cost": "{3}",
+  "oracle_text": "Imprint — Whenever a nontoken creature dies, you may exile that card. If you do, return each other card exiled with this artifact to its owner's graveyard.\n{3}, {T}: Create a token that's a copy of a card exiled with this artifact. It gains haste. Exile it at the beginning of the next end step.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [
+   "Imprint"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "2cd10c6c-f946-457e-9175-92501322f7a5",
+  "name": "Minsc, Beloved Ranger",
+  "type_line": "Legendary Creature — Human Ranger",
+  "mana_cost": "{R}{G}{W}",
+  "oracle_text": "When Minsc enters, create Boo, a legendary 1/1 red Hamster creature token with trample and haste.\n{X}: Until end of turn, target creature you control has base power and toughness X/X and becomes a Giant in addition to its other types. Activate only as a sorcery.",
+  "power": "3",
+  "toughness": "3",
+  "loyalty": null,
+  "colors": "GRW",
+  "color_identity": "GRW",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "7fe9d30f-c778-4769-a3ae-3cb48cd23e07",
+  "name": "Mistmoon Griffin",
+  "type_line": "Creature — Griffin",
+  "mana_cost": "{3}{W}",
+  "oracle_text": "Flying\nWhen this creature dies, exile it, then return the top creature card of your graveyard to the battlefield.",
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [
+   "Flying"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "1162c7ff-c0cb-469a-ad3c-322b0981ae1d",
+  "name": "Mitotic Slime",
+  "type_line": "Creature — Ooze",
+  "mana_cost": "{4}{G}",
+  "oracle_text": "When this creature dies, create two 2/2 green Ooze creature tokens. They have \"When this token dies, create two 1/1 green Ooze creature tokens.\"",
+  "power": "4",
+  "toughness": "4",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "acca2128-6ebb-48a5-a6a2-1bc5e4aa86ce",
+  "name": "Mob Rule",
+  "type_line": "Sorcery",
+  "mana_cost": "{4}{R}{R}",
+  "oracle_text": "Choose one —\n• Gain control of all creatures with power 4 or greater until end of turn. Untap those creatures. They gain haste until end of turn.\n• Gain control of all creatures with power 3 or less until end of turn. Untap those creatures. They gain haste until end of turn.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "R",
+  "color_identity": "R",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "7b8f4879-578e-40e4-863a-41d0c32c6bdd",
+  "name": "Mogg War Marshal",
+  "type_line": "Creature — Goblin Warrior",
+  "mana_cost": "{1}{R}",
+  "oracle_text": "Echo {1}{R} (At the beginning of your upkeep, if this came under your control since the beginning of your last upkeep, sacrifice it unless you pay its echo cost.)\nWhen this creature enters or dies, create a 1/1 red Goblin creature token.",
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "colors": "R",
+  "color_identity": "R",
+  "keywords": [
+   "Echo"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "4b8bf64b-4800-45ff-81c6-2857f34999b5",
+  "name": "Multani, Yavimaya's Avatar",
+  "type_line": "Legendary Creature — Elemental Avatar",
+  "mana_cost": "{4}{G}{G}",
+  "oracle_text": "Reach, trample\nMultani gets +1/+1 for each land you control and each land card in your graveyard.\n{1}{G}, Return two lands you control to their owner's hand: Return this card from your graveyard to your hand.",
+  "power": "0",
+  "toughness": "0",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Reach",
+   "Trample"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "2549bc57-9ffb-4053-9f10-f2a5f792b845",
+  "name": "Myriad Landscape",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped.\n{T}: Add {C}.\n{2}, {T}, Sacrifice this land: Search your library for up to two basic land cards that share a land type, put them onto the battlefield tapped, then shuffle.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [
+   "C"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat",
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "5aa3abf1-d56b-4f42-8c84-7e5a2c15ee0f",
+  "name": "Nissa, Who Shakes the World",
+  "type_line": "Legendary Planeswalker — Nissa",
+  "mana_cost": "{3}{G}{G}",
+  "oracle_text": "Whenever you tap a Forest for mana, add an additional {G}.\n+1: Put three +1/+1 counters on up to one target noncreature land you control. Untap it. It becomes a 0/0 Elemental creature with vigilance and haste that's still a land.\n−8: You get an emblem with \"Lands you control have indestructible.\" Search your library for any number of Forest cards, put them onto the battlefield tapped, then shuffle.",
+  "power": null,
+  "toughness": null,
+  "loyalty": "5",
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [
+   "G"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "56a55f45-2cc6-407d-b212-5619c98456d9",
+  "name": "Norn's Wellspring",
+  "type_line": "Artifact",
+  "mana_cost": "{1}{W}",
+  "oracle_text": "Whenever a creature you control dies, scry 1 and put an oil counter on this artifact.\n{1}, {T}, Remove two oil counters from this artifact: Draw a card.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [
+   "Scry"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "5a20113c-7ea8-4edf-af9f-148ccd326a88",
+  "name": "Nyx-Fleece Ram",
+  "type_line": "Enchantment Creature — Sheep",
+  "mana_cost": "{1}{W}",
+  "oracle_text": "At the beginning of your upkeep, you gain 1 life.",
+  "power": "0",
+  "toughness": "5",
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "06bb4272-25d1-46db-8585-15f919267e1e",
+  "name": "One with the Multiverse",
+  "type_line": "Enchantment",
+  "mana_cost": "{6}{U}{U}",
+  "oracle_text": "You may look at the top card of your library any time.\nYou may play lands and cast spells from the top of your library.\nOnce during each of your turns, you may cast a spell from your hand or the top of your library without paying its mana cost.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "U",
+  "color_identity": "U",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "1b065a17-14a4-433f-a6c8-2c8212f505c7",
+  "name": "Oran-Rief Hydra",
+  "type_line": "Creature — Hydra",
+  "mana_cost": "{4}{G}{G}",
+  "oracle_text": "Trample\nLandfall — Whenever a land you control enters, put a +1/+1 counter on this creature. If that land is a Forest, put two +1/+1 counters on this creature instead.",
+  "power": "5",
+  "toughness": "5",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Trample",
+   "Landfall"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "de3dcb5d-775a-479f-99f5-d1883ed9b1b5",
+  "name": "Orzhov Signet",
+  "type_line": "Artifact",
+  "mana_cost": "{2}",
+  "oracle_text": "{1}, {T}: Add {W}{B}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "BW",
+  "keywords": [],
+  "produced_mana": [
+   "B",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "ebb24fc7-dc71-4712-8c2a-b5920f78e55d",
+  "name": "Outpost Siege",
+  "type_line": "Enchantment",
+  "mana_cost": "{3}{R}",
+  "oracle_text": "As this enchantment enters, choose Khans or Dragons.\n• Khans — At the beginning of your upkeep, exile the top card of your library. Until end of turn, you may play that card.\n• Dragons — Whenever a creature you control leaves the battlefield, this enchantment deals 1 damage to any target.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "R",
+  "color_identity": "R",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "585f62dc-4461-42f1-a3a4-b19a1e550d2d",
+  "name": "Overgrown Battlement",
+  "type_line": "Creature — Wall",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "Defender\n{T}: Add {G} for each creature you control with defender.",
+  "power": "0",
+  "toughness": "4",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Defender"
+  ],
+  "produced_mana": [
+   "G"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "709d2f10-1585-48c3-9058-ddd5f62f0452",
+  "name": "Overgrown Farmland",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped unless you control two or more other lands.\n{T}: Add {G} or {W}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "GW",
+  "keywords": [],
+  "produced_mana": [
+   "G",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "de83b309-ac31-4a57-95e6-ccd3659e6c1f",
+  "name": "Parcelbeast",
+  "type_line": "Creature — Elemental Beast",
+  "mana_cost": "{2}{G}{U}",
+  "oracle_text": "Mutate {G}{U} (If you cast this spell for its mutate cost, put it over or under target non-Human creature you own. They mutate into the creature on top plus all abilities from under it.)\n{1}, {T}: Look at the top card of your library. If it's a land card, you may put it onto the battlefield. If you don't put the card onto the battlefield, put it into your hand.",
+  "power": "2",
+  "toughness": "4",
+  "loyalty": null,
+  "colors": "GU",
+  "color_identity": "GU",
+  "keywords": [
+   "Mutate"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "b473e293-59e3-4e04-acf2-622604aeb25f",
+  "name": "Path of Ancestry",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped.\n{T}: Add one mana of any color in your commander's color identity. When that mana is spent to cast a creature spell that shares a creature type with your commander, scry 1. (Look at the top card of your library. You may put that card on the bottom.)",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [
+   "Scry"
+  ],
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "6ef3c75d-6af2-4ea0-b98d-96c5d7d3af58",
+  "name": "Phyrexian Rebirth",
+  "type_line": "Sorcery",
+  "mana_cost": "{4}{W}{W}",
+  "oracle_text": "Destroy all creatures, then create an X/X colorless Phyrexian Horror artifact creature token, where X is the number of creatures destroyed this way.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "d031d7d2-1e41-4201-9073-c4c1be182ba4",
+  "name": "Primal Druid",
+  "type_line": "Creature — Human Druid",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "When this creature dies, you may search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+  "power": "0",
+  "toughness": "3",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "27a3aa64-1de7-4b0c-af23-52886e7d258a",
+  "name": "Prismatic Undercurrents",
+  "type_line": "Enchantment",
+  "mana_cost": "{3}{G}",
+  "oracle_text": "Vivid — When this enchantment enters, search your library for up to X basic land cards, where X is the number of colors among permanents you control. Reveal those cards, put them into your hand, then shuffle.\nYou may play an additional land on each of your turns.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Vivid"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "6158ab85-a929-472c-9618-8e76d2d4b228",
+  "name": "Promise of Bunrei",
+  "type_line": "Enchantment",
+  "mana_cost": "{2}{W}",
+  "oracle_text": "When a creature you control dies, sacrifice this enchantment. If you do, create four 1/1 colorless Spirit creature tokens.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "32c91719-f3dd-4cc7-9e32-7d5ccf18f07c",
+  "name": "Radiant Grove",
+  "type_line": "Land — Forest Plains",
+  "mana_cost": "",
+  "oracle_text": "({T}: Add {G} or {W}.)\nThis land enters tapped.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "GW",
+  "keywords": [],
+  "produced_mana": [
+   "G",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "9d612686-2d7f-49a3-b9c4-1e99a30134f6",
+  "name": "Rally the Ancestors",
+  "type_line": "Instant",
+  "mana_cost": "{X}{W}{W}",
+  "oracle_text": "Return each creature card with mana value X or less from your graveyard to the battlefield. Exile those creatures at the beginning of your next upkeep. Exile Rally the Ancestors.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "2d3e6549-6cc6-434f-a189-ba3b55e64c34",
+  "name": "Rampaging Baloths",
+  "type_line": "Creature — Beast",
+  "mana_cost": "{4}{G}{G}",
+  "oracle_text": "Trample\nLandfall — Whenever a land you control enters, create a 4/4 green Beast creature token.",
+  "power": "6",
+  "toughness": "6",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Trample",
+   "Landfall"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "8539f295-5d58-4436-a73a-b9277c4c7795",
+  "name": "Rampant Growth",
+  "type_line": "Sorcery",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "b0edba6f-8f54-4dc4-b952-20b57a797d60",
+  "name": "Rampart Architect",
+  "type_line": "Creature — Elephant Advisor",
+  "mana_cost": "{3}{G}",
+  "oracle_text": "Whenever this creature enters or attacks, create a 1/3 white Wall creature token with defender.\nWhenever a creature you control with defender dies, you may search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
+  "power": "3",
+  "toughness": "4",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "14bc29ee-4f84-4e62-8ede-5741b99414c9",
+  "name": "Reach the Horizon",
+  "type_line": "Sorcery",
+  "mana_cost": "{3}{G}",
+  "oracle_text": "Search your library for up to two basic land cards and/or Town cards with different names, put them onto the battlefield tapped, then shuffle.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "4d9554de-c005-41ab-a941-39328ebff9de",
+  "name": "Relic of Legends",
+  "type_line": "Artifact",
+  "mana_cost": "{3}",
+  "oracle_text": "{T}: Add one mana of any color.\nTap an untapped legendary creature you control: Add one mana of any color.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "c23e5b80-08d2-4e24-9908-fe2aa4f30f6f",
+  "name": "Reliquary Tower",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "You have no maximum hand size.\n{T}: Add {C}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [
+   "C"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "6fa07b6c-f01a-4416-b0fc-986b0fc4e412",
+  "name": "Renegade Rallier",
+  "type_line": "Creature — Human Warrior",
+  "mana_cost": "{1}{G}{W}",
+  "oracle_text": "Revolt — When this creature enters, if a permanent left the battlefield under your control this turn, return target permanent card with mana value 2 or less from your graveyard to the battlefield.",
+  "power": "3",
+  "toughness": "2",
+  "loyalty": null,
+  "colors": "GW",
+  "color_identity": "GW",
+  "keywords": [
+   "Revolt"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "59f10ddb-8287-4d2c-8c60-1080b108fa78",
+  "name": "Requiem Angel",
+  "type_line": "Creature — Angel",
+  "mana_cost": "{5}{W}",
+  "oracle_text": "Flying\nWhenever another non-Spirit creature you control dies, create a 1/1 white Spirit creature token with flying.",
+  "power": "5",
+  "toughness": "5",
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [
+   "Flying"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "ad5ff61f-79d6-4dd9-b4fe-17f7a0055c44",
+  "name": "Reunion of the House",
+  "type_line": "Sorcery",
+  "mana_cost": "{5}{W}{W}",
+  "oracle_text": "Return any number of target creature cards with total power 10 or less from your graveyard to the battlefield. Exile Reunion of the House.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "2abe9303-d498-4aad-b6b2-8b5064bd2ffd",
+  "name": "Rhox Faithmender",
+  "type_line": "Creature — Rhino Monk",
+  "mana_cost": "{3}{W}",
+  "oracle_text": "Lifelink (Damage dealt by this creature also causes you to gain that much life.)\nIf you would gain life, you gain twice that much life instead.",
+  "power": "1",
+  "toughness": "5",
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [
+   "Lifelink"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "f29dc596-2121-4421-8463-15f6c2e8b9b3",
+  "name": "Rogue's Passage",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "{T}: Add {C}.\n{4}, {T}: Target creature can't be blocked this turn.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [
+   "C"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "7e0d2965-bbcd-4214-b1b6-c0d2601ce078",
+  "name": "Roil Elemental",
+  "type_line": "Creature — Elemental",
+  "mana_cost": "{3}{U}{U}{U}",
+  "oracle_text": "Flying\nLandfall — Whenever a land you control enters, you may gain control of target creature for as long as you control this creature.",
+  "power": "3",
+  "toughness": "2",
+  "loyalty": null,
+  "colors": "U",
+  "color_identity": "U",
+  "keywords": [
+   "Landfall",
+   "Flying"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "8d0445ef-370b-4f4f-8975-a40cb02c031e",
+  "name": "Ruin Grinder",
+  "type_line": "Artifact Creature — Construct",
+  "mana_cost": "{5}{R}",
+  "oracle_text": "Menace\nWhen this creature dies, each player may discard their hand and draw seven cards.\nMountaincycling {2} ({2}, Discard this card: Search your library for a Mountain card, reveal it, put it into your hand, then shuffle.)",
+  "power": "7",
+  "toughness": "4",
+  "loyalty": null,
+  "colors": "R",
+  "color_identity": "R",
+  "keywords": [
+   "Mountaincycling",
+   "Landcycling",
+   "Menace",
+   "Typecycling",
+   "Cycling"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "84ba3e2c-ea96-470b-92c6-b937dc87549b",
+  "name": "Saffi Eriksdotter",
+  "type_line": "Legendary Creature — Human Scout",
+  "mana_cost": "{G}{W}",
+  "oracle_text": "Sacrifice Saffi Eriksdotter: When target creature is put into your graveyard this turn, return that card to the battlefield.",
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "colors": "GW",
+  "color_identity": "GW",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "e3afc704-220f-498f-9eaa-0821b17dc24c",
+  "name": "Sakura-Tribe Elder",
+  "type_line": "Creature — Snake Shaman",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "Sacrifice this creature: Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat",
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "0c319f45-cb0f-4641-acd8-145768acb3fc",
+  "name": "Sakura-Tribe Scout",
+  "type_line": "Creature — Snake Shaman Scout",
+  "mana_cost": "{G}",
+  "oracle_text": "{T}: You may put a land card from your hand onto the battlefield.",
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "544dbabd-cbfc-40da-a5ba-2fea9cddb453",
+  "name": "Sandsteppe Citadel",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped.\n{T}: Add {W}, {B}, or {G}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "BGW",
+  "keywords": [],
+  "produced_mana": [
+   "B",
+   "G",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "13d5b664-db13-406e-9956-3d9fe4177d33",
+  "name": "Scale the Heights",
+  "type_line": "Sorcery",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "Put a +1/+1 counter on up to one target creature. You gain 2 life. You may play an additional land this turn.\nDraw a card.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "f1e0eda0-4a5e-4f1f-8131-ba58a58887cf",
+  "name": "Scute Mob",
+  "type_line": "Creature — Insect",
+  "mana_cost": "{G}",
+  "oracle_text": "At the beginning of your upkeep, if you control five or more lands, put four +1/+1 counters on this creature.",
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "9cdc9f99-c6fa-40cd-90b0-e47d43a8cc3c",
+  "name": "Search for Tomorrow",
+  "type_line": "Sorcery",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "Search your library for a basic land card, put it onto the battlefield, then shuffle.\nSuspend 2—{G} (Rather than cast this card from your hand, you may pay {G} and exile it with two time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Suspend"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "3f4e300a-ec5c-42f3-a97b-d58e62abe22b",
+  "name": "Season of Growth",
+  "type_line": "Enchantment",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "Whenever a creature you control enters, scry 1. (Look at the top card of your library. You may put that card on the bottom.)\nWhenever you cast a spell that targets a creature you control, draw a card.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Scry"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "463865bc-087e-477b-9e86-84e77f1ad931",
+  "name": "Seedborn Muse",
+  "type_line": "Creature — Spirit",
+  "mana_cost": "{3}{G}{G}",
+  "oracle_text": "Untap all permanents you control during each other player's untap step.",
+  "power": "2",
+  "toughness": "4",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "1436dd81-496e-42a5-b210-fb5b9cdf073f",
+  "name": "Selesnya Signet",
+  "type_line": "Artifact",
+  "mana_cost": "{2}",
+  "oracle_text": "{1}, {T}: Add {G}{W}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "GW",
+  "keywords": [],
+  "produced_mana": [
+   "G",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "a0c47ab6-dfb4-46ee-a3f7-9e1521b4bb4b",
+  "name": "Shalai, Voice of Plenty",
+  "type_line": "Legendary Creature — Angel",
+  "mana_cost": "{3}{W}",
+  "oracle_text": "Flying\nYou, planeswalkers you control, and other creatures you control have hexproof.\n{4}{G}{G}: Put a +1/+1 counter on each creature you control.",
+  "power": "3",
+  "toughness": "4",
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "GW",
+  "keywords": [
+   "Flying"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "331b6834-6bb4-40fa-b80b-22d67b34734f",
+  "name": "Sidar Kondo of Jamuraa",
+  "type_line": "Legendary Creature — Human Knight",
+  "mana_cost": "{2}{G}{W}",
+  "oracle_text": "Flanking (Whenever a creature without flanking blocks this creature, the blocking creature gets -1/-1 until end of turn.)\nCreatures your opponents control without flying or reach can't block creatures with power 2 or less.\nPartner (You can have two commanders if both have partner.)",
+  "power": "2",
+  "toughness": "5",
+  "loyalty": null,
+  "colors": "GW",
+  "color_identity": "GW",
+  "keywords": [
+   "Flanking",
+   "Partner"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "046f5783-cc7b-416a-8cf6-2bcef9c2cc1a",
+  "name": "Simic Growth Chamber",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped.\nWhen this land enters, return a land you control to its owner's hand.\n{T}: Add {G}{U}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "GU",
+  "keywords": [],
+  "produced_mana": [
+   "G",
+   "U"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "44503105-3e13-408d-a44f-37d503c61d72",
+  "name": "Simic Signet",
+  "type_line": "Artifact",
+  "mana_cost": "{2}",
+  "oracle_text": "{1}, {T}: Add {G}{U}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "GU",
+  "keywords": [],
+  "produced_mana": [
+   "G",
+   "U"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "65986c1b-8e51-4604-b685-d82fa7d1263a",
+  "name": "Skullclamp",
+  "type_line": "Artifact — Equipment",
+  "mana_cost": "{1}",
+  "oracle_text": "Equipped creature gets +1/-1.\nWhenever equipped creature dies, draw two cards.\nEquip {1}",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [
+   "Equip"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "ba7f1b09-5727-484d-a502-3dcf4d618c56",
+  "name": "Slash the Ranks",
+  "type_line": "Sorcery",
+  "mana_cost": "{3}{W}{W}",
+  "oracle_text": "Destroy all creatures and planeswalkers except for commanders.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "7a3569a0-a55f-40c9-9588-92db35e26567",
+  "name": "Slaughter the Strong",
+  "type_line": "Sorcery",
+  "mana_cost": "{1}{W}{W}",
+  "oracle_text": "Each player chooses any number of creatures they control with total power 4 or less, then sacrifices all other creatures they control.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "6ad8011d-3471-4369-9d68-b264cc027487",
+  "name": "Sol Ring",
+  "type_line": "Artifact",
+  "mana_cost": "{1}",
+  "oracle_text": "{T}: Add {C}{C}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [
+   "C"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat",
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "00c0543c-2a1f-4425-8283-4062d74a1637",
+  "name": "Solemn Simulacrum",
+  "type_line": "Artifact Creature — Golem",
+  "mana_cost": "{4}",
+  "oracle_text": "When this creature enters, you may search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.\nWhen this creature dies, you may draw a card.",
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "cf6d10ed-85c3-48f2-8ba0-2960e03b408b",
+  "name": "Spectator Seating",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped unless you have two or more opponents.\n{T}: Add {R} or {W}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "RW",
+  "keywords": [],
+  "produced_mana": [
+   "R",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "788a4896-3414-40bf-b391-d2efea2fb5f9",
+  "name": "Springbloom Druid",
+  "type_line": "Creature — Elf Druid",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "When this creature enters, you may sacrifice a land. If you do, search your library for up to two basic land cards, put them onto the battlefield tapped, then shuffle.",
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "5f4ff27f-ebc1-4a86-8b0b-eeea470a25fb",
+  "name": "Stalking Vengeance",
+  "type_line": "Creature — Avatar",
+  "mana_cost": "{5}{R}{R}",
+  "oracle_text": "Haste\nWhenever another creature you control dies, it deals damage equal to its power to target player or planeswalker.",
+  "power": "5",
+  "toughness": "5",
+  "loyalty": null,
+  "colors": "R",
+  "color_identity": "R",
+  "keywords": [
+   "Haste"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "e38e3723-05f5-4a51-8364-1cda19f9cc49",
+  "name": "Steelbane Hydra",
+  "type_line": "Creature — Turtle Hydra",
+  "mana_cost": "{X}{G}{G}",
+  "oracle_text": "This creature enters with X +1/+1 counters on it.\n{2}{G}, Remove a +1/+1 counter from this creature: Destroy target artifact or enchantment.",
+  "power": "0",
+  "toughness": "0",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "0a28dff0-2bd6-4105-b73a-b6c4735833fd",
+  "name": "Sungrass Prairie",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "{1}, {T}: Add {G}{W}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "GW",
+  "keywords": [],
+  "produced_mana": [
+   "G",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "402ec768-76fb-474e-ae74-babc90d833c4",
+  "name": "Sunpetal Grove",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped unless you control a Forest or a Plains.\n{T}: Add {G} or {W}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "GW",
+  "keywords": [],
+  "produced_mana": [
+   "G",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "c8b143ad-43ec-4e0d-a440-e348daa31391",
+  "name": "Swiftfoot Boots",
+  "type_line": "Artifact — Equipment",
+  "mana_cost": "{2}",
+  "oracle_text": "Equipped creature has hexproof and haste. (It can't be the target of spells or abilities your opponents control. It can attack and {T} no matter when it came under your control.)\nEquip {1} ({1}: Attach to target creature you control. Equip only as a sorcery.)",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [
+   "Equip"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "d79cbc61-6c15-48ea-bbba-3cffb819ccba",
+  "name": "Sword of the Animist",
+  "type_line": "Legendary Artifact — Equipment",
+  "mana_cost": "{2}",
+  "oracle_text": "Equipped creature gets +1/+1.\nWhenever equipped creature attacks, you may search your library for a basic land card, put it onto the battlefield tapped, then shuffle.\nEquip {2}",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [
+   "Equip"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "b1544f21-7e98-461b-aed5-e748b0168c52",
+  "name": "Swords to Plowshares",
+  "type_line": "Instant",
+  "mana_cost": "{W}",
+  "oracle_text": "Exile target creature. Its controller gains life equal to its power.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "66b46257-b64c-4672-bf47-12bf0bcd6f8f",
+  "name": "Sylvan Awakening",
+  "type_line": "Sorcery",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "Until your next turn, all lands you control become 2/2 Elemental creatures with reach, indestructible, and haste. They're still lands.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Indestructible"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "13d4c46b-c2d6-44cc-a252-4a991d471854",
+  "name": "Sylvan Caryatid",
+  "type_line": "Creature — Plant",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "Defender, hexproof\n{T}: Add one mana of any color.",
+  "power": "0",
+  "toughness": "3",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Hexproof",
+   "Defender"
+  ],
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "a375b935-c02b-44bc-a942-37c5de58b1e4",
+  "name": "Séance",
+  "type_line": "Enchantment",
+  "mana_cost": "{2}{W}{W}",
+  "oracle_text": "At the beginning of each upkeep, you may exile target creature card from your graveyard. If you do, create a token that's a copy of that card, except it's a Spirit in addition to its other types. Exile it at the beginning of the next end step.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "0715e860-3b3b-4331-9718-207973e94fee",
+  "name": "Tatyova, Benthic Druid",
+  "type_line": "Legendary Creature — Merfolk Druid",
+  "mana_cost": "{3}{G}{U}",
+  "oracle_text": "Landfall — Whenever a land you control enters, you gain 1 life and draw a card.",
+  "power": "3",
+  "toughness": "3",
+  "loyalty": null,
+  "colors": "GU",
+  "color_identity": "GU",
+  "keywords": [
+   "Landfall"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "1c9e1f75-73f0-4846-b53f-458a0984b1bb",
+  "name": "Teferi's Ageless Insight",
+  "type_line": "Legendary Enchantment",
+  "mana_cost": "{2}{U}{U}",
+  "oracle_text": "If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "U",
+  "color_identity": "U",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "3baa8e38-ef93-435d-b63e-f781d5bfcc68",
+  "name": "Temple of Abandon",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped.\nWhen this land enters, scry 1. (Look at the top card of your library. You may put that card on the bottom.)\n{T}: Add {R} or {G}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "GR",
+  "keywords": [
+   "Scry"
+  ],
+  "produced_mana": [
+   "G",
+   "R"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "dc55421f-dee8-4263-9df0-2365df5f14bb",
+  "name": "Temple of Malady",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped.\nWhen this land enters, scry 1. (Look at the top card of your library. You may put that card on the bottom.)\n{T}: Add {B} or {G}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "BG",
+  "keywords": [
+   "Scry"
+  ],
+  "produced_mana": [
+   "B",
+   "G"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "e521322b-0e83-458c-8936-7021a80ee279",
+  "name": "Temple of Plenty",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped.\nWhen this land enters, scry 1. (Look at the top card of your library. You may put that card on the bottom.)\n{T}: Add {G} or {W}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "GW",
+  "keywords": [
+   "Scry"
+  ],
+  "produced_mana": [
+   "G",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat",
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "e6e6fce8-0f6a-4b84-865e-d4e4a4182f9f",
+  "name": "Temple of Silence",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped.\nWhen this land enters, scry 1. (Look at the top card of your library. You may put that card on the bottom.)\n{T}: Add {W} or {B}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "BW",
+  "keywords": [
+   "Scry"
+  ],
+  "produced_mana": [
+   "B",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "6f0d94d9-64bb-4175-83bc-301e8f79f54f",
+  "name": "Temple of Triumph",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped.\nWhen this land enters, scry 1. (Look at the top card of your library. You may put that card on the bottom.)\n{T}: Add {R} or {W}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "RW",
+  "keywords": [
+   "Scry"
+  ],
+  "produced_mana": [
+   "R",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "4baa6145-216e-476b-b178-aaaa1e633701",
+  "name": "Tempt with Discovery",
+  "type_line": "Sorcery",
+  "mana_cost": "{3}{G}",
+  "oracle_text": "Tempting offer — Search your library for a land card and put it onto the battlefield. Each opponent may search their library for a land card and put it onto the battlefield. For each opponent who searches a library this way, search your library for a land card and put it onto the battlefield. Then each player who searched a library this way shuffles.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Tempting offer"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "1bd3e453-aa21-4ee6-95c2-d6d920ee8e7a",
+  "name": "Terramorphic Expanse",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat",
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "91fceb34-0f2d-4392-be27-00dcd765637f",
+  "name": "Thriving Bluff",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped. As it enters, choose a color other than red.\n{T}: Add {R} or one mana of the chosen color.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "R",
+  "keywords": [],
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "a8052556-8962-4130-86a8-6fb7b6a324f7",
+  "name": "Thriving Grove",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped. As it enters, choose a color other than green.\n{T}: Add {G} or one mana of the chosen color.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "f7cac691-960f-4e36-8eae-f24bcdc1269b",
+  "name": "Tip the Scales",
+  "type_line": "Sorcery",
+  "mana_cost": "{2}{B}",
+  "oracle_text": "Sacrifice a creature. When you do, all creatures get -X/-X until end of turn, where X is the sacrificed creature's toughness.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "B",
+  "color_identity": "B",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "25c983e0-a8c9-4784-91a4-8fe04c6df882",
+  "name": "Tocasia's Welcome",
+  "type_line": "Enchantment",
+  "mana_cost": "{2}{W}",
+  "oracle_text": "Whenever one or more creatures you control with mana value 3 or less enter, draw a card. This ability triggers only once each turn.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "58853200-efbe-41cc-87f1-720841308f4d",
+  "name": "Tower Defense",
+  "type_line": "Instant",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "Creatures you control get +0/+5 and gain reach until end of turn.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "a95309ac-f920-474d-81b5-0f68c8a54f34",
+  "name": "Towering Titan",
+  "type_line": "Creature — Giant",
+  "mana_cost": "{4}{G}{G}",
+  "oracle_text": "This creature enters with X +1/+1 counters on it, where X is the total toughness of other creatures you control.\nSacrifice a creature with defender: All creatures gain trample until end of turn.",
+  "power": "0",
+  "toughness": "0",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "344cdec9-60b3-42ec-a3d5-41ee1d4f7c6c",
+  "name": "Traitorous Greed",
+  "type_line": "Sorcery",
+  "mana_cost": "{3}{R}",
+  "oracle_text": "Gain control of target creature until end of turn. Untap that creature. It gains haste until end of turn. Add two mana of any one color. (The creature can attack and {T} this turn.)",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "R",
+  "color_identity": "R",
+  "keywords": [],
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "db623754-e078-4030-ba07-818803c348a8",
+  "name": "Twilight Mire",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "{T}: Add {C}.\n{B/G}, {T}: Add {B}{B}, {B}{G}, or {G}{G}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "BG",
+  "keywords": [],
+  "produced_mana": [
+   "B",
+   "C",
+   "G"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "127f5b7e-79bc-4fe0-b9d4-1a267a6a4d46",
+  "name": "Undercellar Myconid",
+  "type_line": "Creature — Fungus",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "Whenever this creature enters or dies, create a 1/1 green Saproling creature token.\n{T}: Add one mana of any color.",
+  "power": "1",
+  "toughness": "2",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "cb0eb84d-b41b-4147-aa7c-089b7fabd835",
+  "name": "Undergrowth Champion",
+  "type_line": "Creature — Elemental",
+  "mana_cost": "{1}{G}{G}",
+  "oracle_text": "If damage would be dealt to this creature while it has a +1/+1 counter on it, prevent that damage and remove a +1/+1 counter from this creature.\nLandfall — Whenever a land you control enters, put a +1/+1 counter on this creature.",
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Landfall"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "fa9677d2-1535-4c57-baa8-c0408e15da47",
+  "name": "Veteran Explorer",
+  "type_line": "Creature — Human Soldier Scout",
+  "mana_cost": "{G}",
+  "oracle_text": "When this creature dies, each player may search their library for up to two basic land cards, put them onto the battlefield, then shuffle.",
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "9707ac4f-6493-47fe-9c31-4daf469b5c6e",
+  "name": "Vicious Shadows",
+  "type_line": "Enchantment",
+  "mana_cost": "{6}{R}",
+  "oracle_text": "Whenever a creature dies, you may have this enchantment deal damage to target player equal to the number of cards in that player's hand.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "R",
+  "color_identity": "R",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "62204fac-a367-475c-bfb9-80a87af2d2f1",
+  "name": "Vinelasher Kudzu",
+  "type_line": "Creature — Plant",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "Landfall — Whenever a land you control enters, put a +1/+1 counter on this creature.",
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Landfall"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "c93bce5a-48cc-4dc5-930b-1e084c2bae7d",
+  "name": "Viridian Emissary",
+  "type_line": "Creature — Phyrexian Elf Scout",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "When this creature dies, you may search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+  "power": "2",
+  "toughness": "1",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "ff8f5a4b-112a-425e-b489-7ee26d1d9fb3",
+  "name": "Voracious Hydra",
+  "type_line": "Creature — Hydra",
+  "mana_cost": "{X}{G}{G}",
+  "oracle_text": "Trample\nThis creature enters with X +1/+1 counters on it.\nWhen this creature enters, choose one —\n• Double the number of +1/+1 counters on this creature.\n• This creature fights target creature you don't control.",
+  "power": "0",
+  "toughness": "1",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Trample",
+   "Fight",
+   "Double"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "ef4d5fb3-70a3-433d-a9d3-18b2beb8d79f",
+  "name": "Wall of Blossoms",
+  "type_line": "Creature — Plant Wall",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "Defender\nWhen this creature enters, draw a card.",
+  "power": "0",
+  "toughness": "4",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Defender"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "1aabb6bd-8061-42a5-9a71-f9eac718bd22",
+  "name": "Wall of Limbs",
+  "type_line": "Creature — Zombie Wall",
+  "mana_cost": "{2}{B}",
+  "oracle_text": "Defender (This creature can't attack.)\nWhenever you gain life, put a +1/+1 counter on this creature.\n{5}{B}{B}, Sacrifice this creature: Target player loses X life, where X is this creature's power.",
+  "power": "0",
+  "toughness": "3",
+  "loyalty": null,
+  "colors": "B",
+  "color_identity": "B",
+  "keywords": [
+   "Defender"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "5f601f48-d24b-4883-9fde-b3f620e7c9ea",
+  "name": "Wall of Omens",
+  "type_line": "Creature — Wall",
+  "mana_cost": "{1}{W}",
+  "oracle_text": "Defender\nWhen this creature enters, draw a card.",
+  "power": "0",
+  "toughness": "4",
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [
+   "Defender"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "0810983f-818a-43e6-a7b5-ebe0bc8b9f6a",
+  "name": "Wall of Reverence",
+  "type_line": "Creature — Spirit Wall",
+  "mana_cost": "{3}{W}",
+  "oracle_text": "Defender, flying\nAt the beginning of your end step, you may gain life equal to the power of target creature you control.",
+  "power": "1",
+  "toughness": "6",
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [
+   "Flying",
+   "Defender"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "3a21a6ae-b2f2-4f0c-acfd-5f3e8d63fd2f",
+  "name": "Wall of Roots",
+  "type_line": "Creature — Plant Wall",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "Defender\nPut a -0/-1 counter on this creature: Add {G}. Activate only once each turn.",
+  "power": "0",
+  "toughness": "5",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Defender"
+  ],
+  "produced_mana": [
+   "G"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "42fb1a1c-ab3d-4cdc-a6ff-a591f7481583",
+  "name": "Warstorm Surge",
+  "type_line": "Enchantment",
+  "mana_cost": "{5}{R}",
+  "oracle_text": "Whenever a creature you control enters, it deals damage equal to its power to any target.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "R",
+  "color_identity": "R",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Aristocrat"
+  ]
+ },
+ {
+  "oracle_id": "3875aef0-3102-4fbf-be90-e4139f7a2348",
+  "name": "Wayward Swordtooth",
+  "type_line": "Creature — Dinosaur",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "Ascend (If you control ten or more permanents, you get the city's blessing for the rest of the game.)\nYou may play an additional land on each of your turns.\nThis creature can't attack or block unless you have the city's blessing.",
+  "power": "5",
+  "toughness": "5",
+  "loyalty": null,
+  "colors": "G",
+  "color_identity": "G",
+  "keywords": [
+   "Ascend"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Land & Draw"
+  ]
+ },
+ {
+  "oracle_id": "0903b941-82f1-4d3e-9717-29ab7d0c8cef",
+  "name": "Weathered Sentinels",
+  "type_line": "Artifact Creature — Wall",
+  "mana_cost": "{3}",
+  "oracle_text": "Defender, reach, vigilance, trample\nThis creature can attack players who attacked you during their last turn as though it didn't have defender.\nWhenever this creature attacks, it gets +3/+3 and gains indestructible until end of turn.",
+  "power": "2",
+  "toughness": "5",
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "",
+  "keywords": [
+   "Reach",
+   "Vigilance",
+   "Trample",
+   "Defender"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "605c1ee0-5e8a-4e0a-a99b-42a38873f822",
+  "name": "Welcoming Vampire",
+  "type_line": "Creature — Vampire",
+  "mana_cost": "{2}{W}",
+  "oracle_text": "Flying\nWhenever one or more other creatures you control with power 2 or less enter, draw a card. This ability triggers only once each turn.",
+  "power": "2",
+  "toughness": "3",
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [
+   "Flying"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "1ae29791-aa7c-4050-bf72-dd0f739b11b8",
+  "name": "Will of the Abzan",
+  "type_line": "Sorcery",
+  "mana_cost": "{3}{B}",
+  "oracle_text": "Choose one. If you control a commander as you cast this spell, you may choose both instead.\n• Any number of target opponents each sacrifice a creature with the greatest power among creatures that player controls and lose 3 life.\n• Return target creature card from your graveyard to the battlefield.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "B",
+  "color_identity": "B",
+  "keywords": [],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "c9fe1383-1331-4a58-a45a-3320250221a9",
+  "name": "Woodland Cemetery",
+  "type_line": "Land",
+  "mana_cost": "",
+  "oracle_text": "This land enters tapped unless you control a Swamp or a Forest.\n{T}: Add {B} or {G}.",
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "colors": "",
+  "color_identity": "BG",
+  "keywords": [],
+  "produced_mana": [
+   "B",
+   "G"
+  ],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ },
+ {
+  "oracle_id": "7da0e5de-3e4c-420a-8685-991206100b9d",
+  "name": "Zetalpa, Primal Dawn",
+  "type_line": "Legendary Creature — Elder Dinosaur",
+  "mana_cost": "{6}{W}{W}",
+  "oracle_text": "Flying, double strike, vigilance, trample, indestructible",
+  "power": "4",
+  "toughness": "8",
+  "loyalty": null,
+  "colors": "W",
+  "color_identity": "W",
+  "keywords": [
+   "Flying",
+   "Indestructible",
+   "Vigilance",
+   "Trample",
+   "Double strike"
+  ],
+  "produced_mana": [],
+  "card_faces": null,
+  "decks": [
+   "Abzan Armor"
+  ]
+ }
+]
