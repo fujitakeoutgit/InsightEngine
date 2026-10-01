@@ -68,7 +68,7 @@ export function normalize(card: Card, text: string): string[] {
   for (const name of [...names].sort((a, b) => b.length - a.length)) {
     out = out.split(name).join('~')
   }
-  out = out.replace(/\bthis (creature|land|artifact|enchantment|permanent|planeswalker|token|equipment|vehicle|spell|card)\b/gi, '~')
+  out = out.replace(/\bthis (creature|land|artifact|enchantment|permanent|planeswalker|token|equipment|vehicle|spell|card|class|aura|saga)\b/gi, '~')
   return out.split('\n').map((line) => line.trim()).filter(Boolean)
 }
 
@@ -130,6 +130,8 @@ function readOneTrigger(condition: string): TriggerEvent | null {
   if (/^you (scry|surveil|scry or surveil)$/.test(c)) return { on: 'scry' }
   if (/^~ connives$/.test(c)) return { on: 'connives', who: 'self' }
   if (/^~ is dealt damage$/.test(c)) return { on: 'damaged', who: 'self' }
+  const level = /^~ becomes level (\d+)$/.exec(c)
+  if (level) return { on: 'level', level: Number(level[1]) }
   const conniving = /^(?:a|an|another) (.+?) connives$/.exec(c)
   if (conniving) {
     const filter = readFilter(conniving[1])
@@ -198,6 +200,9 @@ const NOT_OFFERED = [
   /^as an additional cost to cast (?:~|this spell), you may /,
 ]
 
+/** A Class's "{2}{G}: Level 2". */
+const LEVEL = /^(?:\{[^}]+\})+: level \d+$/
+
 interface Choice { head: string; min: number; max: number; more?: { test: Test; max: number } }
 
 /** "Choose one —", "choose up to one —", "choose one or more —": how few and
@@ -241,6 +246,9 @@ export function compile(card: Card): Compiled {
   const spellParts: Ability[] = []
   /** Per line: fully understood, partly, or not at all. */
   const grades: number[] = []
+  /** A Class: how much had been read when its next level's line was met.
+   *  What is under that line is read for the grade and is not yet had. */
+  let reached: { triggers: number; activated: number; statics: number; unread: number } | null = null
 
   for (let i = 0; i < lines.length; i += 1) {
     const printed = lines[i]
@@ -266,6 +274,17 @@ export function compile(card: Card): Compiled {
     }
     if (NOT_OFFERED.some((pattern) => pattern.test(lower))) {
       skipped.push(printed)
+      grades.push(1)
+      continue
+    }
+    if (LEVEL.test(lower)) {
+      // The next level is an ability, gained as a sorcery; the ones after it
+      // wait their turn.
+      const up = reached ? null : readActivated(line, printed, { effects: [{ op: 'levelUp' }], complete: true })
+      if (up) {
+        activated.push({ ...up, sorcery: true })
+        reached = { triggers: triggers.length, activated: activated.length, statics: statics.length, unread: unread.length }
+      }
       grades.push(1)
       continue
     }
@@ -410,6 +429,13 @@ export function compile(card: Card): Compiled {
 
     unread.push(shown)
     grades.push(0)
+  }
+
+  if (reached) {
+    triggers.length = reached.triggers
+    activated.length = reached.activated
+    statics.length = reached.statics
+    unread.length = reached.unread
   }
 
   const spell: Ability | null = isSpell && spellParts.length

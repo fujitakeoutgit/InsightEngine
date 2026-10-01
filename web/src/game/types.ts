@@ -85,6 +85,7 @@ export interface Known {
 export type GameEvent =
   | { on: 'connives'; iid: string }
   | { on: 'scry' }
+  | { on: 'level'; iid: string; level: number }
 
 /** Counts kept over a turn, for the cards that ask what has happened in it. */
 export type Tally = Record<TallyKey, number>

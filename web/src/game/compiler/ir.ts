@@ -296,6 +296,8 @@ export type Effect = (
     all?: boolean
     until?: 'upkeep'
   }
+  /** A Class gains its next level. */
+  | { op: 'levelUp' }
   /** Your life total becomes a number. */
   | { op: 'setLife'; count: Count }
   /** Take every counter off: "remove all of them from it". */
@@ -374,6 +376,8 @@ export type TriggerEvent =
   | { on: 'connives'; who: 'self' | Filter }
   /** "Whenever ~ is dealt damage." */
   | { on: 'damaged'; who: 'self' }
+  /** "When this Class becomes level 3." */
+  | { on: 'level'; level: number }
 
 export interface TriggeredAbility extends Ability {
   when: TriggerEvent

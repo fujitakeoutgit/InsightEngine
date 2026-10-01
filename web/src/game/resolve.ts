@@ -21,6 +21,7 @@ import { compile } from './compiler/compile'
 import type { Aim, CopyChange, Effect, Filter, TokenSpec } from './compiler/ir'
 import { copyOf } from './copy'
 import { holds } from './holds'
+import { leveled } from './classes'
 import { autotap, parseCost } from './mana'
 import { matches, onBattlefield } from './match'
 import { seatFor } from './seat'
@@ -226,6 +227,16 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
           : { ...c, damage: (c.damage ?? 0) + n }
       ))
       return { state: noted(marked, `${r.name} deals ${n} damage to ${names(hit)}`) }
+    }
+
+    case 'levelUp': {
+      const inst = find(state, r.source)
+      const up = inst?.zone === 'battlefield' ? leveled(inst.card) : null
+      if (!inst || !up) return { state }
+      // It is the same card with the next level's abilities part of it; what
+      // it was printed as is kept, for when it leaves.
+      const risen = change(state, [inst.iid], (c) => ({ ...c, original: c.original ?? c.card, card: up.card }))
+      return { state: happen(noted(risen, `${r.name} is now level ${up.level}`), { on: 'level', iid: inst.iid, level: up.level }) }
     }
 
     case 'setLife': {

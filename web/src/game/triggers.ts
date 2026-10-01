@@ -32,6 +32,8 @@ type Happened =
   | { on: About; card: Instance }
   /** Damage marked on a creature: how much more than it had. */
   | { on: 'damaged'; card: Instance; amount: number }
+  /** A Class has become this level. */
+  | { on: 'level'; card: Instance; level: number }
   | { on: 'lifeGain' | 'landPlay' | 'attack' | 'scry' }
   /** One card drawn: the `nth` this turn. */
   | { on: 'draw'; nth: number }
@@ -100,11 +102,13 @@ function happened(before: GameState, after: GameState): { events: Happened[]; ta
   for (let nth = before.tally.drawn + 1; nth <= after.tally.drawn; nth += 1) out.push({ on: 'draw', nth })
 
   for (const event of after.events) {
-    if (event.on === 'scry') out.push({ on: 'scry' })
-    else {
-      const card = is.get(event.iid)
-      if (card) out.push({ on: 'connives', card })
+    if (event.on === 'scry') {
+      out.push({ on: 'scry' })
+      continue
     }
+    const card = is.get(event.iid)
+    if (!card) continue
+    out.push(event.on === 'level' ? { on: 'level', card, level: event.level } : { on: 'connives', card })
   }
   return { events: out, tally }
 }
@@ -112,6 +116,10 @@ function happened(before: GameState, after: GameState): { events: Happened[]; ta
 function sees(when: TriggerEvent, event: Happened, source: Instance, state: GameState): boolean {
   if (when.on !== event.on) return false
   if (when.on === 'draw') return !when.nth || when.nth === (event as Extract<Happened, { on: 'draw' }>).nth
+  if (when.on === 'level') {
+    const became = event as Extract<Happened, { on: 'level' }>
+    return became.card.iid === source.iid && became.level === when.level
+  }
   if (!('card' in event)) return true
   const { card } = event
   if (when.on === 'cast') return matches(card, when.filter, source.iid, state)
