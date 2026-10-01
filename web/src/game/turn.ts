@@ -6,7 +6,7 @@
 import { dealCombatDamage, eligibleAttackers } from './combat'
 import { compile } from './compiler/compile'
 import { emptyPool, MANA_TYPES } from './mana'
-import { draw, inZone, noted } from './state'
+import { draw, emptyTally, inZone, noted } from './state'
 import type { GameState, Step } from './types'
 
 export const STEPS: readonly Step[] = [
@@ -45,12 +45,20 @@ function enter(state: GameState): GameState {
       ))
       return noted({
         ...state, cards, landsPlayed: 0, extraLands: 0, triggered: [], attacking: [], dealt: [],
+        tally: emptyTally(),
       }, `Turn ${state.turn}`)
     }
-    case 'draw':
+    case 'draw': {
       // Turn 1 skips its draw, as the first player's does in a two-player
       // game (CR 103.8a) and as the table always has.
-      return state.turn === 1 ? state : draw(state, 1)
+      if (state.turn === 1) return state
+      // Kami of the Crescent Moon: more cards in the draw step.
+      const extra = inZone(state, 'battlefield').reduce((n, c) => (
+        n + compile(c.card).statics.reduce((m, fixed) => m + (fixed.kind === 'extraDraw' ? fixed.count : 0), 0)
+      ), 0)
+      const drawn = draw(state, 1, true)
+      return extra ? draw(drawn, extra) : drawn
+    }
     case 'combatAttackers': {
       // Asked only when something could attack; otherwise combat goes by.
       const options = eligibleAttackers(state).map((c) => c.iid)

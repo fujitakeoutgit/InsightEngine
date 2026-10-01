@@ -25,7 +25,7 @@ import { matches, onBattlefield } from './match'
 import { seatFor } from './seat'
 import { isCreature, manaSources } from './sources'
 import { shuffle } from './random'
-import { draw, find, inZone, mint, noted, relocate, shuffleLibrary, toBottom } from './state'
+import { draw, find, happen, inZone, mint, noted, relocate, shuffleLibrary, toBottom } from './state'
 import { snapshot } from './stats'
 import type { Action, Decision, GameState, Instance, Resolution } from './types'
 
@@ -110,13 +110,17 @@ function makeToken(state: GameState, spec: TokenSpec, tapped: boolean, size?: nu
  *  "a creature". `noun` is what to call one when the filter names no type —
  *  a card in the library, a permanent on the battlefield. */
 function asked(filter: Filter, count: number, upTo: boolean, noun: 'card' | 'permanent'): string {
+  // "Permanent card" is every card but an instant or a sorcery, and is
+  // said that way rather than as two things it is not.
+  const permanent = ['instant', 'sorcery'].every((t) => filter.not?.includes(t))
   const kind = [
     filter.other ? 'other' : '',
     filter.basic ? 'basic' : '',
     filter.nontoken ? 'nontoken' : '',
-    ...(filter.not ?? []).map((t) => `non${t}`),
+    ...(filter.not ?? []).filter((t) => !(permanent && (t === 'instant' || t === 'sorcery'))).map((t) => `non${t}`),
     (filter.subtypes ?? []).join(' or '),
     (filter.types ?? []).join(' or '),
+    permanent && noun === 'card' && !filter.types ? 'permanent' : '',
   ].filter(Boolean).join(' ')
   const one = [kind, noun === 'card' || !kind ? noun : ''].filter(Boolean).join(' ')
   const many = count === 1 ? one : `${one}s`
@@ -227,6 +231,21 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
         ...c, counters: { ...c.counters, [effect.counter]: (c.counters?.[effect.counter] ?? 0) + n },
       }))
       return { state: noted(added, `${plural(n, `${effect.counter} counter`)} on ${names(on)}`) }
+    }
+
+    case 'connive': {
+      // Draw first; what to discard is asked once the card is in hand.
+      const drawn = draw(state, 1)
+      const hand = inZone(drawn, 'hand').map((c) => c.iid)
+      const who = aimed(state, r, effect.who)[0]
+      if (!hand.length) return { state: who ? happen(drawn, { on: 'connives', iid: who.iid }) : drawn }
+      return {
+        state: drawn,
+        wait: {
+          kind: 'pick', zone: 'hand', options: hand, min: 1, max: 1,
+          prompt: `${who?.card.name ?? r.name} connives: discard a card — a nonland card puts a +1/+1 counter on it`,
+        },
+      }
     }
 
     case 'proliferate': {
@@ -358,7 +377,8 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
     }
 
     case 'reanimate': {
-      const options = inZone(state, 'graveyard').filter((c) => matches(c, effect.filter, r.source)).map((c) => c.iid)
+      const wanted = settled(state, r, effect.filter)
+      const options = inZone(state, 'graveyard').filter((c) => matches(c, wanted, r.source)).map((c) => c.iid)
       if (!options.length) return { state: noted(state, `${r.name}: nothing in your graveyard to return`) }
       return {
         state,
@@ -624,12 +644,14 @@ export function answer(state: GameState, action: Action): GameState {
     const all = new Set([...action.keep, ...action.away])
     if (all.size !== pending.cards.length || !pending.cards.every((iid) => all.has(iid))) return state
     const said = `${pending.mode === 'scry' ? 'Scried' : 'Surveilled'} ${pending.cards.length}: ${action.keep.length} on top`
+    // Either is something abilities watch for.
+    const looked = happen(answered, { on: 'scry' })
     if (pending.mode === 'scry') {
-      return carryOn(advance(noted({ ...answered, cards: arrange(answered.cards, action.keep, action.away) }, said)))
+      return carryOn(advance(noted({ ...looked, cards: arrange(looked.cards, action.keep, action.away) }, said)))
     }
-    let cards = arrange(answered.cards, action.keep, [])
+    let cards = arrange(looked.cards, action.keep, [])
     for (const iid of action.away) cards = relocate(cards, iid, 'graveyard')
-    return carryOn(advance(noted({ ...answered, cards }, said)))
+    return carryOn(advance(noted({ ...looked, cards }, said)))
   }
 
   if (pending.kind === 'mode' && action.type === 'mode' && effect.op === 'mode') {
@@ -697,6 +719,18 @@ function applyPick(state: GameState, r: Resolution, effect: Effect, picked: stri
 
     case 'dig':
       return finishDig(state, r, effect, picked)
+
+    case 'connive': {
+      const [discarded] = cards
+      const who = aimed(state, r, effect.who)[0]
+      let next: GameState = { ...state, cards: relocate(state.cards, discarded.iid, 'graveyard') }
+      const grows = who?.zone === 'battlefield' && !/\bLand\b/.test(discarded.card.type_line ?? '')
+      if (grows) {
+        next = change(next, [who.iid], (c) => ({ ...c, counters: { ...c.counters, '+1/+1': (c.counters?.['+1/+1'] ?? 0) + 1 } }))
+      }
+      next = noted(next, `${who?.card.name ?? r.name} connived: discarded ${discarded.card.name}${grows ? ', and a +1/+1 counter' : ''}`)
+      return who ? happen(next, { on: 'connives', iid: who.iid }) : next
+    }
 
     case 'putBack': {
       let library = state.cards

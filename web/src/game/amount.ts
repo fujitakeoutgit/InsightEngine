@@ -27,6 +27,7 @@ export function amount(state: GameState, r: Asking, count: Count): number {
   if (count === 'colors') return colorsOnBoard(state)
   if (count === 'life') return state.life
   if (count === 'thatMany') return r.last
+  if ('tally' in count) return state.tally[count.tally]
   if ('per' in count) return onBattlefield(state, count.per, r.source).length
   if ('zone' in count) {
     const { filter } = count

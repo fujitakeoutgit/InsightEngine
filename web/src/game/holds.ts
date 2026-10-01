@@ -11,6 +11,8 @@ import { find, inZone } from './state'
 import type { GameState } from './types'
 
 export function holds(state: GameState, r: Asking, test: Test): boolean {
+  if ('all' in test) return test.all.every((part) => holds(state, r, part))
+  if ('tally' in test) return state.tally[test.tally] >= test.atLeast
   if ('control' in test) return onBattlefield(state, test.control, r.source).length >= test.atLeast
   if ('graveyard' in test) return inZone(state, 'graveyard').length >= test.graveyard
   if ('is' in test) {

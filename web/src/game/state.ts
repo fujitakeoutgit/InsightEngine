@@ -4,8 +4,16 @@
  * returns a new one.
  */
 
+import { compile } from './compiler/compile'
 import { shuffle } from './random'
-import type { GameState, Instance, Spot, Zone } from './types'
+import type { GameEvent, GameState, Instance, Spot, Tally, Zone } from './types'
+
+export const emptyTally = (): Tally =>
+  ({ drawn: 0, discarded: 0, died: 0, left: 0, binned: 0, gained: 0, lost: 0 })
+
+/** Note something for the abilities that watch for it. */
+export const happen = (state: GameState, event: GameEvent): GameState =>
+  ({ ...state, events: [...state.events, event] })
 
 /** Lines the record keeps. Enough to answer "what just happened". */
 const LOG_LIMIT = 40
@@ -70,13 +78,21 @@ export function toBottom(cards: readonly Instance[], iid: string, zone: Zone): I
   return [...cards.filter((c) => c.iid !== iid), moving]
 }
 
-export function draw(state: GameState, count: number): GameState {
+/** Teferi's Ageless Insight and its kind: each one doubles a draw. */
+const drawDoublers = (state: GameState) => inZone(state, 'battlefield')
+  .filter((c) => compile(c.card).statics.some((fixed) => fixed.kind === 'drawTwice')).length
+
+/** Draw cards. `first` is the draw step's own draw, which the cards that
+ *  replace draws leave alone. */
+export function draw(state: GameState, asked: number, first = false): GameState {
+  const count = state.rules && !first ? asked * 2 ** drawDoublers(state) : asked
   const drawn = inZone(state, 'library').slice(0, count).map((c) => c.iid)
   let next = state
   if (drawn.length) {
     const taking = new Set(drawn)
     const cards = state.cards.map((c) => (taking.has(c.iid) ? { ...c, zone: 'hand' as Zone } : c))
-    next = noted({ ...state, cards, drawn }, drawn.length === 1 ? 'Drew a card' : `Drew ${drawn.length} cards`)
+    const tally = { ...state.tally, drawn: state.tally.drawn + drawn.length }
+    next = noted({ ...state, cards, drawn, tally }, drawn.length === 1 ? 'Drew a card' : `Drew ${drawn.length} cards`)
   }
   if (drawn.length === count) return next
   if (!state.rules) return drawn.length ? next : noted(state, 'Drew nothing — the library is empty')

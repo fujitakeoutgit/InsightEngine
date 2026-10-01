@@ -22,7 +22,7 @@ import { readKeywords } from './statics'
 type Pattern = [RegExp, (m: RegExpExecArray) => Effect[] | null]
 
 /** "~", "it", "itself", "he" — the source. */
-const SELF = /^(~|it|itself|he|she|him|her)$/
+const SELF = /^(~|it|itself|he|she|him|her|them)$/
 
 /** What "it", "that creature" and "they" mean just now, when a sentence
  *  before this one picked something out: the target of "destroy target
@@ -99,11 +99,12 @@ const nothing = (why: string): Effect[] => [{ op: 'nothing', why }]
  *  `choose` of what matches, then `act` on what was chosen. Nothing at all
  *  when only an opponent's permanent would do. */
 function onTarget(phrase: string, act: (what: Aim) => Effect[]): Effect[] | null {
-  const m = /^(?:(up to )(\w+) )?(?:(\w+) )?(?:other )?target (.+)$/.exec(phrase)
+  const m = /^(?:(up to )(\w+) )?(?:(?!another|other)(\w+) )?(another |other )?target (.+)$/.exec(phrase)
   if (!m) return null
-  const [, upTo, upCount, plainCount, noun] = m
+  const [, upTo, upCount, plainCount, other, noun] = m
   const count = readNumber(upCount ?? plainCount ?? 'one')
-  const filter = readFilter(noun)
+  const read = readFilter(noun)
+  const filter = read && other ? { ...read, other: true } : read
   if (count === null || !filter) return null
   if (filter.controller === 'opponent') return nothing('Nothing on the other side to target')
   return [{ op: 'choose', filter, count, upTo: Boolean(upTo) }, ...act({ kind: 'chosen' })]
@@ -226,8 +227,11 @@ const PATTERNS: Pattern[] = [
     const token = readToken(m[3])
     if (count === null || !token) return null
     if (m[4]) {
+      // "…for each creature you control", or for each thing that has
+      // happened this turn.
       const filter = readFilter(m[4])
-      return filter && count === 1 ? [makes(token, { per: filter }, Boolean(m[2]))] : null
+      const per: Count | null = filter ? { per: filter } : readEach(m[4])
+      return per !== null && count === 1 ? [makes(token, per, Boolean(m[2]))] : null
     }
     return [makes(token, count, Boolean(m[2]))]
   }],
@@ -251,6 +255,8 @@ const PATTERNS: Pattern[] = [
     const counter = m[2]
     return onPermanents(m[3], (to) => [{ op: 'counters', to, count, counter }])
   }],
+  [/^(.+?) connives?$/, (m) => onPermanents(m[1], (who) => [{ op: 'connive', who }])],
+  [/^have (it|~|that creature) connive$/, (m) => onPermanents(m[1], (who) => [{ op: 'connive', who }])],
   [/^double the number of ([+-]\d\/[+-]\d|[a-z]+) counters on ~$/, (m) => (
     [{ op: 'counters', to: { kind: 'self' }, count: { counters: m[1], of: 'self' }, counter: m[1] }]
   )],
@@ -327,7 +333,7 @@ const PATTERNS: Pattern[] = [
     }
     return onPermanents(m[1], (what) => [{ op: 'move', what, to: 'hand' }])
   }],
-  [/^return (up to (\w+) )?(?:target )?(.+?) cards? from your graveyard to (your hand|the battlefield)(?: tapped)?$/, (m) => {
+  [/^return (up to (\w+) )?(?:target )?(.+?)(?: cards?)? from your graveyard to (your hand|the battlefield)(?: tapped)?$/, (m) => {
     const [, upTo, upCount, noun, where] = m
     const filter = readFilter(noun.replace(/^(a|an|one|two|three) /, ''))
     const count = readNumber(upCount ?? (/^(two|three)\b/.exec(noun)?.[1]) ?? 'one')
@@ -445,9 +451,23 @@ export function readSentence(sentence: string): Effect[] | null {
     const halves = joint.exec(s)
     if (!halves) continue
     const first = readSentence(halves[1])
-    const second = first && after(first, () => referring(referentOf(first, referent), () => readSentence(halves[2])))
+    // "Put a +1/+1 counter on that creature and a plan counter on ~": the
+    // second half borrows the first's verb.
+    const elided = /^put /.test(halves[1]) && /^(an?|\w+) ([+-]\d\/[+-]\d|[a-z]+) counters? on /.test(halves[2])
+    const rest = elided ? `put ${halves[2]}` : halves[2]
+    const second = first && after(first, () => referring(referentOf(first, referent), () => readSentence(rest)))
     if (first && second) return [...first, ...second]
   }
+  return null
+}
+
+/** "For each" of something that has happened this turn rather than
+ *  something on the battlefield. */
+function readEach(phrase: string): Count | null {
+  if (/^creature put into your graveyard from the battlefield this turn$/.test(phrase)) return { tally: 'died' }
+  if (/^creature that died this turn$/.test(phrase)) return { tally: 'died' }
+  if (/^card you've discarded this turn$/.test(phrase)) return { tally: 'discarded' }
+  if (/^card you've drawn this turn$/.test(phrase)) return { tally: 'drawn' }
   return null
 }
 
@@ -582,15 +602,18 @@ function thoseTokens(body: string, before: readonly Effect[]): Effect[] | null {
  * all of them did. A sentence that does not read leaves the ability
  * incomplete; it still runs what was understood, and its words are posted.
  */
-export function readAbility(text: string): { effects: Effect[]; complete: boolean; once: boolean } {
+export function readAbility(
+  text: string, about: Aim | null = null,
+): { effects: Effect[]; complete: boolean; once: boolean } {
   const compound = readCompound(text)
   if (compound) return { effects: compound, complete: true, once: false }
   const effects: Effect[] = []
   let complete = true
   let once = false
   let understood = true
-  /** What "it" means so far. */
-  let it: Aim | null = null
+  /** What "it" means so far: to begin with, the card the ability is about,
+   *  if it is about one. */
+  let it: Aim | null = about
   // A search that says where its cards go in the sentence after is one
   // instruction: "…for up to X basic land cards. Reveal those cards, put
   // them into your hand, then shuffle."

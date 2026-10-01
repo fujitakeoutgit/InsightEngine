@@ -25,7 +25,7 @@ import { begin, pass, passTo, settle, toNextStop } from './priority'
 import { shuffle } from './random'
 import { answer } from './resolve'
 import {
-  draw, find, mint, noted, relocate, shuffleLibrary, startingLoyalty, toBottom,
+  draw, emptyTally, find, mint, noted, relocate, shuffleLibrary, startingLoyalty, toBottom,
 } from './state'
 import type { Action, GameState, Instance, Zone } from './types'
 
@@ -91,6 +91,8 @@ export function deal(
     boosts: [],
     paying: null,
     tokenArt: Object.fromEntries(tokens.map((t) => [t.name.toLowerCase(), t.image])),
+    events: [],
+    tally: emptyTally(),
   }
 }
 

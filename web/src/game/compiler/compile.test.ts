@@ -21,7 +21,7 @@ describe('reading phrases', () => {
     })
     expect(readFilter('basic Plains, Swamp, or Forest')).toEqual({ basic: true, subtypes: ['Plains', 'Swamp', 'Forest'] })
     expect(readFilter('artifact or enchantment')).toEqual({ types: ['artifact', 'enchantment'] })
-    expect(readFilter('nonland permanent')).toEqual({ not: ['land'] })
+    expect(readFilter('nonland permanent')).toEqual({ not: ['land', 'instant', 'sorcery'] })
     expect(readFilter('creature with power 2 or less')).toEqual({
       types: ['creature'], compare: { stat: 'power', op: '<=', value: 2 },
     })

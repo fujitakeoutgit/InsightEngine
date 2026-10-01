@@ -10,7 +10,7 @@
 
 import type { Card, DeckToken } from '../lib/api'
 import type { DeckCard } from '../lib/deckModel'
-import type { Effect } from './compiler/ir'
+import type { Effect, TallyKey } from './compiler/ir'
 import type { ManaPool, ManaType } from './mana'
 
 export type Zone = 'library' | 'hand' | 'battlefield' | 'graveyard' | 'exile' | 'command' | 'stack'
@@ -68,6 +68,16 @@ export interface Known {
   counters?: Record<string, number>
   manaValue?: number
 }
+
+/** Something that happened which cannot be read off the board before and
+ *  after — a creature connived, you scried — kept until the abilities that
+ *  watch for it have seen it. */
+export type GameEvent =
+  | { on: 'connives'; iid: string }
+  | { on: 'scry' }
+
+/** Counts kept over a turn, for the cards that ask what has happened in it. */
+export type Tally = Record<TallyKey, number>
 
 /** The turn, step by step (CR 500–514). Declare blockers is absent: the
  *  opponent has nothing to block with. */
@@ -239,6 +249,10 @@ export interface GameState {
   paying: { iid: string; index: number } | null
   /** Pictures for the tokens this deck makes, by name. */
   tokenArt: Record<string, string | null>
+  /** What has happened that triggers have yet to be asked about. */
+  events: GameEvent[]
+  /** This turn's counts. */
+  tally: Tally
 }
 
 export type Action =

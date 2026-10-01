@@ -61,6 +61,9 @@ export function readAmount(phrase: string, who: Speaking = NOBODY): Count | null
     return of && { total: total[1] as 'power' | 'toughness', of }
   }
 
+  const life = /^the amount of life you (gained|lost) this turn$/.exec(p)
+  if (life) return { tally: life[1] as 'gained' | 'lost' }
+
   const number = /^the number of (.+)$/.exec(p)
   if (!number) return null
   const what = number[1]
@@ -117,6 +120,12 @@ export function readTest(phrase: string, who: Speaking = NOBODY): Test | null {
     const atLeast = readNumber(counters[1])
     return atLeast === null ? null : { counters: counters[2], of: 'self', atLeast }
   }
+  // What has happened this turn.
+  if (/^a permanent left the battlefield under your control this turn$/.test(p)) return { tally: 'left', atLeast: 1 }
+  if (/^a creature card was put into your graveyard from anywhere this turn$/.test(p)) return { tally: 'binned', atLeast: 1 }
+  if (/^a creature died this turn$/.test(p)) return { tally: 'died', atLeast: 1 }
+  if (/^you(?:'ve)? discarded a card this turn$/.test(p)) return { tally: 'discarded', atLeast: 1 }
+  if (/^you(?:'ve)? gained life this turn$/.test(p)) return { tally: 'gained', atLeast: 1 }
   return null
 }
 
@@ -198,7 +207,12 @@ export function readFilter(phrase: string): Filter | null {
   const words = rest.replace(/,/g, ' ').split(/\s+/).filter(Boolean)
   for (const word of words) {
     const singular = word.replace(/s$/, '')
-    if (['or', 'and', 'card', 'cards', 'permanent', 'permanents', 'a', 'an', 'target'].includes(word)) continue
+    if (['or', 'and', 'card', 'cards', 'a', 'an', 'target'].includes(word)) continue
+    if (word === 'permanent' || word === 'permanents') {
+      // Among cards, a permanent is anything but an instant or a sorcery.
+      filter.not = [...(filter.not ?? []), 'instant', 'sorcery']
+      continue
+    }
     if (TYPES.includes(singular)) types.push(singular)
     else if (singular.startsWith('non') && TYPES.includes(singular.slice(3))) {
       filter.not = [...(filter.not ?? []), singular.slice(3)]

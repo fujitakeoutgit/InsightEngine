@@ -15,7 +15,8 @@ import type { Card } from '../../lib/api'
 import { readActivated, readKeywordAbility } from './activated'
 import { readAbility } from './effects'
 import type {
-  Ability, ActivatedAbility, Compiled, Coverage, Effect, Filter, Static, TriggerEvent, TriggeredAbility,
+  Ability, ActivatedAbility, Aim, Compiled, Coverage, Effect, Filter, Static, Test, TriggerEvent,
+  TriggeredAbility,
 } from './ir'
 import { readFilter, readTest } from './read'
 import { isInert, readStatic } from './statics'
@@ -107,6 +108,25 @@ function readOneTrigger(condition: string): TriggerEvent | null {
   if (/^(equipped|enchanted) creature attacks$/.test(c)) return { on: 'attacks', who: 'attached' }
   if (/^you attack$/.test(c)) return { on: 'attack' }
   if (/^~ deals combat damage to (a player|an opponent)$/.test(c)) return { on: 'combatDamage', who: 'self' }
+  if (/^you draw a card$/.test(c)) return { on: 'draw' }
+  const nth = /^you draw your (second|third) card each turn$/.exec(c)
+  if (nth) return { on: 'draw', nth: nth[1] === 'second' ? 2 : 3 }
+  // Cycling a card is discarding it, so "cycle or discard" is one thing.
+  if (/^you (?:cycle or )?discard (?:a|another) card$/.test(c)) return { on: 'discard' }
+  const discarding = /^you discard one or more (.+?) cards?$/.exec(c)
+  if (discarding) {
+    const filter = readFilter(discarding[1])
+    if (filter) return { on: 'discard', filter }
+  }
+  const tapping = /^~ becomes? (tapped|untapped)$/.exec(c)
+  if (tapping) return { on: tapping[1] as 'tapped' | 'untapped', who: 'self' }
+  if (/^you (scry|surveil|scry or surveil)$/.test(c)) return { on: 'scry' }
+  if (/^~ connives$/.test(c)) return { on: 'connives', who: 'self' }
+  const conniving = /^(?:a|an|another) (.+?) connives$/.exec(c)
+  if (conniving) {
+    const filter = readFilter(conniving[1])
+    if (filter) return { on: 'connives', who: { ...filter, ...(/^another /.test(c) ? { other: true } : {}) } }
+  }
   if (/^the beginning of combat on your turn$/.test(c)) return { on: 'step', step: 'combat' }
 
   const attacking = /^(?:a|an|another) (.+?) attacks$/.exec(c)
@@ -114,7 +134,7 @@ function readOneTrigger(condition: string): TriggerEvent | null {
     const filter = readFilter(attacking[1])
     if (filter) return { on: 'attacks', who: { ...filter, ...(/^another /.test(c) ? { other: true } : {}) } }
   }
-  const hitting = /^(?:a|an|another) (.+?) deals combat damage to (?:a player|an opponent)$/.exec(c)
+  const hitting = /^(?:a|an|another|one or more) (.+?) deals? combat damage to (?:a player|an opponent)$/.exec(c)
   if (hitting) {
     const filter = readFilter(hitting[1])
     if (filter) return { on: 'combatDamage', who: { ...filter, ...(/^another /.test(c) ? { other: true } : {}) } }
@@ -194,7 +214,15 @@ export function compile(card: Card): Compiled {
   const grades: number[] = []
 
   for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i]
+    const printed = lines[i]
+    // A Background: `Commander creatures you own have "…"`. The ability is
+    // read as this card's own, for as long as a commander of yours is there
+    // to have it.
+    const granted = /^commander creatures you own have "(.+?)\.?"$/i.exec(printed)
+    const having: Test | null = granted
+      ? { control: { types: ['creature'], commander: true, controller: 'you' }, atLeast: 1 }
+      : null
+    const line = granted ? `${granted[1]}.` : printed
     // Ability words are flavor: "Landfall — Whenever …" reads as "Whenever …".
     const lower = line.toLowerCase().replace(/^[a-z' ]+ — (?=(when|whenever|at) )/, '')
 
@@ -232,9 +260,17 @@ export function compile(card: Card): Compiled {
       }
     }
     /** What this line does, read — or, for a modal one, the choice. */
-    const reading = (body: string) => (modal ? { ...modal, once: false } : readAbility(body))
-    const shown = modal ? modal.text : line
+    const reading = (body: string, about: Aim | null) => (modal ? { ...modal, once: false } : readAbility(body, about))
+    const shown = modal ? modal.text : printed
     const headed = choice ? choice.head.trim().toLowerCase() : null
+
+    // A static that is worded like a trigger.
+    const early = /^at the beginning of each player's draw step\b/.test(lower) ? readStatic(lower) : null
+    if (early) {
+      statics.push(early)
+      grades.push(1)
+      continue
+    }
 
     const trig = /^(when|whenever|at) (.+?), (.+)$/.exec(headed !== null ? `${headed} …` : lower)
     if (trig) {
@@ -244,18 +280,29 @@ export function compile(card: Card): Compiled {
       const conditional = readCondition(trig[3])
       const body = conditional ? conditional.rest : trig[3]
       if (events && !/^if /.test(body)) {
-        const { effects, complete, once } = reading(body)
+        // In an ability about another card — "whenever a creature you
+        // control enters" — "it" is that card.
+        const about: Aim | null = events.some((when) => 'who' in when && when.who !== 'self') ? { kind: 'event' } : null
+        const { effects, complete, once } = reading(body, about)
+        const conditions = [having, conditional?.condition].filter((test): test is Test => Boolean(test))
         for (const when of events) {
           triggers.push({
             text: shown, when, effects, complete,
-            ...(conditional ? { condition: conditional.condition } : {}),
+            ...(conditions.length ? { condition: conditions.length > 1 ? { all: conditions } : conditions[0] } : {}),
             ...(once ? { oncePerTurn: true } : {}),
+            ...(/\bone or more\b/.test(trig[2]) ? { batch: true } : {}),
           })
         }
         grades.push(complete ? 1 : effects.length ? 0.5 : 0)
         continue
       }
       unread.push(shown)
+      grades.push(0)
+      continue
+    }
+    // Anything else given to a commander is not something this reads.
+    if (having) {
+      unread.push(printed)
       grades.push(0)
       continue
     }

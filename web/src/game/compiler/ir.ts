@@ -31,6 +31,8 @@ export interface Filter {
   colorless?: boolean
   /** Declared as an attacker this combat. */
   attacking?: boolean
+  /** One of your commanders. */
+  commander?: boolean
   nontoken?: boolean
   /** Not the source itself. */
   other?: boolean
@@ -78,6 +80,24 @@ export type Count =
   /** As many as the effect before this one acted on: "the number of
    *  creatures destroyed this way". */
   | 'thatMany'
+  /** Something counted over the turn: the creatures that died, the life
+   *  you gained. */
+  | { tally: TallyKey }
+
+/** What the game counts as a turn goes by, for the cards that ask. */
+export type TallyKey =
+  /** Cards drawn. */
+  | 'drawn'
+  | 'discarded'
+  /** Creatures put into your graveyard from the battlefield. */
+  | 'died'
+  /** Permanents that left the battlefield. */
+  | 'left'
+  /** Creature cards put into your graveyard from anywhere. */
+  | 'binned'
+  /** Life gained, and lost. */
+  | 'gained'
+  | 'lost'
 
 /** A change to power or toughness: a plain number, or an amount worked out
  *  as the effect happens — "-X/-X, where X is the sacrificed creature's
@@ -112,6 +132,10 @@ export type Test =
   | { stat: 'power' | 'toughness'; of: Whose; op: '>=' | '<='; value: number }
   /** "If ~ has five or more charge counters on it." */
   | { counters: string; of: Whose; atLeast: number }
+  /** "If a permanent left the battlefield under your control this turn." */
+  | { tally: TallyKey; atLeast: number }
+  /** Every one of these. */
+  | { all: Test[] }
 
 /** A token, as described where it is created. */
 export interface TokenSpec {
@@ -162,6 +186,9 @@ export type Effect = (
    *  made. */
   | { op: 'token'; count: Count; token: TokenSpec; tapped: boolean; size?: Count }
   | { op: 'counters'; to: Aim; count: Count; counter: string }
+  /** Connive: draw a card, then discard a card; if it was not a land, a
+   *  +1/+1 counter on the creature that connived. */
+  | { op: 'connive'; who: Aim }
   /** One more of each kind of counter already there, on everything of yours
    *  that has any — and a poison counter for an opponent who has one. */
   | { op: 'proliferate' }
@@ -274,6 +301,17 @@ export type TriggerEvent =
   | { on: 'lifeGain' }
   /** "Whenever a player plays a land" — played, not put onto the battlefield. */
   | { on: 'landPlay' }
+  /** "Whenever you draw a card" — or, with `nth`, "your second card each
+   *  turn". */
+  | { on: 'draw'; nth?: number }
+  /** "Whenever you discard a card", and cycling one is discarding it. */
+  | { on: 'discard'; filter?: Filter }
+  /** "Whenever ~ becomes tapped." */
+  | { on: 'tapped' | 'untapped'; who: 'self' }
+  /** "Whenever you scry or surveil." */
+  | { on: 'scry' }
+  /** "Whenever a creature you control connives." */
+  | { on: 'connives'; who: 'self' | Filter }
 
 export interface TriggeredAbility extends Ability {
   when: TriggerEvent
@@ -281,6 +319,8 @@ export interface TriggeredAbility extends Ability {
   condition?: Test
   /** "This ability triggers only once each turn." */
   oncePerTurn?: boolean
+  /** "Whenever one or more …": once, however many did it together. */
+  batch?: boolean
 }
 
 export type Static =
@@ -292,6 +332,12 @@ export type Static =
   | { kind: 'doubleLifeGain' }
   /** "You have no maximum hand size." */
   | { kind: 'noMaxHandSize' }
+  /** "If you would draw a card except the first one you draw in each of
+   *  your draw steps, draw two cards instead." */
+  | { kind: 'drawTwice' }
+  /** "At the beginning of each player's draw step, that player draws an
+   *  additional card." */
+  | { kind: 'extraDraw'; count: number }
   /** "Each creature you control assigns combat damage equal to its
    *  toughness rather than its power." */
   | { kind: 'toughnessDamage' }

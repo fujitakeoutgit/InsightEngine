@@ -72,6 +72,12 @@ export function readStatic(line: string): Static | null {
   if (/^you may play an additional land on each of your turns$/.test(l)) return { kind: 'extraLand', count: 1 }
   if (/^if you would gain life, you gain twice that much life instead$/.test(l)) return { kind: 'doubleLifeGain' }
   if (/^you have no maximum hand size$/.test(l)) return { kind: 'noMaxHandSize' }
+  if (/^if you would draw a card except the first one you draw in each of your draw steps, draw two cards instead$/.test(l)) {
+    return { kind: 'drawTwice' }
+  }
+  if (/^at the beginning of each player's draw step, that player draws an additional card$/.test(l)) {
+    return { kind: 'extraDraw', count: 1 }
+  }
   if (/^(during your turn, )?each creature( you control)? assigns combat damage equal to its toughness rather than its power$/.test(l)) {
     return { kind: 'toughnessDamage' }
   }
