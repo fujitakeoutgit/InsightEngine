@@ -714,7 +714,7 @@ export function readAbility(
       // What it asks about may be what the sentence before did, so one that
       // did not read leaves this in words too.
       const test: Test | null = understood ? referring(it, () => readTest(plain[1], speaking())) : null
-      const then = test && after(effects, () => referring(it, () => readSentence(plain[2])))
+      const then: Effect[] | null = test && after(effects, () => referring(it, () => readSentence(plain[2])))
       if (test && then) {
         previous = effects.length
         effects.push({ op: 'if', test, then, otherwise: [] })
