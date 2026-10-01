@@ -1,16 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { FOREST, PLAINS } from './testing'
-import type { GameState } from './types'
+import { FOREST, game as make, PLAINS } from './testing'
 import { freshTable, reduceTable, UNDO_LIMIT } from './undo'
 
-const game: GameState = {
-  cards: [
-    { iid: 'a', card: FOREST, zone: 'library', tapped: false, x: 0.5, y: 0.5 },
-    { iid: 'b', card: PLAINS, zone: 'library', tapped: false, x: 0.5, y: 0.5 },
-  ],
-  turn: 1, life: 40, log: [], drawn: [], seed: 7, serial: 0,
-}
+const game = make([[FOREST, 'library'], [PLAINS, 'library']], { seed: 7 })
 
 describe('undo', () => {
   it('takes back the last action', () => {

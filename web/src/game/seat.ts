@@ -10,10 +10,12 @@
 
 import type { Instance, Spot } from './types'
 
+/* The top rows start a little way down, clear of the turn bar laid across
+   the top of the mat. */
 const REGIONS = {
-  creatures: { x: 0.02, y: 0.03, dx: 0.105, dy: 0.20, cols: 6 },
+  creatures: { x: 0.02, y: 0.09, dx: 0.105, dy: 0.20, cols: 6 },
   lands: { x: 0.02, y: 0.52, dx: 0.105, dy: 0.20, cols: 6 },
-  sides: { x: 0.68, y: 0.03, dx: 0.105, dy: 0.20, cols: 3 },
+  sides: { x: 0.68, y: 0.09, dx: 0.105, dy: 0.20, cols: 3 },
 } as const
 
 /** Land wins over Creature, so an Artifact Land is a land and an Artifact

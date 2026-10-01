@@ -35,6 +35,10 @@ export interface Card {
   scryfall_uri: string | null
   card_faces: CardFace[] | null
   layout: string | null
+  /** The kinds of mana it can make, as Scryfall reads them: `['C']` for Sol
+   *  Ring, all five for Command Tower. Optional because a token built on the
+   *  table has none. */
+  produced_mana?: string[] | null
 }
 
 export interface CardFace {

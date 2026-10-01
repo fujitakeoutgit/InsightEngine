@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
+import {
+  checkCast, isLand, landProblem, manaOptions, manaProblem, playable,
+} from '../game/cast'
 import { canFetch, fetchFinds, obviousFetch, type Fetch } from '../game/fetch'
+import type { ManaType } from '../game/mana'
 import { randomSeed } from '../game/random'
 import { deal } from '../game/reducer'
-import type { Instance, Zone } from '../game/types'
+import { manaAbilities } from '../game/sources'
+import type { GameState, Instance, Spot, Zone } from '../game/types'
 import { freshTable, reduceTable } from '../game/undo'
 import { useCardFace } from '../lib/faces'
-import { useEscape } from '../lib/usePersisted'
+import { useEscape, usePersisted } from '../lib/usePersisted'
 import { sleeveFor } from '../lib/sleeves'
 import { readCoinSkin, readD20Skin, readDieSkin, readMatSkin, skinVars } from '../lib/skins'
 import { solidDragImage } from '../lib/useQuietDrag'
@@ -16,6 +21,9 @@ import { ManaCost } from './ManaCost'
 import { PlayCoin, type CoinFace } from './PlayCoin'
 
 import { PlayDie } from './PlayDie'
+import {
+  DecisionPrompt, ManaPicker, PhaseBar, Reminders, StackPanel, XPrompt,
+} from './PlaytestHud'
 import { canAnimate, gsap } from '../lib/motion'
 import { type DeckToken } from '../lib/api'
 import { type DeckCard } from '../lib/deckModel'
@@ -74,7 +82,25 @@ function LoyaltyShield() {
 
 const ZONE_LABEL: Record<Zone, string> = {
   library: 'Library', hand: 'Hand', battlefield: 'Battlefield',
-  graveyard: 'Graveyard', exile: 'Exile', command: 'Command',
+  graveyard: 'Graveyard', exile: 'Exile', command: 'Command', stack: 'Stack',
+}
+
+/** How long an explanation of a refused play stays up. */
+const HINT_MS = 2600
+
+/** What passing does next, for the button that does it. */
+function passLabel(game: GameState) {
+  if (game.stack.length) return 'Resolve'
+  if (game.step === 'main1') return 'Main 2'
+  if (game.step === 'main2') return 'End turn'
+  return 'Continue'
+}
+
+/** The most X a spell can be cast with, as the board stands. */
+function largestX(game: GameState, iid: string) {
+  let x = 0
+  while (x < 40 && checkCast(game, iid, x + 1).payment) x += 1
+  return x
 }
 
 /** How long an armed Reset stays armed. Long enough to mean it, short enough
@@ -124,13 +150,18 @@ export function Playtest({
   // invocation and could observe what this component had itself just written.
   const [resumed] = useState(() => recallGame(gameKey, signature))
 
+  /** Whether new games play by the rules. Remembered, because it is a way of
+   *  using the table rather than a fact about one game. */
+  const [rulesByDefault, setRulesByDefault] = usePersisted('insight-enigma:playtest-rules', true)
+
   /* The game, and the states undo can return to. A resumed game comes back
    * with its undo intact; anything else is dealt here, so the first frame the
    * table draws already has a hand in it. */
   const [table, dispatch] = useReducer(reduceTable, undefined, () => (
-    resumed?.table ?? freshTable(deal(deck, randomSeed()))
+    resumed?.table ?? freshTable(deal(deck, randomSeed(), rulesByDefault))
   ))
-  const { cards, turn, life, log, drawn } = table.game
+  const game = table.game
+  const { cards, turn, life, log, drawn } = game
   /* Dice and the coin start fresh every time the mat is opened. They are what
    * is on the table right now rather than what the game is, so they are not
    * part of what a resumed game restores. */
@@ -206,6 +237,45 @@ export function Playtest({
   const undo = useCallback(() => dispatch({ type: 'undo' }), [])
   const canUndo = table.past.length > 0
 
+  /** Why the last thing you tried did not happen, briefly. A refused play
+   *  that only did nothing would read as a broken button. */
+  const [hint, setHint] = useState<string | null>(null)
+  useEffect(() => {
+    if (!hint) return
+    const timer = window.setTimeout(() => setHint(null), HINT_MS)
+    return () => window.clearTimeout(timer)
+  }, [hint])
+
+  /** Cards picked in hand for a pending bottom or discard. */
+  const [selected, setSelected] = useState<string[]>([])
+  useEffect(() => { setSelected([]) }, [game.pending])
+  /** A spell with X, waiting on how much. */
+  const [choosingX, setChoosingX] = useState<{ iid: string; name: string; max: number } | null>(null)
+  /** A source that could make more than one kind of mana, waiting on which. */
+  const [pickingMana, setPickingMana] = useState<
+    { iid: string; at: Spot; options: { ability: number; kinds: ManaType[] }[] } | null
+  >(null)
+  /** The card in hand under the pointer, whose payment is previewed. */
+  const [previewing, setPreviewing] = useState<string | null>(null)
+  /** The loss already acknowledged, so its banner stays down. */
+  const [seenLoss, setSeenLoss] = useState<string | null>(null)
+
+  const canPlay = useMemo(() => playable(game), [game])
+  /** What the tapper would tap for the card being previewed. */
+  const wouldTap = useMemo(() => {
+    if (!previewing || !game.rules || !canPlay.has(previewing)) return new Set<string>()
+    const inst = cards.find((c) => c.iid === previewing)
+    if (!inst || isLand(inst.card)) return new Set<string>()
+    return new Set(checkCast(game, previewing).payment?.taps.map((t) => t.id) ?? [])
+  }, [previewing, game, canPlay, cards])
+
+  const setRules = (on: boolean) => {
+    setRulesByDefault(on)
+    dispatch({ type: 'rules', on })
+  }
+
+  const pass = useCallback(() => dispatch({ type: 'pass' }), [])
+
   // Written on every change rather than on the way out: unmount is too late to
   // read state in an effect cleanup that has closed over an older render, and
   // this is cheap -- a Map assignment against state React has already built.
@@ -215,13 +285,13 @@ export function Playtest({
 
   const inZone = useMemo(() => {
     const map: Record<Zone, Instance[]> = {
-      library: [], hand: [], battlefield: [], graveyard: [], exile: [], command: [],
+      library: [], hand: [], battlefield: [], graveyard: [], exile: [], command: [], stack: [],
     }
     for (const card of cards) map[card.zone].push(card)
     return map
   }, [cards])
 
-  const move = (iid: string, zone: Exclude<Zone, 'battlefield'>) =>
+  const move = (iid: string, zone: Exclude<Zone, 'battlefield' | 'stack'>) =>
     dispatch({ type: 'move', iid, zone })
 
   const draw = (count = 1) => dispatch({ type: 'draw', count })
@@ -230,19 +300,30 @@ export function Playtest({
    * draw, a whole new deal. Not while typing, where it belongs to the field,
    * and not while a dialog is up: Tutor is showing you the library as it is,
    * and undoing underneath it would leave it showing a library that is not. */
+  /* Space passes priority, as it does at most digital tables. Never when a
+   * control has focus, which already answers Space by pressing itself. */
+  const dialogOpen = Boolean(tutoring || zoomed || choosingX || pickingMana)
   useEffect(() => {
-    if (tutoring || zoomed) return
+    if (dialogOpen) return
     const onKey = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return
-      if (event.key.toLowerCase() !== 'z') return
       const { target } = event
-      if (target instanceof Element && target.closest('input, textarea, select, [contenteditable="true"]')) return
+      const typing = target instanceof Element
+        && target.closest('input, textarea, select, [contenteditable="true"]')
+      if (event.key === ' ' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        if (!game.rules || game.pending || typing) return
+        if (target instanceof Element && target.closest('button, a, [role="button"]')) return
+        event.preventDefault()
+        pass()
+        return
+      }
+      if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return
+      if (event.key.toLowerCase() !== 'z' || typing) return
       event.preventDefault()
       undo()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [tutoring, zoomed, undo])
+  }, [dialogOpen, undo, pass, game.rules, game.pending])
 
   /* The wheel scrolls the hand.
    *
@@ -361,20 +442,54 @@ export function Playtest({
 
   const makeToken = (token: DeckToken) => dispatch({ type: 'token', token })
 
-  const tap = (iid: string) => {
-    /* A fetch land is not a thing you tap, it is a thing you crack — so the
-     * tap opens the search already narrowed to what this particular land can
-     * find, rather than toggling a state the card does not really have. When
-     * the land can only want one thing, it takes it without asking. */
+  /* A fetch land is not a thing you tap, it is a thing you crack — so the tap
+   * opens the search already narrowed to what this particular land can find,
+   * rather than toggling a state the card does not really have. When the land
+   * can only want one thing, it takes it without asking. */
+  const crackOrAsk = (inst: Instance, finds: Fetch) => {
+    const pick = obviousFetch(finds, inZone.library)
+    if (pick) {
+      dispatch({ type: 'crack', iid: inst.iid, pick: pick.iid })
+      return
+    }
+    setTutoring({ fetch: { ...finds, source: inst.card.name, iid: inst.iid } })
+  }
+
+  /** A permanent on the mat, tapped. With the rules on, a source of mana taps
+   *  *for* mana — into the pool, asking which kind when it could make more
+   *  than one. Anything else turns sideways by hand, and so does anything at
+   *  all with Shift held: the way to carry out "put it onto the battlefield
+   *  tapped", or "untap target land", when the rules would rather it made
+   *  mana. */
+  const tap = (iid: string, byHand = false) => {
     const inst = cards.find((c) => c.iid === iid)
-    const finds = inst && fetchFinds(inst.card)
-    if (inst && finds) {
-      const pick = obviousFetch(finds, inZone.library)
-      if (pick) {
-        dispatch({ type: 'crack', iid: inst.iid, pick: pick.iid })
+    if (!inst) return
+    if (byHand) {
+      dispatch({ type: 'tap', iid })
+      return
+    }
+    const finds = fetchFinds(inst.card)
+    const makesMana = game.rules && manaAbilities(inst, game).length > 0
+    if (game.rules && (finds || makesMana) && inst.tapped) {
+      setHint('Already tapped — Undo takes a tap back')
+      return
+    }
+    if (makesMana) {
+      const why = manaProblem(game, iid)
+      if (why) {
+        setHint(why)
         return
       }
-      setTutoring({ fetch: { ...finds, source: inst.card.name, iid: inst.iid } })
+      const options = manaOptions(game, iid)
+      if (options.length === 1 && !finds) {
+        dispatch({ type: 'mana', iid, ability: options[0].ability, kinds: options[0].kinds })
+        return
+      }
+      setPickingMana({ iid, at: { x: inst.x, y: inst.y }, options })
+      return
+    }
+    if (finds) {
+      crackOrAsk(inst, finds)
       return
     }
     dispatch({ type: 'tap', iid })
@@ -382,7 +497,45 @@ export function Playtest({
 
   const stepLoyalty = (iid: string, by: number) => dispatch({ type: 'loyalty', iid, by })
 
-  const play = (iid: string) => dispatch({ type: 'play', iid })
+  /** A card in hand, or a commander at home, clicked. With the rules on it is
+   *  played if it may be and refused with the reason if not; while a bottom
+   *  or discard is pending, the click picks it instead. */
+  const play = (iid: string) => {
+    const { pending } = game
+    if (game.rules && pending) {
+      if (pending.kind === 'mulligan') {
+        setHint('Keep this hand, or mulligan, first')
+        return
+      }
+      if (!inZone.hand.some((c) => c.iid === iid)) return
+      setSelected((picked) => (picked.includes(iid)
+        ? picked.filter((p) => p !== iid)
+        : picked.length < pending.count ? [...picked, iid] : picked))
+      return
+    }
+    if (!game.rules) {
+      dispatch({ type: 'play', iid })
+      return
+    }
+    const inst = cards.find((c) => c.iid === iid)
+    if (!inst) return
+    if (isLand(inst.card)) {
+      const why = landProblem(game, iid)
+      if (why) setHint(why)
+      else dispatch({ type: 'play', iid })
+      return
+    }
+    const check = checkCast(game, iid)
+    if (check.why) {
+      setHint(check.why)
+      return
+    }
+    if (check.cost.x > 0) {
+      setChoosingX({ iid, name: inst.card.name, max: largestX(game, iid) })
+      return
+    }
+    dispatch({ type: 'play', iid })
+  }
 
   /** Drop onto the mat: place the card where the pointer released it. A land
    *  arriving this way obeys its own enters-tapped text exactly as one
@@ -462,9 +615,94 @@ export function Playtest({
         {inZone.battlefield.map((c) => (
           <PlayCard
             key={c.iid} inst={c} drag={drag} onTap={tap} onZoom={setZoomed}
-            onLoyalty={stepLoyalty} placed
+            onLoyalty={stepLoyalty} placed willTap={wouldTap.has(c.iid)}
+            tapHint={game.rules ? ' — click to tap for mana, Shift+click to turn it by hand' : undefined}
           />
         ))}
+
+        <PhaseBar
+          turn={turn}
+          step={game.step}
+          rules={game.rules}
+          pool={game.pool}
+          landsPlayed={game.landsPlayed}
+          waiting={Boolean(game.pending)}
+          onPassTo={(step) => dispatch({ type: 'passTo', step })}
+          onRules={setRules}
+        />
+
+        {/* The stack and the jobs left to do by hand, down the right-hand
+            side under the history tab: present only while there is
+            something on them. */}
+        {game.rules && (game.stack.length > 0 || game.reminders.length > 0) && (
+          <div className={`pt-side${showHistory ? ' beside-history' : ''}`}>
+            <StackPanel
+              items={game.stack.map((item) => {
+                const spell = cards.find((c) => c.iid === item.iid)
+                return {
+                  id: item.id,
+                  name: spell?.card.name ?? '?',
+                  image: spell?.card.image_small ?? spell?.card.card_faces?.[0]?.image_uris?.small ?? null,
+                  x: item.x,
+                }
+              })}
+              onResolve={pass}
+            />
+            <Reminders items={game.reminders} onDone={(id) => dispatch({ type: 'done', id })} />
+          </div>
+        )}
+
+        {game.rules && game.lost && game.lost !== seenLoss && (
+          <div className="pt-lost" role="status">
+            <span><strong>Game lost.</strong> {game.lost}. Play on, or reset.</span>
+            <button className="btn btn-ghost sm" onClick={() => setSeenLoss(game.lost)}>OK</button>
+          </div>
+        )}
+
+        {game.rules && game.pending && (
+          <DecisionPrompt
+            decision={game.pending}
+            chosen={selected.length}
+            onKeep={() => dispatch({ type: 'keep' })}
+            onMulligan={() => dispatch({ type: 'mulligan' })}
+            onConfirm={() => dispatch({ type: 'choose', iids: selected })}
+          />
+        )}
+
+        {choosingX && (
+          <XPrompt
+            name={choosingX.name}
+            max={choosingX.max}
+            onCast={(x) => {
+              dispatch({ type: 'play', iid: choosingX.iid, x })
+              setChoosingX(null)
+            }}
+            onCancel={() => setChoosingX(null)}
+          />
+        )}
+
+        {pickingMana && (
+          <ManaPicker
+            options={pickingMana.options}
+            at={pickingMana.at}
+            onPick={(option) => {
+              dispatch({ type: 'mana', iid: pickingMana.iid, ability: option.ability, kinds: option.kinds })
+              setPickingMana(null)
+            }}
+            onSearch={(() => {
+              const source = cards.find((c) => c.iid === pickingMana.iid)
+              const finds = source && fetchFinds(source.card)
+              if (!source || !finds) return undefined
+              return () => {
+                setPickingMana(null)
+                crackOrAsk(source, finds)
+              }
+            })()}
+            onCancel={() => setPickingMana(null)}
+          />
+        )}
+
+        {hint && <p className="pt-hint" role="status">{hint}</p>}
         {/* The tools, stacked just above the deck: the d20, the tray the d6s
             come out of, and the coin at the bottom. Both dice trays hand out
             replacements — take one and another is waiting — so what sits here
@@ -551,7 +789,12 @@ export function Playtest({
         >
           <div className="pt-cards" ref={handCardsRef}>
             {inZone.hand.map((c) => (
-              <PlayCard key={c.iid} inst={c} drag={drag} onPlay={play} onZoom={setZoomed} splitRead />
+              <PlayCard
+                key={c.iid} inst={c} drag={drag} onPlay={play} onZoom={setZoomed} splitRead
+                playable={canPlay.has(c.iid)}
+                selected={selected.includes(c.iid)}
+                onHover={setPreviewing}
+              />
             ))}
             {!inZone.hand.length && <p className="faint" style={{ fontSize: 12 }}>Empty hand.</p>}
           </div>
@@ -591,8 +834,21 @@ export function Playtest({
 
           <div className="pt-actions">
             {/* Solid: the one action here you take every single turn, and the
-                only one that advances the game rather than rearranging it. */}
-            <button className="btn btn-primary sm" onClick={nextTurn}>Next turn</button>
+                only one that advances the game rather than rearranging it.
+                With the rules on it passes priority, and says what that will
+                do — resolve the top of the stack, or move the turn on. */}
+            {game.rules ? (
+              <button
+                className="btn btn-primary sm"
+                onClick={pass}
+                disabled={Boolean(game.pending)}
+                title="Pass priority (Space). The opponent passes too."
+              >
+                {passLabel(game)}
+              </button>
+            ) : (
+              <button className="btn btn-primary sm" onClick={nextTurn}>Next turn</button>
+            )}
             <button
               className="btn btn-ghost sm"
               onClick={() => setTutoring({})}
@@ -620,7 +876,10 @@ export function Playtest({
           <div className="pt-piles">
             <Pile name="graveyard" cards={inZone.graveyard} drag={drag} onMove={move} onZoom={setZoomed} />
             <Pile name="exile" cards={inZone.exile} drag={drag} onMove={move} onZoom={setZoomed} />
-            <Pile name="command" cards={inZone.command} drag={drag} onMove={move} onPlay={play} onZoom={setZoomed} />
+            <Pile
+              name="command" cards={inZone.command} drag={drag} onMove={move} onPlay={play} onZoom={setZoomed}
+              playable={canPlay} taxes={game.casts}
+            />
           </div>
         </div>
 
@@ -828,14 +1087,18 @@ function Tutor({
 type DragRef = React.MutableRefObject<{ iid: string; dx: number; dy: number } | null>
 
 function Pile({
-  name, cards, drag, onMove, onPlay, onZoom,
+  name, cards, drag, onMove, onPlay, onZoom, playable, taxes,
 }: {
-  name: Exclude<Zone, 'battlefield'>
+  name: Exclude<Zone, 'battlefield' | 'stack'>
   cards: Instance[]
   drag: DragRef
-  onMove: (iid: string, zone: Exclude<Zone, 'battlefield'>) => void
+  onMove: (iid: string, zone: Exclude<Zone, 'battlefield' | 'stack'>) => void
   onPlay?: (iid: string) => void
   onZoom: (view: ZoomView) => void
+  /** What may be cast from here — a commander, from the command zone. */
+  playable?: ReadonlySet<string>
+  /** Casts from the command zone so far, per commander: the tax. */
+  taxes?: Record<string, number>
 }) {
   return (
     <div
@@ -857,6 +1120,8 @@ function Pile({
             <PlayCard
               key={c.iid} inst={c} drag={drag} onPlay={onPlay} onZoom={onZoom}
               style={{ marginLeft: i ? -34 : 0 }}
+              playable={playable?.has(c.iid)}
+              tax={2 * (taxes?.[c.iid] ?? 0)}
             />
         ))}
       </div>
@@ -866,10 +1131,13 @@ function Pile({
 
 function PlayCard({
   inst, drag, onTap, onPlay, onZoom, onLoyalty, placed, splitRead, style,
+  playable, selected, willTap, tax = 0, onHover, tapHint = ' — click to tap',
 }: {
   inst: Instance
   drag: DragRef
-  onTap?: (iid: string) => void
+  /** `byHand` is a Shift+click: turn it sideways without it doing anything,
+   *  whatever the rules would have it do. */
+  onTap?: (iid: string, byHand?: boolean) => void
   /** Present in hand and the command zone: click puts it onto the battlefield. */
   onPlay?: (iid: string) => void
   onZoom: (view: ZoomView) => void
@@ -880,6 +1148,18 @@ function PlayCard({
   /** In hand: the card is its own two controls. See READ_ZONE. */
   splitRead?: boolean
   style?: React.CSSProperties
+  /** It could be played or cast right now, and is lit to say so. */
+  playable?: boolean
+  /** Picked, for a pending bottom or discard. */
+  selected?: boolean
+  /** The tapper would tap it to pay for the card being previewed. */
+  willTap?: boolean
+  /** A commander's tax, shown on it while it waits at home. */
+  tax?: number
+  /** The pointer arrived on this card, or left it. */
+  onHover?: (iid: string | null) => void
+  /** What clicking it does, where that is a tap. */
+  tapHint?: string
 }) {
   const face = useCardFace(inst.card)
 
@@ -908,7 +1188,7 @@ function PlayCard({
   const hint = readOnClick
     ? ' — click to look, ⟳ to tap'
     : splitRead ? ' — click the top to play, the bottom to read'
-      : onPlay ? ' — click to play' : onTap ? ' — click to tap' : ''
+      : onPlay ? ' — click to play' : onTap ? tapHint : ''
 
   /* In hand the card is its own two controls: play from the top, read from
    * the bottom. No `i` to aim at, which in a fanned row is a 25px target
@@ -925,13 +1205,25 @@ function PlayCard({
       const down = (event.clientY - rect.top) / rect.height
       if (down > 1 - READ_ZONE) { zoomFrom(event); return }
     }
-    action?.(inst.iid)
+    if (action === onTap) onTap?.(inst.iid, event.shiftKey)
+    else action?.(inst.iid)
   }
+
+  const flags = [
+    inst.tapped && 'tapped',
+    action && 'actionable',
+    playable && 'playable',
+    selected && 'selected',
+    willTap && 'will-tap',
+    inst.sick && placed && 'sick',
+  ].filter(Boolean).join(' ')
 
   return (
     <div
-      className={`pt-card ${inst.tapped ? 'tapped' : ''} ${action ? 'actionable' : ''}`}
+      className={`pt-card ${flags}`}
       data-iid={inst.iid}
+      onMouseEnter={onHover && (() => onHover(inst.iid))}
+      onMouseLeave={onHover && (() => onHover(null))}
       draggable
       onDragStart={(e) => {
         e.dataTransfer.setData('text/plain', inst.iid)
@@ -948,7 +1240,7 @@ function PlayCard({
         }
       }}
       onClick={onCardClick}
-      title={`${inst.card.name}${hint}`}
+      title={`${inst.card.name}${inst.sick && placed ? ' (summoning sick)' : ''}${hint}`}
       style={placed
         ? { ...style, left: `${inst.x * 100}%`, top: `${inst.y * 100}%` }
         : style}
@@ -961,6 +1253,9 @@ function PlayCard({
           something you do mid-game; leaving the table to do it would end the
           game you are in the middle of. Absent where the card itself already
           zooms on click — a second way in would be one too many. */}
+      {/* What the commander costs on top of itself, by now. */}
+      {tax > 0 && <span className="pt-tax mono" title={`Commander tax: {${tax}} more each cast`}>+{tax}</span>}
+
       {/* Absent in hand: the bottom of the card is the button now. */}
       {!readOnClick && !splitRead && (
         <button
@@ -982,7 +1277,7 @@ function PlayCard({
           title={inst.tapped ? `Untap ${inst.card.name}` : `Tap ${inst.card.name}`}
           aria-label={inst.tapped ? `Untap ${inst.card.name}` : `Tap ${inst.card.name}`}
           aria-pressed={inst.tapped}
-          onClick={(event) => { event.stopPropagation(); onTap(inst.iid) }}
+          onClick={(event) => { event.stopPropagation(); onTap(inst.iid, event.shiftKey) }}
         >
           ⟳
         </button>

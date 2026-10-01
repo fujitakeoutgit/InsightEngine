@@ -4,19 +4,13 @@ import type { Card, DeckToken } from '../lib/api'
 import { fetchFinds, obviousFetch } from './fetch'
 import { deal, reduce } from './reducer'
 import {
-  BEARS, card, CHECKLAND, COMMANDER, entry, FOREST, GROWTH, PLAINS, TAPLAND, WALKER, WILDS,
+  BEARS, card, CHECKLAND, COMMANDER, entry, FOREST, game as sandbox, GROWTH, PLAINS, TAPLAND, WALKER,
+  WILDS,
 } from './testing'
 import type { GameState, Instance, Zone } from './types'
 
-/** A game holding exactly these cards, with iids c0, c1, … in order. */
-function game(...placed: [Card, Zone, Partial<Instance>?][]): GameState {
-  return {
-    cards: placed.map(([of, zone, extra], i) => ({
-      iid: `c${i}`, card: of, zone, tapped: false, x: 0.5, y: 0.5, ...extra,
-    })),
-    turn: 1, life: 40, log: [], drawn: [], seed: 1, serial: 0,
-  }
-}
+/** The sandbox: these tests are the table as it has always behaved. */
+const game = (...placed: [Card, Zone, Partial<Instance>?][]) => sandbox(placed)
 
 const zone = (state: GameState, z: Zone) => state.cards.filter((c) => c.zone === z)
 const at = (state: GameState, iid: string) => state.cards.find((c) => c.iid === iid)!
@@ -91,7 +85,7 @@ describe('playing', () => {
     expect(at(g, 'c0')).toMatchObject({ zone: 'battlefield', x: 0.02, y: 0.52 })
     expect(at(g, 'c1').x).toBeCloseTo(0.125)
     expect(at(g, 'c1').y).toBe(0.52)
-    expect(at(g, 'c2')).toMatchObject({ x: 0.02, y: 0.03 })
+    expect(at(g, 'c2')).toMatchObject({ x: 0.02, y: 0.09 })
   })
 
   it('reuses a square that has been vacated', () => {

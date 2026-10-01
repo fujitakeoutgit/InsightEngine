@@ -5440,3 +5440,318 @@
   padding-top: 8px;
   border-top: 1px solid var(--line-soft);
 }
+
+/* --- Playtest by the rules -------------------------------------------- */
+
+/* The turn, laid across the top of the mat: which step it is, the steps you
+   can pass to, the pool, the land drop, and the switch that turns all of it
+   off. Glass over the mat rather than a band above it, so the board keeps
+   every pixel it had; the top rows are dealt just below it instead. */
+.pt-phases {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 80px);
+  padding: 2px 3px 2px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--bg-hi) 86%, transparent);
+  backdrop-filter: blur(10px);
+  font-family: var(--font-m);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.pt-phase-turn { color: var(--ink); font-weight: 600; padding-right: 4px; }
+
+.pt-phase-steps { display: flex; gap: 2px; }
+
+.pt-phase {
+  padding: 3px 7px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  transition: color var(--dur-fast), background-color var(--dur-fast);
+}
+
+.pt-phase:hover:not(:disabled) { color: var(--ink); background: var(--glass-hi); }
+.pt-phase:disabled { cursor: default; }
+.pt-phase:disabled:not(.now) { opacity: 0.45; }
+
+.pt-phase.now {
+  color: var(--aether-hi);
+  background: color-mix(in oklab, var(--aether) 20%, transparent);
+  font-weight: 600;
+}
+
+.pt-pool { display: inline-flex; align-items: center; gap: 5px; padding: 0 2px; color: var(--ink); }
+.pt-pool-mana { display: inline-flex; align-items: center; gap: 1px; }
+
+/* Green while the land drop is there to be used, and spent once it is. */
+.pt-phase-land { color: var(--ok); }
+.pt-phase-land.used { color: var(--faint); }
+
+.pt-rules {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.pt-rules-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+  transition: background-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+
+.pt-rules.on { color: var(--aether-hi); border-color: color-mix(in oklab, var(--aether) 45%, transparent); }
+.pt-rules.on .pt-rules-dot { background: var(--aether); box-shadow: 0 0 8px var(--aether); }
+.pt-rules:hover { color: var(--ink); }
+
+/* The stack and the jobs left to do by hand, down the right side, clear of
+   the history tab. Only the panels take the pointer; the column between them
+   lets a click through to the board. */
+.pt-side {
+  position: absolute;
+  top: 46px;
+  right: 34px;
+  z-index: 6;
+  width: 250px;
+  max-height: calc(100% - 64px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.pt-side > * { pointer-events: auto; }
+
+/* Beside the history rather than over it, while it is open: both are
+   being read. The drawer is its panel plus the tab it hangs from. */
+.pt-side.beside-history { right: calc(min(340px, 30vw) + 34px); }
+
+.pt-stack,
+.pt-reminder {
+  padding: 9px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r);
+  background: color-mix(in oklab, var(--bg-hi) 90%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.pt-stack ol {
+  list-style: none;
+  margin: 6px 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.pt-stack li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+
+.pt-stack li.top { color: var(--ink); }
+
+.pt-stack li img,
+.pt-stack-blank {
+  flex: none;
+  width: 30px;
+  aspect-ratio: 488 / 680;
+  border-radius: 3px;
+  background: var(--glass-hi);
+  object-fit: cover;
+}
+
+.pt-stack .btn {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pt-reminders { display: flex; flex-direction: column; gap: 8px; }
+
+/* Amber: not an error, a job. */
+.pt-reminder { border-left: 2px solid var(--warn); }
+
+.pt-reminder header { display: flex; align-items: baseline; gap: 8px; }
+.pt-reminder header .label { color: var(--warn); }
+.pt-reminder strong { font-size: 12px; color: var(--ink); }
+
+.pt-reminder p {
+  margin: 5px 0 8px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--muted);
+  white-space: pre-line;
+}
+
+/* A choice the game is waiting on: the opening hand, what goes to the
+   bottom, what is discarded, how big X is. In the middle of the mat, where
+   it cannot be missed and the hand it is about is in view below it. */
+.pt-decision {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  transform: translate(-50%, -50%);
+  z-index: 8;
+  width: min(380px, 84%);
+  padding: 16px 18px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--bg-hi) 94%, transparent);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.85);
+  text-align: center;
+}
+
+.pt-decision h3 { margin: 0 0 6px; font-size: 15px; }
+.pt-decision p { margin: 0 0 14px; font-size: 12px; line-height: 1.5; }
+.pt-decision .row { justify-content: center; }
+.pt-x { margin-bottom: 14px; align-items: center; }
+.pt-x-value { min-width: 6ch; font-size: 14px; color: var(--ink); }
+
+/* Which mana, on the card that was clicked. */
+.pt-mana-picker {
+  position: absolute;
+  z-index: 9;
+  transform: translate(-6px, calc(-100% - 6px));
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--bg-hi) 94%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 14px 30px -14px rgba(0, 0, 0, 0.9);
+}
+
+.pt-mana-picker button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: none;
+  cursor: pointer;
+  transition: background-color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.pt-mana-picker button:hover { background: var(--glass-hi); border-color: var(--aether); }
+
+.pt-mana-search {
+  padding: 0 12px !important;
+  font-family: var(--font-m);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Why that did not happen. Above the hand, where the click was. */
+.pt-hint {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7;
+  margin: 0;
+  padding: 6px 14px;
+  border: 1px solid color-mix(in oklab, var(--warn) 40%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--bg-hi) 94%, transparent);
+  font-size: 12px;
+  color: var(--ink);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.pt-lost {
+  position: absolute;
+  top: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 6px 5px 14px;
+  border: 1px solid color-mix(in oklab, var(--danger) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--bg-hi) 94%, transparent);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pt-lost strong { color: var(--danger); }
+
+/* What can be played right now is lit; the rest of the hand is not. */
+.pt-card.playable {
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--aether) 75%, transparent),
+    0 0 18px -4px var(--aether);
+}
+
+/* What the tapper would tap for the card under the pointer. */
+.pt-card.will-tap {
+  box-shadow:
+    0 0 0 2px var(--ok),
+    0 0 16px -3px var(--ok);
+}
+
+.pt-card.selected {
+  outline: 2px solid var(--warn);
+  outline-offset: 1px;
+  transform: translateY(-10px);
+}
+
+/* Summoning sick: dimmed until your next turn begins. */
+.pt-card.sick img { filter: saturate(0.5) brightness(0.8); }
+
+.pt-tax {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--bg-hi) 85%, transparent);
+  font-size: 10px;
+  color: var(--warn);
+  pointer-events: none;
+}

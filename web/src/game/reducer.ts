@@ -1,35 +1,32 @@
 /**
- * The game's rules, such as they are so far: every change to a game in
- * progress is an `Action` applied here.
+ * Every change to a game in progress is an `Action` applied here.
  *
  * Pure — the same state and action always give the same next state — which is
  * what makes undo a list of earlier states and a test a list of actions. One
  * gesture at the table is one action, however many things it changes:
  * cracking a fetch plays a land, sacrifices the fetch and shuffles, and undo
  * has to take all of that back in one press.
+ *
+ * With the rules on, a play is checked before it happens and the game checks
+ * itself after (`stateBased`). With them off, the table is the free sandbox it
+ * always was: cards go where you put them and nothing is paid.
  */
 
 import type { Card } from '../lib/api'
 import type { DeckCard } from '../lib/deckModel'
-import { entersTapped } from '../lib/landTiming'
+import { castSpell, enterBattlefield, isLand, landProblem, playLand, resolveTop, tapForMana } from './cast'
 import { fetchFinds } from './fetch'
+import { emptyPool } from './mana'
+import { pass, passTo } from './priority'
 import { shuffle } from './random'
-import { seatFor } from './seat'
-import type { Action, GameState, Instance, Spot, Zone } from './types'
+import { stateBased } from './sba'
+import {
+  draw, find, mint, noted, relocate, shuffleLibrary, startingLoyalty, toBottom,
+} from './state'
+import { begin, toNextStop } from './turn'
+import type { Action, GameState, Instance, Zone } from './types'
 
-/** Lines the record keeps. Enough to answer "what just happened". */
-const LOG_LIMIT = 40
-
-/** A planeswalker's printed starting loyalty, or null if it is not one.
- *
- * Scryfall gives loyalty as a string because some of them are not numbers —
- * X on Chandra, Awakened Inferno, and the double-faced walkers that print it
- * on the back only. Those come back as 0 and are then yours to set. */
-export function startingLoyalty(card: { type_line?: string | null; loyalty?: string | null }) {
-  if (!/\bPlaneswalker\b/.test(card.type_line ?? '')) return null
-  const printed = Number.parseInt(card.loyalty ?? '', 10)
-  return Number.isFinite(printed) ? printed : 0
-}
+export { startingLoyalty }
 
 /** Expand quantities into individual copies. The sideboard and maybeboard
  *  never reach the table. */
@@ -38,23 +35,26 @@ function build(deck: readonly DeckCard[]): Instance[] {
   for (const entry of deck) {
     if (entry.section === 'sideboard' || entry.section === 'maybeboard') continue
     const loyalty = startingLoyalty(entry.card)
+    const commander = entry.section === 'commander'
     for (let i = 0; i < entry.quantity; i += 1) {
       out.push({
         iid: `${entry.uid}-${i}`,
         card: entry.card,
-        zone: entry.section === 'commander' ? 'command' : 'library',
+        zone: commander ? 'command' : 'library',
         tapped: false,
         x: 0.5,
         y: 0.5,
         ...(loyalty !== null ? { loyalty } : {}),
+        ...(commander ? { commander } : {}),
       })
     }
   }
   return out
 }
 
-/** A new game: the library shuffled, seven in hand, the commander waiting. */
-export function deal(deck: readonly DeckCard[], seed: number): GameState {
+/** A new game: the library shuffled, seven in hand, the commander waiting.
+ *  With the rules on it opens on the mulligan decision. */
+export function deal(deck: readonly DeckCard[], seed: number, rules = true): GameState {
   const [everything, next] = shuffle(build(deck), seed)
   const library = everything.filter((c) => c.zone === 'library')
   const command = everything.filter((c) => c.zone === 'command')
@@ -67,90 +67,31 @@ export function deal(deck: readonly DeckCard[], seed: number): GameState {
     drawn: hand.map((c) => c.iid),
     seed: next,
     serial: 0,
+    rules,
+    step: rules ? 'untap' : 'main1',
+    pool: emptyPool(),
+    stack: [],
+    landsPlayed: 0,
+    pending: rules ? { kind: 'mulligan', taken: 0 } : null,
+    reminders: [],
+    casts: {},
+    lost: null,
   }
 }
 
-const noted = (state: GameState, line: string): GameState =>
-  ({ ...state, log: [line, ...state.log].slice(0, LOG_LIMIT) })
-
-const find = (state: GameState, iid: string) => state.cards.find((c) => c.iid === iid)
-
-const inZone = (state: GameState, zone: Zone) => state.cards.filter((c) => c.zone === zone)
-
-/** Move a card, keeping its place in the list — which, for the library, is
- *  its place in the deck. */
-function relocate(
-  cards: readonly Instance[], iid: string, zone: Zone, at?: Spot, tapped?: boolean,
-): Instance[] {
-  return cards.map((c) => {
-    if (c.iid !== iid) return c
-    /* Leaving the battlefield resets a planeswalker's loyalty to its printed
-     * number. Counters do not travel with a card between zones — the walker
-     * that comes back is a new object, and one returning from the graveyard
-     * on three loyalty because that is where it died would be quietly wrong
-     * every time. */
-    const loyalty = zone !== 'battlefield' ? startingLoyalty(c.card) : null
-    return {
-      ...c,
-      zone,
-      tapped: zone === 'battlefield' ? (tapped ?? c.tapped) : false,
-      ...(loyalty !== null ? { loyalty } : {}),
-      ...(at ?? {}),
-    }
-  })
-}
-
-function draw(state: GameState, count: number): GameState {
-  const drawn = inZone(state, 'library').slice(0, count).map((c) => c.iid)
-  if (!drawn.length) return noted(state, 'Drew nothing — the library is empty')
-  const taking = new Set(drawn)
-  const cards = state.cards.map((c) => (taking.has(c.iid) ? { ...c, zone: 'hand' as Zone } : c))
-  return noted({ ...state, cards, drawn }, drawn.length === 1 ? 'Drew a card' : `Drew ${drawn.length} cards`)
-}
-
-/** Reorder the library in place. The shuffled sequence is poured back into
- *  the slots library cards already occupy, so the other zones keep their
- *  order — the battlefield's is the order things were played. */
-function shuffleLibrary(state: GameState): GameState {
-  const [shuffled, seed] = shuffle(inZone(state, 'library'), state.seed)
-  let next = 0
-  return { ...state, seed, cards: state.cards.map((c) => (c.zone === 'library' ? shuffled[next++] : c)) }
-}
-
-/** What the board says about a land arriving now. */
-function tapVerdict(state: GameState, inst: Instance) {
-  return entersTapped(
-    inst.card,
-    inZone(state, 'battlefield').map((c) => c.card),
-    inZone(state, 'hand').filter((c) => c.iid !== inst.iid).map((c) => c.card),
-  )
-}
-
-/** Play a card: instants and sorceries resolve to the graveyard, permanents
+/** Sandbox play: instants and sorceries resolve to the graveyard, permanents
  *  are dealt into the region their type belongs to. */
-function play(state: GameState, iid: string, forceTapped = false, seat?: Spot): GameState {
+function playFreely(state: GameState, iid: string): GameState {
   const inst = find(state, iid)
   if (!inst) return state
-
   // Instants and sorceries resolve and are done; they never sit on a
   // battlefield, and leaving one there inflates the board you are reading.
   if (/\b(Instant|Sorcery)\b/.test(inst.card.type_line ?? '')) {
     return noted({ ...state, cards: relocate(state.cards, iid, 'graveyard') }, `Cast ${inst.card.name}`)
   }
-
-  /* Lands may arrive tapped, and which ones depends on the board you have
-   * built by now: a check land coming down untapped on turn four is the whole
-   * reason it is in the deck. `forceTapped` is a fetch land talking — "put it
-   * onto the battlefield tapped" is an instruction from the card that found
-   * it, and overrides what the land would have done under its own steam. */
-  const verdict = tapVerdict(state, inst)
-  const tapped = forceTapped || verdict.tapped
-  const at = seat ?? seatFor(state.cards, inst)
-  const cards = state.cards.map((c) => (
-    c.iid === iid ? { ...c, zone: 'battlefield' as Zone, tapped, ...at } : c
-  ))
-  const because = forceTapped ? '' : verdict.why ? ` — ${verdict.why}` : ''
-  return noted({ ...state, cards }, tapped
+  const entered = enterBattlefield(state, iid)
+  const because = entered.why ? ` — ${entered.why}` : ''
+  return noted(entered.state, entered.tapped
     ? `Played ${inst.card.name} tapped${because}`
     : `Played ${inst.card.name}${because}`)
 }
@@ -162,26 +103,44 @@ function crack(state: GameState, iid: string, pick: string): GameState {
   const found = find(state, pick)
   const finds = source && fetchFinds(source.card)
   if (!source || !found || !finds) return state
+  // A fetch taps to search; one already tapped has nothing to pay with.
+  if (state.rules && source.tapped) return state
   /* The land takes the square the fetch is vacating — but only when the
    * fetch actually leaves. One that taps instead of sacrificing is still
    * standing there, so the land is dealt a fresh square. */
-  const seat = finds.sacrifices ? { x: source.x, y: source.y } : undefined
-  let next = play(state, pick, finds.tapped, seat)
-  if (finds.sacrifices) next = { ...next, cards: relocate(next.cards, iid, 'graveyard') }
+  const at = finds.sacrifices ? { x: source.x, y: source.y } : undefined
+  const entered = enterBattlefield(state, pick, { at, forceTapped: finds.tapped })
+  let next = noted(entered.state, entered.tapped ? `Played ${found.card.name} tapped` : `Played ${found.card.name}`)
+  next = { ...next, cards: finds.sacrifices
+    ? relocate(next.cards, iid, 'graveyard')
+    : next.cards.map((c) => (c.iid === iid ? { ...c, tapped: true } : c)) }
   next = shuffleLibrary(next)
   return noted(next, `${source.card.name}: found ${found.card.name}${
     finds.sacrifices ? ', sacrificed' : ''}, then shuffled`)
 }
 
-export function reduce(state: GameState, action: Action): GameState {
+/** Turning the rules off mid-stack lets everything on it land where it was
+ *  going, without the ceremony. */
+function settleStack(state: GameState): GameState {
+  let next = state
+  while (next.stack.length) next = resolveTop(next)
+  return next
+}
+
+function apply(state: GameState, action: Action): GameState {
+  // While the game waits on a choice, the choice is all it will take — and
+  // the moves you make by hand, which are not the game's to refuse.
+  const waiting = state.rules && state.pending
+
   switch (action.type) {
     case 'deal':
-      return deal(action.deck, action.seed)
+      return deal(action.deck, action.seed, state.rules)
 
     case 'draw':
       return draw(state, action.count ?? 1)
 
     case 'nextTurn': {
+      if (state.rules) return passTo(state, 'main1')
       const untapped = state.cards.map((c) => (
         c.zone === 'battlefield' && c.tapped ? { ...c, tapped: false } : c
       ))
@@ -189,33 +148,51 @@ export function reduce(state: GameState, action: Action): GameState {
       return noted(drawn, `Turn ${state.turn + 1}`)
     }
 
-    case 'play':
-      return play(state, action.iid)
+    case 'play': {
+      if (!state.rules) return playFreely(state, action.iid)
+      const inst = find(state, action.iid)
+      if (!inst || waiting) return state
+      return isLand(inst.card) ? playLand(state, action.iid) : castSpell(state, action.iid, action.x ?? 0)
+    }
 
     case 'place': {
       const inst = find(state, action.iid)
       if (!inst) return state
-      /* A land dragged onto the mat obeys its own text exactly as a land
-       * clicked in hand does — the same card on the same board must not come
-       * down differently depending on the gesture. Only when it is arriving:
-       * nudging a permanent already on the battlefield must not re-roll its
-       * tapped state. */
-      const verdict = inst.zone !== 'battlefield' ? tapVerdict(state, inst) : null
-      const moved = { ...state, cards: relocate(state.cards, action.iid, 'battlefield', action.at, verdict?.tapped) }
-      return verdict?.tapped
-        ? noted(moved, `Played ${inst.card.name} tapped${verdict.why ? ` — ${verdict.why}` : ''}`)
-        : moved
+      if (inst.zone === 'battlefield') {
+        // Nudged, not played: it keeps its tapped state.
+        return { ...state, cards: relocate(state.cards, action.iid, 'battlefield', action.at) }
+      }
+      if (inst.zone === 'stack') return state
+      // A land from hand dragged to the mat is the turn's land, when it can be.
+      if (state.rules && inst.zone === 'hand' && isLand(inst.card) && !landProblem(state, action.iid)) {
+        return playLand(state, action.iid, action.at)
+      }
+      const entered = enterBattlefield(state, action.iid, { at: action.at })
+      const because = entered.why ? ` — ${entered.why}` : ''
+      if (state.rules) {
+        // Anything else dragged onto the battlefield is put there by hand:
+        // the way to carry out "put a land onto the battlefield", and the
+        // override for everything the rules here do not cover yet.
+        return noted(entered.state, `Put ${inst.card.name} onto the battlefield by hand${
+          entered.tapped ? ', tapped' : ''}${because}`)
+      }
+      return entered.tapped
+        ? noted(entered.state, `Played ${inst.card.name} tapped${because}`)
+        : entered.state
     }
 
     case 'move':
-      return find(state, action.iid)
-        ? { ...state, cards: relocate(state.cards, action.iid, action.zone) }
-        : state
+      return find(state, action.iid)?.zone === 'stack' || !find(state, action.iid)
+        ? state
+        : { ...state, cards: relocate(state.cards, action.iid, action.zone) }
 
     case 'tap':
       return find(state, action.iid)
         ? { ...state, cards: state.cards.map((c) => (c.iid === action.iid ? { ...c, tapped: !c.tapped } : c)) }
         : state
+
+    case 'mana':
+      return tapForMana(state, action.iid, action.ability ?? 0, action.kinds)
 
     case 'crack':
       return crack(state, action.iid, action.pick)
@@ -236,8 +213,7 @@ export function reduce(state: GameState, action: Action): GameState {
       return { ...state, life: state.life + action.by }
 
     case 'loyalty':
-      // Floored at zero: a walker on nought is already gone, and negative
-      // loyalty is not a state the game has.
+      // Floored at zero: negative loyalty is not a state the game has.
       return {
         ...state,
         cards: state.cards.map((c) => (
@@ -260,18 +236,81 @@ export function reduce(state: GameState, action: Action): GameState {
         mana_cost: null,
         color_identity: token.color_identity,
       } as unknown as Card
+      const [iid, minted] = mint(state, `token-${token.oracle_id}-`)
       const made: Instance = {
-        iid: `token-${token.oracle_id}-${state.serial}`,
-        card,
-        zone: 'battlefield',
-        tapped: false,
-        x: 0.5,
-        y: 0.5,
+        iid, card, zone: 'battlefield', tapped: false, x: 0.5, y: 0.5, token: true,
+        ...(state.rules && /\bCreature\b/.test(token.type_line ?? '') ? { sick: true } : {}),
       }
-      return noted({ ...state, serial: state.serial + 1, cards: [...state.cards, made] }, `Created ${token.name}`)
+      return noted({ ...minted, cards: [...minted.cards, made] }, `Created ${token.name}`)
     }
 
     case 'note':
       return noted(state, action.line)
+
+    case 'pass':
+      return state.rules ? pass(state) : state
+
+    case 'passTo':
+      return state.rules ? passTo(state, action.step) : state
+
+    case 'mulligan': {
+      if (state.pending?.kind !== 'mulligan') return state
+      // London mulligan (CR 103.5): the hand goes back, the library is
+      // shuffled, seven more are drawn; the price is paid on keeping.
+      const taken = state.pending.taken + 1
+      const back = state.cards.map((c) => (c.zone === 'hand' ? { ...c, zone: 'library' as Zone } : c))
+      const drawn = draw(shuffleLibrary({ ...state, cards: back }), 7)
+      return noted({ ...drawn, pending: { kind: 'mulligan', taken } }, `Mulligan ${taken} — a new seven`)
+    }
+
+    case 'keep': {
+      if (state.pending?.kind !== 'mulligan') return state
+      // The first mulligan in a multiplayer game is free (CR 103.5c).
+      const owed = Math.max(0, state.pending.taken - 1)
+      if (owed) {
+        return noted({ ...state, pending: { kind: 'bottom', count: owed } },
+          `Kept — ${owed} to put on the bottom`)
+      }
+      return begin(noted(state, state.pending.taken ? 'Kept seven — the first mulligan is free' : 'Kept'))
+    }
+
+    case 'choose': {
+      const { pending } = state
+      if (!pending || pending.kind === 'mulligan') return state
+      const picked = [...new Set(action.iids)]
+      if (picked.length !== pending.count) return state
+      if (!picked.every((iid) => find(state, iid)?.zone === 'hand')) return state
+      if (pending.kind === 'bottom') {
+        let cards = state.cards
+        for (const iid of picked) cards = toBottom(cards, iid, 'library')
+        return begin(noted({ ...state, cards }, `Put ${picked.length} on the bottom`))
+      }
+      let cards = state.cards
+      for (const iid of picked) cards = relocate(cards, iid, 'graveyard')
+      const names = picked.map((iid) => find(state, iid)!.card.name).join(', ')
+      // Discarding finishes cleanup, and the turn goes on to the next.
+      return toNextStop(noted({ ...state, cards, pending: null }, `Discarded ${names}`))
+    }
+
+    case 'done':
+      return state.reminders.some((r) => r.id === action.id)
+        ? { ...state, reminders: state.reminders.filter((r) => r.id !== action.id) }
+        : state
+
+    case 'rules': {
+      if (action.on === state.rules) return state
+      if (action.on) {
+        // Joining a game already under way: it is your main phase, and the
+        // land you may or may not have played is taken on trust.
+        return noted({ ...state, rules: true, step: 'main1', pending: null, pool: emptyPool() }, 'Rules on')
+      }
+      return noted({ ...settleStack(state), rules: false, pending: null, pool: emptyPool() },
+        'Rules off — the table is yours')
+    }
   }
+}
+
+export function reduce(state: GameState, action: Action): GameState {
+  const next = apply(state, action)
+  return next === state ? state : stateBased(next)
 }

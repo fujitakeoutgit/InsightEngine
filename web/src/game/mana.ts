@@ -84,6 +84,20 @@ export function parseCost(text: string | null | undefined): Cost {
   return cost
 }
 
+/** A cost written back out the way it is printed — with any tax already in
+ *  its generic part, so it reads as what you actually have to pay. */
+export function formatCost(cost: Cost): string {
+  const symbols = [
+    ...Array.from({ length: cost.x }, () => 'X'),
+    ...(cost.generic || (!cost.pips.length && !cost.twobrid.length && !cost.phyrexian.length && !cost.x)
+      ? [String(cost.generic)] : []),
+    ...cost.twobrid.map((color) => `2/${color}`),
+    ...cost.pips.map((pip) => pip.join('/')),
+    ...cost.phyrexian.map((colors) => `${colors.join('/')}/P`),
+  ]
+  return symbols.map((s) => `{${s}}`).join('')
+}
+
 /** How much of each kind of mana some costs want — the rest of your hand,
  *  when deciding which land you can spare. A hybrid pip is split between its
  *  colors, since either would do. */

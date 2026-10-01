@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  autotap, demand, emptyPool, parseCost, sourcePenalty,
+  autotap, demand, emptyPool, formatCost, parseCost, sourcePenalty,
   type ManaPool, type ManaSource, type ManaType, type SourceTraits,
 } from './mana'
 
@@ -55,6 +55,14 @@ describe('parseCost', () => {
 
   it('treats a missing cost as free', () => {
     expect(parseCost(null)).toEqual({ generic: 0, pips: [], twobrid: [], phyrexian: [], x: 0 })
+  })
+})
+
+describe('formatCost', () => {
+  it('writes a cost back the way it is printed', () => {
+    for (const printed of ['{2}{G}{G}', '{X}{R}', '{0}', '{2/W}{G/W}', '{1}{G/P}']) {
+      expect(formatCost(parseCost(printed))).toBe(printed)
+    }
   })
 })
 
