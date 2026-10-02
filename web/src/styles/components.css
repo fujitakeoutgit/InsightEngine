@@ -5579,6 +5579,13 @@
 .pt-rules.on .pt-rules-dot { background: var(--aether); box-shadow: 0 0 8px var(--aether); }
 .pt-rules:hover { color: var(--ink); }
 
+/* Auto or Manual: the word is the state. Grey for Manual, which the plain
+   pill already is, and gold for Auto — the color this app keeps for "yours"
+   and spends nowhere else in the bar. */
+.pt-auto.on,
+.pt-auto.on:hover { color: #d9ab4a; border-color: color-mix(in oklab, #d9ab4a 55%, transparent); }
+.pt-auto.on:hover { background: color-mix(in oklab, #d9ab4a 12%, transparent); }
+
 /* Undo, at the end of the turn bar: red, as Reset is. */
 .pt-bar-undo,
 .pt-bar-undo:hover { color: var(--danger); border-color: color-mix(in oklab, var(--danger) 55%, transparent); }

@@ -71,6 +71,27 @@ describe('the stack, left to itself', () => {
   })
 })
 
+describe('the stack, set to resolve whatever you hold', () => {
+  it('resolves even what you could have responded to', () => {
+    const cast = reduce(ruled([[BEARS, 'hand'], [GROWTH, 'hand'], ...forests(3), ...blanks(3)]), { type: 'play', iid: 'c0' })
+    // Left to ask, it waits: the Giant Growth could be cast first.
+    expect(autoPass(cast)).toBe(cast)
+    const done = autoPass(cast, true)
+    expect(at(done, 'c0').zone).toBe('battlefield')
+    // And then stops, in the same turn: the Giant Growth is still there to cast.
+    expect(done).toMatchObject({ stack: [], turn: 1, step: 'main1' })
+  })
+
+  it('still stops for a question, and for what is left to do by hand', () => {
+    const omen = card('Omen', 'Sorcery', { mana_cost: '{G}', oracle_text: 'Scry 2.' })
+    const asked = autoPass(reduce(ruled([[omen, 'hand'], [GROWTH, 'hand'], ...forests(2), ...blanks(4)]), { type: 'play', iid: 'c0' }), true)
+    expect(asked.pending).toMatchObject({ kind: 'arrange' })
+    const posted = autoPass(reduce(ruled([[RIDDLE, 'hand'], [GROWTH, 'hand'], ...forests(2), ...blanks(4)]), { type: 'play', iid: 'c0' }), true)
+    expect(posted.reminders).toHaveLength(1)
+    expect(posted).toMatchObject({ stack: [], turn: 1 })
+  })
+})
+
 describe('a turn with nothing left in it', () => {
   it('passes, and the next one stops where there is something to do', () => {
     // Nothing in hand; the card drawn next turn is a land.
@@ -117,6 +138,34 @@ describe('at the table', () => {
     expect(at(played.game, 'c0').zone).toBe('battlefield')
     expect(played.game).toMatchObject({ turn: 2, step: 'main1' })
     expect(reduceTable(played, { type: 'undo' }).game).toBe(start.game)
+  })
+
+  it('is told whether to ask, and resolves on its own once told not to', () => {
+    const start = freshTable(ruled([[BEARS, 'hand'], [GROWTH, 'hand'], ...forests(3), ...blanks(3)]))
+    expect(start.auto).toBe(false)
+    // Asking: the Bears wait on the stack, since the Giant Growth could be cast.
+    const waiting = reduceTable(start, { type: 'play', iid: 'c0' })
+    expect(waiting.game.stack).toHaveLength(1)
+    // Told not to ask, with something already waiting: it resolves there and then.
+    const on = reduceTable(waiting, { type: 'auto', on: true })
+    expect(on.auto).toBe(true)
+    expect(on.game.stack).toHaveLength(0)
+    expect(at(on.game, 'c0').zone).toBe('battlefield')
+    // From then on nothing waits…
+    const eager = reduceTable(reduceTable(start, { type: 'auto', on: true }), { type: 'play', iid: 'c0' })
+    expect(eager.game.stack).toHaveLength(0)
+    // …and the setting is the table's, not the game's: undo and a new deal leave it on.
+    expect(reduceTable(eager, { type: 'undo' }).auto).toBe(true)
+    expect(reduceTable(eager, { type: 'deal', deck: [], seed: 1 }).auto).toBe(true)
+  })
+
+  it('does not count the switch itself as a move to undo', () => {
+    const start = freshTable(ruled([[BEARS, 'hand'], ...forests(2), ...blanks(3)]))
+    const on = reduceTable(start, { type: 'auto', on: true })
+    expect(on.past).toHaveLength(0)
+    expect(on.game).toBe(start.game)
+    expect(reduceTable(on, { type: 'auto', on: true })).toBe(on)
+    expect(reduceTable(on, { type: 'auto', on: false }).auto).toBe(false)
   })
 
   it('leaves the table alone when a card is only moved by hand, or a step is asked for by name', () => {

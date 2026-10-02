@@ -42,8 +42,12 @@ function Pool({ pool }: { pool: ManaPool }) {
 
 export function PhaseBar({
   turn, step, rules, pool, landsPlayed, landDrops, opponent, poison, waiting, coverage, onCoverage,
-  onPassTo, onRules, onOpponent, onUndo, canUndo,
+  onPassTo, onRules, onOpponent, onUndo, canUndo, auto, onAuto,
 }: {
+  /** Auto: the stack resolves without asking. Manual: it waits for you when
+   *  you could respond. */
+  auto: boolean
+  onAuto: (on: boolean) => void
   /** Take back the last action. There is no redo. */
   onUndo: () => void
   /** Whether there is anything to take back. */
@@ -132,6 +136,21 @@ export function PhaseBar({
         <span className="pt-rules-dot" aria-hidden />
         Rules
       </button>
+      {/* How the stack resolves, which only means anything with the rules on.
+          One word that is the state: gold for Auto, grey for Manual. */}
+      {rules && (
+        <button
+          className={`pt-rules pt-auto${auto ? ' on' : ''}`}
+          data-tour="pt-auto"
+          onClick={() => onAuto(!auto)}
+          aria-pressed={auto}
+          title={auto
+            ? 'Auto: the stack always resolves by itself. Press for Manual, to be asked when you could respond.'
+            : 'Manual: the stack waits for you when you could respond. Press for Auto, to never be asked.'}
+        >
+          {auto ? 'Auto' : 'Manual'}
+        </button>
+      )}
       {/* Last in the bar, and the colour of Reset: the two controls that take
           the game backwards rather than on. */}
       <button

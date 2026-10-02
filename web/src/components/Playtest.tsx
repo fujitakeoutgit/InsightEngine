@@ -176,8 +176,11 @@ export function Playtest({
   /* The game, and the states undo can return to. A resumed game comes back
    * with its undo intact; anything else is dealt here, so the first frame the
    * table draws already has a hand in it. */
+  /** Whether the stack resolves without asking. Remembered for the same
+   *  reason: it is how you play, not something about this game. */
+  const [autoResolve, setAutoResolve] = usePersisted('insight-enigma:playtest-auto-resolve', false)
   const [table, dispatch] = useReducer(reduceTable, undefined, () => (
-    resumed?.table ?? freshTable(deal(deck, randomSeed(), rulesByDefault, tokens))
+    resumed?.table ?? freshTable(deal(deck, randomSeed(), rulesByDefault, tokens), autoResolve)
   ))
   const game = table.game
   const { cards, turn, life, log, drawn } = game
@@ -766,6 +769,8 @@ export function Playtest({
           onRules={setRules}
           onUndo={undo}
           canUndo={canUndo}
+          auto={Boolean(table.auto)}
+          onAuto={(on) => { setAutoResolve(on); dispatch({ type: 'auto', on }) }}
           coverage={coverage}
           onCoverage={() => setShowCoverage(true)}
         />

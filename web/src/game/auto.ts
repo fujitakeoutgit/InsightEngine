@@ -34,13 +34,21 @@ export function canAct(state: GameState): boolean {
 const idle = (state: GameState) =>
   state.rules && !state.pending && !state.resolving && !state.lost && !state.won && !state.reminders.length
 
-/** Pass for as long as passing is all there is to do. */
-export function autoPass(state: GameState): GameState {
+/**
+ * Pass for as long as passing is all there is to do.
+ *
+ * What is on the stack waits for you while there is something you could do
+ * first — unless `eager`, the table's Auto setting, says not to ask: then it
+ * resolves whatever you hold. A turn is never passed while you could still
+ * act, either way; that is a different thing to give up.
+ */
+export function autoPass(state: GameState, eager = false): GameState {
   let next = state
   // Far more passes than any run of empty turns takes: a hand fills, or the
   // library runs out, long before.
   for (let guard = 0; guard < 400; guard += 1) {
-    if (!idle(next) || canAct(next)) return next
+    if (!idle(next)) return next
+    if (!(eager && next.stack.length) && canAct(next)) return next
     const leaving = !next.stack.length && next.step === 'main2'
     const after = pass(leaving ? noted(next, 'Nothing left to do — the turn passes') : next)
     if (after === next) return next

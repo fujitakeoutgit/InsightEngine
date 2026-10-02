@@ -539,6 +539,10 @@ export const LESSONS: Lesson[] = [
         text: 'A spell or ability resolves by itself unless you could respond with an instant or an ability. When you could, it waits in the **Stack** panel: press **Resolve** when you are ready.',
       },
       {
+        target: '[data-tour="pt-auto"]',
+        text: 'Press **Manual** to switch it to **Auto**: the stack then resolves without ever waiting for you. Press **Auto** to go back to being asked.',
+      },
+      {
         text: 'A turn with nothing left to play or activate passes by itself. So does the next one, until there is something you can do or the table has a question.',
       },
       {
