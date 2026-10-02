@@ -31,7 +31,8 @@ for (const name of decks) {
   for (let seed = 1; seed <= Number(games); seed += 1) {
     total += 1
     try {
-      const played = goldfish(deck, seed * 7919, Number(turns))
+      // Every other game the way the table plays it, passing by itself.
+      const played = goldfish(deck, seed * 7919, Number(turns), undefined, seed % 2 === 0)
       if (played.stuck) {
         bad += 1
         console.log(`${name} seed ${seed * 7919}: ${played.stuck}`)

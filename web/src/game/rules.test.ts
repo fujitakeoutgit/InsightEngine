@@ -20,33 +20,67 @@ const zone = (state: GameState, z: Zone) => state.cards.filter((c) => c.zone ===
 describe('the opening hand', () => {
   const deck = [entry(COMMANDER, 1, 'commander'), entry(FOREST, 40), entry(BEARS, 40)]
 
-  it('waits on keep or mulligan, then starts turn one in its main phase', () => {
+  it('is seven cards, and a turn waiting to be started', () => {
     const dealt = deal(deck, 3)
-    expect(dealt.pending).toEqual({ kind: 'mulligan', taken: 0 })
-    const kept = reduce(dealt, { type: 'keep' })
-    expect(kept).toMatchObject({ pending: null, step: 'main1', turn: 1 })
-    // No draw on turn one.
-    expect(zone(kept, 'hand')).toHaveLength(7)
-    expect(kept.log.slice(0, 2)).toEqual(['Turn 1', 'Kept'])
+    expect(dealt).toMatchObject({ pending: { kind: 'start' }, turn: 1 })
+    expect(zone(dealt, 'hand')).toHaveLength(7)
+    // Nothing is played before the turn has begun.
+    const land = zone(dealt, 'hand').find((c) => c.card.name === 'Forest')!
+    expect(reduce(dealt, { type: 'play', iid: land.iid })).toBe(dealt)
+    expect(playable(dealt).size).toBe(0)
   })
 
-  it('takes the first mulligan free', () => {
-    const once = run(deal(deck, 3), { type: 'mulligan' })
-    expect(once.pending).toEqual({ kind: 'mulligan', taken: 1 })
-    expect(zone(once, 'hand')).toHaveLength(7)
-    expect(run(once, { type: 'keep' }).pending).toBeNull()
+  it('starts when you pass: a card drawn, and the first main phase', () => {
+    const begun = reduce(deal(deck, 3), { type: 'pass' })
+    expect(begun).toMatchObject({ pending: null, step: 'main1', turn: 1 })
+    // At a table of four everybody draws on turn one.
+    expect(zone(begun, 'hand')).toHaveLength(8)
+    expect(begun.log.slice(0, 2)).toEqual(['Drew a card', 'Turn 1'])
   })
 
-  it('puts the owed cards on the bottom after the second', () => {
-    const twice = run(deal(deck, 3), { type: 'mulligan' }, { type: 'mulligan' }, { type: 'keep' })
-    expect(twice.pending).toEqual({ kind: 'bottom', count: 1 })
-    const hand = zone(twice, 'hand')
-    // The wrong number is refused.
-    expect(reduce(twice, { type: 'choose', iids: [] })).toBe(twice)
-    const done = reduce(twice, { type: 'choose', iids: [hand[0].iid] })
-    expect(zone(done, 'hand')).toHaveLength(6)
-    expect(zone(done, 'library').at(-1)?.iid).toBe(hand[0].iid)
-    expect(done.step).toBe('main1')
+  it('starts just the same when you draw from the deck instead', () => {
+    const begun = reduce(deal(deck, 3), { type: 'draw' })
+    expect(begun).toMatchObject({ pending: null, step: 'main1', turn: 1 })
+    expect(zone(begun, 'hand')).toHaveLength(8)
+    // The card after that is one drawn by hand, as ever.
+    expect(zone(reduce(begun, { type: 'draw' }), 'hand')).toHaveLength(9)
+  })
+
+  it('lets a card be put back by hand first, in place of a mulligan', () => {
+    const dealt = deal(deck, 3)
+    const [first] = zone(dealt, 'hand')
+    const back = reduce(dealt, { type: 'move', iid: first.iid, zone: 'library' })
+    expect(back.pending).toEqual({ kind: 'start' })
+    expect(zone(back, 'hand')).toHaveLength(6)
+    // To the bottom, as a mulligan puts it — not on top, to be drawn straight back.
+    expect(zone(back, 'library').at(-1)?.iid).toBe(first.iid)
+    expect(zone(reduce(back, { type: 'pass' }), 'hand').map((c) => c.iid)).not.toContain(first.iid)
+  })
+
+  it('is dealt again the same way by a reset', () => {
+    const again = reduce(reduce(deal(deck, 3), { type: 'pass' }), { type: 'deal', deck, seed: 4 })
+    expect(again).toMatchObject({ pending: { kind: 'start' }, turn: 1 })
+    expect(zone(again, 'hand')).toHaveLength(7)
+  })
+
+  it('waits the same way with the rules off, where the turn button starts it', () => {
+    const dealt = deal(deck, 3, false)
+    expect(dealt).toMatchObject({ pending: { kind: 'start' }, turn: 1 })
+    const begun = reduce(dealt, { type: 'nextTurn' })
+    expect(begun).toMatchObject({ pending: null, turn: 1 })
+    expect(zone(begun, 'hand')).toHaveLength(8)
+    // After that it is the next turn, as it always was.
+    expect(reduce(begun, { type: 'nextTurn' })).toMatchObject({ turn: 2 })
+    expect(zone(reduce(dealt, { type: 'draw' }), 'hand')).toHaveLength(8)
+    expect(reduce(dealt, { type: 'draw' })).toMatchObject({ pending: null, turn: 1 })
+  })
+
+  it('is still waiting to start when the rules are switched before it has', () => {
+    const off = reduce(deal(deck, 3), { type: 'rules', on: false })
+    expect(off.pending).toEqual({ kind: 'start' })
+    const on = reduce(off, { type: 'rules', on: true })
+    expect(on.pending).toEqual({ kind: 'start' })
+    expect(reduce(on, { type: 'pass' })).toMatchObject({ pending: null, step: 'main1', turn: 1 })
   })
 })
 

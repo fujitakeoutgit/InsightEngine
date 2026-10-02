@@ -24,6 +24,15 @@ describe('whole games', () => {
     }
   })
 
+  it.each(decks)('plays %s through with the game passing by itself', (name) => {
+    const deck = deckFrom(cards, name)
+    for (const seed of [11, 222, 3333, 44444]) {
+      const played = goldfish(deck, seed, 12, undefined, true)
+      expect(played.stuck, `seed ${seed}`).toBeNull()
+      expect(played.state.turn).toBeGreaterThan(12)
+    }
+  })
+
   it('plays the same game from the same seed', () => {
     const deck = deckFrom(cards, decks[0])
     const [one, two] = [goldfish(deck, 99, 8), goldfish(deck, 99, 8)]

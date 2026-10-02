@@ -77,10 +77,8 @@ function enter(state: GameState): GameState {
       }, `Turn ${state.turn}`)
     }
     case 'draw': {
-      // Turn 1 skips its draw, as the first player's does in a two-player
-      // game (CR 103.8a) and as the table always has — unless it is set to
-      // draw, as everybody does in a multiplayer one.
-      if (state.turn === 1 && !state.firstDraw && !state.beginning) return state
+      // Turn 1 draws like any other: in a multiplayer game nobody skips it
+      // (CR 103.8c).
       // Kami of the Crescent Moon: more cards in the draw step.
       const extra = inZone(state, 'battlefield').reduce((n, c) => (
         n + compile(c.card).statics.reduce((m, fixed) => m + (fixed.kind === 'extraDraw' ? fixed.count : 0), 0)
@@ -154,7 +152,7 @@ export function nextStep(state: GameState): GameState {
   })
 }
 
-/** The opening hand is kept, and turn 1 begins. */
+/** The opening hand is dealt, and turn 1 begins. */
 export function firstTurn(state: GameState): GameState {
   return enter({ ...state, pending: null, step: 'untap', turn: 1 })
 }

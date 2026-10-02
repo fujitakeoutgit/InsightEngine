@@ -259,18 +259,14 @@ export function Reminders({ items, onDone }: { items: Reminder[]; onDone: (id: s
  *  from the board or the hand, which sits low, out of the way of the cards
  *  it is asking about. Searches and scrying have dialogs of their own. */
 export function DecisionPrompt({
-  decision, chosen, damage = 0, spent = 0, name = '', firstDraw = false, onFirstDraw,
-  onKeep, onMulligan, onConfirm, onAnswer, onMode, onType, onAll, onWay,
+  decision, chosen, damage = 0, spent = 0, name = '',
+  onConfirm, onAnswer, onMode, onType, onAll, onWay,
 }: {
   decision: Decision
   /** How to cast the spell that is asking — or null, to leave it. */
   onWay: (way: string | null) => void
   /** What the cards picked so far add up to, where the pick has a limit. */
   spent?: number
-  /** Whether turn 1 draws a card, and the switch for it on the opening
-   *  hand. */
-  firstDraw?: boolean
-  onFirstDraw?: (on: boolean) => void
   /** The permanent a choice of creature type is for. */
   name?: string
   onType: (subtype: string) => void
@@ -280,13 +276,13 @@ export function DecisionPrompt({
   damage?: number
   /** Pick everything that can be picked — attack with the lot. */
   onAll?: () => void
-  onKeep: () => void
-  onMulligan: () => void
   onConfirm: () => void
   /** Yes or no, to a "you may". */
   onAnswer: (yes: boolean) => void
   onMode: (index: number) => void
 }) {
+  // Not a question: the button that starts the turn is all there is to it.
+  if (decision.kind === 'start') return null
   if (decision.kind === 'confirm') {
     return (
       <div className="pt-decision" role="dialog" aria-label="You may">
@@ -410,42 +406,10 @@ export function DecisionPrompt({
       </div>
     )
   }
-  if (decision.kind === 'mulligan') {
-    // What keeping costs now, and what one more mulligan would make it.
-    const owed = Math.max(0, decision.taken - 1)
-    const cards = (n: number) => `${n} card${n === 1 ? '' : 's'}`
-    return (
-      <div className="pt-decision" role="dialog" aria-label="Opening hand">
-        <h3>{decision.taken ? `Mulligan ${decision.taken}` : 'Opening hand'}</h3>
-        <p className="faint">
-          {decision.taken === 0
-            ? 'Keep these seven, or shuffle them away for seven more. Your first mulligan is free.'
-            : owed === 0
-              ? `That one was free — keeping costs nothing. Another, and you put ${cards(1)} on the bottom.`
-              : `Keeping puts ${cards(owed)} on the bottom. Another mulligan makes it ${owed + 1}.`}
-        </p>
-        <div className="row gap-2">
-          <button className="btn btn-primary sm" onClick={onKeep}>Keep</button>
-          <button className="btn btn-ghost sm" onClick={onMulligan}>Mulligan</button>
-        </div>
-        {onFirstDraw && (
-          <button
-            className={`pt-rules pt-first-draw${firstDraw ? ' on' : ''}`}
-            onClick={() => onFirstDraw(!firstDraw)}
-            aria-pressed={firstDraw}
-            title="In a multiplayer game everyone draws on their first turn; the player who goes first in a two-player game does not."
-          >
-            <span className="pt-rules-dot" aria-hidden />
-            Draw on turn 1
-          </button>
-        )}
-      </div>
-    )
-  }
-  const verb = decision.kind === 'bottom' ? 'Put on the bottom' : 'Discard'
+  const verb = 'Discard'
   return (
     <div className="pt-decision" role="dialog" aria-label={verb}>
-      <h3>{decision.kind === 'bottom' ? 'Bottom of the library' : 'Discard to seven'}</h3>
+      <h3>Discard to seven</h3>
       <p className="faint">
         Choose {decision.count} card{decision.count === 1 ? '' : 's'} in your hand — {chosen} of {decision.count}.
       </p>

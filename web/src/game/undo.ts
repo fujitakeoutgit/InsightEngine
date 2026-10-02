@@ -5,6 +5,7 @@
  * hundred of them cost little more than one.
  */
 
+import { autoPass, MOVES } from './auto'
 import { reduce } from './reducer'
 import type { Action, GameState } from './types'
 
@@ -29,8 +30,11 @@ export function reduceTable(table: Table, action: TableAction): Table {
     if (!table.past.length) return table
     return { game: table.past[table.past.length - 1], past: table.past.slice(0, -1) }
   }
-  const game = reduce(table.game, action)
-  if (game === table.game) return table
+  const moved = reduce(table.game, action)
+  if (moved === table.game) return table
+  // After a move of yours the game plays on for as long as there is nothing
+  // to decide: one action to you, and one step for undo to take back.
+  const game = MOVES.has(action.type) ? autoPass(moved) : moved
   /* A note records something that is not part of the game — a die rolled,
    * the coin flipped — so it is not a step undo walks back through. It rides
    * along on the current state, and goes with it. */

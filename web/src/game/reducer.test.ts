@@ -22,7 +22,7 @@ describe('deal', () => {
   ]
 
   it('deals seven, keeps the commander out, and leaves the sideboard behind', () => {
-    const g = deal(deck, 42)
+    const g = deal(deck, 42, false)
     expect(zone(g, 'hand')).toHaveLength(7)
     expect(zone(g, 'command').map((c) => c.card.name)).toEqual([COMMANDER.name])
     expect(zone(g, 'library')).toHaveLength(44)

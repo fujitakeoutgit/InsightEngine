@@ -8,6 +8,7 @@
 import type { Card } from '../lib/api'
 import type { DeckCard } from '../lib/deckModel'
 import { abilitiesOf, activationProblem, usedFrom } from './activate'
+import { autoPass, MOVES } from './auto'
 import { checkCast, isLand, playable } from './cast'
 import { next as roll } from './random'
 import { deal, reduce } from './reducer'
@@ -40,8 +41,7 @@ function answers(state: GameState, pick: (n: number) => number): Action[] {
   if (!p) return []
   const hand = state.cards.filter((c) => c.zone === 'hand').map((c) => c.iid)
   switch (p.kind) {
-    case 'mulligan': return [{ type: 'keep' }]
-    case 'bottom':
+    case 'start': return [{ type: 'pass' }]
     case 'discard': return [{ type: 'choose', iids: hand.slice(0, p.count) }]
     case 'confirm': return pick(4) ? [{ type: 'confirm', yes: true }, { type: 'confirm', yes: false }] : [{ type: 'confirm', yes: false }]
     case 'number': return [{ type: 'number', value: p.min }]
@@ -116,11 +116,16 @@ export interface Played {
 }
 
 /** Play a deck for some turns, checking the game after every action. Throws
- *  what the engine throws. */
+ *  what the engine throws. With `auto` the game plays on after each move as
+ *  it does at the table: the stack resolving, empty turns passing. */
 export function goldfish(
-  deck: readonly DeckCard[], seed: number, turns: number, watch?: (state: GameState) => void,
+  deck: readonly DeckCard[], seed: number, turns: number, watch?: (state: GameState) => void, auto = false,
 ): Played {
-  let state = deal(deck, seed, true, [], true)
+  const step = (before: GameState, action: Action) => {
+    const after = reduce(before, action)
+    return auto && after !== before && MOVES.has(action.type) ? autoPass(after) : after
+  }
+  let state = deal(deck, seed, true)
   let chance = seed
   const pick = (n: number) => {
     const [value, after] = roll(chance)
@@ -130,7 +135,7 @@ export function goldfish(
   let actions = 0
   for (; actions < 6000 && state.turn <= turns; actions += 1) {
     const offered = state.pending ? answers(state, pick) : moves(state, pick)
-    const moved = offered.map((action) => reduce(state, action)).find((after) => after !== state)
+    const moved = offered.map((action) => step(state, action)).find((after) => after !== state)
     if (!moved) {
       return { state, actions, stuck: `turn ${state.turn}, ${state.step}: ${JSON.stringify(state.pending ?? 'priority').slice(0, 200)}` }
     }

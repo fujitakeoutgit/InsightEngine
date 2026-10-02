@@ -96,6 +96,11 @@ const ZONE_LABEL: Record<Zone, string> = {
 /** How long an explanation of a refused play stays up. */
 const HINT_MS = 2600
 
+/** The first press of a game: two words, one over the other, so the button
+ *  that will say "Main 2" and "End turn" for the rest of it says something
+ *  that looks different once. */
+const START_TURN = <span className="pt-start">Start<br />turn</span>
+
 /** What passing does next, for the button that does it. */
 function passLabel(game: GameState) {
   if (game.stack.length) return 'Resolve'
@@ -163,14 +168,12 @@ export function Playtest({
   /** Whether new games play by the rules. Remembered, because it is a way of
    *  using the table rather than a fact about one game. */
   const [rulesByDefault, setRulesByDefault] = usePersisted('insight-enigma:playtest-rules', true)
-  /** Whether turn 1 draws: remembered, since it is how you play rather than a fact about one game. */
-  const [firstDraw, setFirstDraw] = usePersisted('insight-enigma:playtest-first-draw', false)
 
   /* The game, and the states undo can return to. A resumed game comes back
    * with its undo intact; anything else is dealt here, so the first frame the
    * table draws already has a hand in it. */
   const [table, dispatch] = useReducer(reduceTable, undefined, () => (
-    resumed?.table ?? freshTable(deal(deck, randomSeed(), rulesByDefault, tokens, firstDraw))
+    resumed?.table ?? freshTable(deal(deck, randomSeed(), rulesByDefault, tokens))
   ))
   const game = table.game
   const { cards, turn, life, log, drawn } = game
@@ -317,6 +320,8 @@ export function Playtest({
   }
 
   const pass = useCallback(() => dispatch({ type: 'pass' }), [])
+  /** Dealt, and the first turn not yet begun. */
+  const unstarted = game.pending?.kind === 'start'
 
   // Written on every change rather than on the way out: unmount is too late to
   // read state in an effect cleanup that has closed over an older render, and
@@ -353,7 +358,7 @@ export function Playtest({
       const typing = target instanceof Element
         && target.closest('input, textarea, select, [contenteditable="true"]')
       if (event.key === ' ' && !event.ctrlKey && !event.metaKey && !event.altKey) {
-        if (!game.rules || game.pending || typing) return
+        if (!game.rules || (game.pending && game.pending.kind !== 'start') || typing) return
         if (target instanceof Element && target.closest('button, a, [role="button"]')) return
         event.preventDefault()
         pass()
@@ -544,11 +549,11 @@ export function Playtest({
    * the table: how many, and which. A search or a scry is answered in its
    * own dialog instead. */
   const pending = game.rules ? game.pending : null
-  const pickLimit = pending?.kind === 'bottom' || pending?.kind === 'discard' ? pending.count
+  const pickLimit = pending?.kind === 'discard' ? pending.count
     : pending?.kind === 'pick' ? pending.max
       : pending?.kind === 'attack' ? pending.options.length : 0
   const candidates = useMemo(() => new Set(
-    pending?.kind === 'bottom' || pending?.kind === 'discard' ? inZone.hand.map((c) => c.iid)
+    pending?.kind === 'discard' ? inZone.hand.map((c) => c.iid)
       : pending?.kind === 'pick' && (pending.zone === 'hand' || pending.zone === 'battlefield') ? pending.options
         : pending?.kind === 'attack' ? pending.options
           : [],
@@ -582,7 +587,7 @@ export function Playtest({
   const play = (iid: string) => {
     if (pending) {
       if (candidates.has(iid)) pick(iid)
-      else setHint(pending.kind === 'mulligan' ? 'Keep this hand, or mulligan, first' : 'Answer the question first')
+      else setHint(pending.kind === 'start' ? 'Start the turn first — or draw from the deck' : 'Answer the question first')
       return
     }
     if (!game.rules) {
@@ -768,8 +773,6 @@ export function Playtest({
           <DecisionPrompt
             decision={pending}
             chosen={selected.length}
-            onKeep={() => dispatch({ type: 'keep' })}
-            onMulligan={() => dispatch({ type: 'mulligan' })}
             damage={pending.kind === 'attack' ? expectedDamage(game, selected) : 0}
             spent={pending.kind === 'pick' && pending.budget
               ? selected.reduce((sum, iid) => sum + (pending.budget!.cost[iid] ?? 0), 0)
@@ -794,8 +797,6 @@ export function Playtest({
               : undefined}
             onWay={(way) => dispatch({ type: 'cast', way })}
             onType={(subtype) => dispatch({ type: 'pickType', subtype })}
-            firstDraw={game.firstDraw}
-            onFirstDraw={(on) => { setFirstDraw(on); dispatch({ type: 'firstDraw', on }) }}
           />
         )}
 
@@ -1049,13 +1050,21 @@ export function Playtest({
               <button
                 className="btn btn-primary sm"
                 onClick={pass}
-                disabled={Boolean(game.pending)}
-                title="Pass priority (Space). The opponent passes too."
+                disabled={Boolean(game.pending) && !unstarted}
+                title={unstarted
+                  ? 'Begin turn 1: untap, upkeep, draw (Space). Drawing from the deck does the same.'
+                  : 'Pass priority (Space). The opponent passes too.'}
               >
-                {passLabel(game)}
+                {unstarted ? START_TURN : passLabel(game)}
               </button>
             ) : (
-              <button className="btn btn-primary sm" onClick={nextTurn}>Next turn</button>
+              <button
+                className="btn btn-primary sm"
+                onClick={nextTurn}
+                title={unstarted ? 'Draw the first card. Drawing from the deck does the same.' : undefined}
+              >
+                {unstarted ? START_TURN : 'Next turn'}
+              </button>
             )}
             <button
               className="btn btn-ghost sm"
@@ -1434,7 +1443,7 @@ function PlayCard({
   // tapped, never both, so one click means one thing wherever you are.
   const action = readOnClick ? undefined : onPlay ?? onTap
   const hint = readOnClick
-    ? ' — click to look, ⟳ to tap'
+    ? ' — click to look, Shift+click to tap'
     : splitRead ? ' — click the top to play, the bottom to read'
       : onPlay ? ' — click to play' : onTap ? tapHint : ''
 
@@ -1454,6 +1463,9 @@ function PlayCard({
       if (down > 1 - READ_ZONE) { zoomFrom(event); return }
     }
     if (onPick) { onPick(inst.iid); return }
+    // Shift turns it sideways, as it does a land: for its mana if it makes
+    // any, by hand if not — and back by hand, whatever it is.
+    if (readOnClick && event.shiftKey && onTap) { onTap(inst.iid, inst.tapped); return }
     if (readOnClick) { zoomFrom(event); return }
     if (action === onTap) onTap?.(inst.iid, event.shiftKey)
     else action?.(inst.iid)
@@ -1580,10 +1592,12 @@ function PlayCard({
         </button>
       )}
 
-      {/* Tapping, for the cards whose click now reads them instead.
-          Not on planeswalkers: they do not tap, and the corner it lives in is
-          where their loyalty goes. */}
-      {readOnClick && onTap && !isWalker && (
+      {/* Tapping, for the cards whose click reads them instead — with the
+          rules off, where nothing taps by itself and turning cards sideways
+          is most of what a turn is. With them on, attacks and costs do it,
+          and Shift+click is there for the rest. Not on planeswalkers, which
+          do not tap. */}
+      {readOnClick && onTap && !isWalker && !rules && (
         <button
           className="pt-tap"
           title={inst.tapped ? `Untap ${inst.card.name}` : `Tap ${inst.card.name}`}

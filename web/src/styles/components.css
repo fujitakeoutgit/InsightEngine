@@ -2903,6 +2903,9 @@
   gap: 10px;
 }
 
+/* "Start / turn", one word over the other. */
+.pt-start { display: block; line-height: 1.25; text-align: center; white-space: normal; }
+
 .pt-actions .btn {
   height: 100%;
   /* Narrower side padding than a normal small button: the column width is
@@ -3132,14 +3135,13 @@
    The flip button moves back up into the corner the `i` has vacated. */
 .pt-hand .pt-flip { top: 4px; }
 
-/* Tapping a nonland, which is no longer what clicking it does. Twice the
-   `i` it replaces and in the opposite corner: it is the commonest thing you
-   do to a permanent, so it should be hittable without aiming. Always
-   visible, because a control you have to hover to discover is worse than the
-   click it replaced. */
+/* Tapping a nonland with the rules off, where clicking reads it instead.
+   Twice the `i` and hittable without aiming: at a table that taps nothing
+   for you it is the commonest thing you do to a permanent. Bottom left,
+   because bottom right is where a card prints its power and toughness. */
 .pt-tap {
   position: absolute;
-  right: 4px;
+  left: 4px;
   bottom: 4px;
   z-index: 2;
   width: 38px;
@@ -5822,9 +5824,6 @@
 .pt-order-n { color: var(--aether-hi); font-weight: 600; }
 .pt-order-text { display: block; color: var(--muted); }
 
-/* The switch for a draw on turn 1, under the opening hand's two buttons. */
-.pt-first-draw { margin-top: 10px; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; }
-
 /* Creature types to choose from: short words, so they sit in rows. */
 .pt-modes.pt-types { flex-direction: row; flex-wrap: wrap; max-width: 360px; }
 .pt-modes.pt-types .btn { padding: 5px 10px; }
@@ -5883,7 +5882,8 @@
 .pt-coverage.partial { background: var(--warn); }
 
 /* A creature's size once the board has changed it. Bottom left: the right
-   side belongs to the tap and loyalty controls. */
+   side is where the card prints the size this one corrects, with the
+   counter and loyalty controls over it. */
 .pt-size {
   position: absolute;
   left: 4px;
@@ -5901,11 +5901,13 @@
 
 .pt-size-damage { margin-left: 4px; color: var(--danger); }
 
-/* +1/+1 counters by hand: hidden until the card is hovered, like loyalty. */
+/* +1/+1 counters by hand: hidden until the card is hovered, like loyalty.
+   Bottom right, sitting just above the printed power and toughness they
+   change. */
 .pt-counter-step {
   position: absolute;
-  left: 4px;
-  bottom: 26px;
+  right: 4px;
+  bottom: 13%;
   z-index: 2;
   display: flex;
   gap: 2px;

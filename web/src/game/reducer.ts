@@ -59,10 +59,11 @@ function build(deck: readonly DeckCard[]): Instance[] {
   return out
 }
 
-/** A new game: the library shuffled, seven in hand, the commander waiting.
- *  With the rules on it opens on the mulligan decision. */
+/** A new game: the library shuffled, seven in hand, the commander waiting,
+ *  and the first turn not yet begun — see `start`. There is no mulligan: a
+ *  hand not worth keeping is dealt again, or a card put back by hand. */
 export function deal(
-  deck: readonly DeckCard[], seed: number, rules = true, tokens: readonly DeckToken[] = [], firstDraw = false,
+  deck: readonly DeckCard[], seed: number, rules = true, tokens: readonly DeckToken[] = [],
 ): GameState {
   const [everything, next] = shuffle(build(deck), seed)
   const library = everything.filter((c) => c.zone === 'library')
@@ -81,7 +82,7 @@ export function deal(
     pool: emptyPool(),
     stack: [],
     landsPlayed: 0,
-    pending: rules ? { kind: 'mulligan', taken: 0 } : null,
+    pending: { kind: 'start' },
     reminders: [],
     casts: {},
     lost: null,
@@ -103,8 +104,14 @@ export function deal(
     events: [],
     tally: emptyTally(),
     blessing: false,
-    firstDraw,
   }
+}
+
+/** The first turn begins: by the rules, through its untap, upkeep and draw
+ *  to its main phase; without them, a card is drawn and that is all. */
+function start(state: GameState): GameState {
+  if (state.rules) return begin(state)
+  return noted(draw({ ...state, pending: null }, 1), 'Turn 1')
 }
 
 /** Sandbox play: instants and sorceries resolve to the graveyard, permanents
@@ -226,15 +233,18 @@ function apply(state: GameState, action: Action): GameState {
 
   switch (action.type) {
     case 'deal': {
-      const dealt = deal(action.deck, action.seed, state.rules, action.tokens, state.firstDraw)
+      const dealt = deal(action.deck, action.seed, state.rules, action.tokens)
       // A reset keeps the pictures it already had.
       return action.tokens ? dealt : { ...dealt, tokenArt: state.tokenArt }
     }
 
     case 'draw':
+      // The first card drawn from the deck starts the turn, as the button does.
+      if (state.pending?.kind === 'start') return start(state)
       return draw(state, action.count ?? 1)
 
     case 'nextTurn': {
+      if (state.pending?.kind === 'start') return start(state)
       if (state.rules) return passTo(state, 'main1')
       const untapped = state.cards.map((c) => (
         c.zone === 'battlefield' && c.tapped ? { ...c, tapped: false } : c
@@ -302,10 +312,11 @@ function apply(state: GameState, action: Action): GameState {
     case 'move':
       return find(state, action.iid)?.zone === 'stack' || !find(state, action.iid)
         ? state
-        // Laid on the deck, a card is on top of it: the next one drawn.
-        : { ...state, cards: action.zone === 'library'
-            ? toTop(state.cards, action.iid, 'library')
-            : relocate(state.cards, action.iid, action.zone) }
+        // Laid on the deck, a card is on top of it: the next one drawn. Put
+        // back from an opening hand it goes underneath, as a mulligan does.
+        : { ...state, cards: action.zone !== 'library' ? relocate(state.cards, action.iid, action.zone)
+            : state.pending?.kind === 'start' ? toBottom(state.cards, action.iid, 'library')
+              : toTop(state.cards, action.iid, 'library') }
 
     case 'tap':
       return find(state, action.iid)
@@ -396,31 +407,11 @@ function apply(state: GameState, action: Action): GameState {
       return noted(state, action.line)
 
     case 'pass':
-      return state.rules ? pass(state) : state
+      if (!state.rules) return state
+      return state.pending?.kind === 'start' ? start(state) : pass(state)
 
     case 'passTo':
       return state.rules ? passTo(state, action.step) : state
-
-    case 'mulligan': {
-      if (state.pending?.kind !== 'mulligan') return state
-      // London mulligan (CR 103.5): the hand goes back, the library is
-      // shuffled, seven more are drawn; the price is paid on keeping.
-      const taken = state.pending.taken + 1
-      const back = state.cards.map((c) => (c.zone === 'hand' ? { ...c, zone: 'library' as Zone } : c))
-      const drawn = draw(shuffleLibrary({ ...state, cards: back }), 7)
-      return noted({ ...drawn, pending: { kind: 'mulligan', taken } }, `Mulligan ${taken} — a new seven`)
-    }
-
-    case 'keep': {
-      if (state.pending?.kind !== 'mulligan') return state
-      // The first mulligan in a multiplayer game is free (CR 103.5c).
-      const owed = Math.max(0, state.pending.taken - 1)
-      if (owed) {
-        return noted({ ...state, pending: { kind: 'bottom', count: owed } },
-          `Kept — ${owed} to put on the bottom`)
-      }
-      return begin(noted(state, state.pending.taken ? 'Kept seven — the first mulligan is free' : 'Kept'))
-    }
 
     case 'confirm':
     case 'arrange':
@@ -441,9 +432,6 @@ function apply(state: GameState, action: Action): GameState {
       const stack = state.stack.map((item) => (asked.has(item.id) ? placed[next++] : item))
       return { ...state, stack, pending: null }
     }
-
-    case 'firstDraw':
-      return action.on === state.firstDraw ? state : { ...state, firstDraw: action.on }
 
     case 'pickType': {
       const { pending } = state
@@ -477,15 +465,10 @@ function apply(state: GameState, action: Action): GameState {
         return cast === cleared ? state : cast
       }
       if (pending?.kind === 'pick') return answer(state, action)
-      if (pending?.kind !== 'bottom' && pending?.kind !== 'discard') return state
+      if (pending?.kind !== 'discard') return state
       const picked = [...new Set(action.iids)]
       if (picked.length !== pending.count) return state
       if (!picked.every((iid) => find(state, iid)?.zone === 'hand')) return state
-      if (pending.kind === 'bottom') {
-        let cards = state.cards
-        for (const iid of picked) cards = toBottom(cards, iid, 'library')
-        return begin(noted({ ...state, cards }, `Put ${picked.length} on the bottom`))
-      }
       let cards = state.cards
       for (const iid of picked) cards = relocate(cards, iid, 'graveyard')
       const names = picked.map((iid) => find(state, iid)!.card.name).join(', ')
@@ -500,12 +483,16 @@ function apply(state: GameState, action: Action): GameState {
 
     case 'rules': {
       if (action.on === state.rules) return state
+      // A game not yet started is still waiting to be, either way.
+      const waitingToStart = state.pending?.kind === 'start' ? state.pending : null
       if (action.on) {
         // Joining a game already under way: it is your main phase, and the
         // land you may or may not have played is taken on trust.
-        return noted({ ...state, rules: true, step: 'main1', pending: null, pool: emptyPool() }, 'Rules on')
+        return noted({
+          ...state, rules: true, step: waitingToStart ? 'untap' : 'main1', pending: waitingToStart, pool: emptyPool(),
+        }, 'Rules on')
       }
-      return noted({ ...clearStack(state), rules: false, pool: emptyPool() },
+      return noted({ ...clearStack(state), rules: false, pool: emptyPool(), pending: waitingToStart },
         'Rules off — the table is yours')
     }
   }
@@ -513,12 +500,14 @@ function apply(state: GameState, action: Action): GameState {
 
 /** Actions that move the game on by themselves, settling as they go. The
  *  rest are settled here, once, after they have happened. */
-const SETTLES_ITSELF = new Set<Action['type']>(['pass', 'passTo', 'keep', 'nextTurn', 'attack'])
+const SETTLES_ITSELF = new Set<Action['type']>(['pass', 'passTo', 'deal', 'nextTurn', 'attack'])
 
 export function reduce(state: GameState, action: Action): GameState {
   const next = apply(state, action)
   if (next === state) return state
   const stepped = SETTLES_ITSELF.has(action.type)
-    || (action.type === 'choose' && (state.pending?.kind === 'bottom' || state.pending?.kind === 'discard'))
+    || (action.type === 'choose' && state.pending?.kind === 'discard')
+    // Starting the first turn runs it to its main phase, however it was started.
+    || state.pending?.kind === 'start'
   return stepped ? next : settle(state, next)
 }

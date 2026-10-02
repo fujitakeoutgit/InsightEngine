@@ -59,22 +59,3 @@ describe('abilities that trigger together', () => {
   })
 })
 
-describe('the first turn', () => {
-  const deck: [Card, Zone][] = Array.from({ length: 10 }, () => [FOREST, 'library'])
-
-  it('skips its draw unless told otherwise', () => {
-    const skipped = run(ruled(deck, { step: 'untap', pending: { kind: 'mulligan', taken: 0 } }), { type: 'keep' })
-    expect(skipped.cards.filter((c) => c.zone === 'hand')).toHaveLength(0)
-    const drew = run(
-      ruled(deck, { step: 'untap', pending: { kind: 'mulligan', taken: 0 } }),
-      { type: 'firstDraw', on: true }, { type: 'keep' },
-    )
-    expect(drew.cards.filter((c) => c.zone === 'hand')).toHaveLength(1)
-    expect(drew.firstDraw).toBe(true)
-  })
-
-  it('keeps the setting when the game is dealt again', () => {
-    const start = reduce(ruled(deck), { type: 'firstDraw', on: true })
-    expect(reduce(start, { type: 'deal', deck: [], seed: 1 }).firstDraw).toBe(true)
-  })
-})

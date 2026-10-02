@@ -253,10 +253,11 @@ export interface Reminder {
 
 /** A choice the game is waiting on before anything else can happen. */
 export type Decision =
-  /** The opening hand: keep it, or shuffle it away for seven more. */
-  | { kind: 'mulligan'; taken: number }
-  /** After a mulligan, the cards that go to the bottom. */
-  | { kind: 'bottom'; count: number }
+  /** The opening hand is dealt and the first turn has not begun: yours to
+   *  look at, to deal again, to put a card back from by hand. Passing starts
+   *  the turn, and so does drawing from the deck. Not a question — nothing
+   *  is shown for it but the button that starts. */
+  | { kind: 'start' }
   /** Cleanup, holding more than the maximum hand size. */
   | { kind: 'discard'; count: number }
   /** "You may …" */
@@ -388,10 +389,6 @@ export interface GameState {
   /** You have the city's blessing — had ten permanents with something that
    *  ascends — and keep it for the rest of the game. */
   blessing: boolean
-  /** Turn 1 draws a card. Off, it is skipped, as the player who goes first
-   *  in a two-player game skips theirs (CR 103.8a); in a multiplayer game
-   *  nobody does (103.8c). */
-  firstDraw: boolean
 }
 
 export type Action =
@@ -435,9 +432,7 @@ export type Action =
   /** Keep passing until this step, resolving whatever is on the stack. The
    *  next one of these, which may be next turn's. */
   | { type: 'passTo'; step: Step }
-  | { type: 'keep' }
-  | { type: 'mulligan' }
-  /** The cards answering a pending bottom, discard or pick. */
+  /** The cards answering a pending discard or pick. */
   | { type: 'choose'; iids: string[] }
   /** Yes or no, to a "you may". */
   | { type: 'confirm'; yes: boolean }
@@ -451,8 +446,6 @@ export type Action =
   | { type: 'number'; value: number }
   /** The order abilities that triggered together resolve in, first first. */
   | { type: 'order'; ids: string[] }
-  /** Whether turn 1 has a draw step: it does in a multiplayer game. */
-  | { type: 'firstDraw'; on: boolean }
   /** Add or remove counters by hand. */
   | { type: 'counter'; iid: string; counter: string; by: number }
   /** Set the opponent's life by hand. */
