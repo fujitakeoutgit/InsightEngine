@@ -109,7 +109,7 @@ const sentenceCase = (text: string) =>
 
 /** A token that is a copy of a card, seated where its type belongs. */
 function makeCopy(
-  state: GameState, of: Card, change: CopyChange, tapped: boolean, fleeting: boolean, attacking = false,
+  state: GameState, of: Card, change: CopyChange, tapped: boolean, fleeting: boolean, attacking = false, from?: string,
 ): GameState {
   const card = copyOf(of, change)
   const slug = card.name.toLowerCase().replace(/\W+/g, '-')
@@ -119,6 +119,7 @@ function makeCopy(
     iid, card, zone: 'battlefield', tapped, x: 0.5, y: 0.5, token: true,
     ...(fleeting ? { fleeting: 'end' as const } : {}),
     ...(loyalty !== null ? { loyalty } : {}),
+    ...(from ? { from } : {}),
   }
   const seat = seatFor(minted.cards, made)
   return {
@@ -135,14 +136,16 @@ function makeCopy(
 function makeToken(
   state: GameState, spec: TokenSpec, tapped: boolean, size?: number, fleeting = false, source?: string,
 ): GameState {
-  const slug = spec.name.toLowerCase().replace(/\W+/g, '-')
+  // "Koma's Coil", of a card that calls itself Koma.
+  const name = spec.name.split('~').join((source ?? '').split(',')[0])
+  const slug = name.toLowerCase().replace(/\W+/g, '-')
   const [iid, minted] = mint(state, `token-${slug}-`)
-  const art = state.tokenArt[spec.name.toLowerCase()] ?? null
+  const art = state.tokenArt[name.toLowerCase()] ?? null
   const [power, toughness] = size !== undefined ? [String(size), String(size)]
     : spec.pt ? spec.pt.split('/') : [null, null]
   const card = {
     oracle_id: `token-${slug}`,
-    name: spec.name,
+    name,
     type_line: spec.typeLine,
     power,
     toughness,
@@ -224,14 +227,7 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
             // "…or creature card in a graveyard."
             ...(effect.orGraveyard ? inZone(state, 'graveyard').filter((c) => matches(c, wanted, r.source)) : []),
           ].map((c) => c.iid)
-      const set = (chosen: string[]): GameState => ({
-        ...state,
-        resolving: {
-          ...r,
-          chosen,
-          known: { ...r.known, ...Object.fromEntries(chosen.map((iid) => [iid, snapshot(find(state, iid)!, state)])) },
-        },
-      })
+      const set = (chosen: string[]): GameState => picking(state, r, effect, chosen)
       if (!options.length) return { state: noted(set([]), `${r.name}: nothing to choose`) }
       // A choice with no choice in it is not asked.
       if (effect.must && options.length <= effect.count) return { state: set(options) }
@@ -704,7 +700,7 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       let next = state
       for (const source of of) {
         for (let i = 0; i < times; i += 1) {
-          next = makeCopy(next, source.card, effect.change, effect.tapped, effect.fleeting, effect.attacking)
+          next = makeCopy(next, source.card, effect.change, effect.tapped, effect.fleeting, effect.attacking, source.iid)
         }
       }
       const many = of.length * times
@@ -1213,6 +1209,9 @@ function finishDig(state: GameState, r: Resolution, effect: Extract<Effect, { op
     : `${r.name}: looked at ${looked.length}, and took nothing`), took.length)
 }
 
+/** What marks a "you may … once each turn" as done for the turn. */
+const onceKey = (r: Resolution) => `done:${r.source}:${r.text}`
+
 /** On to the next effect. */
 const advance = (state: GameState): GameState => {
   const r = state.resolving!
@@ -1258,6 +1257,11 @@ export function carryOn(state: GameState): GameState {
       continue
     }
     if (effect.optional && !r.agreed) {
+      // "Do this only once each turn", and it has been done.
+      if (effect.onceIfDone && next.triggered.includes(onceKey(r))) {
+        next = advance({ ...next, resolving: { ...r, declined: true } })
+        continue
+      }
       return { ...next, pending: { kind: 'confirm', prompt: `${r.name} — you may:\n${r.text}` } }
     }
     const out = perform(next, r, effect)
@@ -1283,7 +1287,13 @@ export function answer(state: GameState, action: Action): GameState {
       const left = leaveTop(answered, r, effect)
       return left.wait ? { ...left.state, pending: left.wait } : carryOn(advance(left.state))
     }
-    if (action.yes) return carryOn({ ...answered, resolving: { ...r, agreed: true } })
+    if (action.yes) {
+      return carryOn({
+        ...answered,
+        resolving: { ...r, agreed: true },
+        triggered: effect.onceIfDone ? [...answered.triggered, onceKey(r)] : answered.triggered,
+      })
+    }
     return carryOn(advance({ ...answered, resolving: { ...r, declined: true } }))
   }
 
@@ -1353,27 +1363,33 @@ export function answer(state: GameState, action: Action): GameState {
   return state
 }
 
+/** What a `choose` picked, remembered for the effects after it — and noted
+ *  as aimed at, where it was a target: abilities watch for that. A target is
+ *  a pick that could have been declined, or what an Aura or Equipment is
+ *  being put on; "sacrifice a creature" and "untap up to three lands" aim at
+ *  nothing. */
+function picking(state: GameState, r: Resolution, effect: Extract<Effect, { op: 'choose' }>, picked: string[]): GameState {
+  const source = find(state, r.source)
+  const attaching = r.effects[r.at + 1]?.op === 'attach'
+  const aimedAt = !effect.zone && !effect.untargeted && picked.length > 0 && (!effect.must || attaching)
+  // An Aura arriving is still the spell it was.
+  const spell = r.spell || (attaching && /\bAura\b/.test(source?.card.type_line ?? ''))
+  return {
+    ...(aimedAt ? happen(state, { on: 'targets', iids: picked, spell }) : state),
+    resolving: {
+      ...r,
+      chosen: picked,
+      known: { ...r.known, ...Object.fromEntries(picked.map((iid) => [iid, snapshot(find(state, iid)!, state)])) },
+    },
+  }
+}
+
 /** What was picked, put where the effect says. */
 function applyPick(state: GameState, r: Resolution, effect: Effect, picked: string[]): GameState {
   const cards = picked.map((iid) => find(state, iid)!)
   switch (effect.op) {
-    case 'choose': {
-      // What a spell is aimed at is something abilities watch for — an Aura
-      // arriving is aimed at what it goes on.
-      const source = find(state, r.source)
-      const aimedAt = !effect.zone && picked.length > 0 && (
-        (r.spell && !effect.must)
-        || (r.effects[r.at + 1]?.op === 'attach' && /\bAura\b/.test(source?.card.type_line ?? ''))
-      )
-      return {
-        ...(aimedAt ? happen(state, { on: 'targets', iids: picked }) : state),
-        resolving: {
-          ...r,
-          chosen: picked,
-          known: { ...r.known, ...Object.fromEntries(cards.map((c) => [c.iid, snapshot(c, state)])) },
-        },
-      }
-    }
+    case 'choose':
+      return picking(state, r, effect, picked)
 
     case 'search': {
       let next = state
@@ -1470,7 +1486,7 @@ export function enterAsCopy(state: GameState, iid: string, x = 0): GameState | n
       source: iid,
       name: inst.card.name,
       text: rulesText(inst.card),
-      effects: [{ op: 'choose', filter: as.filter, count: 1, upTo: true }, { op: 'enterAs', change: as.change }],
+      effects: [{ op: 'choose', filter: as.filter, count: 1, upTo: true, untargeted: true }, { op: 'enterAs', change: as.change }],
       event: null,
       known: {},
       spell: false,
@@ -1556,7 +1572,7 @@ export function resolveTop(state: GameState): GameState {
     const made: Effect[] = [
       ...(statics.some((fixed) => fixed.kind === 'hostCopies') ? [
         { op: 'keep' as const },
-        { op: 'choose' as const, filter: { types: ['creature'] }, count: 1, upTo: false, must: true },
+        { op: 'choose' as const, filter: { types: ['creature'] }, count: 1, upTo: false, must: true, untargeted: true },
         { op: 'become' as const, who: { kind: 'kept' as const }, change: {}, until: 'attached' as const },
       ] : []),
       ...(becomes?.kind === 'hostBecomes'

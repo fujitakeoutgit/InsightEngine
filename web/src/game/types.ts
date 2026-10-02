@@ -98,6 +98,8 @@ export interface Instance {
   discarded?: number
   /** It was cast with its kicker paid, or its optional cost. */
   kicked?: boolean
+  /** A token that is a copy of a card: which. */
+  from?: string
 }
 
 /** A change to size and keywords that lasts until end of turn, on the
@@ -136,8 +138,8 @@ export type GameEvent =
   /** A permanent that left and came straight back: it has entered, though
    *  it is on the battlefield before and after. */
   | { on: 'enters'; iid: string }
-  /** A spell picked these as its targets. */
-  | { on: 'targets'; iids: string[] }
+  /** These were picked as targets — of a spell, or of an ability. */
+  | { on: 'targets'; iids: string[]; spell: boolean }
 
 /** Counts kept over a turn, for the cards that ask what has happened in it. */
 export type Tally = Record<TallyKey, number>

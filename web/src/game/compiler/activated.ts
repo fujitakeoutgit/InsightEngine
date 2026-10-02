@@ -173,14 +173,16 @@ export function readKeywordAbility(line: string, shown: string, slow = true): Ac
       effects: [{ op: 'counters', to: { kind: 'self' }, count: Number(suspend[1]), counter: 'time' }],
     }
   }
-  const equip = /^equip(?: [a-z ]+?)? ((?:\{[^}]+\})+)$/.exec(line)
+  const equip = /^equip(?: ([a-z ]+?))? ((?:\{[^}]+\})+)$/.exec(line)
   if (equip) {
+    // "Equip legendary creature {3}": only onto one of those.
+    const onto = (equip[1] && readFilter(equip[1])) || { types: ['creature'] }
     return {
       text: shown,
-      cost: { ...FREE, mana: equip[1].toUpperCase() },
+      cost: { ...FREE, mana: equip[2].toUpperCase() },
       sorcery: true, oncePerTurn: false, fromHand: false, mana: null,
       effects: [
-        { op: 'choose', filter: { types: ['creature'], controller: 'you' }, count: 1, upTo: false, must: true },
+        { op: 'choose', filter: { ...onto, controller: 'you' }, count: 1, upTo: false, must: true },
         { op: 'attach' },
       ],
       complete: true,

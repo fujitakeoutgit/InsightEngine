@@ -84,6 +84,30 @@ export function readCostLess(sentence: string): Static | null {
   return { kind: 'selfCostLess', amount }
 }
 
+/** A keyword list that swallowed a condition is not one: "flying unless…"
+ *  must not be read as a keyword called that. */
+const plain = (keywords: readonly string[]) => keywords.every((k) => !/ (if|unless|as long as|while|until) /i.test(k))
+
+/** "Equipped creature has lifelink if you control a Cleric, deathtouch if
+ *  you control a Rogue, …": each keyword with its own condition. */
+export function readConditionalKeywords(line: string): Static[] | null {
+  const m = /^(equipped creature|enchanted creature|~) has (.+ if you control an? .+)$/.exec(line.replace(/\.$/, ''))
+  if (!m) return null
+  const to = m[1] === '~' ? 'self' : 'attached'
+  const out: Static[] = []
+  for (const part of m[2].split(/, (?:and )?| and (?=[a-z ]+ if you control )/)) {
+    const said = /^([a-z ]+?) if you control an? (.+)$/.exec(part.trim())
+    const filter = said && readFilter(said[2])
+    if (!said || !filter) return null
+    out.push({
+      kind: 'boost', to,
+      boost: { power: 0, toughness: 0, keywords: readKeywords(said[1]) },
+      condition: { atLeast: 1, filter: { ...filter, controller: 'you' } },
+    })
+  }
+  return out
+}
+
 export function readStatic(line: string): Static | null {
   const l = line.replace(/\.$/, '')
 
@@ -242,7 +266,7 @@ export function readStatic(line: string): Static | null {
   if (anthem) {
     const filter = readFilter(anthem[1])
     const per = anthem[7] ? readPer(anthem[7]) : undefined
-    if (filter && per !== null) {
+    if (filter && per !== null && plain(readKeywords(anthem[5] ?? anthem[6] ?? ''))) {
       const boost: Boost = {
         power: Number(anthem[3] ?? 0),
         toughness: Number(anthem[4] ?? 0),
@@ -271,7 +295,7 @@ export function readStatic(line: string): Static | null {
   // or more lands", "equipped creature gets +1/-1", "… has hexproof and
   // haste".
   const own = /^(~|equipped creature|enchanted creature) (?:gets ([+-]\d+)\/([+-]\d+)(?: and has (.+?))?|has (.+?))(?: for each (.+)| as long as you control (\w+) or more (.+))?$/.exec(l)
-  if (own) {
+  if (own && plain(readKeywords(own[4] ?? own[5] ?? ''))) {
     const to = own[1] === '~' ? 'self' : 'attached'
     const boost: Boost = {
       power: Number(own[2] ?? 0),

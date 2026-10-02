@@ -288,6 +288,9 @@ export type Effect = (
     apart?: 'event'
     /** "…or creature card in a graveyard": those as well. */
     orGraveyard?: boolean
+    /** Picked, not aimed at: "untap up to three lands" targets nothing, and
+     *  nothing that watches for being targeted sees it. */
+    untargeted?: boolean
     /** "With total power 4 or less": what the ones picked may add up to. */
     budget?: Budget
   }
@@ -527,6 +530,9 @@ export type Effect = (
   ifDone?: boolean
   /** "If you don't, …": carried out only when it was declined. */
   ifNot?: boolean
+  /** "You may … Do this only once each turn": asked until it has been
+   *  agreed to once this turn, and not again after. */
+  onceIfDone?: boolean
 }
 
 export interface Ability {
@@ -591,6 +597,8 @@ export type TriggerEvent =
   /** "Whenever ~ becomes attached to a creature": the ability is about that
    *  creature. */
   | { on: 'attached' }
+  /** "When ~ becomes the target of a spell or ability." */
+  | { on: 'targeted' }
 
 export interface TriggeredAbility extends Ability {
   when: TriggerEvent

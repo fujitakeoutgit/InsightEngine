@@ -19,7 +19,7 @@ import type {
   TriggeredAbility, Way,
 } from './ir'
 import { readFilter, readNumber, readTest } from './read'
-import { isInert, readCostLess, readStatic } from './statics'
+import { isInert, readConditionalKeywords, readCostLess, readStatic } from './statics'
 
 /** Keywords with nothing to do at resolution: evasion, protection, combat
  *  abilities the attack step will read, and flash, which casting already
@@ -168,6 +168,7 @@ function readOneTrigger(condition: string): TriggerEvent | null {
     if (filter) return { on: 'leaves', who: { ...filter, ...(/^another /.test(c) ? { other: true } : {}) } }
   }
   if (/^~ becomes attached to a creature$/.test(c)) return { on: 'attached' }
+  if (/^~ becomes the target of a spell or ability$/.test(c)) return { on: 'targeted' }
   const targeting = /^you cast a spell that targets (?:an?|one or more) (.+)$/.exec(c)
   if (targeting) {
     const filter = readFilter(targeting[1])
@@ -627,6 +628,13 @@ export function compile(card: Card): Compiled {
       continue
     }
 
+    // Several keywords, each with a condition of its own.
+    const several = modal ? null : readConditionalKeywords(lower)
+    if (several) {
+      statics.push(...several)
+      grades.push(1)
+      continue
+    }
     const fixed = modal ? null : readStatic(lower)
     if (fixed) {
       // Abundance's standing choice can be made again whenever you like.
@@ -697,7 +705,7 @@ export function compile(card: Card): Compiled {
       const [made] = ability.effects
       if (!/^embalm\b/i.test(ability.text) || made?.op !== 'copy') continue
       ability.effects = [
-        { op: 'choose', filter: clone.filter, count: 1, upTo: true },
+        { op: 'choose', filter: clone.filter, count: 1, upTo: true, untargeted: true },
         { ...made, of: { kind: 'chosen' }, change: { ...clone.change, ...made.change, types: [...(clone.change.types ?? []), 'Zombie'] } },
       ]
     }

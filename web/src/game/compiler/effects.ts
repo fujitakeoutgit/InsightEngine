@@ -177,9 +177,21 @@ const PATTERNS: Pattern[] = [
     const count = readCount(m[1])
     return count === null ? null : [{ op: 'surveil', count }]
   }],
-  [/^(?:you |target player )?mills? (\w+) cards?$/, (m) => {
+  [/^(?:you )?mills? (\w+) cards?$/, (m) => {
     const count = readCount(m[1])
     return count === null ? null : [{ op: 'mill', count }]
+  }],
+  // Whose library is yours to say: a deck that fills its own graveyard aims
+  // this at itself, and anything else at the other side.
+  [/^target player mills (\w+) (cards?)$/, (m) => {
+    const count = readCount(m[1])
+    return count === null ? null : [{
+      op: 'mode', min: 1, max: 1,
+      modes: [
+        { text: `You mill ${m[1]} ${m[2]}`, effects: [{ op: 'mill', count }], complete: true },
+        { text: `The opponent mills ${m[1]} ${m[2]}`, effects: nothing('No library on the other side to mill'), complete: true },
+      ],
+    }]
   }],
   [/^each opponent mills (\w+) cards?$/, () => nothing('No library on the other side to mill')],
   [/^(?:each opponent|target opponent|each other player) discards (?:\w+) cards?$/, () => nothing('No hand on the other side to discard from')],
@@ -254,15 +266,19 @@ const PATTERNS: Pattern[] = [
     const token = readToken(m[1])
     return token ? [{ op: 'token', count: { stat: m[2] as 'power' | 'toughness', of: 'self' }, token, tapped: false }] : null
   }],
-  [/^(?:you )?create (\w+) (tapped )?(.+? tokens?(?: with [a-z, ]+?)?)(?: named [^.]+?)?(?: for each (.+))?$/, (m) => {
+  [/^(?:you )?create (\w+) (tapped )?(.+? tokens?(?: with [a-z, ]+?)?)(?: named ([^.]+?))?(?: for each (.+))?$/, (m) => {
     const count = readCount(m[1])
-    const token = readToken(m[3])
-    if (count === null || !token) return null
-    if (m[4]) {
+    const read = readToken(m[3])
+    if (count === null || !read) return null
+    // "…named Koma's Coil": what it is called, whatever it is.
+    const token = m[4]
+      ? { ...read, name: m[4].split(' ').map((word) => word[0].toUpperCase() + word.slice(1)).join(' ') }
+      : read
+    if (m[5]) {
       // "…for each creature you control", or for each thing that has
       // happened this turn.
-      const filter = readFilter(m[4])
-      const per: Count | null = filter ? { per: filter } : readEach(m[4])
+      const filter = readFilter(m[5])
+      const per: Count | null = filter ? { per: filter } : readEach(m[5])
       return per !== null && count === 1 ? [makes(token, per, Boolean(m[2]))] : null
     }
     return [makes(token, count, Boolean(m[2]))]
@@ -644,7 +660,7 @@ const PATTERNS: Pattern[] = [
       const filter = readFilter(lands[2])
       return count === null || !filter
         ? null
-        : [{ op: 'choose', filter: { ...filter, controller: 'you' }, count, upTo: true }, { op, what: { kind: 'chosen' } }]
+        : [{ op: 'choose', filter: { ...filter, controller: 'you' }, count, upTo: true, untargeted: true }, { op, what: { kind: 'chosen' } }]
     }
     return onPermanents(m[2], (what) => [{ op, what }])
   }],
@@ -1150,7 +1166,11 @@ export function readAbility(
       continue
     }
     if (ONCE.test(s)) {
-      once = true
+      // Of something you may do, it is the doing that is once a turn: saying
+      // no leaves it for the next time.
+      const asking = /^do this\b/.test(s) ? effects.findIndex((effect) => effect.optional) : -1
+      if (asking >= 0) effects[asking] = { ...effects[asking], onceIfDone: true }
+      else once = true
       continue
     }
     // What a token is made with, in quotes after it: "It has "Sacrifice this

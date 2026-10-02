@@ -23,8 +23,8 @@ import type { Effect, TriggeredAbility, TriggerEvent } from './compiler/ir'
 import { holds } from './holds'
 import { matches } from './match'
 import { isCreature } from './sources'
-import { inZone, mint, noted } from './state'
-import { snapshot } from './stats'
+import { inZone, mint, noted, relocate } from './state'
+import { hasKeyword, snapshot } from './stats'
 import type { GameState, Instance, Known, Tally } from './types'
 
 type About = 'enters' | 'dies' | 'leaves' | 'milled' | 'buried' | 'cast' | 'attacks' | 'combatDamage' | 'discard' | 'tapped' | 'untapped' | 'connives'
@@ -41,6 +41,8 @@ type Happened =
   | { on: 'lifeGain' | 'landPlay' | 'attack' | 'scry' }
   /** A spell was aimed at this. */
   | { on: 'targets'; card: Instance }
+  /** A spell or an ability was. */
+  | { on: 'targeted'; card: Instance }
   /** Something — `by` — was attached to this. */
   | { on: 'attached'; card: Instance; by: string }
   /** One card drawn: the `nth` this turn. */
@@ -140,7 +142,9 @@ function happened(before: GameState, after: GameState): { events: Happened[]; ta
     if (event.on === 'targets') {
       for (const iid of event.iids) {
         const aimedAt = is.get(iid)
-        if (aimedAt) out.push({ on: 'targets', card: aimedAt })
+        if (!aimedAt) continue
+        if (event.spell) out.push({ on: 'targets', card: aimedAt })
+        out.push({ on: 'targeted', card: aimedAt })
       }
       continue
     }
@@ -173,6 +177,7 @@ function sees(when: TriggerEvent, event: Happened, source: Instance, state: Game
   if (when.on === 'milled') return matches(card, when.filter, source.iid)
   if (when.on === 'targets') return matches(card, when.filter, source.iid, state)
   if (when.on === 'attached') return (event as Extract<Happened, { on: 'attached' }>).by === source.iid
+  if (when.on === 'targeted') return card.iid === source.iid
   if (when.on === 'discard') return !when.filter || matches(card, when.filter, source.iid, state)
   if ('who' in when) {
     if (when.who === 'self') return card.iid === source.iid
@@ -258,6 +263,37 @@ export function collectTriggers(before: GameState, after: GameState): GameState 
   const thrown = new Set(events.flatMap((event) => (event.on === 'discard' ? [event.card.iid] : [])))
   if (thrown.size) {
     next = { ...next, cards: next.cards.map((c) => (thrown.has(c.iid) && c.zone === 'graveyard' ? { ...c, discarded: after.turn } : c)) }
+  }
+  for (const event of events) {
+    // Hofri Ghostforge's Spirits: "When this token leaves the battlefield,
+    // return the exiled card to its owner's graveyard."
+    if (event.on === 'leaves' && event.card.token && event.card.from
+      && /return the exiled card to its owner's graveyard/i.test(event.card.card.oracle_text ?? '')) {
+      const { from } = event.card
+      const exiled = next.cards.find((c) => c.iid === from)
+      if (exiled?.zone === 'exile') {
+        next = noted({ ...next, cards: relocate(next.cards, from, 'graveyard') }, `${exiled.card.name} goes to the graveyard`)
+      }
+    }
+    // Melee given by something else: +1/+1 as it attacks, for the one
+    // opponent there is. Its own melee is an ability it already has.
+    if (event.on === 'attacks' && hasKeyword(event.card, 'Melee', next)
+      && !(event.card.card.keywords ?? []).some((k) => k.toLowerCase() === 'melee')) {
+      const [id, minted] = mint(next, 's')
+      next = {
+        ...minted,
+        stack: [...minted.stack, {
+          id,
+          iid: event.card.iid,
+          x: 0,
+          ability: {
+            text: 'Melee',
+            effects: [{ op: 'boost', to: { kind: 'self' }, power: 1, toughness: 1, keywords: [] }],
+            complete: true, event: null, known: {},
+          },
+        }],
+      }
+    }
   }
   // Molecule Man: the first card drawn this turn, if it is not a land, may
   // be cast for nothing. Which card that was is known when it came in one
