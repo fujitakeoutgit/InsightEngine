@@ -1524,9 +1524,10 @@ function PlayCard({
           >+</button>
         </span>
       )}
-      {(others.length > 0 || inst.chosenType) && placed && (
+      {(others.length > 0 || inst.chosenType || inst.chosenMode) && placed && (
         <span className="pt-counters mono">
           {inst.chosenType && <span title="The creature type chosen for it">{inst.chosenType}</span>}
+          {inst.chosenMode && <span title="What was chosen for it as it entered">{inst.chosenMode}</span>}
           {others.map(([kind, n]) => <span key={kind}>{kind} {n}</span>)}
         </span>
       )}
