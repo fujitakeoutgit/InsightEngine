@@ -11,6 +11,7 @@ import { entersTapped } from '../lib/landTiming'
 import type { Card } from '../lib/api'
 import { amount } from './amount'
 import { compile } from './compiler/compile'
+import type { Filter } from './compiler/ir'
 import { isCreatureType } from './compiler/subtypes'
 import { backOf } from './faces'
 import { holds } from './holds'
@@ -294,6 +295,12 @@ export interface CastCheck {
   payment: Payment | null
 }
 
+/** What a creature may mutate onto: a non-Human creature you own. */
+export const MUTATES_ONTO: Filter = { types: ['creature'], notSubtypes: ['Human'], controller: 'you' }
+
+/** The creatures this spell could mutate onto, as things stand. */
+export const mutable = (state: GameState, iid: string): Instance[] => onBattlefield(state, MUTATES_ONTO, iid)
+
 /** Cards in hand that could be exiled to pay for this one. */
 export function pitchable(state: GameState, inst: Instance): Instance[] {
   const pitch = compile(inst.card).ways.find((way) => way.kind === 'pitch')
@@ -344,7 +351,7 @@ function wayOf(state: GameState, inst: Instance, way: string): { cost: Cost; why
   const ways = compile(inst.card).ways
   const printed = inst.mayPlay?.free ? null : manaCostOf(inst.card)
   const closed = (why: string) => ({ cost: zero, why })
-  const priced = (kind: 'evoke' | 'kicker' | 'freerunning' | 'mayhem' | 'overload') => {
+  const priced = (kind: 'evoke' | 'kicker' | 'freerunning' | 'mayhem' | 'overload' | 'mutate') => {
     const found = ways.find((other) => other.kind === kind)
     return found && 'cost' in found ? found.cost : null
   }
@@ -378,6 +385,13 @@ function wayOf(state: GameState, inst: Instance, way: string): { cost: Cost; why
       return cost && from === 'graveyard' && inst.discarded === state.turn
         ? { cost: costOf(state, inst, cost) }
         : closed('Mayhem is for a card discarded this turn')
+    }
+    case 'mutate': {
+      const cost = priced('mutate')
+      if (!cost || from === 'graveyard') return closed('It has no mutate cost')
+      return mutable(state, inst.iid).length
+        ? { cost: costOf(state, inst, cost) }
+        : closed('No non-Human creature of yours to mutate onto')
     }
     // Its other half: an adventure, or the second half of a split card —
     // which, with aftermath, is cast from the graveyard and nowhere else.
@@ -487,6 +501,7 @@ export function castWays(state: GameState, inst: Instance): CastWay[] {
     ['kicked', Boolean(named('kicker'))],
     ['freerunning', Boolean(named('freerunning'))],
     ['mayhem', Boolean(named('mayhem'))],
+    ['mutate', Boolean(named('mutate'))],
     ['pitch', Boolean(named('pitch'))],
     ['behold', Boolean(named('behold'))],
     ['convoke', compiled.statics.some((fixed) => fixed.kind === 'convoke')],
@@ -515,6 +530,7 @@ export function castWays(state: GameState, inst: Instance): CastWay[] {
             : key === 'kicked' ? `Kicked — ${price}`
               : key === 'freerunning' ? `Freerunning ${price}`
                 : key === 'mayhem' ? `Mayhem ${price}`
+                : key === 'mutate' ? `Mutate ${price} — onto a non-Human creature of yours`
                   : key === 'pitch' && pitch?.kind === 'pitch' ? pitchLabel(pitch.text)
                     : key === 'behold' && behold?.kind === 'behold' ? `${behold.text} — ${price}`
                       : `Convoke ${price} — choose creatures to help pay`,
@@ -563,7 +579,7 @@ export function castSpell(
   const from = playedFrom(state, inst)
   const how = way === 'evoke' ? ' for its evoke cost' : way === 'kicked' ? ', kicked' : way === 'overload' ? ', overloaded'
     : way === 'freerunning' ? ' for its freerunning cost' : way === 'mayhem' ? ' for its mayhem cost'
-      : way === 'behold' ? ', beholding' : ''
+      : way === 'mutate' ? ' for its mutate cost' : way === 'behold' ? ', beholding' : ''
   const line = `Cast ${half?.name ?? inst.card.name}${x ? ` (X = ${x})` : ''}${how}${
     from === 'exile' ? ' from exile' : from === 'top' ? ' from the top of your library'
       : from === 'graveyard' ? ' from the graveyard' : ''}${

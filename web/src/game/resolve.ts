@@ -15,7 +15,9 @@
 
 import type { Card } from '../lib/api'
 import { amount, settled, signed } from './amount'
-import { enterBattlefield, isLand, isPermanentSpell, remind, remindUnread, rulesText } from './cast'
+import {
+  enterBattlefield, isLand, isPermanentSpell, mutable, MUTATES_ONTO, remind, remindUnread, rulesText,
+} from './cast'
 import { lifeGainFactor } from './combat'
 import { compile } from './compiler/compile'
 import type { Aim, Budget, CopyChange, Effect, Filter, TokenSpec } from './compiler/ir'
@@ -196,6 +198,17 @@ function asked(filter: Filter, count: number, upTo: boolean, noun: 'card' | 'per
 }
 
 type Outcome = { state: GameState; wait?: Decision }
+
+/** A mutated creature: the card on top, and with it every ability of the
+ *  card under it — told in the top card's name, and without the mutate cost
+ *  either was cast for. */
+function mergeCards(top: Card, under: Card): Card {
+  const lines = (card: Card) => (card.oracle_text ?? '').split('\n').filter((line) => line && !/^mutate\b/i.test(line))
+  const short = under.name.split(',')[0]
+  const told = lines(under).map((line) => line.split(under.name).join(top.name).split(short).join(top.name))
+  const keywords = [...new Set([...(top.keywords ?? []), ...(under.keywords ?? [])])].filter((k) => k !== 'Mutate')
+  return { ...top, oracle_text: [...lines(top), ...told].join('\n'), keywords }
+}
 
 /** A budget as the question carries it: what each option costs. */
 function priced(state: GameState, budget: Budget | undefined, options: readonly string[]) {
@@ -720,6 +733,25 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       }
       const many = of.length * times
       return { state: noted(next, `Created ${many > 1 ? `${many} tokens, copies` : 'a token, a copy'} of ${names(of)}`) }
+    }
+
+    case 'merge': {
+      const host = r.chosen[0] ? find(state, r.chosen[0]) : undefined
+      const spell = find(state, r.source)
+      if (!spell) return { state }
+      // Nothing left to merge with: it arrives as itself.
+      if (host?.zone !== 'battlefield') return { state: enterBattlefield(state, r.source, { x: r.x }).state }
+      const card = mergeCards(effect.over ? spell.card : host.card, effect.over ? host.card : spell.card)
+      // The same permanent it was: its counters, its Auras, how long it has
+      // been here. The card it merged with is part of it now, and nowhere.
+      const cards = relocate(state.cards, spell.iid, 'exile').map((c) => (
+        c.iid === host.iid ? { ...c, card, original: c.original ?? c.card, merged: [...(c.merged ?? []), spell.iid] }
+          : c.iid === spell.iid ? { ...c, mergedInto: host.iid }
+            : c
+      ))
+      return {
+        state: noted({ ...state, cards }, `${spell.card.name} mutates ${effect.over ? 'over' : 'under'} ${host.card.name}`),
+      }
     }
 
     case 'enterAs': {
@@ -1591,6 +1623,37 @@ export function resolveTop(state: GameState): GameState {
     const marked: GameState = kicked
       ? { ...base, cards: base.cards.map((c) => (c.iid === inst.iid ? { ...c, kicked: true } : c)) }
       : base
+    // Mutating: it merges with a creature of yours, over it or under, and
+    // nothing arrives. With none left to go onto it is a creature like any
+    // other (CR 702.140b).
+    if (top.way === 'mutate' && mutable(marked, inst.iid).length) {
+      const { name } = inst.card
+      return carryOn({
+        ...noted(marked, `${name} resolves`),
+        resolving: {
+          ...blank,
+          source: inst.iid,
+          name,
+          text: rulesText(inst.card),
+          effects: [
+            { op: 'choose', filter: MUTATES_ONTO, count: 1, upTo: false, must: true },
+            {
+              op: 'mode',
+              min: 1,
+              max: 1,
+              modes: [
+                { text: `Put ${name} on top — the creature becomes ${name}, with the abilities of both.`, effects: [{ op: 'merge', over: true }], complete: true },
+                { text: `Put ${name} underneath — the creature stays what it is, and gains its abilities.`, effects: [{ op: 'merge', over: false }], complete: true },
+              ],
+            },
+          ],
+          event: null,
+          known: {},
+          spell: false,
+          leftover: null,
+        },
+      })
+    }
     const copying = enterAsCopy(noted(marked, `${inst.card.name} resolves`), inst.iid, top.x)
     if (copying) return copying
     const entered = enterBattlefield(marked, inst.iid, { x: top.x }).state

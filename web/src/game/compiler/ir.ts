@@ -349,6 +349,10 @@ export type Effect = (
   | { op: 'copy'; of: Aim; count: Count; change: CopyChange; tapped: boolean; fleeting: boolean; attacking?: boolean }
   /** A permanent arrives — as a copy of what was chosen, if anything was. */
   | { op: 'enterAs'; change: CopyChange }
+  /** A mutating creature spell merges with the creature chosen: `over` it,
+   *  and that creature becomes this one with the abilities of both; or under
+   *  it, and it stays what it is and gains this one's. */
+  | { op: 'merge'; over: boolean }
   /** Set what was chosen aside, so the next `choose` can pick something
    *  else and both be spoken of. */
   | { op: 'keep' }
@@ -818,6 +822,9 @@ export type Way =
   | { kind: 'mayhem'; cost: string }
   /** Overload: this cost instead, and "each" where the spell says "target". */
   | { kind: 'overload'; cost: string }
+  /** Mutate: this cost instead, and it merges with a non-Human creature of
+   *  yours rather than arriving as one of its own. */
+  | { kind: 'mutate'; cost: string }
   /** "You may exile two green cards from your hand rather than pay ~'s mana
    *  cost." */
   | { kind: 'pitch'; filter: Filter; count: number; text: string }

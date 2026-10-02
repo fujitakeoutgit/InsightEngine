@@ -98,6 +98,13 @@ export interface Instance {
   discarded?: number
   /** It was cast with its kicker paid, or its optional cost. */
   kicked?: boolean
+  /** Mutated: the cards merged with this permanent, which is one creature
+   *  made of all of them. */
+  merged?: string[]
+  /** A card that is part of a mutated creature — this one. It is nowhere of
+   *  its own until that creature leaves the battlefield, and then goes where
+   *  it goes. Kept in exile, and out of every count of what is there. */
+  mergedInto?: string
   /** A token that is a copy of a card: which. */
   from?: string
 }

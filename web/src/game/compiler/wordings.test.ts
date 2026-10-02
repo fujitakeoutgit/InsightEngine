@@ -22,8 +22,8 @@ describe('ways to cast a card', () => {
   })
 
   it('sets aside the ones it does not, and still grades the card by the rest', () => {
-    const beast = text('Mutate {G}{U}\n{1}, {T}: Draw a card.', 'Creature — Beast')
-    expect(beast).toMatchObject({ coverage: 'auto', skipped: ['Mutate {G}{U}'], ways: [] })
+    const beast = text('Dash {G}{U}\n{1}, {T}: Draw a card.', 'Creature — Beast')
+    expect(beast).toMatchObject({ coverage: 'auto', skipped: ['Dash {G}{U}'], ways: [] })
     // Overload is offered where the spell reads with "each" for "target".
     expect(text('Destroy target artifact you don\'t control.\nOverload {4}{R}', 'Sorcery'))
       .toMatchObject({ skipped: [], ways: [{ kind: 'overload', cost: '{4}{R}' }] })

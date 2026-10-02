@@ -129,6 +129,20 @@ export function stateBased(state: GameState): GameState {
     }, `${c.was.name} is itself again`)
   }
 
+  // A mutated creature that has left the battlefield comes apart: the cards
+  // that were part of it go where it went (CR 729.3).
+  for (const c of next.cards) {
+    if (!c.mergedInto) continue
+    const host = next.cards.find((h) => h.iid === c.mergedInto)
+    if (host?.zone === 'battlefield') continue
+    const zone = host?.zone ?? 'graveyard'
+    next = {
+      ...next,
+      cards: (zone === 'exile' ? next.cards : relocate(next.cards, c.iid, zone))
+        .map((x) => (x.iid === c.iid ? { ...x, mergedInto: undefined } : x)),
+    }
+  }
+
   // A commander in a graveyard or exile may go home instead (903.9a). It
   // always does here: keeping it in the graveyard is a choice nobody makes
   // without a reason the engine cannot see. Only one that was already there

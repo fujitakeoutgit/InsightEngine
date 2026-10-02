@@ -263,9 +263,9 @@ const NOT_OFFERED = [
  *  mayhem, a cost paid in cards. Null for a line that is not one, or is one
  *  in a form this does not carry out — which `NOT_OFFERED` then sets aside. */
 function readWay(line: string, printed: string): Way | null {
-  const priced = /^(evoke|kicker|freerunning|mayhem|overload) ((?:\{[^}]+\})+)$/.exec(line)
+  const priced = /^(evoke|kicker|freerunning|mayhem|overload|mutate) ((?:\{[^}]+\})+)$/.exec(line)
   if (priced) {
-    return { kind: priced[1] as 'evoke' | 'kicker' | 'freerunning' | 'mayhem' | 'overload', cost: priced[2].toUpperCase() }
+    return { kind: priced[1] as 'evoke' | 'kicker' | 'freerunning' | 'mayhem' | 'overload' | 'mutate', cost: priced[2].toUpperCase() }
   }
   const pitch = /^you may exile (\w+) (.+?) cards from your hand rather than pay (?:~'s|this spell's) mana cost\.?$/.exec(line)
   if (pitch) {

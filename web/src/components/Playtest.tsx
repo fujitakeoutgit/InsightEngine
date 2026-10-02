@@ -329,7 +329,8 @@ export function Playtest({
     const map: Record<Zone, Instance[]> = {
       library: [], hand: [], battlefield: [], graveyard: [], exile: [], command: [], stack: [],
     }
-    for (const card of cards) map[card.zone].push(card)
+    // A card that is part of a mutated creature is not anywhere of its own.
+    for (const card of cards) if (!card.mergedInto) map[card.zone].push(card)
     return map
   }, [cards])
 
@@ -1553,10 +1554,11 @@ function PlayCard({
           >+</button>
         </span>
       )}
-      {(others.length > 0 || inst.chosenType || inst.chosenMode) && placed && (
+      {(others.length > 0 || inst.chosenType || inst.chosenMode || inst.merged?.length) && placed && (
         <span className="pt-counters mono">
           {inst.chosenType && <span title="The creature type chosen for it">{inst.chosenType}</span>}
           {inst.chosenMode && <span title="What was chosen for it as it entered">{inst.chosenMode}</span>}
+          {inst.merged?.length ? <span title="A mutated creature: it has the abilities of every card in it">mutated</span> : null}
           {others.map(([kind, n]) => <span key={kind}>{kind} {n}</span>)}
         </span>
       )}
