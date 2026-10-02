@@ -32,7 +32,8 @@ export function costLabel(ability: ActivatedAbility): string {
   const { cost } = ability
   if (cost.loyalty !== null) return cost.loyalty > 0 ? `+${cost.loyalty}` : cost.loyalty < 0 ? `−${-cost.loyalty}` : '0'
   return [
-    cost.mana,
+    // Waterbend is a way of paying the mana, so it is said with it.
+    cost.waterbend ? `waterbend ${cost.mana}` : cost.mana,
     cost.tap ? '{T}' : '',
     cost.life ? `${cost.life} life` : '',
     cost.sacrificeSelf ? 'sacrifice' : '',
@@ -42,7 +43,6 @@ export function costLabel(ability: ActivatedAbility): string {
     cost.crew ? `tap ${cost.crew} power` : '',
     cost.bounce ? `return ${cost.bounce.count}` : '',
     cost.exileSelf ? 'exile' : '',
-    cost.waterbend ? 'waterbend' : '',
     cost.discardSelf ? 'discard' : '',
     cost.remove ? `−${cost.remove.count} ${cost.remove.counter}` : '',
     cost.add ? `+${cost.add.count} ${cost.add.counter}` : '',

@@ -271,6 +271,8 @@ export type Decision =
     /** What the picked may add up to: each option's cost, and the most —
      *  or, with `min`, the least: the power it takes to crew a Vehicle. */
     budget?: { max: number; cost: Record<string, number>; of: string; min?: number }
+    /** The legend rule asking: these share a name, and one of them stays. */
+    legend?: boolean
   }
   /** "Choose a number between 0 and 10." */
   | { kind: 'number'; prompt: string; min: number; max: number }
@@ -279,8 +281,9 @@ export type Decision =
   /** Declare attackers: which of these attack. */
   | { kind: 'attack'; options: string[] }
   /** "As ~ enters, choose a creature type": which, for this permanent. With
-   *  `side` it is one of the card's own two names instead: Khans or Dragons. */
-  | { kind: 'type'; iid: string; options: string[]; side?: boolean }
+   *  `side` it is one of the card's own two names instead: Khans or Dragons.
+   *  `ask` words the question where neither of those is what is being asked. */
+  | { kind: 'type'; iid: string; options: string[]; side?: boolean; ask?: string }
   /** Abilities that triggered together: the order they go on the stack in
    *  is yours to choose (CR 603.3b). These are their stack ids. */
   | { kind: 'order'; ids: string[] }

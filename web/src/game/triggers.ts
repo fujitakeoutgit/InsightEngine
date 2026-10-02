@@ -121,7 +121,8 @@ function happened(before: GameState, after: GameState): { events: Happened[]; ta
       if (!card) continue
       out.push({ on: 'combatDamage', card })
       // An Assassin or a commander of yours has connected: freerunning.
-      if (card.commander || /\bAssassin\b/.test(card.card.type_line ?? '')) tally.struck += 1
+      // A changeling is one too, which only `matches` knows.
+      if (card.commander || matches(card, { subtypes: ['Assassin'] }, undefined, after)) tally.struck += 1
     }
   }
   if (after.life > before.life) {

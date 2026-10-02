@@ -80,12 +80,22 @@ describe('another cost in place of the printed one', () => {
     expect([struck.step, struck.tally.struck]).toEqual(['main2', 1])
   })
 
+  it('counts a changeling as the Assassin it is', () => {
+    const vandal = card('Masked Vandal', 'Creature — Shapeshifter', { power: '1', toughness: '3', keywords: ['Changeling'], oracle_text: 'Changeling' })
+    const start = ruled([[vandal, 'battlefield'], [BEARS, 'battlefield'], ...library], { step: 'combatAttackers', pending: { kind: 'attack', options: ['c0', 'c1'] } })
+    expect(run(start, { type: 'attack', iids: ['c0'] }).tally.struck).toBe(1)
+    // A Bear is neither an Assassin nor anyone's commander.
+    expect(run(start, { type: 'attack', iids: ['c1'] }).tally.struck).toBe(0)
+  })
+
   it('exiles two green cards from hand rather than pay', () => {
     const rider = card('Allosaurus Rider', 'Creature — Elf Warrior', {
       mana_cost: '{5}{G}{G}', colors: 'G', power: '1+*', toughness: '1+*',
       oracle_text: "You may exile two green cards from your hand rather than pay this spell's mana cost.\nAllosaurus Rider's power and toughness are each equal to 1 plus the number of lands you control.",
     })
     const green = { ...BEARS, colors: 'G' }
+    const offered = ruled([[rider, 'hand'], [green, 'hand'], [green, 'hand']])
+    expect(castWays(offered, at(offered, 'c0')).map((way) => way.label)).toEqual(['Exile two green cards from your hand instead of paying'])
     expect(compile(rider)).toMatchObject({ coverage: 'auto', skipped: [] })
     const start = ruled([[rider, 'hand'], [green, 'hand'], [green, 'hand'], [giant, 'hand'], [green, 'hand'], ...library])
     expect(keys(start, 'c0')).toEqual(['pitch'])
@@ -121,6 +131,8 @@ describe('a cost on top of the printed one', () => {
     expect(keys(ruled([[clap, 'hand'], [FOREST, 'battlefield'], [BEARS, 'battlefield']]), 'c0')).toEqual(['normal'])
     const start = ruled([[clap, 'hand'], [FOREST, 'battlefield'], [gamma, 'battlefield'], [BEARS, 'battlefield'], [relic, 'battlefield'], ...library])
     expect(keys(start, 'c0')).toEqual(['normal', 'behold'])
+    // Said as the card prints it.
+    expect(castWays(start, at(start, 'c0'))[1].label).toMatch(/^Behold a Gamma creature — /)
     const done = run(start, cast('c0'), by('behold'), pass, { type: 'choose', iids: ['c2'] }, { type: 'choose', iids: ['c3'] }, { type: 'choose', iids: ['c4'] })
     expect([zone(done, 'c3'), zone(done, 'c4')]).toEqual(['graveyard', 'graveyard'])
     // Not beheld: the Relic is never asked about.

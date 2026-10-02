@@ -76,8 +76,12 @@ describe('becoming a copy', () => {
     const second = reduce(first, { type: 'choose', iids: ['c0'] })
     // What it becomes a copy of is something else.
     expect(second.pending).toMatchObject({ kind: 'pick', options: ['c4'] })
-    const done = reduce(second, { type: 'choose', iids: ['c4'] })
-    expect(at(done, 'c0').card.name).toBe('Old King')
+    const copied = reduce(second, { type: 'choose', iids: ['c4'] })
+    expect(at(copied, 'c0').card.name).toBe('Old King')
+    // Two Old Kings, and he is legendary: one of them stays.
+    expect(copied.pending).toMatchObject({ kind: 'pick', legend: true })
+    const done = reduce(copied, { type: 'choose', iids: ['c0'] })
+    expect(at(done, 'c4').zone).toBe('graveyard')
     // Through this turn's cleanup, and gone as the next turn begins.
     const end = onTo(done, 'end')
     expect(at(end, 'c0').card.name).toBe('Old King')

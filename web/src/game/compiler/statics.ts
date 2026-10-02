@@ -171,6 +171,7 @@ export function readStatic(line: string): Static | null {
   if (/^nonland cards in your hand have miracle \{0\}$/.test(l)) return { kind: 'miracle' }
   if (/^aftermath$/.test(l)) return { kind: 'aftermath' }
   if (/^you can't lose the game and your opponents can't win the game$/.test(l)) return { kind: 'cantLose' }
+  if (/^the "legend rule" doesn't apply(?: to permanents you control)?$/.test(l)) return { kind: 'noLegendRule' }
   const alt = /^you may pay ((?:\{[^}]+\})+) rather than pay the mana cost for (.+?) spells you cast$/.exec(l)
   if (alt) {
     const filter = readFilter(alt[2])

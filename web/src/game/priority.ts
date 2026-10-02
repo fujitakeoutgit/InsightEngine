@@ -14,7 +14,7 @@ import { compile } from './compiler/compile'
 import { typesInDeck } from './kinds'
 import { resolveTop } from './resolve'
 import { DRAWS_FIND } from './state'
-import { stateBased } from './sba'
+import { legendTwins, stateBased } from './sba'
 import { collectTriggers, stepTriggers } from './triggers'
 import { firstTurn, nextStep, STEPS, STOPS } from './turn'
 import type { GameState, Step } from './types'
@@ -40,6 +40,18 @@ export function settle(before: GameState, after: GameState): GameState {
  *  being, of the first permanent still waiting for one. */
 function askType(state: GameState): GameState {
   if (state.pending || state.resolving) return state
+  // The legend rule: two of one name, and which of them stays is yours to say.
+  const twins = legendTwins(state)
+  if (twins) {
+    return {
+      ...state,
+      pending: {
+        kind: 'pick', zone: 'battlefield', legend: true, min: 1, max: 1,
+        prompt: `Legend rule — choose the ${twins[0].card.name} to keep`,
+        options: twins.map((c) => c.iid),
+      },
+    }
+  }
   const waiting = state.cards.find((c) => (
     c.zone === 'battlefield' && !c.chosenType
     && compile(c.card).statics.some((fixed) => fixed.kind === 'chooseType')
@@ -52,7 +64,7 @@ function askType(state: GameState): GameState {
     if (asks?.kind === 'chooseSide') return { ...state, pending: { kind: 'type', iid: c.iid, options: asks.sides, side: true } }
     // Abundance: what your draws look for, until you say otherwise.
     if (asks?.kind === 'drawsFind') {
-      return { ...state, pending: { kind: 'type', iid: c.iid, options: [...DRAWS_FIND, 'As usual'], side: true } }
+      return { ...state, pending: { kind: 'type', iid: c.iid, options: [...DRAWS_FIND, 'As usual'], side: true, ask: 'what your draws find' } }
     }
   }
   return state

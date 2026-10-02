@@ -728,6 +728,8 @@ export type Static =
   | { kind: 'aftermath' }
   /** "You can't lose the game and your opponents can't win the game." */
   | { kind: 'cantLose' }
+  /** "The "legend rule" doesn't apply." */
+  | { kind: 'noLegendRule' }
   /** "You may pay {0} rather than pay the mana cost for Zombie creature
    *  spells you cast." */
   | { kind: 'altCost'; filter: Filter; cost: string }

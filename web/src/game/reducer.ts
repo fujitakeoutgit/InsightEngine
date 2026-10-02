@@ -26,6 +26,7 @@ import { begin, pass, passTo, settle, toNextStop } from './priority'
 import { shuffle } from './random'
 import { frontOf } from './faces'
 import { answer, enterAsCopy, resume } from './resolve'
+import { keepLegend } from './sba'
 import {
   draw, emptyTally, find, mint, noted, relocate, shuffleLibrary, startingLoyalty, toBottom,
 } from './state'
@@ -436,6 +437,12 @@ function apply(state: GameState, action: Action): GameState {
 
     case 'choose': {
       const { pending } = state
+      // The legend rule: the one that stays.
+      if (pending?.kind === 'pick' && pending.legend) {
+        const [keep] = action.iids
+        if (action.iids.length !== 1 || !pending.options.includes(keep)) return state
+        return keepLegend({ ...state, pending: null }, pending.options, keep)
+      }
       // A pick that is a cost — what to sacrifice — rather than an effect.
       if (pending?.kind === 'pick' && state.paying) return paid(state, action.iids)
       // …or what is exiled from hand to cast a spell.

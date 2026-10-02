@@ -441,6 +441,13 @@ export function checkCast(state: GameState, iid: string, x = 0, way = 'normal'):
 /** A way a spell could be cast right now, in words for the question. */
 export interface CastWay { key: string; label: string }
 
+/** "You may exile two green cards from your hand rather than pay this
+ *  spell's mana cost", as a button: what you do, and that it is instead. */
+function pitchLabel(text: string) {
+  const what = text.replace(/^you may /i, '').replace(/ rather than pay .*$/i, '')
+  return `${what[0].toUpperCase()}${what.slice(1)} instead of paying`
+}
+
 /** Every way this card could be cast as things stand. One of them, usually:
  *  for what it costs. */
 export function castWays(state: GameState, inst: Instance): CastWay[] {
@@ -482,7 +489,7 @@ export function castWays(state: GameState, inst: Instance): CastWay[] {
             : key === 'kicked' ? `Kicked — ${price}`
               : key === 'freerunning' ? `Freerunning ${price}`
                 : key === 'mayhem' ? `Mayhem ${price}`
-                  : key === 'pitch' && pitch?.kind === 'pitch' ? pitch.text.split('~').join(inst.card.name)
+                  : key === 'pitch' && pitch?.kind === 'pitch' ? pitchLabel(pitch.text)
                     : key === 'behold' && behold?.kind === 'behold' ? `${behold.text} — ${price}`
                       : `Convoke — tap creatures first for ${price}`,
     })

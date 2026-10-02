@@ -14,7 +14,7 @@ import type { ManaType } from '../game/mana'
 import { randomSeed } from '../game/random'
 import { deal } from '../game/reducer'
 import { isCreature, manaAbilities } from '../game/sources'
-import { resized, sizeLabel } from '../game/stats'
+import { hasKeyword, resized, sizeLabel } from '../game/stats'
 import type { GameState, Instance, Spot, Zone } from '../game/types'
 import { freshTable, reduceTable } from '../game/undo'
 import { useCardFace } from '../lib/faces'
@@ -100,7 +100,8 @@ const HINT_MS = 2600
 function passLabel(game: GameState) {
   if (game.stack.length) return 'Resolve'
   if (game.step === 'main1') return eligibleAttackers(game).length ? 'Combat' : 'Main 2'
-  if (game.step === 'combatBegin' || game.step === 'combatAttackers') return 'Damage'
+  if (game.step === 'combatBegin') return eligibleAttackers(game).length ? 'Attackers' : 'Main 2'
+  if (game.step === 'combatAttackers') return game.attacking.length ? 'Damage' : 'Main 2'
   if (game.step === 'main2') return 'End turn'
   return 'Continue'
 }
@@ -600,6 +601,8 @@ export function Playtest({
     // mayhem cost, as the turn's free spell. The game asks which.
     if (check.why) {
       if (castWays(game, inst).length) dispatch({ type: 'play', iid })
+      // In the graveyard to be used, not cast: unearth, embalm, encore.
+      else if (inst.zone === 'graveyard' && abilitiesOf(inst).some((a) => a.fromGraveyard)) setAbilitiesFor(iid)
       else setHint(check.why)
       return
     }
@@ -696,6 +699,8 @@ export function Playtest({
             onLoyalty={stepLoyalty} placed willTap={wouldTap.has(c.iid)}
             tapHint={game.rules ? ' — click to tap for mana, Shift+click to turn it by hand' : undefined}
             rules={game.rules}
+            // Only a creature is held back by having just arrived, and not one with haste.
+            sick={c.sick && isCreature(c) && !hasKeyword(c, 'Haste', game)}
             size={game.rules && isCreature(c) && (resized(c, game) || !c.card.image_normal) ? sizeLabel(c, game) : ''}
             onCounter={(iid, by) => dispatch({ type: 'counter', iid, counter: '+1/+1', by })}
             onPick={candidates.has(c.iid) ? pick : undefined}
@@ -966,6 +971,8 @@ export function Playtest({
                 key={c.iid} inst={c} drag={drag} onPlay={play} onZoom={setZoomed} splitRead
                 playable={canPlay.has(c.iid)}
                 selected={selected.includes(c.iid)}
+                // Asked for some of the hand, not any of it: ring the ones it could be.
+                onPick={pending?.kind === 'pick' && candidates.has(c.iid) ? pick : undefined}
                 onHover={setPreviewing}
                 rules={game.rules}
                 onAbilities={game.rules && abilitiesOf(c).some((a) => usedFrom(a) === 'hand') ? setAbilitiesFor : undefined}
@@ -977,7 +984,8 @@ export function Playtest({
             {elsewhere.map(({ inst, from }, i) => (
               <PlayCard
                 key={inst.iid} inst={inst} drag={drag} onPlay={play} onZoom={setZoomed} splitRead
-                playable={canPlay.has(inst.iid)}
+                playable={canPlay.has(inst.iid) || (from === 'Graveyard' && abilitiesOf(inst)
+                  .some((a, index) => a.fromGraveyard && !activationProblem(game, inst.iid, index)))}
                 onHover={setPreviewing}
                 rules={game.rules}
                 tag={from}
@@ -1344,8 +1352,10 @@ function Pile({
 function PlayCard({
   inst, drag, onTap, onPlay, onZoom, onLoyalty, placed, splitRead, style,
   playable, selected, willTap, tax = 0, onHover, tapHint = ' — click to tap',
-  rules, onCounter, onPick, attacking, size = '', onAbilities, tag,
+  rules, onCounter, onPick, attacking, size = '', onAbilities, tag, sick,
 }: {
+  /** A creature that arrived this turn and has no haste. */
+  sick?: boolean
   /** Where it is, when that is not where it is shown: "Exile". */
   tag?: string
   inst: Instance
@@ -1427,13 +1437,14 @@ function PlayCard({
    * the hand is fanned — it is also, conveniently, where the rules text is,
    * so "click the words to read the words" needs no explaining. */
   const onCardClick = (event: React.MouseEvent) => {
-    if (onPick) { onPick(inst.iid); return }
-    if (readOnClick) { zoomFrom(event); return }
+    // In hand the bottom still reads, even of a card the game is asking for.
     if (splitRead) {
       const rect = event.currentTarget.getBoundingClientRect()
       const down = (event.clientY - rect.top) / rect.height
       if (down > 1 - READ_ZONE) { zoomFrom(event); return }
     }
+    if (onPick) { onPick(inst.iid); return }
+    if (readOnClick) { zoomFrom(event); return }
     if (action === onTap) onTap?.(inst.iid, event.shiftKey)
     else action?.(inst.iid)
   }
@@ -1452,8 +1463,7 @@ function PlayCard({
     playable && 'playable',
     selected && 'selected',
     willTap && 'will-tap',
-    // Only a creature is held back by having just arrived.
-    inst.sick && placed && isCreature(inst) && 'sick',
+    sick && placed && 'sick',
   ].filter(Boolean).join(' ')
 
   return (
@@ -1478,7 +1488,7 @@ function PlayCard({
         }
       }}
       onClick={onCardClick}
-      title={`${inst.card.name}${inst.sick && placed && isCreature(inst) ? ' (summoning sick)' : ''}${hint}`}
+      title={`${inst.card.name}${sick && placed ? ' (summoning sick)' : ''}${hint}`}
       style={placed
         ? { ...style, left: `${inst.x * 100}%`, top: `${inst.y * 100}%` }
         : style}

@@ -231,6 +231,8 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       if (!options.length) return { state: noted(set([]), `${r.name}: nothing to choose`) }
       // A choice with no choice in it is not asked.
       if (effect.must && options.length <= effect.count) return { state: set(options) }
+      // What the chosen is for, where the question would not say.
+      const then = r.effects[r.effects.indexOf(effect) + 1]
       return {
         state,
         wait: {
@@ -241,7 +243,9 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
             : effect.zone
               ? `${r.name}: choose ${asked(effect.filter, effect.count, effect.upTo, 'card')} ${
                 effect.zone === 'exile' ? 'it has exiled' : 'in your graveyard'}`
-              : `${r.name}: choose ${asked(effect.filter, effect.count, effect.upTo, 'permanent')}`,
+              : `${r.name}: choose ${asked(effect.filter, effect.count, effect.upTo, 'permanent')}${
+                // A Clone arriving: say what the choice is for, since "None" is an answer.
+                then?.op === 'enterAs' ? ' to enter as a copy of' : then?.op === 'copy' ? ' to copy' : ''}`,
           options,
           min: effect.must ? Math.min(effect.count, options.length) : 0,
           max: Math.min(effect.count, options.length),

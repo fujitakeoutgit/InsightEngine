@@ -55,6 +55,16 @@ describe('reading mana abilities', () => {
     expect(manaAbilities(board.cards[1], board)[0].makes).toHaveLength(2)
   })
 
+  it('counts a changeling among the Elves', () => {
+    const archdruid = card('Elvish Archdruid', 'Creature — Elf Druid', {
+      oracle_text: 'Other Elf creatures you control get +1/+1.\n{T}: Add {G} for each Elf you control.',
+    })
+    const changeling = card('Woodland Changeling', 'Creature — Shapeshifter', { keywords: ['Changeling'], oracle_text: 'Changeling' })
+    // The Archdruid, the Llanowar Elves and the changeling; not the Bears.
+    const board = game([[archdruid, 'battlefield'], [ELVES, 'battlefield'], [changeling, 'battlefield'], [BEARS, 'battlefield']])
+    expect(makes(board)).toEqual([[[['G'], ['G'], ['G']], 0]])
+  })
+
   it('leaves alone what costs a sacrifice or a counter', () => {
     const treasure = card('Treasure', 'Token Artifact — Treasure', {
       oracle_text: '{T}, Sacrifice this token: Add one mana of any color.',

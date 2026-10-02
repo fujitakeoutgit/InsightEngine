@@ -12,7 +12,35 @@ import { compile } from './compiler/compile'
 import { hasKeyword, isCreature } from './sources'
 import { cantLose, noted, relocate } from './state'
 import { sizeKnown, toughness } from './stats'
-import type { GameState } from './types'
+import type { GameState, Instance } from './types'
+
+/**
+ * The legend rule (704.5j): the legendary permanents that share a name with
+ * another, the first such set — or null. It is the one state-based action
+ * that needs an answer, so it is asked rather than carried out: see `askType`
+ * in priority.ts. Not while something says the rule does not apply.
+ */
+export function legendTwins(state: GameState): Instance[] | null {
+  if (!state.rules) return null
+  const here = state.cards.filter((c) => c.zone === 'battlefield')
+  if (here.some((c) => compile(c.card).statics.some((fixed) => fixed.kind === 'noLegendRule'))) return null
+  const legends = here.filter((c) => /\bLegendary\b/.test(c.card.type_line ?? ''))
+  for (const c of legends) {
+    const twins = legends.filter((other) => other.card.name === c.card.name)
+    if (twins.length > 1) return twins
+  }
+  return null
+}
+
+/** One is kept, and the rest are put into the graveyard — neither destroyed
+ *  nor sacrificed, so nothing saves them. */
+export function keepLegend(state: GameState, twins: readonly string[], keep: string): GameState {
+  const kept = state.cards.find((c) => c.iid === keep)
+  let cards = state.cards
+  for (const iid of twins) if (iid !== keep) cards = relocate(cards, iid, 'graveyard')
+  return noted({ ...state, cards }, `Legend rule: kept one ${kept?.card.name ?? 'of them'}, the other${
+    twins.length > 2 ? 's go' : ' goes'} to the graveyard`)
+}
 
 const isWalker = (line: string | null) => /\bPlaneswalker\b/.test(line ?? '')
 

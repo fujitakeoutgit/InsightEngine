@@ -332,7 +332,7 @@ export function DecisionPrompt({
   }
   if (decision.kind === 'type') {
     // A creature type — or, for a Siege, one of the two names it offers.
-    const what = decision.side ? 'choose one' : 'choose a creature type'
+    const what = decision.ask ?? (decision.side ? 'choose one' : 'choose a creature type')
     return (
       <div className="pt-decision" role="dialog" aria-label={decision.side ? 'Choose one' : 'Choose a creature type'}>
         <h3>{name ? `${name}: ${what}` : `${what[0].toUpperCase()}${what.slice(1)}`}</h3>

@@ -276,7 +276,9 @@ function readWay(line: string, printed: string): Way | null {
   const behold = /^as an additional cost to cast (?:~|this spell), you may (behold an? (.+?))\.?$/.exec(line)
   if (behold) {
     const filter = readFilter(behold[2])
-    return filter && { kind: 'behold', filter, text: behold[1][0].toUpperCase() + behold[1].slice(1) }
+    // As the card prints it — "a Dragon", not "a dragon".
+    const said = /behold an? .+?(?=\.?$)/i.exec(printed)?.[0] ?? behold[1]
+    return filter && { kind: 'behold', filter, text: said[0].toUpperCase() + said.slice(1) }
   }
   return null
 }

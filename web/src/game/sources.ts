@@ -11,7 +11,7 @@
 import { compile } from './compiler/compile'
 import type { Filter } from './compiler/ir'
 import { readFilter } from './compiler/read'
-import { isKind, sweeping } from './kinds'
+import { hasSubtype, isKind, sweeping } from './kinds'
 import { matches } from './match'
 import {
   COLORS, demand, parseCost, sourcePenalty, type Color, type ManaPool, type ManaSource, type ManaType,
@@ -103,7 +103,8 @@ function countControlled(state: GameState, phrase: string): number | null {
   const kind = noun.toLowerCase() === 'permanent' ? '' : noun
   return state.cards.filter((c) => (
     c.zone === 'battlefield'
-    && (!kind || new RegExp(`\\b${kind}\\b`, 'i').test(c.card.type_line ?? ''))
+    // "For each Elf": a changeling is one, which the type line does not say.
+    && (!kind || hasSubtype(c, kind[0].toUpperCase() + kind.slice(1), sweeping(state)))
     && (!keyword || hasKeyword(c, keyword, state))
   )).length
 }
