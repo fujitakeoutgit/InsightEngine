@@ -95,6 +95,10 @@ export function toBottom(cards: readonly Instance[], iid: string, zone: Zone): I
   return [...cards.filter((c) => c.iid !== iid), moving]
 }
 
+/** Platinum Angel: "You can't lose the game." */
+export const cantLose = (state: GameState) => inZone(state, 'battlefield')
+  .some((c) => compile(c.card).statics.some((fixed) => fixed.kind === 'cantLose'))
+
 /** Teferi's Ageless Insight and its kind: each one doubles a draw. */
 const drawDoublers = (state: GameState) => inZone(state, 'battlefield')
   .filter((c) => compile(c.card).statics.some((fixed) => fixed.kind === 'drawTwice')).length
@@ -146,7 +150,7 @@ export function draw(state: GameState, asked: number, first = false): GameState 
   if (!state.rules) return drawn.length ? next : noted(state, 'Drew nothing — the library is empty')
   // Drawing from an empty library loses the game (CR 704.5b). Noted, and play
   // goes on: in a goldfish, the turn it happened is the finding.
-  const lost = next.lost ?? `You drew from an empty library on turn ${state.turn}`
+  const lost = next.lost ?? (cantLose(next) ? null : `You drew from an empty library on turn ${state.turn}`)
   return noted({ ...next, lost }, 'Tried to draw from an empty library')
 }
 

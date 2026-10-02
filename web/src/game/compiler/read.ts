@@ -232,6 +232,7 @@ export function readFilter(phrase: string): Filter | null {
   if (take(/ nontoken\b/)) filter.nontoken = true
   if (take(/ nonlegendary\b/)) filter.notSubtypes = [...(filter.notSubtypes ?? []), 'Legendary']
   if (take(/ basic\b/)) filter.basic = true
+  if (take(/ that (?:aren't|isn't) of the chosen type\b/)) filter.notChosenType = true
   if (take(/ of the chosen type\b/)) filter.chosenType = true
   if (take(/ that's attacking alone\b/)) {
     filter.attacking = true

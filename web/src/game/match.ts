@@ -12,7 +12,7 @@ import type { GameState, Instance } from './types'
  *  With the game, size and keywords are what the board makes them. */
 export function matches(inst: Instance, asked: Filter, source?: string, state?: GameState): boolean {
   // "Of the chosen type" is answered by the permanent that is asking.
-  const filter = (asked.chosenType || asked.sameName) && state && source
+  const filter = (asked.chosenType || asked.sameName || asked.notChosenType) && state && source
     ? forSource(asked, state.cards.find((c) => c.iid === source))
     : asked
   if (!isKind(inst, filter, source, state ? sweeping(state) : undefined)) return false

@@ -10,7 +10,7 @@
 
 import type { Card, DeckToken } from '../lib/api'
 import type { DeckCard } from '../lib/deckModel'
-import type { Effect, TallyKey } from './compiler/ir'
+import type { Effect, TallyKey, TriggerEvent } from './compiler/ir'
 import type { ManaPool, ManaType } from './mana'
 
 export type Zone = 'library' | 'hand' | 'battlefield' | 'graveyard' | 'exile' | 'command' | 'stack'
@@ -229,6 +229,9 @@ export interface Resolution {
   kicked?: boolean
   /** The creatures that convoked it. */
   convoked?: string[]
+  /** Where the spell's card goes instead of the graveyard: into exile — an
+   *  aftermath half — or on an adventure, to be cast from exile later. */
+  after?: 'exile' | 'adventure'
   /** Words left over for you to finish, when not all of it was understood. */
   leftover: string | null
 }
@@ -358,6 +361,9 @@ export interface GameState {
    *  and whether the game is in one now. */
   extraBeginnings: number
   beginning: boolean
+  /** Abilities that are there until end of turn: "until end of turn,
+   *  whenever a Serpent attacks, draw a card". */
+  untilEnd: { iid: string; text: string; when: TriggerEvent[]; effects: Effect[] }[]
   /** Abilities waiting for the next end step to begin. */
   delayed: { iid: string; ability: NonNullable<StackItem['ability']> }[]
   /** Pictures for the tokens this deck makes, by name. */

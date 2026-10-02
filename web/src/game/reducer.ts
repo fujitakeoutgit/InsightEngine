@@ -24,7 +24,8 @@ import { fetchFinds } from './fetch'
 import { emptyPool } from './mana'
 import { begin, pass, passTo, settle, toNextStop } from './priority'
 import { shuffle } from './random'
-import { answer, enterAsCopy } from './resolve'
+import { frontOf } from './faces'
+import { answer, enterAsCopy, resume } from './resolve'
 import {
   draw, emptyTally, find, mint, noted, relocate, shuffleLibrary, startingLoyalty, toBottom,
 } from './state'
@@ -38,12 +39,13 @@ function build(deck: readonly DeckCard[]): Instance[] {
   const out: Instance[] = []
   for (const entry of deck) {
     if (entry.section === 'sideboard' || entry.section === 'maybeboard') continue
-    const loyalty = startingLoyalty(entry.card)
+    const loyalty = startingLoyalty(frontOf(entry.card))
     const commander = entry.section === 'commander'
     for (let i = 0; i < entry.quantity; i += 1) {
       out.push({
         iid: `${entry.uid}-${i}`,
-        card: entry.card,
+        // A card with two faces is in the deck as its front one.
+        card: frontOf(entry.card),
         zone: commander ? 'command' : 'library',
         tapped: false,
         x: 0.5,
@@ -93,6 +95,7 @@ export function deal(
     paying: null,
     casting: null,
     delayed: [],
+    untilEnd: [],
     extraBeginnings: 0,
     beginning: false,
     tokenArt: Object.fromEntries(tokens.map((t) => [t.name.toLowerCase(), t.image])),
@@ -232,7 +235,7 @@ function apply(state: GameState, action: Action): GameState {
       // there is, when that is not simply paying for it: nobody evokes a
       // Mulldrifter by accident. From the graveyard there is only mayhem.
       const ways = castWays(state, inst)
-      const plain = ways.length === 1 && (ways[0].key === 'normal' || ways[0].key === 'mayhem')
+      const plain = ways.length === 1 && (ways[0].key === 'normal' || inst.zone === 'graveyard')
       if (ways.length && !plain) {
         return { ...state, pending: { kind: 'way', iid: action.iid, x: action.x ?? 0, ways } }
       }
@@ -422,11 +425,13 @@ function apply(state: GameState, action: Action): GameState {
       if (pending?.kind !== 'type' || !pending.options.includes(action.subtype)) return state
       const name = find(state, pending.iid)?.card.name ?? 'It'
       const chosen = pending.side ? { chosenMode: action.subtype } : { chosenType: action.subtype }
-      return noted({
+      const said = noted({
         ...state,
         pending: null,
         cards: state.cards.map((c) => (c.iid === pending.iid ? { ...c, ...chosen } : c)),
       }, `${name}: chose ${action.subtype}`)
+      // Asked by a spell as it resolved: on with the rest of it.
+      return said.resolving?.source === pending.iid ? resume(said) : said
     }
 
     case 'choose': {

@@ -73,13 +73,29 @@ export function sweeping(state: GameState): Sweeping {
 /** A filter as one permanent's ability means it: "of the chosen type" is the
  *  type chosen for that permanent — and, until one has been, nothing. */
 export function forSource(filter: Filter, source: Instance | undefined): Filter {
-  if (!filter.chosenType && !filter.sameName) return filter
-  const { chosenType, sameName, ...rest } = filter
+  if (!filter.chosenType && !filter.sameName && !filter.notChosenType) return filter
+  const { chosenType, sameName, notChosenType, ...rest } = filter
   return {
     ...rest,
     ...(chosenType ? { subtypes: [source?.chosenType ?? '—'] } : {}),
+    ...(notChosenType ? { notSubtypes: [...(rest.notSubtypes ?? []), source?.chosenType ?? '—'] } : {}),
     ...(sameName ? { name: source?.card.name ?? '—' } : {}),
   }
+}
+
+/** The creature types in the deck, the commonest first: what a type would
+ *  sensibly be chosen from. */
+export function typesInDeck(state: GameState): string[] {
+  const counts = new Map<string, number>()
+  for (const c of state.cards) {
+    const [types, subtypes = ''] = (c.card.type_line ?? '').split(/\s+—\s+/)
+    if (c.token || !/\b(Creature|Kindred)\b/.test(types)) continue
+    for (const subtype of subtypes.split(/\s+/).filter(isCreatureType)) {
+      counts.set(subtype, (counts.get(subtype) ?? 0) + 1)
+    }
+  }
+  const ordered = [...counts].sort((a, b) => b[1] - a[1]).map(([subtype]) => subtype)
+  return ordered.length ? ordered : ['Shapeshifter']
 }
 
 /** `source` is the card whose ability is asking, which "another" excludes. */
@@ -88,7 +104,7 @@ export function isKind(inst: Instance, filter: Filter, source?: string, sweep: S
   if (filter.controller === 'opponent') return false
   // Whose chosen type, whose name? See `forSource`, which has to have
   // answered first.
-  if (filter.chosenType || filter.sameName) return false
+  if (filter.chosenType || filter.sameName || filter.notChosenType) return false
   if (filter.name && inst.card.name !== filter.name) return false
   if (filter.either && !filter.either.some((one) => isKind(inst, one, source, sweep))) return false
   const line = inst.card.type_line ?? ''

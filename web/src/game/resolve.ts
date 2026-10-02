@@ -26,7 +26,7 @@ import { leveled } from './classes'
 import { autotap, parseCost } from './mana'
 import { matches, onBattlefield } from './match'
 import { seatFor } from './seat'
-import { sweeping } from './kinds'
+import { sweeping, typesInDeck } from './kinds'
 import { hasRole, isParty } from './party'
 import { chooseKind, isCreature, manaSources, tapForPayment } from './sources'
 import { shuffle } from './random'
@@ -509,6 +509,17 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       const what = aimed(state, r, effect.what).filter((c) => c.zone === 'battlefield')
       return { state: change(state, what.map((c) => c.iid), (c) => ({ ...c, fleeting: 'end' as const })) }
     }
+
+    case 'pickType':
+      return { state, wait: { kind: 'type', iid: r.source, options: typesInDeck(state) } }
+
+    case 'untilEnd':
+      return {
+        state: noted({
+          ...state,
+          untilEnd: [...state.untilEnd, { iid: r.source, text: effect.text, when: effect.when, effects: effect.effects }],
+        }, `${r.name}: until end of turn, ${effect.text.charAt(0).toLowerCase()}${effect.text.slice(1)}`),
+      }
 
     case 'extraBeginning':
       return {
@@ -1209,6 +1220,35 @@ function finishDig(state: GameState, r: Resolution, effect: Extract<Effect, { op
     : `${r.name}: looked at ${looked.length}, and took nothing`), took.length)
 }
 
+/** A question a resolving spell asked has been answered somewhere else —
+ *  the creature type it had you choose: on with the rest of it. */
+export const resume = (state: GameState): GameState => carryOn(advance(state))
+
+/** A spell's card leaves the stack: to the graveyard — or into exile, for an
+ *  aftermath half, a paradigm spell, a card going on an adventure, which may
+ *  be cast from there later as the creature it is. */
+function leaveStack(state: GameState, iid: string, after?: 'exile' | 'adventure'): GameState {
+  const spell = find(state, iid)
+  if (spell?.zone !== 'stack') return state
+  if (after) {
+    return {
+      ...state,
+      cards: relocate(state.cards, iid, 'exile')
+        .map((c) => (c.iid === iid && after === 'adventure' ? { ...c, mayPlay: { through: null } } : c)),
+    }
+  }
+  // Paradigm: exiled instead — and the first of its name to be is the one
+  // a copy is cast from, each first main phase after.
+  if (compile(spell.card).statics.some((fixed) => fixed.kind === 'paradigm')) {
+    const first = !state.cards.some((c) => c.paradigm && c.card.name === spell.card.name)
+    return {
+      ...state,
+      cards: relocate(state.cards, iid, 'exile').map((c) => (c.iid === iid && first ? { ...c, paradigm: true } : c)),
+    }
+  }
+  return { ...state, cards: relocate(state.cards, iid, 'graveyard') }
+}
+
 /** What marks a "you may … once each turn" as done for the turn. */
 const onceKey = (r: Resolution) => `done:${r.source}:${r.text}`
 
@@ -1222,19 +1262,8 @@ const advance = (state: GameState): GameState => {
  *  understood is posted for you to finish. */
 function finish(state: GameState): GameState {
   const r = state.resolving!
-  let next: GameState = { ...state, resolving: null }
-  const spell = r.spell ? find(next, r.source) : undefined
-  if (spell?.zone === 'stack') {
-    // Paradigm: exiled instead — and the first of its name to be is the one
-    // a copy is cast from, each first main phase after.
-    if (compile(spell.card).statics.some((fixed) => fixed.kind === 'paradigm')) {
-      const first = !next.cards.some((c) => c.paradigm && c.card.name === spell.card.name)
-      next = {
-        ...next,
-        cards: relocate(next.cards, r.source, 'exile').map((c) => (c.iid === r.source && first ? { ...c, paradigm: true } : c)),
-      }
-    } else next = { ...next, cards: relocate(next.cards, r.source, 'graveyard') }
-  }
+  const done: GameState = { ...state, resolving: null }
+  const next = r.spell ? leaveStack(done, r.source, r.after) : done
   return r.leftover ? remind(next, r.source, r.name, r.leftover) : next
 }
 
@@ -1598,9 +1627,14 @@ export function resolveTop(state: GameState): GameState {
   // Overloaded, it is the same spell with "each" for "target".
   const spell = (top.way === 'overload' ? compile(inst.card).overloaded : undefined) ?? compile(inst.card).spell
   const begun = noted({ ...state, stack }, `${inst.card.name}${top.copy ? ' (a copy)' : ''} resolves`)
+  // Cast as its other half: an adventure goes into exile to be cast as the
+  // creature later, and an aftermath half is exiled.
+  const after = top.way !== 'back' ? undefined
+    : inst.card.layout === 'adventure' ? 'adventure' as const
+      : compile(inst.card).statics.some((fixed) => fixed.kind === 'aftermath') ? 'exile' as const : undefined
   if (!spell?.effects.length) {
     // A copy resolves and is gone; the card is still the spell under it.
-    const done = top.copy ? begun : { ...begun, cards: relocate(begun.cards, inst.iid, 'graveyard') }
+    const done = top.copy ? begun : leaveStack(begun, inst.iid, after)
     return remind(done, inst.iid, inst.card.name, rulesText(inst.card))
   }
   return carryOn({
@@ -1617,6 +1651,7 @@ export function resolveTop(state: GameState): GameState {
       leftover: spell.complete ? null : rulesText(inst.card),
       ...(kicked ? { kicked } : {}),
       ...(top.convoked ? { convoked: top.convoked } : {}),
+      ...(after ? { after } : {}),
     },
   })
 }

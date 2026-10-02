@@ -375,6 +375,29 @@ export function collectTriggers(before: GameState, after: GameState): GameState 
       })
     }
   }
+  // Abilities that are there for the turn: "until end of turn, whenever a
+  // Serpent attacks, draw a card."
+  for (const lasting of next.untilEnd) {
+    const source = next.cards.find((c) => c.iid === lasting.iid)
+    if (!source) continue
+    for (const event of events) {
+      if (!lasting.when.some((when) => sees(when, event, source, next))) continue
+      const about = 'card' in event ? event.card : null
+      const [id, minted] = mint(next, 's')
+      next = {
+        ...minted,
+        stack: [...minted.stack, {
+          id,
+          iid: lasting.iid,
+          x: 0,
+          ability: {
+            text: lasting.text, effects: lasting.effects, complete: true,
+            event: about?.iid ?? null, known: about ? { [about.iid]: snapshot(about, next) } : {},
+          },
+        }],
+      }
+    }
+  }
   return askOrder(after, next)
 }
 

@@ -13,7 +13,7 @@
  */
 
 import type { ManaType } from '../mana'
-import type { Aim, Count, Effect, Signed, Test, TokenSpec } from './ir'
+import type { Aim, Count, Effect, Signed, Test, TokenSpec, TriggerEvent } from './ir'
 import { subtypeOf } from './subtypes'
 import {
   readAmount, readCount, readFilter, readKeywords, readNumber, readTest, readToken, type Speaking,
@@ -21,6 +21,11 @@ import {
 import { readExcept } from './copies'
 
 type Pattern = [RegExp, (m: RegExpExecArray) => Effect[] | null]
+
+/** How a trigger's condition is read — `compile.ts` knows, and says so here,
+ *  since it is the one that reads this module rather than the other way. */
+let readTriggers: ((condition: string) => TriggerEvent[] | null) | null = null
+export const registerTriggers = (read: (condition: string) => TriggerEvent[] | null) => { readTriggers = read }
 
 /** "~", "it", "itself", "he" — the source. */
 const SELF = /^(~|it|itself|he|she|him|her|them)$/
@@ -527,10 +532,16 @@ const PATTERNS: Pattern[] = [
         : m[1] || m[2] ? 'end' as const : null
     return until && [{ op: 'mayPlay', who: referent ?? { kind: 'event' }, until, ...(m[3] ? { free: true } : {}) }]
   }],
-  [/^you may cast a spell with mana value (\d+) or less from your hand without paying its mana cost$/, (m) => [{
-    op: 'castFree', from: 'hand', count: 1,
-    filter: { not: ['land'], compare: { stat: 'manaValue', op: '<=', value: Number(m[1]) } },
-  }]],
+  [/^you may cast an? (?:(.+?) )?spell(?: with mana value (\d+) or less)? from your hand without paying its mana cost$/, (m) => {
+    const kind = m[1] ? readFilter(m[1]) : {}
+    return kind && [{
+      op: 'castFree', from: 'hand', count: 1,
+      filter: {
+        ...kind, not: [...(kind.not ?? []), 'land'],
+        ...(m[2] ? { compare: { stat: 'manaValue' as const, op: '<=' as const, value: Number(m[2]) } } : {}),
+      },
+    }]
+  }],
   [/^you may cast any number of spells from among them without paying their mana costs$/, () => (
     [{ op: 'castFree', from: 'chosen', count: 99, filter: { not: ['land'] } }]
   )],
@@ -599,6 +610,28 @@ const PATTERNS: Pattern[] = [
           { op: 'move', what: { kind: 'chosen' }, to: 'graveyard' }]
       : null
   }],
+  // "Return each creature that isn't a Kraken, Leviathan, … or Serpent."
+  [/^return each (.+?) that isn't an? (.+?) to its owner's hand$/, (m) => {
+    const filter = readFilter(m[1])
+    const spared = m[2].split(/,\s*(?:or\s+)?|\s+or\s+/).map((word) => subtypeOf(word.trim()))
+    return filter && spared.every(Boolean)
+      ? [{ op: 'move', what: { kind: 'each', filter: { ...filter, notSubtypes: spared as string[] } }, to: 'hand' }]
+      : null
+  }],
+  // A type chosen as the spell resolves, for what it says next.
+  [/^choose a creature type$/, () => [{ op: 'pickType' }]],
+  // An ability that is there for the turn.
+  [/^until end of turn, whenever (.+)$/, (m) => {
+    // The condition may have commas of its own — "a Kraken, Leviathan, or
+    // Serpent attacks" — so each comma is tried as the one that ends it.
+    for (let at = m[1].indexOf(', '); at >= 0; at = m[1].indexOf(', ', at + 1)) {
+      const [condition, body] = [m[1].slice(0, at), m[1].slice(at + 2)]
+      const when = readTriggers?.(condition) ?? null
+      const inner = when && readSentence(body)
+      if (when && inner) return [{ op: 'untilEnd', when, effects: inner, text: `Whenever ${condition}, ${body}.` }]
+    }
+    return null
+  }],
   // "…except for Krakens, Leviathans, Octopuses, and Serpents."
   [/^return all (.+?) to their owners' hands except for (.+)$/, (m) => {
     const filter = readFilter(m[1])
@@ -639,7 +672,7 @@ const PATTERNS: Pattern[] = [
     }]
   }],
   // Every one of them, with no choosing: Rally the Ancestors.
-  [/^return each (.+?)(?: cards?)? from your graveyard to (your hand|the battlefield)$/, (m) => {
+  [/^return (?:each|all) (.+?)(?: cards?)? from your graveyard to (your hand|the battlefield)$/, (m) => {
     const filter = readFilter(m[1])
     return filter && [{
       op: 'reanimate', filter, count: 0, upTo: false, all: true, to: m[2] === 'your hand' ? 'hand' : 'battlefield',

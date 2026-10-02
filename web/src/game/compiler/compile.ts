@@ -13,7 +13,8 @@
 
 import type { Card } from '../../lib/api'
 import { FREE, readActivated, readKeywordAbility } from './activated'
-import { readAbility, sentences } from './effects'
+import { backOf, frontOf } from '../faces'
+import { readAbility, registerTriggers, sentences } from './effects'
 import type {
   Ability, ActivatedAbility, Aim, Compiled, Coverage, Effect, Filter, Static, Test, TriggerEvent,
   TriggeredAbility, Way,
@@ -124,6 +125,8 @@ function readTrigger(condition: string): TriggerEvent[] | null {
   }
   return null
 }
+
+registerTriggers(readTrigger)
 
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII']
 
@@ -318,7 +321,39 @@ function readChoice(line: string, modes: number): Choice | null {
 
 const cache = new Map<string, Compiled>()
 
+const wholes = new Map<string, Compiled>()
+
+/**
+ * What the engine can do with a card. One with two faces that can each be
+ * cast — an adventure, a split card — is read as its front, which is how it
+ * is dealt; asked about as the whole card, it is graded by both halves, so
+ * a half nothing reads is not hidden behind one that reads.
+ */
 export function compile(card: Card): Compiled {
+  if (card.face !== undefined) return compileFace(card)
+  const front = frontOf(card)
+  if (front === card) return compileFace(card)
+  const key = `${card.oracle_id}|${card.name}`
+  const known = wholes.get(key)
+  if (known) return known
+  const one = compileFace(front)
+  const back = backOf(front)
+  const other = back && compileFace(back)
+  // A face that is turned to rather than cast — a transforming card's, a
+  // modal one's — is not played here, and is said not to be.
+  const whole: Compiled = other
+    ? {
+        ...one,
+        unread: [...one.unread, ...other.unread],
+        skipped: [...one.skipped, ...other.skipped],
+        coverage: one.coverage === other.coverage ? one.coverage : 'partial',
+      }
+    : { ...one, skipped: [...one.skipped, `Its other face, ${card.card_faces?.[1]?.name ?? 'the back'}`] }
+  wholes.set(key, whole)
+  return whole
+}
+
+function compileFace(card: Card): Compiled {
   const text = card.oracle_text ?? (card.card_faces?.[0]?.oracle_text ?? '')
   // The text is in the key: two tokens of one name can be made with
   // different words.

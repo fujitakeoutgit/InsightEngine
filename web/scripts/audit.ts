@@ -14,6 +14,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { compile, normalize } from '../src/game/compiler/compile'
 import { isInert } from '../src/game/compiler/statics'
+import { backOf, frontOf } from '../src/game/faces'
 declare const process: { argv: string[] }
 const cards = JSON.parse(readFileSync(process.argv[2], 'utf8'))
 const j = (x: unknown) => JSON.stringify(x)
@@ -21,8 +22,8 @@ const out: string[] = []
 let n = 0
 for (const c of cards) {
   const k = compile(c)
-  const text = c.oracle_text ?? c.card_faces?.[0]?.oracle_text ?? ''
-  const busy = k.spell || k.triggers.length || k.activated.length || k.statics.length || k.ways.length || k.skipped.length || k.enchant
+  const text = frontOf(c).oracle_text ?? ''
+  const busy = k.spell || k.triggers.length || k.activated.length || k.statics.length || k.ways.length || k.skipped.length || k.enchant || k.unread.length
   const inert = normalize(c, text).filter((l: string) => isInert(l.toLowerCase()))
   if (!busy && !inert.length) continue
   n += 1
@@ -43,6 +44,15 @@ for (const c of cards) {
   for (const s of k.statics) out.push(`  STATIC ${j(s)}`)
   for (const w of k.ways) out.push(`  WAY ${j(w)}`)
   for (const s of k.skipped) out.push(`  SKIPPED ${s}`)
+  for (const u of k.unread) out.push(`  UNREAD ${u}`)
+  // The other half of a split card or an adventure, read on its own.
+  const back = backOf(frontOf(c))
+  if (back) {
+    const other = compile(back)
+    out.push(`  OTHER HALF ${back.name} | ${back.type_line} | ${back.mana_cost ?? ''}: ${(back.oracle_text ?? '').replace(/\([^)]*\)/g, '').trim()}`)
+    if (other.spell) out.push(`    SPELL${other.spell.complete ? '' : ' (incomplete)'}: ${j(other.spell.effects)}`)
+    for (const st of other.statics) out.push(`    STATIC ${j(st)}`)
+  }
   for (const l of inert) out.push(`  INERT ${l}`)
   out.push('')
 }

@@ -111,9 +111,11 @@ function enter(state: GameState): GameState {
       // …and so does leave to play a card from exile "this turn".
       const lapsed = (c: Instance) => c.mayPlay && c.mayPlay.through !== null && c.mayPlay.through <= state.turn
       const healed = state.cards.some((c) => c.damage || c.revert === 'end' || lapsed(c)) || state.boosts.length
+        || state.untilEnd.length
         ? {
             ...state,
             boosts: [],
+            untilEnd: [],
             cards: reverted(state.cards, 'end').map((c) => (
               c.damage || lapsed(c)
                 ? { ...c, damage: undefined, ...(lapsed(c) ? { mayPlay: undefined } : {}) }

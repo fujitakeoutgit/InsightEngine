@@ -35,6 +35,9 @@ export interface Card {
   scryfall_uri: string | null
   card_faces: CardFace[] | null
   layout: string | null
+  /** Set by the playtester on a card it is reading as one of its two faces
+   *  — see `game/faces.ts`. Never sent by the server. */
+  face?: 0 | 1
   /** The kinds of mana it can make, as Scryfall reads them: `['C']` for Sol
    *  Ring, all five for Command Tower. Optional because a token built on the
    *  table has none. */

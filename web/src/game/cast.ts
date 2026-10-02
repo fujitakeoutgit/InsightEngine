@@ -12,6 +12,7 @@ import type { Card } from '../lib/api'
 import { amount } from './amount'
 import { compile } from './compiler/compile'
 import { isCreatureType } from './compiler/subtypes'
+import { backOf } from './faces'
 import { holds } from './holds'
 import { forSource, isKind, sweeping } from './kinds'
 import { matches, onBattlefield } from './match'
@@ -144,12 +145,30 @@ export function playedFrom(
   if (inst.zone === 'command') return inst.commander ? 'command' : null
   if (inst.zone === 'exile') return inst.mayPlay ? 'exile' : null
   // Mayhem: from the graveyard, the turn it was discarded.
+  // …or its aftermath half, any turn.
   if (inst.zone === 'graveyard') {
-    return state.rules && inst.discarded === state.turn && compile(inst.card).ways.some((way) => way.kind === 'mayhem')
-      ? 'graveyard'
-      : null
+    if (!state.rules) return null
+    const mayhem = inst.discarded === state.turn && compile(inst.card).ways.some((way) => way.kind === 'mayhem')
+    return mayhem || aftermath(inst.card) ? 'graveyard' : null
   }
   return inst.zone === 'library' && topPlay(state, inst) ? 'top' : null
+}
+
+/** Has it a half that is cast only from the graveyard? */
+function aftermath(card: Card): boolean {
+  const back = backOf(card)
+  return Boolean(back && compile(back).statics.some((fixed) => fixed.kind === 'aftermath'))
+}
+
+/** A permanent that lets spells like this be cast for another cost —
+ *  Rooftop Storm's {0} for Zombies — and that cost. */
+function altCost(state: GameState, inst: Instance): { source: Instance; cost: string } | null {
+  for (const source of inZone(state, 'battlefield')) {
+    for (const fixed of compile(source.card).statics) {
+      if (fixed.kind === 'altCost' && matches(inst, fixed.filter, source.iid, state)) return { source, cost: fixed.cost }
+    }
+  }
+  return null
 }
 
 /** The permanent that would let this spell be cast without paying this
@@ -335,7 +354,24 @@ function wayOf(state: GameState, inst: Instance, way: string): { cost: Cost; why
     }
     case 'mayhem': {
       const cost = priced('mayhem')
-      return cost && from === 'graveyard' ? { cost: costOf(state, inst, cost) } : closed('Mayhem is for a card discarded this turn')
+      return cost && from === 'graveyard' && inst.discarded === state.turn
+        ? { cost: costOf(state, inst, cost) }
+        : closed('Mayhem is for a card discarded this turn')
+    }
+    // Its other half: an adventure, or the second half of a split card —
+    // which, with aftermath, is cast from the graveyard and nowhere else.
+    case 'back': {
+      const back = backOf(inst.card)
+      if (!back) return closed('It has no other half')
+      const buried = aftermath(inst.card)
+      if (buried ? from !== 'graveyard' : from === 'graveyard' || from === 'exile') {
+        return closed(buried ? `${back.name} is cast only from the graveyard` : `${back.name} is cast from your hand`)
+      }
+      return { cost: costOf(state, inst, back.mana_cost) }
+    }
+    case 'alt': {
+      const alt = altCost(state, inst)
+      return alt && from !== 'graveyard' ? { cost: costOf(state, inst, alt.cost) } : closed('Nothing gives it another cost')
     }
     case 'pitch': {
       const pitch = ways.find((other) => other.kind === 'pitch')
@@ -375,8 +411,10 @@ export function checkCast(state: GameState, iid: string, x = 0, way = 'normal'):
   if (inst.mayPlay?.after !== undefined && state.turn <= inst.mayPlay.after) {
     return fail('Plotted this turn — it can be cast on a later one')
   }
-  // A plotted card is cast as a sorcery, whatever it is.
-  const fast = !inst.mayPlay?.sorcery && (/\bInstant\b/.test(inst.card.type_line ?? '') || hasKeyword(inst, 'Flash'))
+  // A plotted card is cast as a sorcery, whatever it is. A card cast as its
+  // other half is as fast as that half.
+  const casting = way === 'back' ? backOf(inst.card) ?? inst.card : inst.card
+  const fast = !inst.mayPlay?.sorcery && (/\bInstant\b/.test(casting.type_line ?? '') || hasKeyword(inst, 'Flash'))
   if (!fast && !isMain(state.step)) return fail('Sorcery speed — only in a main phase')
   if (!fast && state.stack.length) return fail('Sorcery speed — wait for the stack to resolve')
   if (how.why) return fail(how.why)
@@ -419,7 +457,10 @@ export function castWays(state: GameState, inst: Instance): CastWay[] {
     ['pitch', Boolean(named('pitch'))],
     ['behold', Boolean(named('behold'))],
     ['convoke', compiled.statics.some((fixed) => fixed.kind === 'convoke')],
+    ['back', backOf(inst.card) !== null],
+    ['alt', altCost(state, inst) !== null],
   ]
+  const back = backOf(inst.card)
   const out: CastWay[] = []
   for (const [key, has] of offered) {
     if (!has) continue
@@ -431,7 +472,10 @@ export function castWays(state: GameState, inst: Instance): CastWay[] {
     const source = freeSource(state, inst)
     out.push({
       key,
-      label: key === 'normal' ? (inst.mayPlay?.free ? 'Cast it' : `Pay ${price}`)
+      label: key === 'normal' ? (inst.mayPlay?.free ? 'Cast it' : back ? `${inst.card.name} — ${price}` : `Pay ${price}`)
+        : key === 'back' && back ? `${back.name} — ${price}${
+          inst.card.layout === 'adventure' ? ', an adventure' : aftermath(inst.card) ? ', then it is exiled' : ''}`
+        : key === 'alt' ? `Pay ${price} — ${altCost(state, inst)?.source.card.name ?? ''}`
         : key === 'free' ? `Without paying — ${source?.card.name ?? ''}, once each turn`
           : key === 'evoke' ? `Evoke ${price} — it is sacrificed when it enters`
           : key === 'overload' ? `Overload ${price} — each, where it says target`
@@ -476,7 +520,10 @@ export function castSpell(
   const convoked = payment.taps.map((t) => t.id).filter((id) => lending.has(id) && !sources.has(id))
   let paid = tapForPayment(state, tapping)
   for (const gone of way === 'pitch' ? pitched : []) paid = relocate(paid, gone, 'exile')
+  // Cast as its other half, it is that half while it is on the stack.
+  const half = way === 'back' ? backOf(inst.card) : null
   const cards = relocate(paid, iid, 'stack')
+    .map((c) => (c.iid === iid && half ? { ...c, card: half, original: inst.card } : c))
   const [id, minted] = mint({ ...state, cards }, 's')
   const casts = inst.zone === 'command'
     ? { ...state.casts, [iid]: (state.casts[iid] ?? 0) + 1 }
@@ -487,7 +534,7 @@ export function castSpell(
   const how = way === 'evoke' ? ' for its evoke cost' : way === 'kicked' ? ', kicked' : way === 'overload' ? ', overloaded'
     : way === 'freerunning' ? ' for its freerunning cost' : way === 'mayhem' ? ' for its mayhem cost'
       : way === 'behold' ? ', beholding' : ''
-  const line = `Cast ${inst.card.name}${x ? ` (X = ${x})` : ''}${how}${
+  const line = `Cast ${half?.name ?? inst.card.name}${x ? ` (X = ${x})` : ''}${how}${
     from === 'exile' ? ' from exile' : from === 'top' ? ' from the top of your library'
       : from === 'graveyard' ? ' from the graveyard' : ''}${
     way === 'pitch' ? ` — exiled ${listOf(pitched.map((gone) => find(state, gone)?.card.name ?? '?'))} from hand`

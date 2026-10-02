@@ -87,6 +87,7 @@ export function game(
     paying: null,
     casting: null,
     delayed: [],
+    untilEnd: [],
     extraBeginnings: 0,
     beginning: false,
     tokenArt: {},

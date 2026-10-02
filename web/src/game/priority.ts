@@ -11,7 +11,7 @@
  */
 
 import { compile } from './compiler/compile'
-import { isCreatureType } from './compiler/subtypes'
+import { typesInDeck } from './kinds'
 import { resolveTop } from './resolve'
 import { DRAWS_FIND } from './state'
 import { stateBased } from './sba'
@@ -56,21 +56,6 @@ function askType(state: GameState): GameState {
     }
   }
   return state
-}
-
-/** The creature types in the deck, the commonest first: what a type would
- *  sensibly be chosen from. */
-function typesInDeck(state: GameState): string[] {
-  const counts = new Map<string, number>()
-  for (const c of state.cards) {
-    const [types, subtypes = ''] = (c.card.type_line ?? '').split(/\s+—\s+/)
-    if (c.token || !/\b(Creature|Kindred)\b/.test(types)) continue
-    for (const subtype of subtypes.split(/\s+/).filter(isCreatureType)) {
-      counts.set(subtype, (counts.get(subtype) ?? 0) + 1)
-    }
-  }
-  const ordered = [...counts].sort((a, b) => b[1] - a[1]).map(([subtype]) => subtype)
-  return ordered.length ? ordered : ['Shapeshifter']
 }
 
 /** One step on, with what begins in it. */

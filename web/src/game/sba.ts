@@ -10,7 +10,7 @@
 
 import { compile } from './compiler/compile'
 import { hasKeyword, isCreature } from './sources'
-import { noted, relocate } from './state'
+import { cantLose, noted, relocate } from './state'
 import { sizeKnown, toughness } from './stats'
 import type { GameState } from './types'
 
@@ -122,7 +122,7 @@ export function stateBased(state: GameState): GameState {
   }
 
   // No life left loses the game (704.5a) — yours, or theirs.
-  if (next.life <= 0 && !next.lost) {
+  if (next.life <= 0 && !next.lost && !cantLose(next)) {
     next = noted({ ...next, lost: `Your life reached ${next.life} on turn ${next.turn}` }, 'You are out of life')
   }
   if (!next.won) {

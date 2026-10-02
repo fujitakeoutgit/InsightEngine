@@ -51,6 +51,10 @@ export function readCost(text: string): AbilityCost | null {
       const count = readNumber(put[1])
       if (count === null) return null
       cost.add = { counter: put[2], count }
+    } else if (/^waterbend (\{[^}]+\})+$/.test(p)) {
+      // Mana that artifacts and creatures may be tapped to help with.
+      cost.mana = (cost.mana ?? '') + p.replace(/^waterbend /, '').toUpperCase()
+      cost.waterbend = true
     } else if (/^exile (~|it)(?: from your graveyard)?$/.test(p)) cost.exileSelf = true
     else if (/^return (\w+) (.+?) to (?:its|their) owners?'s? hands?$/.test(p)) {
       const back = /^return (\w+) (.+?) to (?:its|their) owners?'s? hands?$/.exec(p)!

@@ -50,6 +50,8 @@ export interface Filter {
   /** "Of the chosen type": the creature type chosen for the permanent whose
    *  ability this is, as it entered. */
   chosenType?: boolean
+  /** "That aren't of the chosen type." */
+  notChosenType?: boolean
   /** One of your commanders — or, false, anything but: "except for
    *  commanders". */
   commander?: boolean
@@ -375,6 +377,12 @@ export type Effect = (
   /** "When target creature is put into your graveyard this turn, return
    *  that card to the battlefield": marked now, returned if it dies. */
   | { op: 'saveFromGrave'; who: Aim }
+  /** "Choose a creature type", of a spell as it resolves: asked, and what
+   *  the spell goes on to call "the chosen type". */
+  | { op: 'pickType' }
+  /** "Until end of turn, whenever a Serpent attacks, draw a card": an
+   *  ability that is there for the turn. */
+  | { op: 'untilEnd'; when: TriggerEvent[]; effects: Effect[]; text: string }
   /** "There is an additional beginning phase after this phase": untap,
    *  upkeep and draw, once more. */
   | { op: 'extraBeginning' }
@@ -715,6 +723,14 @@ export type Static =
   | { kind: 'paradigm' }
   /** Convoke: your creatures can help pay for it. */
   | { kind: 'convoke' }
+  /** Aftermath: this half is cast only from your graveyard, and then
+   *  exiled. */
+  | { kind: 'aftermath' }
+  /** "You can't lose the game and your opponents can't win the game." */
+  | { kind: 'cantLose' }
+  /** "You may pay {0} rather than pay the mana cost for Zombie creature
+   *  spells you cast." */
+  | { kind: 'altCost'; filter: Filter; cost: string }
   /** "Nonland cards in your hand have miracle {0}": the first card you
    *  draw each turn may be cast for nothing, if it is not a land. */
   | { kind: 'miracle' }
@@ -766,6 +782,9 @@ export interface AbilityCost {
   /** Exile the card itself — from the battlefield, or from the graveyard
    *  for an ability used from there. */
   exileSelf?: boolean
+  /** Waterbend: untapped artifacts and creatures of yours may each be
+   *  tapped to pay {1} of the mana. */
+  waterbend?: boolean
 }
 
 export interface ActivatedAbility extends Ability {

@@ -42,6 +42,7 @@ export function costLabel(ability: ActivatedAbility): string {
     cost.crew ? `tap ${cost.crew} power` : '',
     cost.bounce ? `return ${cost.bounce.count}` : '',
     cost.exileSelf ? 'exile' : '',
+    cost.waterbend ? 'waterbend' : '',
     cost.discardSelf ? 'discard' : '',
     cost.remove ? `−${cost.remove.count} ${cost.remove.counter}` : '',
     cost.add ? `+${cost.add.count} ${cost.add.counter}` : '',
@@ -73,7 +74,15 @@ function payers(state: GameState, inst: Instance, ability: ActivatedAbility) {
   const except = new Set(ability.cost.tap || ability.cost.sacrificeSelf ? [inst.iid] : [])
   // Mana that may only be spent on abilities of a kind of permanent is for
   // this one if it is that kind.
-  return manaSources(state, demand(inZone(state, 'hand').map((c) => parseCost(c.card.mana_cost))), except, { ability: inst })
+  const sources = manaSources(state, demand(inZone(state, 'hand').map((c) => parseCost(c.card.mana_cost))), except, { ability: inst })
+  if (!ability.cost.waterbend) return sources
+  // Waterbend: any untapped artifact or creature of yours may be tapped for
+  // {1} of it. Lands and rocks first; these only as they are needed.
+  const helping = inZone(state, 'battlefield')
+    .filter((c) => !c.tapped && !except.has(c.iid) && /\b(Artifact|Creature)\b/.test(c.card.type_line ?? ''))
+    .filter((c) => !sources.some((source) => source.id === c.iid))
+    .map((c) => ({ id: c.iid, makes: [['C' as const]], penalty: 6 }))
+  return [...sources, ...helping]
 }
 
 /** How the mana for it would be paid: with what is at hand — and, failing
