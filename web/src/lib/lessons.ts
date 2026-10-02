@@ -7,8 +7,9 @@
  * faintly insulting.
  *
  * What is left is the part that genuinely is not discoverable: the operators
- * the search bar accepts, what the four category buttons actually ask for, and
- * the parts of the playtest mat that answer to a gesture rather than a click.
+ * the search bar accepts, what the four category buttons actually ask for,
+ * the parts of the playtest mat that answer to a gesture rather than a click,
+ * and what the table does by itself once it is playing by the rules.
  * "Getting around" is the exception that names every tab, including the two
  * that explain themselves — saying what a tab is *for* is a different question,
  * and every other lesson assumes you already know where you are.
@@ -93,7 +94,7 @@ export const LESSONS: Lesson[] = [
       },
       {
         target: '.nav a[href="/playtest"]',
-        text: '**Playtest** deals an opening hand and gives you a board. It enforces no rules.',
+        text: '**Playtest** deals an opening hand and plays the deck by the rules: turns, mana and the stack. Switch **Rules** off there for a free table.',
       },
       {
         target: '.nav a[href="/sets"]',
@@ -148,21 +149,23 @@ export const LESSONS: Lesson[] = [
         text: 'Prefix a query with `q:` to write it in plain words. `q: cheap green creatures that draw a card` is sent to the local model, which converts it to an operator query and runs that.',
       },
       {
-        // No target: the engine badge only exists once results are on screen,
-        // and this lesson runs on an empty Search page.
-        text: 'A `q:` search returns only cards that exist, because the model writes a query rather than a list. It is slower than a plain search. A badge above the results names which engine answered.',
+        // No target: the badge is a column of Recent searches, which is only
+        // there once something has been searched for.
+        text: 'A `q:` search returns only cards that exist, because the model writes a query rather than a list. It is slower than a plain search. The **Engine** column under **Recent searches** names which engine answered each query.',
       },
       {
-        target: '.owned-toggle',
-        text: 'Press **In binder** to outline every result you already own in gold.',
+        // These two sit above the results, so they are only on screen once a
+        // search has run; the text says so for when it has not.
+        target: '[data-tour="in-binder"]',
+        text: 'Run a search, then press **In binder** above the results to outline every card you already own in gold.',
       },
       {
         target: '.search-input-wrap',
         text: '`binder:true` returns only cards in your binder, and `-binder:true` only cards that are not. Combine it like any other filter: `binder:true t:creature id:bg`.',
       },
       {
-        target: '.owned-toggle',
-        text: 'Press **Toggle Overlay** to keep prices on the cards instead of showing them on hover. In a deck or the binder it shows the quantity too.',
+        target: '[data-tour="toggle-overlay"]',
+        text: 'Press **Toggle Overlay** above the results to keep prices on the cards instead of showing them on hover. In a deck or the binder it shows the quantity too.',
       },
       {
         target: '.nav a[href="/advanced"]',
@@ -223,35 +226,47 @@ export const LESSONS: Lesson[] = [
       {
         example: 'deck',
         target: '.editor-bar',
-        text: 'Can view cards as **LIST** or **IMAGE**. Press **SHUFFLE** to sort cards.',
+        text: 'Press **List** or **Images** to change how the deck is shown. Press **Shuffle** to go through a section one card at a time and decide on each.',
       },
       {
         example: 'deck',
         exampleQuery: 'mode=text',
         target: '.decklist-input',
-        text: 'Under the **TEXT** tab you can import a full list of cards (multiple formatting options work). When importing a list under **TEXT**, Lines that did not match a card exactly are listed under the description. Press **Approve** to write the matched name into the list.',
-      },
-      {
-        target: '.cat-buttons',
-        text: 'Press **Ramp**, **Removal**, **Counters** or **Draw** to show cards with those functions that fit well with the deck synergy. ',
+        text: 'Press **Text** to paste or type a whole list; several list formats are read. Lines that did not match a card exactly are listed under the description. Press **Approve** to write the matched name into the list.',
       },
       {
         example: 'deck',
+        exampleQuery: 'tab=recommendations',
+        target: '.cat-buttons',
+        text: 'Press **Recommendations**, then **Ramp**, **Removal**, **Counters** or **Draw** to show cards that do that job and fit the deck.',
+      },
+      {
+        example: 'deck',
+        exampleQuery: 'tab=recommendations',
         target: '[data-tour="ai-recommend"]',
         text: 'Press **AI recommend** to have the local model suggest cards. It uses the deck description under **TEXT** as part of its prompt. A run takes a minute or more.',
       },
       {
-        target: '[data-tour="tab-pipeline"]',
-        text: 'The **Pipeline** tab shows the AI model at work. When the run finishes it becomes **AI Recommendations**, holding that run\'s cards — separate from the **Recommendations** tab, so asking for either one never throws the other away.',
+        // The row of tabs, not the Pipeline tab: that one exists only while
+        // there is a run to watch.
+        target: '.result-tabs',
+        text: 'While the model works, a **Pipeline** tab appears in this row and shows its progress. When the run finishes it becomes **AI Recommendations**, holding that run\'s cards — separate from the **Recommendations** tab, so asking for either one never throws the other away.',
       },
       {
+        // Back to Build and Analysis, where the next three steps are.
+        example: 'deck',
+        exampleQuery: 'mode=build&tab=analysis',
         target: '.commander-card',
         text: 'A deck can have two commanders when the pair is legal — Partner, Friends forever, a Background, or a Doctor and its companion. Put both in the Commander section and their Colors combine.',
       },
       {
+        example: 'deck',
+        exampleQuery: 'mode=build&tab=analysis',
         text: 'Hover a card and press **Printing** to choose which edition you own.',
       },
       {
+        example: 'deck',
+        exampleQuery: 'mode=build&tab=analysis',
         target: '.sleeve-add',
         text: 'Press the **Sleeves** button to add sleeves to your deck.',
       },
@@ -413,33 +428,48 @@ export const LESSONS: Lesson[] = [
   {
     id: 'playtest',
     title: 'The playtest mat',
-    blurb: 'The buttons, and the gestures no label tells you about.',
+    blurb: 'The table and its tools, and the gestures no label tells you about.',
     steps: [
       {
         route: '/playtest',
         target: '.deck-tile',
-        text: 'Deck selection.',
+        text: 'Press a deck to deal it onto the table.',
       },
       {
         example: 'playtest',
         target: '.pt-actions',
-        text: 'Press **Next turn** to untap everything, advance the turn counter and draw a card. Press **Tutor** to search your library and put a card in your hand.',
+        text: 'Seven cards are dealt and nothing is drawn yet. Press **Start turn** to begin turn 1 and draw a card. Clicking the deck does the same.',
       },
       {
         target: '.pt-actions',
-        text: '**Tutor** also searches for the tokens this deck can make.',
+        text: 'Press **Reset** to clear the board, deal a new hand and return the dice to their slots; it asks you to confirm. There is no mulligan. To go down a card, drag one from your hand onto the deck before you start the turn: it goes to the bottom.',
       },
       {
         target: '.pt-deck',
-        text: 'Click the deck to draw one card. The number of cards remaining are shown below.',
+        text: 'Click the deck to draw one card. Hover it to see how many cards are left. A card dragged onto the deck once the turn has started goes on top.',
       },
       {
         target: '.pt-actions',
+        text: 'Press **Tutor** to search your library and put a card in your hand. It also lists the tokens this deck can make; press one to create it.',
+      },
+      {
+        target: '.pt-shuffle',
         text: 'Press **Shuffle** to shuffle the library.',
+      },
+      {
+        target: '[data-tour="pt-undo"]',
+        text: 'Press **Undo** to take back your last action. **Ctrl+Z** does the same. There is no redo.',
+      },
+      {
+        text: 'Drag a card onto the mat, a pile, your hand or the deck to move it by hand. A move made this way is not checked against the rules.',
       },
       {
         target: '.pt-life',
         text: 'Press the arrows beside your life total to change it.',
+      },
+      {
+        target: '.pt-opponent',
+        text: 'Click **Opp** to take one life from the opponent. Shift+click gives one back.',
       },
       {
         target: '.pt-coin',
@@ -470,9 +500,66 @@ export const LESSONS: Lesson[] = [
       {
         text: 'A planeswalker enters with its printed starting loyalty. Press the arrows on its badge to change the counter.',
       },
+    ],
+  },
+  {
+    id: 'playtest-rules',
+    title: 'Playing by the rules',
+    blurb: 'Turns, mana and the stack, and what the table does without being asked.',
+    steps: [
+      {
+        route: '/playtest',
+        example: 'playtest',
+        target: '[data-tour="pt-rules"]',
+        text: 'With **Rules** on, the table enforces turns, costs and the stack. Press **Rules** to switch them off for a free table where nothing is checked.',
+      },
+      {
+        target: '.pt-phase-steps',
+        text: 'The bar shows the turn and its steps. Press a step to pass priority until the game reaches it.',
+      },
+      {
+        target: '.pt-hand',
+        text: 'Cards you can play now are outlined. Click the top of a card to play it, or the bottom to read it. A card you cannot play says why.',
+      },
+      {
+        text: 'Mana is tapped for you when you cast a spell. Hover a card in your hand to see which lands it would tap. Click a land to tap it for mana yourself.',
+      },
+      {
+        target: '.pt-phase-land',
+        text: '**Land** counts the lands you have played this turn against how many you may.',
+      },
+      {
+        text: 'When a card can be cast more than one way — kicker, evoke, convoke, a free spell — the table asks which. Press **Not now** to leave the card where it is.',
+      },
       {
         target: '.pt-actions',
-        text: 'Press **Reset** to clear the board, deal a fresh opening hand and return the dice to their slots; it asks for confirmation first.',
+        text: 'The first button passes priority, and its label says what that will do: **Resolve**, **Combat**, **Main 2**, **End turn**. **Space** presses it.',
+      },
+      {
+        text: 'A spell or ability resolves by itself unless you could respond with an instant or an ability. When you could, it waits in the **Stack** panel: press **Resolve** when you are ready.',
+      },
+      {
+        text: 'A turn with nothing left to play or activate passes by itself. So does the next one, until there is something you can do or the table has a question.',
+      },
+      {
+        text: 'When a creature can attack, the table asks at combat. Click the creatures that attack, or press **All**, then press **Attack**. Press **No attack** to skip combat.',
+      },
+      {
+        text: 'Press **⚡** on a permanent to list its abilities and activate one. A card in your hand or graveyard with an ability of its own has a **⚡** too.',
+      },
+      {
+        text: 'Cards you may play from somewhere else — exile, the graveyard, the top of your library — are shown at the end of your hand, each labelled with where it is.',
+      },
+      {
+        text: 'Shift+click a permanent to tap or untap it by hand. Hover a creature and press **+** or **−** to change its +1/+1 counters.',
+      },
+      {
+        target: '[data-tour="pt-coverage"]',
+        text: 'The percentage is how much of this deck the table plays by itself. Press it to list the cards it leaves to you. When one of those resolves, its text is posted under **By hand**: carry it out, then press **Done**.',
+      },
+      {
+        target: '[data-tour="pt-rules"]',
+        text: 'With **Rules** off, press **Next turn** to untap everything, draw a card and advance the turn. Hover a permanent and press **⟳** to tap it.',
       },
     ],
   },

@@ -522,6 +522,7 @@ export function SearchPage() {
               <div className="push row gap-2 wrap">
                 <button
                   className={markOwned ? 'owned-toggle on' : 'owned-toggle'}
+                  data-tour="in-binder"
                   aria-pressed={markOwned}
                   onClick={() => setMarkOwned(!markOwned)}
                   title={markOwned
@@ -534,6 +535,7 @@ export function SearchPage() {
                     exists, not a card you have any number of. */}
                 <button
                   className={pinOverlay ? 'owned-toggle on' : 'owned-toggle'}
+                  data-tour="toggle-overlay"
                   aria-pressed={pinOverlay}
                   onClick={() => setPinOverlay(!pinOverlay)}
                   title={pinOverlay

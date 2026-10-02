@@ -68,7 +68,7 @@ interface Spot {
 export function Walkthrough() {
   const { lesson, index } = useTour()
   const navigate = useNavigate()
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const [spot, setSpot] = useState<Spot | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
 
@@ -84,15 +84,22 @@ export function Walkthrough() {
     let cancelled = false
     if (step.example) {
       const wanted = step.example === 'deck' ? '/deck/' : '/playtest/'
-      // Already inside one: do not hop to a different deck mid-lesson.
-      if (pathname.startsWith(wanted)) return
+      // Already inside one: do not hop to a different deck mid-lesson — but
+      // do ask this one for the view the step is about. The page answers to
+      // the address changing, so nothing is reached into and clicked.
+      if (pathname.startsWith(wanted)) {
+        if (step.exampleQuery && search !== `?${step.exampleQuery}`) {
+          navigate(`${pathname}?${step.exampleQuery}`, { replace: true })
+        }
+        return
+      }
       examplePath(step.example, step.exampleQuery)
         .then((to) => { if (!cancelled) navigate(to) })
       return () => { cancelled = true }
     }
     if (step.route && step.route !== pathname) navigate(step.route)
     return () => { cancelled = true }
-  }, [step, pathname, navigate])
+  }, [step, pathname, search, navigate])
 
   /* Find the thing being pointed at.
    *

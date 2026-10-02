@@ -212,6 +212,19 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
     if (wantsText.current) { wantsText.current = false; return }
     setMode(next)
   }
+  /* …and a lesson that is already in the deck asks for another view of it
+   * the same way, by changing the address: `?mode=build`, `?tab=analysis`.
+   * Followed when it changes, not held to — pressing a tab afterwards is as
+   * free as ever. */
+  const askedMode = searchParams.get('mode')
+  const askedTab = searchParams.get('tab')
+  useEffect(() => {
+    if (askedMode === 'text' || askedMode === 'build') setMode(askedMode)
+    // `setTab` is declared further down: this runs after the render, by which
+    // time it exists.
+    if (askedTab === 'analysis') setTab('analysis')
+    if (askedTab === 'recommendations' && !binder) setTab('recommendations')
+  }, [askedMode, askedTab, binder])
   const [deckCards, setDeckCards] = useState<DeckCard[]>([])
   const [report, setReport] = useState<DeckReport | null>(null)
   const [recs, setRecs] = useState<RecommendReport | null>(null)

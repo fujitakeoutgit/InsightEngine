@@ -112,6 +112,7 @@ export function PhaseBar({
       {rules && coverage.total > 0 && (
         <button
           className="pt-rules pt-cover"
+          data-tour="pt-coverage"
           onClick={onCoverage}
           title={`${coverage.auto} of ${coverage.total} cards play themselves — click for the rest`}
         >
@@ -121,6 +122,7 @@ export function PhaseBar({
       )}
       <button
         className={`pt-rules${rules ? ' on' : ''}`}
+        data-tour="pt-rules"
         onClick={() => onRules(!rules)}
         aria-pressed={rules}
         title={rules
@@ -134,6 +136,7 @@ export function PhaseBar({
           the game backwards rather than on. */}
       <button
         className="pt-rules pt-bar-undo"
+        data-tour="pt-undo"
         onClick={onUndo}
         disabled={!canUndo}
         title="Undo the last action (Ctrl+Z)"
