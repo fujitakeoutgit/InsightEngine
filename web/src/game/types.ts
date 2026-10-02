@@ -273,6 +273,9 @@ export type Decision =
     budget?: { max: number; cost: Record<string, number>; of: string; min?: number }
     /** The legend rule asking: these share a name, and one of them stays. */
     legend?: boolean
+    /** Asked in the middle of casting a spell — what to pay with — so it can
+     *  be backed out of, and the spell left in hand. */
+    cancel?: boolean
   }
   /** "Choose a number between 0 and 10." */
   | { kind: 'number'; prompt: string; min: number; max: number }

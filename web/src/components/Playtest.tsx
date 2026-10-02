@@ -774,9 +774,18 @@ export function Playtest({
               ? selected.reduce((sum, iid) => sum + (pending.budget!.cost[iid] ?? 0), 0)
               : 0}
             onAll={pending.kind === 'attack' ? () => setSelected(pending.options) : undefined}
-            onConfirm={() => dispatch(pending.kind === 'attack'
-              ? { type: 'attack', iids: selected }
-              : { type: 'choose', iids: selected })}
+            onConfirm={() => {
+              // Convoke: say why these creatures will not do, where otherwise
+              // nothing would happen.
+              if (pending.kind === 'pick' && game.casting?.way === 'convoke') {
+                const { iid, x } = game.casting
+                const why = checkCast({ ...game, pending: null }, iid, x, 'convoke', selected).why
+                if (why) { setHint(why); return }
+              }
+              dispatch(pending.kind === 'attack'
+                ? { type: 'attack', iids: selected }
+                : { type: 'choose', iids: selected })
+            }}
             onAnswer={(yes) => dispatch({ type: 'confirm', yes })}
             onMode={(index) => dispatch({ type: 'mode', index })}
             name={pending.kind === 'type' || pending.kind === 'way'

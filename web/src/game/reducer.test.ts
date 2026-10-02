@@ -143,6 +143,15 @@ describe('moving between zones', () => {
     expect(at(after, 'c0').loyalty).toBe(0)
   })
 
+  it('puts a card moved to the library on top of it', () => {
+    // Laid on the deck, it is the next card drawn — wherever it was dealt from.
+    const before = game([FOREST, 'library'], [PLAINS, 'library'], [BEARS, 'hand'], [GROWTH, 'graveyard'])
+    const stacked = [{ type: 'move', iid: 'c2', zone: 'library' }, { type: 'move', iid: 'c3', zone: 'library' }] as const
+    const after = stacked.reduce(reduce, before)
+    expect(zone(after, 'library').map((c) => c.iid)).toEqual(['c3', 'c2', 'c0', 'c1'])
+    expect(reduce(after, { type: 'draw', count: 1 }).drawn).toEqual(['c3'])
+  })
+
   it('ignores a card that is not there', () => {
     const before = game([FOREST, 'hand'])
     expect(reduce(before, { type: 'move', iid: 'gone', zone: 'graveyard' })).toBe(before)

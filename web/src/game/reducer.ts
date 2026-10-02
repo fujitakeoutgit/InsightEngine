@@ -15,7 +15,7 @@
 import type { Card, DeckToken } from '../lib/api'
 import type { DeckCard } from '../lib/deckModel'
 import {
-  castSpell, castWays, enterBattlefield, isLand, isPermanentSpell, landProblem, pitchable, playLand, tapForMana,
+  castSpell, castWays, convokeChoice, enterBattlefield, isLand, isPermanentSpell, landProblem, pitchable, playLand, tapForMana,
 } from './cast'
 import { compile } from './compiler/compile'
 import { activate, paid } from './activate'
@@ -28,7 +28,7 @@ import { frontOf } from './faces'
 import { answer, enterAsCopy, resume } from './resolve'
 import { keepLegend } from './sba'
 import {
-  draw, emptyTally, find, mint, noted, relocate, shuffleLibrary, startingLoyalty, toBottom,
+  draw, emptyTally, find, mint, noted, relocate, shuffleLibrary, startingLoyalty, toBottom, toTop,
 } from './state'
 import type { Action, GameState, Instance, Spot, Zone } from './types'
 
@@ -138,9 +138,25 @@ function playLandOrCopy(state: GameState, iid: string, at?: Spot): GameState {
 }
 
 /** Cast a spell the way that was chosen. A cost paid in cards from hand
- *  asks which, when there are more than it takes. */
+ *  asks which, when there are more than it takes; convoke asks which
+ *  creatures help. */
 function beginCast(state: GameState, iid: string, x: number, way: string): GameState {
   const inst = find(state, iid)
+  if (inst && way === 'convoke') {
+    const choice = convokeChoice(state, iid, x)
+    if (!choice) return state
+    return {
+      ...state,
+      casting: { iid, x, way },
+      pending: {
+        kind: 'pick',
+        zone: 'battlefield',
+        prompt: `${inst.card.name}: tap creatures to help pay — each pays {1} or one mana of its color`,
+        cancel: true,
+        ...choice,
+      },
+    }
+  }
   if (!inst || way !== 'pitch') return castSpell(state, iid, x, way)
   const pitch = compile(inst.card).ways.find((other) => other.kind === 'pitch')
   const options = pitchable(state, inst).map((c) => c.iid)
@@ -156,6 +172,7 @@ function beginCast(state: GameState, iid: string, x: number, way: string): GameS
       options,
       min: pitch.count,
       max: pitch.count,
+      cancel: true,
     },
   }
 }
@@ -245,6 +262,10 @@ function apply(state: GameState, action: Action): GameState {
 
     case 'cast': {
       const { pending } = state
+      // Thought better of, while choosing what to pay with: nothing was paid.
+      if (pending?.kind === 'pick' && pending.cancel && state.casting && action.way === null) {
+        return { ...state, pending: null, casting: null }
+      }
       if (pending?.kind !== 'way') return state
       const asked: GameState = { ...state, pending: null }
       // Left where it is.
@@ -281,7 +302,10 @@ function apply(state: GameState, action: Action): GameState {
     case 'move':
       return find(state, action.iid)?.zone === 'stack' || !find(state, action.iid)
         ? state
-        : { ...state, cards: relocate(state.cards, action.iid, action.zone) }
+        // Laid on the deck, a card is on top of it: the next one drawn.
+        : { ...state, cards: action.zone === 'library'
+            ? toTop(state.cards, action.iid, 'library')
+            : relocate(state.cards, action.iid, action.zone) }
 
     case 'tap':
       return find(state, action.iid)

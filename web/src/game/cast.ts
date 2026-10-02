@@ -304,15 +304,36 @@ export function pitchable(state: GameState, inst: Instance): Instance[] {
 
 /** Creatures that could be tapped to help pay for a spell with convoke: any
  *  untapped one of yours, summoning sick or not. Each pays for one mana of
- *  its colors, or for {1}. */
-function convokers(state: GameState, eager: boolean): ManaSource[] {
+ *  its colors, or for {1}. They go before the lands: a creature chosen to
+ *  convoke is one you mean to tap. */
+function convokers(state: GameState): ManaSource[] {
   return inZone(state, 'battlefield')
     .filter((c) => isCreature(c) && !c.tapped)
     .map((c) => {
       const colors = [...(c.card.colors ?? '')].filter((k): k is ManaType => 'WUBRG'.includes(k))
-      // Lands first, unless asked to tap creatures first.
-      return { id: c.iid, makes: [colors.length ? colors : ['C' as ManaType]], penalty: eager ? 0.2 : 6 }
+      return { id: c.iid, makes: [colors.length ? colors : ['C' as ManaType]], penalty: 0 }
     })
+}
+
+/** How many mana a cost comes to, with X as chosen. */
+const owed = (cost: Cost, x: number) =>
+  cost.generic + cost.pips.length + cost.phyrexian.length + 2 * cost.twobrid.length + x * cost.x
+
+/**
+ * Convoke is a choice: which creatures tap to help. The ones that could, the
+ * most that could be of use, and whether any is needed at all — or null,
+ * where the spell cannot be convoked.
+ */
+export function convokeChoice(state: GameState, iid: string, x = 0): { options: string[]; min: number; max: number } | null {
+  const open = checkCast(state, iid, x, 'convoke')
+  if (!open.payment) return null
+  const options = convokers(state).map((c) => c.id)
+  return {
+    options,
+    // With nothing chosen the lands pay for all of it, if they can.
+    min: checkCast(state, iid, x, 'convoke', []).payment ? 0 : 1,
+    max: Math.min(options.length, owed(open.cost, x)),
+  }
 }
 
 /** What casting it this way takes, before anything is paid: the mana, and
@@ -390,7 +411,9 @@ function wayOf(state: GameState, inst: Instance, way: string): { cost: Cost; why
     case 'convoke':
       if (!compile(inst.card).statics.some((fixed) => fixed.kind === 'convoke')) return closed('It does not have convoke')
       if (from === 'graveyard') return closed('From the graveyard it is cast for its mayhem cost')
-      return convokers(state, true).length ? { cost: costOf(state, inst, printed) } : closed('No creature to tap for it')
+      if (!convokers(state).length) return closed('No creature to tap for it')
+      if (!owed(costOf(state, inst, printed), 1)) return closed('It costs nothing to help pay for')
+      return { cost: costOf(state, inst, printed) }
     default:
       return closed('There is no such way to cast it')
   }
@@ -398,8 +421,11 @@ function wayOf(state: GameState, inst: Instance, way: string): { cost: Cost; why
 
 /** Whether it can be cast now, `way` being how: for what it costs, or one of
  *  the other ways the card or the board allows — evoked, kicked, without
- *  paying. A card in exile that may be played for nothing always is. */
-export function checkCast(state: GameState, iid: string, x = 0, way = 'normal'): CastCheck {
+ *  paying. A card in exile that may be played for nothing always is.
+ *  `helpers` are the creatures chosen to convoke it, every one of which has
+ *  to pay for something; left out, any creature may, which is the question
+ *  of whether it could be convoked at all. */
+export function checkCast(state: GameState, iid: string, x = 0, way = 'normal', helpers?: readonly string[]): CastCheck {
   const inst = find(state, iid)
   const how = inst ? wayOf(state, inst, way) : { cost: parseCost(null) }
   const { cost } = how
@@ -422,19 +448,19 @@ export function checkCast(state: GameState, iid: string, x = 0, way = 'normal'):
 
   const wanted = wantedBy(state, iid)
   const sources = manaSources(state, wanted, undefined, { spell: inst })
-  const helping = compile(inst.card).statics.some((fixed) => fixed.kind === 'convoke')
-    ? convokers(state, way === 'convoke')
-    : []
-  // A creature that could also be tapped for mana is one or the other: when
-  // creatures are to go first it convokes, otherwise it is left a source.
-  const paying = way === 'convoke'
-    ? [...sources.filter((source) => !helping.some((c) => c.id === source.id)), ...helping]
-    : [...sources, ...helping.filter((c) => !sources.some((source) => source.id === c.id))]
+  // Creatures help only a spell that is being convoked: paid for the
+  // ordinary way, it is paid for with mana.
+  const helping = way === 'convoke' ? convokers(state).filter((c) => !helpers || helpers.includes(c.id)) : []
+  // A creature that could also be tapped for mana is one or the other.
+  const paying = [...sources.filter((source) => !helping.some((c) => c.id === source.id)), ...helping]
   const budget = { x, pool: state.pool, life: state.life }
   // Counters stored on a land are spent only when nothing else will do.
   const payment = autotap(cost, paying, budget)
     ?? autotap(cost, withStorage(state, paying, { spell: inst }), budget)
   if (!payment) return fail(`Not enough mana — it costs ${formatCost(cost)}`)
+  if (helpers && !helpers.every((id) => payment.taps.some((tap) => tap.id === id))) {
+    return fail('Those creatures cannot all help pay for it')
+  }
   return { cost, payment }
 }
 
@@ -491,14 +517,15 @@ export function castWays(state: GameState, inst: Instance): CastWay[] {
                 : key === 'mayhem' ? `Mayhem ${price}`
                   : key === 'pitch' && pitch?.kind === 'pitch' ? pitchLabel(pitch.text)
                     : key === 'behold' && behold?.kind === 'behold' ? `${behold.text} — ${price}`
-                      : `Convoke — tap creatures first for ${price}`,
+                      : `Convoke ${price} — choose creatures to help pay`,
     })
   }
   return out
 }
 
 /** Cast a spell: pay for it, the way it is being cast, and put it on the
- *  stack. `pitched` is what is exiled from hand where that is the cost. */
+ *  stack. `pitched` is what was chosen to pay with: the cards exiled from
+ *  hand where that is the cost, or the creatures that convoke it. */
 export function castSpell(
   state: GameState, iid: string, asked = 0, way = 'normal', pitched: readonly string[] = [],
 ): GameState {
@@ -506,7 +533,8 @@ export function castSpell(
   const gratis = Boolean(inst && wayOf(state, inst, way).gratis)
   // With no mana cost paid, X is nothing (CR 107.3b).
   const x = gratis ? 0 : asked
-  const check = checkCast(state, iid, x, way)
+  if (way === 'convoke' && new Set(pitched).size !== pitched.length) return state
+  const check = checkCast(state, iid, x, way, way === 'convoke' ? pitched : undefined)
   if (!inst || check.why || !check.payment) return state
   const { payment } = check
   // The turn's one free spell is spent on this.
@@ -519,12 +547,7 @@ export function castSpell(
   }
 
   const tapping = new Set(payment.taps.map((t) => t.id))
-  // The creatures among them that are not sources of mana helped by convoke.
-  const lending = compile(inst.card).statics.some((fixed) => fixed.kind === 'convoke')
-    ? new Set(convokers(state, true).map((c) => c.id))
-    : new Set<string>()
-  const sources = new Set(way === 'convoke' ? [] : manaSources(state, {}, undefined, { spell: inst }).map((source) => source.id))
-  const convoked = payment.taps.map((t) => t.id).filter((id) => lending.has(id) && !sources.has(id))
+  const convoked = way === 'convoke' ? [...pitched] : []
   let paid = tapForPayment(state, tapping)
   for (const gone of way === 'pitch' ? pitched : []) paid = relocate(paid, gone, 'exile')
   // Cast as its other half, it is that half while it is on the stack.

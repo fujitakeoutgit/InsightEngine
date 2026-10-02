@@ -61,13 +61,22 @@ function answers(state: GameState, pick: (n: number) => number): Action[] {
     }
     case 'pick': {
       const some = (n: number) => ({ type: 'choose' as const, iids: p.options.slice(0, n) })
+      // Convoke: the creatures the tapper would reach for are ones that pay.
+      const { casting } = state
+      const helping = casting?.way === 'convoke'
+        ? checkCast({ ...state, pending: null }, casting.iid, casting.x, 'convoke').payment?.taps
+          .map((tap) => tap.id).filter((id) => p.options.includes(id))
+        : undefined
       // What it must be at least, then one more, then all — a party or a
       // budget may refuse some of these — and each one alone, and none.
       return [
+        ...(helping && pick(2) ? [{ type: 'choose' as const, iids: helping }] : []),
         some(p.min), some(Math.min(p.max, p.min + 1)), some(p.max),
         ...p.options.map((iid) => ({ type: 'choose' as const, iids: [iid] })),
         ...p.options.flatMap((a, i) => p.options.slice(i + 1).map((b) => ({ type: 'choose' as const, iids: [a, b] }))),
         { type: 'choose', iids: [] },
+        ...(helping ? [{ type: 'choose' as const, iids: helping }] : []),
+        ...(p.cancel ? [{ type: 'cast' as const, way: null }] : []),
       ]
     }
   }

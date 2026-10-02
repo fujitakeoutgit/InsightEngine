@@ -95,6 +95,15 @@ export function toBottom(cards: readonly Instance[], iid: string, zone: Zone): I
   return [...cards.filter((c) => c.iid !== iid), moving]
 }
 
+/** Move a card to a zone and put it first there: on top of the library. */
+export function toTop(cards: readonly Instance[], iid: string, zone: Zone): Instance[] {
+  const moving = relocate(cards, iid, zone).find((c) => c.iid === iid)
+  if (!moving) return [...cards]
+  const rest = cards.filter((c) => c.iid !== iid)
+  const first = rest.findIndex((c) => c.zone === zone)
+  return first < 0 ? [...rest, moving] : [...rest.slice(0, first), moving, ...rest.slice(first)]
+}
+
 /** Platinum Angel: "You can't lose the game." */
 export const cantLose = (state: GameState) => inZone(state, 'battlefield')
   .some((c) => compile(c.card).statics.some((fixed) => fixed.kind === 'cantLose'))

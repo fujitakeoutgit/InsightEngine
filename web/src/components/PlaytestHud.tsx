@@ -371,6 +371,7 @@ export function DecisionPrompt({
           >
             {chosen === 0 && decision.min === 0 ? 'None' : 'Choose'}
           </button>
+          {decision.cancel && <button className="btn btn-ghost sm" onClick={() => onWay(null)}>Not now</button>}
         </div>
       </div>
     )

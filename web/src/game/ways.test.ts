@@ -145,25 +145,60 @@ describe('creatures that help pay', () => {
   const scheme = spell('Lethal Scheme', 'Convoke (Your creatures can help cast this spell. Each creature you tap while casting this spell pays for {1} or one mana of that creature\'s color.)\nDestroy target creature or planeswalker. Each creature that convoked this spell connives.', '{2}{B}{B}', 'Instant')
   const zombie = card('Walking Corpse', 'Creature — Zombie', { power: '2', toughness: '2', colors: 'B' })
 
-  it('taps creatures for what the lands cannot cover, and has them connive', () => {
+  it('is paid from lands alone unless creatures are chosen', () => {
     expect(compile(scheme)).toMatchObject({ coverage: 'auto', skipped: [] })
-    const start = ruled([[scheme, 'hand'], ...lands(SWAMP, 2), [zombie, 'battlefield'], [zombie, 'battlefield', { sick: true }], [giant, 'battlefield'], ...library])
+    const start = ruled([[scheme, 'hand'], ...lands(SWAMP, 4), [zombie, 'battlefield'], [giant, 'battlefield'], ...library])
     expect(keys(start, 'c0')).toEqual(['normal', 'convoke'])
     const paid = run(start, cast('c0'), by('normal'))
-    // Two Swamps and two creatures; a summoning-sick one can convoke too.
-    expect(paid.cards.filter((c) => c.zone === 'battlefield' && c.tapped)).toHaveLength(4)
-    expect(paid.stack[0].convoked).toHaveLength(2)
+    expect([at(paid, 'c5').tapped, at(paid, 'c6').tapped]).toEqual([false, false])
+    expect(paid.stack[0].convoked).toBeUndefined()
+  })
+
+  it('asks which creatures help, and has only those connive', () => {
+    const start = ruled([[scheme, 'hand'], ...lands(SWAMP, 4), [zombie, 'battlefield'], [zombie, 'battlefield', { sick: true }], [giant, 'battlefield'], ...library])
+    const asked = run(start, cast('c0'), by('convoke'))
+    // Any untapped creature, summoning sick or not; none is an answer, since the lands would do.
+    expect(asked.pending).toMatchObject({ kind: 'pick', zone: 'battlefield', options: ['c5', 'c6', 'c7'], min: 0, max: 3 })
+    const paid = reduce(asked, { type: 'choose', iids: ['c6', 'c7'] })
+    expect(paid.stack[0].convoked).toEqual(['c6', 'c7'])
+    expect([at(paid, 'c5').tapped, at(paid, 'c6').tapped, at(paid, 'c7').tapped]).toEqual([false, true, true])
+    // The Giant is red: it pays for {1}, the Zombie for {B} or {1}, two Swamps for the rest.
+    expect(['c1', 'c2', 'c3', 'c4'].filter((iid) => at(paid, iid).tapped)).toHaveLength(2)
     const conniving = run(paid, pass, { type: 'choose', iids: ['c5'] })
     expect(zone(conniving, 'c5')).toBe('graveyard')
     // Each of the two that convoked connives: a card, and a discard.
     expect(conniving.pending).toMatchObject({ kind: 'pick', zone: 'hand' })
   })
 
-  it('taps creatures first when asked to, and leaves the lands', () => {
-    const start = ruled([[scheme, 'hand'], ...lands(SWAMP, 4), [zombie, 'battlefield'], [zombie, 'battlefield'], [BEARS, 'battlefield'], [BEARS, 'battlefield'], ...library])
-    const paid = run(start, cast('c0'), by('convoke'))
-    expect(paid.stack[0].convoked).toHaveLength(4)
-    expect(['c1', 'c2', 'c3', 'c4'].some((iid) => at(paid, iid).tapped)).toBe(false)
+  it('is the only way when the lands fall short, and needs a creature then', () => {
+    const start = ruled([[scheme, 'hand'], ...lands(SWAMP, 2), [zombie, 'battlefield'], [zombie, 'battlefield'], [giant, 'battlefield'], ...library])
+    expect(keys(start, 'c0')).toEqual(['convoke'])
+    const asked = run(start, cast('c0'), by('convoke'))
+    expect(asked.pending).toMatchObject({ kind: 'pick', min: 1 })
+    // One creature and two Swamps is a mana short.
+    expect(reduce(asked, { type: 'choose', iids: ['c3'] })).toBe(asked)
+    const paid = reduce(asked, { type: 'choose', iids: ['c3', 'c4'] })
+    expect(paid.stack[0].convoked).toEqual(['c3', 'c4'])
+  })
+
+  it('can be backed out of, with nothing paid', () => {
+    const start = ruled([[scheme, 'hand'], ...lands(SWAMP, 2), [zombie, 'battlefield'], [zombie, 'battlefield'], ...library])
+    const asked = run(start, cast('c0'), by('convoke'))
+    expect(asked.pending).toMatchObject({ kind: 'pick', cancel: true })
+    const left = reduce(asked, { type: 'cast', way: null })
+    expect(left).toMatchObject({ pending: null, casting: null, stack: [] })
+    expect([zone(left, 'c0'), left.cards.some((c) => c.tapped)]).toEqual(['hand', false])
+  })
+
+  it('refuses creatures that cannot all pay for something', () => {
+    // {B}{B}: a red Giant has nothing to pay for.
+    const pact = spell('Dark Pact', 'Convoke\nDraw a card.', '{B}{B}', 'Instant')
+    const start = ruled([[pact, 'hand'], ...lands(SWAMP, 2), [giant, 'battlefield'], [zombie, 'battlefield'], ...library])
+    const asked = run(start, cast('c0'), by('convoke'))
+    expect(asked.pending).toMatchObject({ kind: 'pick', options: ['c3', 'c4'], max: 2 })
+    expect(reduce(asked, { type: 'choose', iids: ['c3'] })).toBe(asked)
+    const paid = reduce(asked, { type: 'choose', iids: ['c4'] })
+    expect(paid.stack[0].convoked).toEqual(['c4'])
   })
 
   it('costs less for each Sliver', () => {
