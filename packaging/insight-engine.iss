@@ -77,10 +77,11 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopico
 Name: "{userstartup}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: startup
 
 [Run]
-; Unchecked by default. The first launch downloads about 180MB of card data,
-; and starting that inside the installer would make "Finish" mean "wait four
-; more minutes" with no way back.
-Filename: "{app}\{#AppExe}"; Description: "Start {#AppName} now"; Flags: nowait postinstall skipifsilent unchecked
+; Checked by default: an upgrade is run to get back into the app, and having
+; to find it again after pressing Finish was a step for nothing. `nowait`, so
+; Finish closes the installer at once — a first launch downloading its card
+; data does that in its own window, not in this one.
+Filename: "{app}\{#AppExe}"; Description: "Start {#AppName} now"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 ; PyInstaller's runtime leaves __pycache__ behind; without this the install

@@ -5932,12 +5932,12 @@
 .pt-coverage.auto { background: var(--ok); }
 .pt-coverage.partial { background: var(--warn); }
 
-/* A creature's size once the board has changed it. Bottom left: the right
-   side is where the card prints the size this one corrects, with the
-   counter and loyalty controls over it. */
+/* A creature's size once the board has changed it. Bottom right, over the
+   size the card prints: that number is the one this corrects, so it goes
+   where the eye already looks for it. */
 .pt-size {
   position: absolute;
-  left: 4px;
+  right: 4px;
   bottom: 4px;
   z-index: 2;
   padding: 2px 6px;
@@ -5954,11 +5954,13 @@
 
 /* +1/+1 counters by hand: hidden until the card is hovered, like loyalty.
    Bottom right, sitting just above the printed power and toughness they
-   change. */
+   change — and clear of the size chip, which sits over that box once the
+   board has changed the number. The chip is a fixed height and the printed
+   box scales with the card, so it is whichever of the two is higher. */
 .pt-counter-step {
   position: absolute;
   right: 4px;
-  bottom: 13%;
+  bottom: max(13%, 28px);
   z-index: 2;
   display: flex;
   gap: 2px;
