@@ -2902,6 +2902,52 @@
   gap: 10px;
 }
 
+/* The turn, said once across the middle of the mat as it begins. Over the
+   cards and under anything the game is asking; it takes no clicks, and it is
+   gone in a second. Hidden until its tween shows it, so a frame painted
+   before the tween starts shows nothing rather than the whole word. */
+.pt-turn-banner {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.pt-turn-banner span {
+  visibility: hidden;
+  font-family: var(--font-d);
+  font-size: clamp(48px, 9vw, 132px);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.16em;
+  /* Tracking adds its gap after the last letter too: take it back, so the
+     word is centred on its letters. */
+  margin-right: -0.16em;
+  text-transform: uppercase;
+  color: var(--ink);
+  text-shadow:
+    0 0 44px color-mix(in oklab, var(--aether) 60%, transparent),
+    0 2px 18px rgba(4, 5, 8, 0.8);
+  will-change: transform, opacity, filter;
+}
+
+/* Pointed out: the outline blinks for as long as the hint that names it is
+   up. Steady where motion is off — it is still the thing being pointed at. */
+.pt-nudge {
+  outline: 2px solid var(--aether-hi);
+  outline-offset: 3px;
+}
+
+:root.motion-ok .pt-nudge { animation: pt-nudge 0.7s ease-in-out infinite; }
+
+@keyframes pt-nudge {
+  0%, 100% { outline-color: var(--aether-hi); }
+  50% { outline-color: transparent; }
+}
+
 /* "Start / turn", one word over the other. */
 .pt-start { display: block; line-height: 1.25; text-align: center; white-space: normal; }
 

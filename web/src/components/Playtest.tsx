@@ -96,6 +96,10 @@ const ZONE_LABEL: Record<Zone, string> = {
 /** How long an explanation of a refused play stays up. */
 const HINT_MS = 2600
 
+/** Said when a card is clicked before the first turn has begun. While it is
+ *  up, the two things it names — the button and the deck — blink. */
+const START_HINT = 'Start the turn first — or draw from the deck'
+
 /** The first press of a game: two words, one over the other, so the button
  *  that will say "Main 2" and "End turn" for the rest of it says something
  *  that looks different once. */
@@ -322,6 +326,37 @@ export function Playtest({
   const pass = useCallback(() => dispatch({ type: 'pass' }), [])
   /** Dealt, and the first turn not yet begun. */
   const unstarted = game.pending?.kind === 'start'
+  /** Being told to start the turn: the ways to do it are pointed out. */
+  const nudging = unstarted && hint === START_HINT
+
+  /* The turn, said once across the mat as it begins: the first as it is
+   * started, each one after as the last ends. Not a turn gone back to by
+   * undo, and not a game dealt again. When turns pass by themselves it is
+   * the one you land on that is announced. `n` counts the announcements, so
+   * the same number twice still plays. */
+  const [banner, setBanner] = useState<{ turn: number; n: number } | null>(null)
+  const bannerRef = useRef<HTMLSpanElement>(null)
+  const announced = useRef({ turn, unstarted, n: 0 })
+  useEffect(() => {
+    const before = announced.current
+    const begun = !unstarted && (before.unstarted ? turn === before.turn : turn > before.turn)
+    announced.current = { turn, unstarted, n: before.n + (begun ? 1 : 0) }
+    // Nothing is shown where nothing would move: a banner that could not
+    // fade would simply sit on the board.
+    if (begun && canAnimate()) setBanner({ turn, n: announced.current.n })
+  }, [turn, unstarted])
+  useLayoutEffect(() => {
+    const el = bannerRef.current
+    if (!banner || !el) return
+    // Out of the mat and back into it: blur and scale resolving together,
+    // a beat to be read, then on through.
+    const timeline = gsap.timeline({ onComplete: () => setBanner(null) })
+      .fromTo(el,
+        { autoAlpha: 0, scale: 0.88, filter: 'blur(12px)' },
+        { autoAlpha: 1, scale: 1, filter: 'blur(0px)', duration: 0.36, ease: 'power3.out' })
+      .to(el, { autoAlpha: 0, scale: 1.07, filter: 'blur(8px)', duration: 0.42, ease: 'power2.in' }, '+=0.5')
+    return () => { timeline.kill() }
+  }, [banner])
 
   // Written on every change rather than on the way out: unmount is too late to
   // read state in an effect cleanup that has closed over an older render, and
@@ -587,7 +622,7 @@ export function Playtest({
   const play = (iid: string) => {
     if (pending) {
       if (candidates.has(iid)) pick(iid)
-      else setHint(pending.kind === 'start' ? 'Start the turn first — or draw from the deck' : 'Answer the question first')
+      else setHint(pending.kind === 'start' ? START_HINT : 'Answer the question first')
       return
     }
     if (!game.rules) {
@@ -956,6 +991,12 @@ export function Playtest({
         {!inZone.battlefield.length && (
           <p className="pt-empty faint">Click a card in hand to play it, or drag it here.</p>
         )}
+
+        {banner && (
+          <div className="pt-turn-banner" aria-hidden>
+            <span ref={bannerRef} key={banner.n}>Turn {banner.turn}</span>
+          </div>
+        )}
       </div>
 
       {/* Everything below the mat is one row, so the seam between the board and
@@ -1050,7 +1091,7 @@ export function Playtest({
                 do — resolve the top of the stack, or move the turn on. */}
             {game.rules ? (
               <button
-                className="btn btn-primary sm"
+                className={`btn btn-primary sm${nudging ? ' pt-nudge' : ''}`}
                 onClick={pass}
                 disabled={Boolean(game.pending) && !unstarted}
                 title={unstarted
@@ -1132,7 +1173,7 @@ export function Playtest({
             }}
           >
             <button
-              className="pt-deck"
+              className={`pt-deck${nudging ? ' pt-nudge' : ''}`}
               onClick={() => draw(1)}
               disabled={!inZone.library.length}
               /* The hover says how many are left, because the number under
