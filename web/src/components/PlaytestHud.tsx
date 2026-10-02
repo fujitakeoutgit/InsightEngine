@@ -42,8 +42,12 @@ function Pool({ pool }: { pool: ManaPool }) {
 
 export function PhaseBar({
   turn, step, rules, pool, landsPlayed, landDrops, opponent, poison, waiting, coverage, onCoverage,
-  onPassTo, onRules, onOpponent,
+  onPassTo, onRules, onOpponent, onUndo, canUndo,
 }: {
+  /** Take back the last action. There is no redo. */
+  onUndo: () => void
+  /** Whether there is anything to take back. */
+  canUndo: boolean
   /** How much of the deck plays itself, for the button that opens the list. */
   coverage: DeckReport
   onCoverage: () => void
@@ -125,6 +129,16 @@ export function PhaseBar({
       >
         <span className="pt-rules-dot" aria-hidden />
         Rules
+      </button>
+      {/* Last in the bar, and the colour of Reset: the two controls that take
+          the game backwards rather than on. */}
+      <button
+        className="pt-rules pt-bar-undo"
+        onClick={onUndo}
+        disabled={!canUndo}
+        title="Undo the last action (Ctrl+Z)"
+      >
+        Undo
       </button>
     </div>
   )

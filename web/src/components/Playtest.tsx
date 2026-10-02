@@ -729,6 +729,8 @@ export function Playtest({
           waiting={Boolean(game.pending)}
           onPassTo={(step) => dispatch({ type: 'passTo', step })}
           onRules={setRules}
+          onUndo={undo}
+          canUndo={canUndo}
           coverage={coverage}
           onCoverage={() => setShowCoverage(true)}
         />
@@ -1104,18 +1106,6 @@ export function Playtest({
           {/* One row, so neither costs the board any height: a row of its
               own made the tray 20px taller, and that came out of the mat. */}
           <div className="pt-corner-row">
-            {/* Takes back the last thing done to the game, as Ctrl+Z does.
-                Not among the turn actions: it is a step out of the game
-                rather than a move in it, and it should never be what you hit
-                reaching for Next turn. */}
-            <button
-              className="btn btn-ghost sm pt-undo"
-              onClick={undo}
-              disabled={!canUndo}
-              title="Undo the last action (Ctrl+Z)"
-            >
-              Undo
-            </button>
             {/* Shuffling is something you do *to the library*, so it is
                 attached to the library rather than filed with the turn
                 actions. */}

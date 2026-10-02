@@ -2826,7 +2826,6 @@
 }
 
 .pt-corner-row .btn { padding-inline: 6px; }
-.pt-undo { flex: none; }
 .pt-shuffle { flex: 1 1 auto; }
 
 /* The zone block: three actions sitting directly over the three zones they
@@ -5533,6 +5532,12 @@
 .pt-rules.on { color: var(--aether-hi); border-color: color-mix(in oklab, var(--aether) 45%, transparent); }
 .pt-rules.on .pt-rules-dot { background: var(--aether); box-shadow: 0 0 8px var(--aether); }
 .pt-rules:hover { color: var(--ink); }
+
+/* Undo, at the end of the turn bar: red, as Reset is. */
+.pt-bar-undo,
+.pt-bar-undo:hover { color: var(--danger); border-color: color-mix(in oklab, var(--danger) 55%, transparent); }
+.pt-bar-undo:hover:not(:disabled) { background: color-mix(in oklab, var(--danger) 14%, transparent); border-color: var(--danger); }
+.pt-bar-undo:disabled { opacity: 0.4; cursor: default; }
 
 /* The stack and the jobs left to do by hand, down the right side, clear of
    the history tab. Only the panels take the pointer; the column between them
