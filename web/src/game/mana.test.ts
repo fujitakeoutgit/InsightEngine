@@ -17,7 +17,7 @@ const tower = (id = 'tower') => land(id, ['W', 'U', 'B', 'R', 'G'])
 const solRing = (id = 'sol'): ManaSource =>
   ({ id, makes: [['C'], ['C']], penalty: sourcePenalty([['C'], ['C']]) })
 const signet = (id: string, a: ManaType, b: ManaType): ManaSource =>
-  ({ id, makes: [[a], [b]], input: 1, penalty: sourcePenalty([[a], [b]]) })
+  ({ id, makes: [[a], [b]], input: 1, penalty: sourcePenalty([[a], [b]], { fed: true }) })
 
 const tapped = (sources: ManaSource[], cost: string, opts = {}) =>
   autotap(parseCost(cost), sources, opts)?.taps.map((t) => t.id).sort() ?? null
@@ -162,9 +162,40 @@ describe('autotap', () => {
     expect(tapped(sources, '{W}{B}{G}')).toEqual(['forest', 'orzhov', 'selesnya'])
   })
 
-  it('prefers the basics over a Signet for the same colors', () => {
-    const sources = [plains(), swamp(), forest(), signet('orzhov', 'W', 'B')]
-    expect(tapped(sources, '{W}{B}')).toEqual(['plains', 'swamp'])
+  /* It takes mana to make mana: a Signet left untapped beside nothing that
+   * can feed it is worth nothing. So it is spent first, and what is left
+   * untapped is a land — which can still pay for something by itself. */
+  it('spends a Signet before a land, and leaves the land', () => {
+    // Three lands and a Signet, three to pay: not all three lands.
+    const sources = [forest(), plains(), swamp(), signet('selesnya', 'G', 'W')]
+    const used = tapped(sources, '{1}{G}{W}')!
+    expect(used).toContain('selesnya')
+    expect(used).toHaveLength(3)
+    // Two to pay with two lands and a Signet: one land feeds it, one is kept.
+    expect(tapped([forest('f1'), forest('f2'), signet('selesnya', 'G', 'W')], '{2}')).toEqual(['f1', 'selesnya'])
+    // And where two lands could have paid the colors themselves, still the
+    // Signet and one land to feed it — whichever land; they are all alike here.
+    const same = [plains(), swamp(), forest(), signet('orzhov', 'W', 'B')]
+    const paid = tapped(same, '{W}{B}')!
+    expect(paid).toContain('orzhov')
+    expect(paid).toHaveLength(2)
+  })
+
+  it('leaves the Signet alone when half of what it makes would go to waste', () => {
+    expect(tapped([forest(), signet('selesnya', 'G', 'W')], '{G}')).toEqual(['forest'])
+    expect(tapped([forest('f1'), forest('f2'), signet('selesnya', 'G', 'W')], '{G}')).toEqual(['f1'])
+  })
+
+  it('feeds one Signet from another before touching a second land', () => {
+    const sources = [forest('f1'), forest('f2'), forest('f3'), signet('orzhov', 'W', 'B'), signet('selesnya', 'G', 'W')]
+    // One land into the first, one of its two into the second: three made.
+    expect(tapped(sources, '{3}')).toEqual(['f1', 'orzhov', 'selesnya'])
+  })
+
+  it('still keeps a mana creature back, Signet-like or not', () => {
+    const fed = sourcePenalty([['G'], ['W']], { fed: true })
+    expect(fed).toBeLessThan(sourcePenalty([['G']]))
+    expect(sourcePenalty([['G'], ['W']], { fed: true, creature: true })).toBeGreaterThan(sourcePenalty([['G']]))
   })
 
   it('answers quickly when a large X taps everything', () => {

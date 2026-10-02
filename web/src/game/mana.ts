@@ -131,7 +131,19 @@ export interface SourceTraits {
   creature?: boolean
   /** It does something else as well, which tapping it for mana gives up. */
   abilities?: boolean
+  /** It takes mana to make its mana: a Signet's `{1}`. */
+  fed?: boolean
 }
+
+/** What a source that has to be fed costs to tap: less than any land.
+ *
+ * It takes mana to make mana. A Signet left untapped beside nothing that can
+ * feed it is worth nothing, where a land left untapped can still pay for
+ * something by itself — so with three lands and a Signet and three to pay,
+ * the Signet and two lands is the payment that leaves you a mana, and three
+ * lands is the one that leaves you none. Its colors and what your hand is
+ * waiting on do not come into it: unfed, it makes neither. */
+export const FED = 0.6
 
 /**
  * How reluctant the tapper should be to use a source.
@@ -139,7 +151,8 @@ export interface SourceTraits {
  * One per activation, so fewer activations win, and then more for everything
  * that makes a source worth keeping untapped: each extra color it could make
  * (it can still pay for whatever you cast next), the colors your hand is
- * waiting on, being a creature, having another use.
+ * waiting on, being a creature, having another use. A source that has to be
+ * fed is the exception — see `FED`.
  */
 export function sourcePenalty(
   makes: ManaType[][],
@@ -148,8 +161,8 @@ export function sourcePenalty(
 ): number {
   const kinds = new Set(makes.flat())
   const colors = [...kinds].filter((kind) => kind !== 'C').length
-  let penalty = 1 + 0.3 * Math.max(0, colors - 1)
-  for (const kind of kinds) penalty += 0.1 * Math.min(5, wanted[kind] ?? 0)
+  let penalty = traits.fed ? FED : 1 + 0.3 * Math.max(0, colors - 1)
+  if (!traits.fed) for (const kind of kinds) penalty += 0.1 * Math.min(5, wanted[kind] ?? 0)
   if (traits.creature) penalty += 2
   if (traits.abilities) penalty += 1
   return penalty

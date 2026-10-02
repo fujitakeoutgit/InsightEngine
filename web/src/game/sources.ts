@@ -370,6 +370,7 @@ export function manaSources(
     const penalty = sourcePenalty(makes, {
       creature: isCreature(inst),
       abilities: hasOtherAbilities(inst),
+      fed: input > 0,
     }, wanted)
     out.push({ id: inst.iid, makes, input, penalty })
   }
