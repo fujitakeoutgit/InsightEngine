@@ -53,6 +53,8 @@ export function copyOf(card: Card, change: CopyChange): Card {
     power,
     toughness,
     keywords: [...(card.keywords ?? []), ...(change.keywords ?? [])],
+    ...(change.colors !== undefined ? { colors: change.colors } : {}),
+    ...(change.noCost ? { mana_cost: null, cmc: 0 } : {}),
     oracle_text: [card.oracle_text ?? card.card_faces?.[0]?.oracle_text, added].filter(Boolean).join('\n') || null,
   }
 }

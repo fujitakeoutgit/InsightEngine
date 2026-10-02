@@ -21,6 +21,8 @@ export interface Asking {
   /** What was set aside before the last choice, for an effect with two
    *  targets. */
   kept?: readonly string[]
+  /** The spell was kicked, or its optional additional cost was paid. */
+  kicked?: boolean
   event: string | null
   known: Record<string, Known>
   last: number

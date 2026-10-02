@@ -50,6 +50,7 @@ function aimed(state: GameState, r: Resolution, aim: Aim): Instance[] {
     // What it is on — or, once that has gone, the card the ability is about.
     case 'host': return one(find(state, r.source)?.attachedTo ?? r.event)
     case 'kept': return r.kept.flatMap((iid) => one(iid))
+    case 'one': return one(aim.iid)
     case 'exiled': return exiledWith(state, r.source)
     // The ones that were not kept.
     case 'others':
@@ -302,10 +303,15 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
       if (!who.length) return { state }
       const through = effect.until === 'end' ? state.turn : effect.until === 'nextEnd' ? state.turn + 1 : null
       const allowed = change(state, who.map((c) => c.iid), (c) => ({
-        ...c, mayPlay: { through, ...(effect.free ? { free: true } : {}) },
+        ...c,
+        mayPlay: {
+          through, ...(effect.free ? { free: true } : {}),
+          ...(effect.plotted ? { after: state.turn, sorcery: true } : {}),
+        },
       }))
-      const span = effect.until === 'end' ? 'this turn'
-        : effect.until === 'nextEnd' ? 'until the end of your next turn' : 'for as long as it stays exiled'
+      const span = effect.plotted ? 'on a later turn, as a sorcery'
+        : effect.until === 'end' ? 'this turn'
+          : effect.until === 'nextEnd' ? 'until the end of your next turn' : 'for as long as it stays exiled'
       return { state: noted(allowed, `You may play ${names(who)} ${span}${effect.free ? ', without paying' : ''}`) }
     }
 
@@ -493,6 +499,19 @@ function perform(state: GameState, r: Resolution, effect: Effect): Outcome {
           `${r.name}: ${names(who)} will return if it dies this turn`,
         ),
       }
+    }
+
+    case 'conniveEach': {
+      // One connive for each creature that convoked the spell, in turn: each
+      // is a draw and a discard of its own.
+      const each: Effect[] = (r.convoked ?? []).map((iid) => ({ op: 'connive', who: { kind: 'one', iid } }))
+      const effects = [...r.effects.slice(0, r.at + 1), ...each, ...r.effects.slice(r.at + 1)]
+      return { state: { ...state, resolving: { ...r, effects } } }
+    }
+
+    case 'fleeting': {
+      const what = aimed(state, r, effect.what).filter((c) => c.zone === 'battlefield')
+      return { state: change(state, what.map((c) => c.iid), (c) => ({ ...c, fleeting: 'end' as const })) }
     }
 
     case 'extraBeginning':
@@ -1499,10 +1518,33 @@ export function resolveTop(state: GameState): GameState {
   // not resolve.
   if (!top.copy && inst.zone !== 'stack') return { ...state, stack }
 
+  const kicked = top.way === 'kicked' || top.way === 'behold'
   if (isPermanentSpell(inst.card)) {
-    const copying = enterAsCopy(noted({ ...state, stack }, `${inst.card.name} resolves`), inst.iid, top.x)
+    // Evoked: it is sacrificed when it enters. That waits under whatever
+    // its arrival triggers, so those happen first.
+    const [evoking, minted] = mint({ ...state, stack }, 's')
+    const base: GameState = top.way === 'evoke'
+      ? {
+          ...minted,
+          stack: [...stack, {
+            id: evoking,
+            iid: inst.iid,
+            x: 0,
+            ability: {
+              text: `Evoke — sacrifice ${inst.card.name}.`,
+              effects: [{ op: 'move', what: { kind: 'self' }, to: 'graveyard', only: 'battlefield' }],
+              complete: true, event: null, known: {},
+            },
+          }],
+        }
+      : { ...state, stack }
+    // A permanent remembers that it was kicked, for what it does on arrival.
+    const marked: GameState = kicked
+      ? { ...base, cards: base.cards.map((c) => (c.iid === inst.iid ? { ...c, kicked: true } : c)) }
+      : base
+    const copying = enterAsCopy(noted(marked, `${inst.card.name} resolves`), inst.iid, top.x)
     if (copying) return copying
-    const entered = enterBattlefield({ ...state, stack }, inst.iid, { x: top.x }).state
+    const entered = enterBattlefield(marked, inst.iid, { x: top.x }).state
     const arrived = remindUnread(noted(entered, `${inst.card.name} resolves`), inst)
     // An Aura goes onto something as it arrives.
     const enchant = /\bAura\b/.test(inst.card.type_line ?? '') ? compile(inst.card).enchant : null
@@ -1537,7 +1579,8 @@ export function resolveTop(state: GameState): GameState {
     })
   }
 
-  const spell = compile(inst.card).spell
+  // Overloaded, it is the same spell with "each" for "target".
+  const spell = (top.way === 'overload' ? compile(inst.card).overloaded : undefined) ?? compile(inst.card).spell
   const begun = noted({ ...state, stack }, `${inst.card.name}${top.copy ? ' (a copy)' : ''} resolves`)
   if (!spell?.effects.length) {
     // A copy resolves and is gone; the card is still the spell under it.
@@ -1556,6 +1599,8 @@ export function resolveTop(state: GameState): GameState {
       known: {},
       spell: !top.copy,
       leftover: spell.complete ? null : rulesText(inst.card),
+      ...(kicked ? { kicked } : {}),
+      ...(top.convoked ? { convoked: top.convoked } : {}),
     },
   })
 }

@@ -260,9 +260,11 @@ export function Reminders({ items, onDone }: { items: Reminder[]; onDone: (id: s
  *  it is asking about. Searches and scrying have dialogs of their own. */
 export function DecisionPrompt({
   decision, chosen, damage = 0, spent = 0, name = '', firstDraw = false, onFirstDraw,
-  onKeep, onMulligan, onConfirm, onAnswer, onMode, onType, onAll,
+  onKeep, onMulligan, onConfirm, onAnswer, onMode, onType, onAll, onWay,
 }: {
   decision: Decision
+  /** How to cast the spell that is asking — or null, to leave it. */
+  onWay: (way: string | null) => void
   /** What the cards picked so far add up to, where the pick has a limit. */
   spent?: number
   /** Whether turn 1 draws a card, and the switch for it on the opening
@@ -370,6 +372,19 @@ export function DecisionPrompt({
             {chosen === 0 && decision.min === 0 ? 'None' : 'Choose'}
           </button>
         </div>
+      </div>
+    )
+  }
+  if (decision.kind === 'way') {
+    return (
+      <div className="pt-decision" role="dialog" aria-label="How to cast it">
+        <h3>{name ? `Cast ${name}` : 'Cast it'}</h3>
+        <div className="pt-modes">
+          {decision.ways.map((way) => (
+            <button key={way.key} className="btn btn-ghost sm" onClick={() => onWay(way.key)}>{way.label}</button>
+          ))}
+        </div>
+        <button className="btn btn-ghost sm" onClick={() => onWay(null)}>Not now</button>
       </div>
     )
   }

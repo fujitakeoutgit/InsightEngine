@@ -9,14 +9,26 @@ import { readFilter, readTest } from './read'
 const text = (oracle: string, type = 'Enchantment', extra: Partial<Card> = {}) =>
   compile(card(`Wording ${oracle.length} ${oracle.slice(0, 30)}`, type, { oracle_text: oracle, ...extra }))
 
-describe('ways to cast a card that are not offered', () => {
-  it('sets them aside, and grades the card by the rest', () => {
+describe('ways to cast a card', () => {
+  it('reads the ones it offers, and grades the card by the rest', () => {
     const mulldrifter = text('Flying\nWhen ~ enters, draw two cards.\nEvoke {2}{U}', 'Creature — Elemental')
-    expect(mulldrifter).toMatchObject({ coverage: 'auto', unread: [], skipped: ['Evoke {2}{U}'] })
+    expect(mulldrifter).toMatchObject({ coverage: 'auto', unread: [], skipped: [], ways: [{ kind: 'evoke', cost: '{2}{U}' }] })
     const vision = text('Freerunning {1}{U}\nDraw three cards.', 'Sorcery')
-    expect(vision).toMatchObject({ coverage: 'auto', skipped: ['Freerunning {1}{U}'], spell: { complete: true } })
-    expect(text("You may exile two green cards from your hand rather than pay ~'s mana cost.\nTrample", 'Creature — Elf').coverage).toBe('auto')
-    expect(text('Search your library for a basic land card, put it onto the battlefield, then shuffle.\nSuspend 2—{G}', 'Sorcery').skipped).toEqual(['Suspend 2—{G}'])
+    expect(vision).toMatchObject({ coverage: 'auto', ways: [{ kind: 'freerunning', cost: '{1}{U}' }], spell: { complete: true } })
+    expect(text("You may exile two green cards from your hand rather than pay ~'s mana cost.\nTrample", 'Creature — Elf'))
+      .toMatchObject({ coverage: 'auto', ways: [{ kind: 'pitch', count: 2, filter: { colors: ['G'] } }] })
+    const search = text('Search your library for a basic land card, put it onto the battlefield, then shuffle.\nSuspend 2—{G}', 'Sorcery')
+    expect(search).toMatchObject({ skipped: [], activated: [{ fromHand: true, cost: { mana: '{G}', exileSelf: true } }] })
+  })
+
+  it('sets aside the ones it does not, and still grades the card by the rest', () => {
+    const beast = text('Mutate {G}{U}\n{1}, {T}: Draw a card.', 'Creature — Beast')
+    expect(beast).toMatchObject({ coverage: 'auto', skipped: ['Mutate {G}{U}'], ways: [] })
+    // Overload is offered where the spell reads with "each" for "target".
+    expect(text('Destroy target artifact you don\'t control.\nOverload {4}{R}', 'Sorcery'))
+      .toMatchObject({ skipped: [], ways: [{ kind: 'overload', cost: '{4}{R}' }] })
+    // A kicker paid in something other than mana is not one this offers.
+    expect(text('Kicker—Sacrifice a creature.\nDraw a card.', 'Sorcery').skipped).toEqual(['Kicker—Sacrifice a creature.'])
   })
 
   it('does not set aside a keyword that does something on its own', () => {

@@ -116,7 +116,10 @@ function happened(before: GameState, after: GameState): { events: Happened[]; ta
   if (after.dealt !== before.dealt) {
     for (const iid of after.dealt) {
       const card = is.get(iid)
-      if (card) out.push({ on: 'combatDamage', card })
+      if (!card) continue
+      out.push({ on: 'combatDamage', card })
+      // An Assassin or a commander of yours has connected: freerunning.
+      if (card.commander || /\bAssassin\b/.test(card.card.type_line ?? '')) tally.struck += 1
     }
   }
   if (after.life > before.life) {
@@ -250,6 +253,11 @@ export function collectTriggers(before: GameState, after: GameState): GameState 
     .map((c) => c.iid))
   if (fallen.size) {
     next = { ...next, cards: next.cards.map((c) => (fallen.has(c.iid) ? { ...c, fell: after.turn, returns: undefined } : c)) }
+  }
+  // …and what was discarded, for mayhem.
+  const thrown = new Set(events.flatMap((event) => (event.on === 'discard' ? [event.card.iid] : [])))
+  if (thrown.size) {
+    next = { ...next, cards: next.cards.map((c) => (thrown.has(c.iid) && c.zone === 'graveyard' ? { ...c, discarded: after.turn } : c)) }
   }
   // Molecule Man: the first card drawn this turn, if it is not a land, may
   // be cast for nothing. Which card that was is known when it came in one

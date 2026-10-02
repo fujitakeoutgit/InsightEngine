@@ -71,7 +71,14 @@ export interface Instance {
   revertBy?: string
   /** In exile, and you may play it from there: through this turn — or,
    *  null, for as long as it stays. `free`, without paying its mana cost. */
-  mayPlay?: { through: number | null; free?: boolean }
+  mayPlay?: {
+    through: number | null
+    free?: boolean
+    /** Plotted: not until a turn after this one, and only when a sorcery
+     *  could be cast. */
+    after?: number
+    sorcery?: boolean
+  }
   /** The permanent whose ability exiled it: "a card exiled with ~". */
   exiledBy?: string
   /** The side chosen for it as it entered: Khans, or Dragons. */
@@ -86,6 +93,11 @@ export interface Instance {
   /** A paradigm spell, resolved and exiled: a copy of it may be cast at the
    *  beginning of each first main phase. */
   paradigm?: boolean
+  /** The turn it was discarded: mayhem lets it be cast from the graveyard
+   *  that turn. */
+  discarded?: number
+  /** It was cast with its kicker paid, or its optional cost. */
+  kicked?: boolean
 }
 
 /** A change to size and keywords that lasts until end of turn, on the
@@ -158,6 +170,10 @@ export interface StackItem {
   /** A copy of the spell rather than the spell: it resolves, and the card
    *  stays where it is. */
   copy?: boolean
+  /** How it was cast, when not simply for what it costs: evoked, kicked. */
+  way?: string
+  /** The creatures tapped to help pay for it. */
+  convoked?: string[]
   /** Set when this is a triggered ability rather than a spell. */
   ability?: {
     text: string
@@ -207,6 +223,10 @@ export interface Resolution {
   last: number
   /** A spell: its card goes to the graveyard when this is done. */
   spell: boolean
+  /** It was kicked, or its optional additional cost was paid. */
+  kicked?: boolean
+  /** The creatures that convoked it. */
+  convoked?: string[]
   /** Words left over for you to finish, when not all of it was understood. */
   leftover: string | null
 }
@@ -229,6 +249,8 @@ export type Decision =
   | { kind: 'discard'; count: number }
   /** "You may …" */
   | { kind: 'confirm'; prompt: string }
+  /** A spell that can be cast more than one way: which. */
+  | { kind: 'way'; iid: string; x: number; ways: { key: string; label: string }[] }
   /** Cards to pick for an effect — a target on the battlefield, a land in
    *  your library, a creature in your graveyard. */
   | {
@@ -327,9 +349,9 @@ export interface GameState {
   /** An ability being activated, while its cost waits on a choice — what to
    *  sacrifice. */
   paying: { iid: string; index: number; x?: number } | null
-  /** A spell being cast, while the game asks whether it is the one cast
-   *  without paying this turn. */
-  casting: { iid: string; x: number } | null
+  /** A spell being cast, while what is exiled from hand to pay for it is
+   *  chosen. */
+  casting: { iid: string; x: number; way: string } | null
   /** Additional beginning phases owed after this turn's second main phase,
    *  and whether the game is in one now. */
   extraBeginnings: number
@@ -359,9 +381,12 @@ export type Action =
   | { type: 'nextTurn' }
   /** Play from hand or the command zone — or from wherever else a card says
    *  it may be played. With the rules on a land is played and anything else
-   *  is cast; off, permanents go straight down. `free` says whether this is
-   *  the spell cast without paying, where one may be; unsaid, it is asked. */
-  | { type: 'play'; iid: string; x?: number; free?: boolean }
+   *  is cast; off, permanents go straight down. Where a spell could be cast
+   *  more than one way — evoked, kicked, without paying — the game asks. */
+  | { type: 'play'; iid: string; x?: number }
+  /** How to cast the spell that is asking: one of the ways offered, or null
+   *  to leave it where it is. */
+  | { type: 'cast'; way: string | null }
   /** Dropped on the mat at a particular spot. */
   | { type: 'place'; iid: string; at: Spot }
   /** Dropped on a pile, the hand or the library. */

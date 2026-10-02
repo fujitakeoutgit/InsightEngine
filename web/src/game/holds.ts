@@ -31,6 +31,8 @@ export function holds(state: GameState, r: Asking, test: Test): boolean {
     return state.cards.filter((c) => c.zone === 'exile' && c.exiledBy === r.source).length >= test.exiled
   }
   if ('party' in test) return partySize(state) >= test.party
+  // Of a spell as it resolves — or of the permanent it became.
+  if ('kicked' in test) return Boolean(r.kicked ?? find(state, r.source)?.kicked)
   if ('tally' in test) return state.tally[test.tally] >= test.atLeast
   if ('control' in test) return onBattlefield(state, test.control, r.source).length >= test.atLeast
   if ('graveyard' in test) {

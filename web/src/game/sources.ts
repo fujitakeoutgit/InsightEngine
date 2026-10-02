@@ -9,7 +9,10 @@
  */
 
 import { compile } from './compiler/compile'
+import type { Filter } from './compiler/ir'
+import { readFilter } from './compiler/read'
 import { isKind, sweeping } from './kinds'
+import { matches } from './match'
 import {
   COLORS, demand, parseCost, sourcePenalty, type Color, type ManaPool, type ManaSource, type ManaType,
 } from './mana'
@@ -28,6 +31,40 @@ export interface ManaAbility {
   /** A counter it puts on the permanent as it is tapped: "Add {U}. Put a
    *  time counter on ~." */
   rider?: string
+  /** "Spend this mana only to cast …": what it may pay for. */
+  only?: Restriction
+  /** "Remove X storage counters: Add X mana": the counters it spends, one
+   *  for each mana. `makes` is then everything it could give. */
+  storage?: string
+}
+
+/** What restricted mana may be spent on: spells like this, abilities of
+ *  permanents like that. Null where it may not be spent that way at all. */
+export interface Restriction { spell: Filter | null; ability: Filter | null }
+
+/** What mana is wanted for: a spell being cast, or an ability of a card. */
+export interface Purpose { spell?: Instance; ability?: Instance }
+
+/** "to cast a creature spell of the chosen type or activate an ability of a
+ *  creature source of the chosen type" → what that allows. Words this does
+ *  not know allow nothing, so the tapper never spends such mana wrongly. */
+function readRestriction(text: string): Restriction {
+  const m = /^to cast (?:an? )?(.+?) spells?( of the chosen type)?(?: or (?:to )?activate (?:an ability|abilities) of (?:an? )?(.+?)(?: sources?)?( of the chosen type)?)?$/i.exec(text.trim())
+  if (!m) return { spell: null, ability: null }
+  const kind = (phrase: string, chosen: string | undefined) => {
+    const filter = readFilter(phrase)
+    return filter && (chosen ? { ...filter, chosenType: true } : filter)
+  }
+  return { spell: kind(m[1], m[2]), ability: m[3] ? kind(m[3], m[4]) : null }
+}
+
+/** May this ability's mana be spent on that? */
+function allowed(ability: ManaAbility, source: Instance, purpose: Purpose, state: GameState): boolean {
+  if (!ability.only) return true
+  const { spell, ability: of } = ability.only
+  if (purpose.spell) return spell !== null && matches(purpose.spell, spell, source.iid, state)
+  if (purpose.ability) return of !== null && matches(purpose.ability, of, source.iid, state)
+  return false
 }
 
 const LAND_TYPES: [string, Color][] = [
@@ -167,8 +204,11 @@ export function manaAbilities(inst: Instance, state: GameState): ManaAbility[] {
     let taps = false
     let input = 0
     let usable = true
+    let storage: string | undefined
     for (const part of text.slice(0, colon).split(/,\s*/)) {
-      if (part === '{T}') taps = true
+      const stored = /^Remove X ([a-z]+) counters from /i.exec(part)
+      if (stored) storage = stored[1].toLowerCase()
+      else if (part === '{T}') taps = true
       else if (/^\{\d+\}$/.test(part)) input += Number(part.slice(1, -1))
       // A filter land's colored input. Counted as one mana of any kind,
       // which over-promises a little; it is only ever used when asked.
@@ -177,9 +217,23 @@ export function manaAbilities(inst: Instance, state: GameState): ManaAbility[] {
     }
     if (!taps || !usable) continue
 
+    const restricted = /\. Spend this mana only ([^.]+)\.?$/i.exec(text.slice(colon + 2))
+    const only = restricted ? { only: readRestriction(restricted[1]) } : {}
+    if (storage) {
+      // As much as there are counters to take off, each mana any of the
+      // colors it names.
+      const kinds = /^X mana in any combination of colors$/i.test(added[1])
+        ? identity(state)
+        : [...added[1].matchAll(SYMBOL)].map((m) => m[1] as ManaType)
+      const stored = inst.counters?.[storage] ?? 0
+      if (kinds.length && stored > 0) {
+        out.push({ makes: Array.from({ length: stored }, () => [...kinds]), input, text, storage, ...only })
+      }
+      continue
+    }
     const makes = readOutput(added[1], state, inst)
     const rider = /^Add [^.]+\. Put an? ([a-z]+) counter on [^.]+\.?$/i.exec(text.slice(colon + 2))
-    if (makes?.length) out.push({ makes, input, text, ...(rider ? { rider: rider[1].toLowerCase() } : {}) })
+    if (makes?.length) out.push({ makes, input, text, ...(rider ? { rider: rider[1].toLowerCase() } : {}), ...only })
   }
   return out.map((ability) => ({ ...ability, makes: [...ability.makes, ...additional(inst, state, ability.makes)] }))
 }
@@ -208,10 +262,24 @@ function additional(inst: Instance, state: GameState, makes: readonly ManaType[]
   return more
 }
 
+/** The permanent a payment's tap is of: stored counters are offered one at
+ *  a time, as `iid@1`, `iid@2`. */
+export const realId = (id: string) => id.split('@')[0]
+
 /** These permanents, tapped for mana: turned sideways, and with whatever
- *  else their mana ability does — a time counter on Trenzalore Clocktower. */
+ *  else their mana ability does — a time counter on Trenzalore Clocktower,
+ *  a storage counter off for each mana a storage land gave. */
 export function tapForPayment(state: GameState, ids: ReadonlySet<string>): Instance[] {
+  const spent = new Map<string, number>()
+  for (const id of ids) if (id.includes('@')) spent.set(realId(id), (spent.get(realId(id)) ?? 0) + 1)
   return state.cards.map((c) => {
+    const stored = spent.get(c.iid)
+    if (stored) {
+      const kind = manaAbilities(c, state).find((ability) => ability.storage)?.storage
+      return kind
+        ? { ...c, tapped: true, counters: { ...c.counters, [kind]: Math.max(0, (c.counters?.[kind] ?? 0) - stored) } }
+        : { ...c, tapped: true }
+    }
     if (!ids.has(c.iid)) return c
     const [rider] = manaAbilities(c, state).map((ability) => ability.rider).filter(Boolean)
     return {
@@ -220,6 +288,23 @@ export function tapForPayment(state: GameState, ids: ReadonlySet<string>): Insta
       ...(rider ? { counters: { ...c.counters, [rider]: (c.counters?.[rider] ?? 0) + 1 } } : {}),
     }
   })
+}
+
+/** The same sources, with counters stored on a land offered as well — one
+ *  source for each, so that only as many are spent as are needed — in place
+ *  of whatever else that land could have been tapped for. */
+export function withStorage(state: GameState, sources: readonly ManaSource[], purpose: Purpose): ManaSource[] {
+  let out = [...sources]
+  for (const inst of state.cards) {
+    if (!canTapForMana(inst, state)) continue
+    const stored = manaAbilities(inst, state).find((ability) => ability.storage && allowed(ability, inst, purpose, state))
+    if (!stored) continue
+    out = [
+      ...out.filter((source) => source.id !== inst.iid),
+      ...stored.makes.map((unit, i) => ({ id: `${inst.iid}@${i + 1}`, makes: [unit], penalty: 4 + i * 0.01 })),
+    ]
+  }
+  return out
 }
 
 /** Which of several kinds of mana to make, when nothing says: the one the
@@ -259,11 +344,14 @@ export function manaSources(
   state: GameState,
   wanted: Partial<ManaPool> = {},
   except: ReadonlySet<string> = new Set(),
+  purpose: Purpose = {},
 ): ManaSource[] {
   const out: ManaSource[] = []
   for (const inst of state.cards) {
     if (except.has(inst.iid) || !canTapForMana(inst, state)) continue
+    // Only what may be spent on this; stored counters are offered apart.
     const abilities = manaAbilities(inst, state)
+      .filter((ability) => !ability.storage && allowed(ability, inst, purpose, state))
     if (!abilities.length) continue
 
     const free = abilities.filter((a) => a.input === 0)

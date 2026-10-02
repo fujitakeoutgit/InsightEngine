@@ -41,7 +41,7 @@ describe('tokens that arrive attacking', () => {
   it('are made once for each card discarded this turn', () => {
     const laser = permanent('Living Laser', "Whenever Living Laser attacks, for each card you've discarded this turn, create a token that's a copy of Living Laser, except the token isn't legendary. The tokens enter tapped and attacking. Exile the tokens at the beginning of the next end step.", 'Legendary Creature — Elemental Villain', { power: '2', toughness: '2' })
     expect(compile(laser).coverage).toBe('auto')
-    const start = ruled([[laser, 'battlefield'], ...library], { tally: { drawn: 0, discarded: 2, died: 0, left: 0, binned: 0, gained: 0, lost: 0 } })
+    const start = ruled([[laser, 'battlefield'], ...library], { tally: { drawn: 0, discarded: 2, died: 0, left: 0, binned: 0, gained: 0, lost: 0, struck: 0 } })
     const done = run(attackWith(start, 'c0'), pass)
     expect(tokens(done)).toHaveLength(2)
     expect(done.attacking).toHaveLength(3)
@@ -105,9 +105,9 @@ describe('conniving more', () => {
     expect(at(done, 'c1').counters).toEqual({ '+1/+1': 3 })
   })
 
-  it('reads creatures that convoked a spell as none, convoke not being offered', () => {
+  it('reads convoke as a way to pay, and what convoked the spell as conniving', () => {
     const scheme = card('Lethal Scheme', 'Instant', { mana_cost: '{G}', oracle_text: 'Convoke\nDestroy target creature or planeswalker. Each creature that convoked Lethal Scheme connives.' })
-    expect(compile(scheme)).toMatchObject({ coverage: 'auto', skipped: ['Convoke'] })
+    expect(compile(scheme)).toMatchObject({ coverage: 'auto', skipped: [], statics: [{ kind: 'convoke' }] })
   })
 })
 

@@ -15,7 +15,7 @@ import type { ActivatedAbility } from './compiler/ir'
 import { autotap, demand, formatCost, parseCost } from './mana'
 import { onBattlefield } from './match'
 import { holds } from './holds'
-import { chooseKind, isCreature, manaSources, tapForPayment } from './sources'
+import { chooseKind, isCreature, manaSources, tapForPayment, withStorage } from './sources'
 import { find, inZone, mint, noted, relocate } from './state'
 import { hasKeyword, power, snapshot } from './stats'
 import { isMain } from './turn'
@@ -71,7 +71,18 @@ function payable(state: GameState, inst: Instance, ability: ActivatedAbility): I
 /** The sources its mana may come from: not itself, if it taps or goes. */
 function payers(state: GameState, inst: Instance, ability: ActivatedAbility) {
   const except = new Set(ability.cost.tap || ability.cost.sacrificeSelf ? [inst.iid] : [])
-  return manaSources(state, demand(inZone(state, 'hand').map((c) => parseCost(c.card.mana_cost))), except)
+  // Mana that may only be spent on abilities of a kind of permanent is for
+  // this one if it is that kind.
+  return manaSources(state, demand(inZone(state, 'hand').map((c) => parseCost(c.card.mana_cost))), except, { ability: inst })
+}
+
+/** How the mana for it would be paid: with what is at hand — and, failing
+ *  that, with counters stored on a land for the purpose. */
+function payFor(state: GameState, inst: Instance, ability: ActivatedAbility, x: number) {
+  const sources = payers(state, inst, ability)
+  const budget = { x, pool: state.pool, life: state.life }
+  const cost = parseCost(ability.cost.mana)
+  return autotap(cost, sources, budget) ?? autotap(cost, withStorage(state, sources, { ability: inst }), budget)
 }
 
 /** Why this ability cannot be activated now, or null if it can. */
@@ -114,7 +125,7 @@ export function activationProblem(state: GameState, iid: string, index: number, 
     return `Not enough power to crew it — it takes ${cost.crew}`
   }
   if (cost.sacrifice && !payable(state, inst, ability).length) return 'Nothing to sacrifice'
-  if (cost.mana && !autotap(parseCost(cost.mana), payers(state, inst, ability), { x, pool: state.pool, life: state.life })) {
+  if (cost.mana && !payFor(state, inst, ability, x)) {
     return `Not enough mana — it costs ${formatCost(parseCost(cost.mana))}`
   }
   return null
@@ -138,7 +149,7 @@ function complete(state: GameState, iid: string, index: number, picked: string[]
   }
 
   if (cost.mana) {
-    const paid = autotap(parseCost(cost.mana), payers(next, inst, ability), { x, pool: next.pool, life: next.life })
+    const paid = payFor(next, inst, ability, x)
     if (!paid) return state
     next = {
       ...next,

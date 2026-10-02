@@ -49,6 +49,7 @@ function answers(state: GameState, pick: (n: number) => number): Action[] {
     case 'attack': return [{ type: 'attack', iids: p.options }]
     case 'type': return [{ type: 'pickType', subtype: p.options[pick(Math.min(3, p.options.length))] }]
     case 'order': return [{ type: 'order', ids: p.ids }]
+    case 'way': return [{ type: 'cast', way: p.ways[pick(p.ways.length)].key }, { type: 'cast', way: null }]
     case 'mode': {
       const open = p.modes.map((_, i) => i)
         .filter((i) => (p.repeat ? (p.costs?.[i] ?? 0) <= (p.left ?? 0) : !p.taken.includes(i)))

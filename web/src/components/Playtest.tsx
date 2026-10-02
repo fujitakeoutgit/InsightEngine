@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom'
 
 import { abilitiesOf, activationProblem, costLabel, usedFrom } from '../game/activate'
 import {
-  checkCast, freeSource, isLand, landDrops, landProblem, manaOptions, manaProblem, playable, revealedTop,
+  castWays, checkCast, isLand, landDrops, landProblem, manaOptions, manaProblem, playable, playedFrom,
+  revealedTop,
 } from '../game/cast'
 import { eligibleAttackers, expectedDamage } from '../game/combat'
 import { compile } from '../game/compiler/compile'
@@ -287,9 +288,12 @@ export function Playtest({
   const elsewhere = useMemo(() => {
     const top = revealedTop(game)
     return [
-      ...cards.filter((c) => c.zone === 'exile' && c.mayPlay).map((c) => ({ inst: c, from: 'Exile' })),
-      // In the graveyard, with something to do from there.
-      ...cards.filter((c) => c.zone === 'graveyard' && abilitiesOf(c).some((a) => a.fromGraveyard))
+      ...cards.filter((c) => c.zone === 'exile' && c.mayPlay)
+        .map((c) => ({ inst: c, from: c.mayPlay?.sorcery ? 'Plotted' : 'Exile' })),
+      // In the graveyard, with something to do from there — or castable
+      // from there this turn, for its mayhem cost.
+      ...cards.filter((c) => c.zone === 'graveyard'
+        && (abilitiesOf(c).some((a) => a.fromGraveyard) || playedFrom(game, c) === 'graveyard'))
         .map((c) => ({ inst: c, from: 'Graveyard' })),
       // Suspended: not yet playable, and worth seeing count down.
       ...cards.filter((c) => c.zone === 'exile' && c.suspended)
@@ -302,7 +306,8 @@ export function Playtest({
     if (!previewing || !game.rules || !canPlay.has(previewing)) return new Set<string>()
     const inst = cards.find((c) => c.iid === previewing)
     if (!inst || isLand(inst.card)) return new Set<string>()
-    return new Set(checkCast(game, previewing).payment?.taps.map((t) => t.id) ?? [])
+    // A storage land's counters are taps of the land itself.
+    return new Set(checkCast(game, previewing).payment?.taps.map((t) => t.id.split('@')[0]) ?? [])
   }, [previewing, game, canPlay, cards])
 
   const setRules = (on: boolean) => {
@@ -591,10 +596,10 @@ export function Playtest({
       return
     }
     const check = checkCast(game, iid)
-    // It may still be the turn's free spell: the game asks, as it is cast.
-    const gratis = freeSource(game, inst) !== null && !checkCast(game, iid, 0, true).why
+    // Not for what it costs — but perhaps another way: evoked, for its
+    // mayhem cost, as the turn's free spell. The game asks which.
     if (check.why) {
-      if (gratis) dispatch({ type: 'play', iid })
+      if (castWays(game, inst).length) dispatch({ type: 'play', iid })
       else setHint(check.why)
       return
     }
@@ -769,7 +774,10 @@ export function Playtest({
               : { type: 'choose', iids: selected })}
             onAnswer={(yes) => dispatch({ type: 'confirm', yes })}
             onMode={(index) => dispatch({ type: 'mode', index })}
-            name={pending.kind === 'type' ? cards.find((c) => c.iid === pending.iid)?.card.name : undefined}
+            name={pending.kind === 'type' || pending.kind === 'way'
+              ? cards.find((c) => c.iid === pending.iid)?.card.name
+              : undefined}
+            onWay={(way) => dispatch({ type: 'cast', way })}
             onType={(subtype) => dispatch({ type: 'pickType', subtype })}
             firstDraw={game.firstDraw}
             onFirstDraw={(on) => { setFirstDraw(on); dispatch({ type: 'firstDraw', on }) }}
@@ -973,7 +981,9 @@ export function Playtest({
                 onHover={setPreviewing}
                 rules={game.rules}
                 tag={from}
-                onAbilities={from === 'Graveyard' ? setAbilitiesFor : undefined}
+                onAbilities={from === 'Graveyard' && abilitiesOf(inst).some((a) => a.fromGraveyard)
+                  ? setAbilitiesFor
+                  : undefined}
                 style={i === 0 && inZone.hand.length ? { marginLeft: 18 } : undefined}
               />
             ))}

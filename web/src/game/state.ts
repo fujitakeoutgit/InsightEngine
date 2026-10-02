@@ -9,7 +9,7 @@ import { shuffle } from './random'
 import type { GameEvent, GameState, Instance, Spot, Tally, Zone } from './types'
 
 export const emptyTally = (): Tally =>
-  ({ drawn: 0, discarded: 0, died: 0, left: 0, binned: 0, gained: 0, lost: 0 })
+  ({ drawn: 0, discarded: 0, died: 0, left: 0, binned: 0, gained: 0, lost: 0, struck: 0 })
 
 /** Note something for the abilities that watch for it. */
 export const happen = (state: GameState, event: GameEvent): GameState =>
@@ -64,12 +64,15 @@ export function relocate(
           sick: false, counters: undefined, damage: undefined, attachedTo: undefined,
           chosenType: undefined, chosenMode: undefined, fleeting: undefined, echo: undefined, frozen: undefined,
           card: c.original ?? c.was ?? c.card, original: undefined, was: undefined, revert: undefined,
-          revertBy: undefined,
+          revertBy: undefined, kicked: undefined,
         }
       : {}
     // What a card in exile was allowed, and by what, ends when it leaves.
     const moved = c.zone !== zone
-      ? { mayPlay: undefined, exiledBy: undefined, fell: undefined, suspended: undefined, paradigm: undefined }
+      ? {
+          mayPlay: undefined, exiledBy: undefined, fell: undefined, suspended: undefined, paradigm: undefined,
+          discarded: undefined,
+        }
       : {}
     return {
       ...c,

@@ -125,7 +125,54 @@ export function readActivated(
 
 /** Keywords that are activated abilities in shorthand: Equip, and cycling
  *  with its land-searching cousins. */
-export function readKeywordAbility(line: string, shown: string): ActivatedAbility | null {
+export function readKeywordAbility(line: string, shown: string, slow = true): ActivatedAbility | null {
+  const blank = { text: shown, oncePerTurn: false, fromHand: false, mana: null, complete: true }
+  const priced = /^(unearth|embalm|encore|plot) ((?:\{[^}]+\})+)$/.exec(line)
+  const mana = priced?.[2].toUpperCase() ?? null
+  // Unearth: back from the graveyard for a turn, with haste.
+  if (priced?.[1] === 'unearth') {
+    return {
+      ...blank, cost: { ...FREE, mana }, sorcery: true, fromGraveyard: true,
+      effects: [
+        { op: 'put', what: { kind: 'self' } },
+        { op: 'boost', to: { kind: 'self' }, power: 0, toughness: 0, keywords: ['Haste'] },
+        { op: 'fleeting', what: { kind: 'self' } },
+      ],
+    }
+  }
+  // Embalm: the card is exiled for a token of it — a white Zombie as well.
+  if (priced?.[1] === 'embalm') {
+    return {
+      ...blank, cost: { ...FREE, mana, exileSelf: true }, sorcery: true, fromGraveyard: true,
+      effects: [{
+        op: 'copy', of: { kind: 'self' }, count: 1, tapped: false, fleeting: false,
+        change: { types: ['Zombie'], colors: 'W', noCost: true },
+      }],
+    }
+  }
+  // Encore: a token of it for each opponent — one — hasty, and gone at the
+  // end step.
+  if (priced?.[1] === 'encore') {
+    return {
+      ...blank, cost: { ...FREE, mana, exileSelf: true }, sorcery: true, fromGraveyard: true,
+      effects: [{ op: 'copy', of: { kind: 'self' }, count: 1, tapped: false, fleeting: true, change: { keywords: ['Haste'] } }],
+    }
+  }
+  // Plot: paid for and exiled now, cast for nothing on a later turn.
+  if (priced?.[1] === 'plot') {
+    return {
+      ...blank, cost: { ...FREE, mana, exileSelf: true }, sorcery: true, fromHand: true,
+      effects: [{ op: 'mayPlay', who: { kind: 'self' }, until: 'exiled', free: true, plotted: true }],
+    }
+  }
+  // Suspend: exiled from hand with time counters, when it could be cast.
+  const suspend = /^suspend (\d+)—((?:\{[^}]+\})+)$/.exec(line)
+  if (suspend) {
+    return {
+      ...blank, cost: { ...FREE, mana: suspend[2].toUpperCase(), exileSelf: true }, sorcery: slow, fromHand: true,
+      effects: [{ op: 'counters', to: { kind: 'self' }, count: Number(suspend[1]), counter: 'time' }],
+    }
+  }
   const equip = /^equip(?: [a-z ]+?)? ((?:\{[^}]+\})+)$/.exec(line)
   if (equip) {
     return {

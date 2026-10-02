@@ -15,8 +15,9 @@
 import type { Card, DeckToken } from '../lib/api'
 import type { DeckCard } from '../lib/deckModel'
 import {
-  castSpell, checkCast, enterBattlefield, freeSource, isLand, isPermanentSpell, landProblem, playLand, tapForMana,
+  castSpell, castWays, enterBattlefield, isLand, isPermanentSpell, landProblem, pitchable, playLand, tapForMana,
 } from './cast'
+import { compile } from './compiler/compile'
 import { activate, paid } from './activate'
 import { declareAttackers } from './combat'
 import { fetchFinds } from './fetch'
@@ -132,6 +133,29 @@ function playLandOrCopy(state: GameState, iid: string, at?: Spot): GameState {
   return playLand(state, iid, at)
 }
 
+/** Cast a spell the way that was chosen. A cost paid in cards from hand
+ *  asks which, when there are more than it takes. */
+function beginCast(state: GameState, iid: string, x: number, way: string): GameState {
+  const inst = find(state, iid)
+  if (!inst || way !== 'pitch') return castSpell(state, iid, x, way)
+  const pitch = compile(inst.card).ways.find((other) => other.kind === 'pitch')
+  const options = pitchable(state, inst).map((c) => c.iid)
+  if (pitch?.kind !== 'pitch' || options.length < pitch.count) return state
+  if (options.length === pitch.count) return castSpell(state, iid, x, way, options)
+  return {
+    ...state,
+    casting: { iid, x, way },
+    pending: {
+      kind: 'pick',
+      zone: 'hand',
+      prompt: `${inst.card.name}: exile ${pitch.count} of these from your hand to cast it`,
+      options,
+      min: pitch.count,
+      max: pitch.count,
+    },
+  }
+}
+
 /** Crack a fetch: the land it found arrives (tapped, if the fetch said so),
  *  the fetch itself is sacrificed, and the library is shuffled. */
 function crack(state: GameState, iid: string, pick: string): GameState {
@@ -203,20 +227,25 @@ function apply(state: GameState, action: Action): GameState {
       const inst = find(state, action.iid)
       if (!inst || waiting) return state
       if (isLand(inst.card)) return playLandOrCopy(state, action.iid)
-      // One with the Multiverse: this could be the turn's free spell, and
-      // whether it is has not been said. Asked before anything is paid.
-      const allowing = action.free === undefined ? freeSource(state, inst) : null
-      if (allowing && !checkCast(state, action.iid, 0, true).why) {
-        return {
-          ...state,
-          casting: { iid: action.iid, x: action.x ?? 0 },
-          pending: {
-            kind: 'confirm',
-            prompt: `${allowing.card.name}: cast ${inst.card.name} without paying its mana cost?\nOnce each turn.`,
-          },
-        }
+      // Where it could be cast more than one way — evoked, kicked, without
+      // paying — which is asked before anything is paid. So is the one way
+      // there is, when that is not simply paying for it: nobody evokes a
+      // Mulldrifter by accident. From the graveyard there is only mayhem.
+      const ways = castWays(state, inst)
+      const plain = ways.length === 1 && (ways[0].key === 'normal' || ways[0].key === 'mayhem')
+      if (ways.length && !plain) {
+        return { ...state, pending: { kind: 'way', iid: action.iid, x: action.x ?? 0, ways } }
       }
-      return castSpell(state, action.iid, action.x ?? 0, action.free ?? false)
+      return beginCast(state, action.iid, action.x ?? 0, ways[0]?.key ?? 'normal')
+    }
+
+    case 'cast': {
+      const { pending } = state
+      if (pending?.kind !== 'way') return state
+      const asked: GameState = { ...state, pending: null }
+      // Left where it is.
+      if (action.way === null) return asked
+      return pending.ways.some((way) => way.key === action.way) ? beginCast(asked, pending.iid, pending.x, action.way) : state
     }
 
     case 'place': {
@@ -365,14 +394,7 @@ function apply(state: GameState, action: Action): GameState {
       return begin(noted(state, state.pending.taken ? 'Kept seven — the first mulligan is free' : 'Kept'))
     }
 
-    case 'confirm': {
-      const { casting } = state
-      if (!casting) return answer(state, action)
-      // For nothing, or paid for: either way it is cast now, if it can be.
-      const asked: GameState = { ...state, casting: null, pending: null }
-      return castSpell(asked, casting.iid, casting.x, action.yes)
-    }
-
+    case 'confirm':
     case 'arrange':
     case 'mode':
     case 'number':
@@ -411,6 +433,13 @@ function apply(state: GameState, action: Action): GameState {
       const { pending } = state
       // A pick that is a cost — what to sacrifice — rather than an effect.
       if (pending?.kind === 'pick' && state.paying) return paid(state, action.iids)
+      // …or what is exiled from hand to cast a spell.
+      if (pending?.kind === 'pick' && state.casting) {
+        const { casting } = state
+        const cleared: GameState = { ...state, pending: null, casting: null }
+        const cast = castSpell(cleared, casting.iid, casting.x, casting.way, action.iids)
+        return cast === cleared ? state : cast
+      }
       if (pending?.kind === 'pick') return answer(state, action)
       if (pending?.kind !== 'bottom' && pending?.kind !== 'discard') return state
       const picked = [...new Set(action.iids)]

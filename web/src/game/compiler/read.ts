@@ -108,6 +108,9 @@ export function readTest(phrase: string, who: Speaking = NOBODY): Test | null {
     return atLeast !== null && filter ? { control: { ...filter, controller: 'you' }, atLeast } : null
   }
   if (/^you have a full party$/.test(p)) return { party: 4 }
+  // The spell was cast with the cost that is asked about.
+  if (/^(?:~|it|this spell) was kicked$/.test(p) || /^(?:~|this spell)'s additional cost was paid$/.test(p)
+    || /^an? [a-z]+(?: creature)? was beheld$/.test(p)) return { kicked: true }
   const exiled = /^(\w+) or more cards have been exiled with ~$/.exec(p)
   if (exiled) {
     const n = readNumber(exiled[1])

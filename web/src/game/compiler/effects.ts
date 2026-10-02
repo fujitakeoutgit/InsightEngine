@@ -90,6 +90,9 @@ function withX(effect: Effect, n: Count): Effect {
       return { ...effect, power: change(effect.power), toughness: change(effect.toughness) }
     case 'connive':
       return effect.count === undefined ? effect : { ...effect, count: swap(effect.count) }
+    // One outcome or the other: X is the same in both.
+    case 'if':
+      return { ...effect, then: effect.then.map((e) => withX(e, n)), otherwise: effect.otherwise.map((e) => withX(e, n)) }
     default:
       return effect
   }
@@ -361,8 +364,7 @@ const PATTERNS: Pattern[] = [
     const count = readCount(m[2])
     return count === null ? null : onPermanents(m[1], (who) => [{ op: 'connive', who, count }])
   }],
-  // Convoke is not offered, so nothing convoked it.
-  [/^each creature that convoked ~ connives$/, () => []],
+  [/^each creature that convoked ~ connives$/, () => [{ op: 'conniveEach' }]],
   [/^(.+?) connives?$/, (m) => onPermanents(m[1], (who) => [{ op: 'connive', who }])],
   [/^have (it|~|that creature) connive$/, (m) => onPermanents(m[1], (who) => [{ op: 'connive', who }])],
   [/^double the number of ([+-]\d\/[+-]\d|[a-z]+) counters on ~$/, (m) => (
@@ -864,11 +866,18 @@ function readDig(howMany: string, tail: string): Effect[] | null {
   if (count === null) return null
   let take: Extract<Effect, { op: 'dig' }> | null = null
   let rest: 'bottom' | 'graveyard' | 'top' | null = null
+  /** How many are taken instead, of a spell that was kicked. */
+  let kicked: number | null = null
   const blank = { op: 'dig' as const, count, tapped: false, rest: 'top' as const }
 
   for (const part of tail.split('; ')) {
-    // Kicker is not offered: the unkicked half is what happens.
-    if (/^if ~ was kicked, .+ instead$/.test(part)) continue
+    // "If ~ was kicked, put two of those cards into your hand instead."
+    const more = /^if ~ was kicked, put (\w+) of (?:them|those cards) (?:into your hand|onto the battlefield) instead$/.exec(part)
+    if (more) {
+      kicked = readNumber(more[1])
+      if (kicked === null) return null
+      continue
+    }
     // Call to the Kindred: "if you do, you may put …, then you put the rest
     // of those cards on the bottom". The looking was what was optional.
     const said = part.replace(/^if you do, /, '')
@@ -906,7 +915,11 @@ function readDig(howMany: string, tail: string): Effect[] | null {
       if (!rest) return null
     } else return null
   }
-  return take && rest ? [{ ...take, rest }] : null
+  if (!take || !rest) return null
+  const dig = { ...take, rest }
+  return kicked === null
+    ? [dig]
+    : [{ op: 'if', test: { kicked: true }, then: [{ ...dig, takeCount: kicked }], otherwise: [dig] }]
 }
 
 /** "Look at the top card of your library. If it's a land card, you may put
@@ -1055,8 +1068,6 @@ export function readAbility(
     // Suspend given by the effect that exiled it: the counters are the
     // whole of it here.
     if (/^if it doesn't have suspend, it gains suspend$/.test(s)) continue
-    // An additional cost that is not offered was not paid.
-    if (/^if (?:~|this spell)'s additional cost was paid, /.test(s)) continue
     // An emblem carries its words as printed, to be read when it exists.
     const emblem = /^you get an emblem with "(.+?)\.?"(?: and "(.+?)\.?")?$/i.exec(sentence.trim())
     if (emblem) {

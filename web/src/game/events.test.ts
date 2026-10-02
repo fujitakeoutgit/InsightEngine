@@ -45,7 +45,7 @@ describe('drawing', () => {
   })
 
   it('starts counting again each turn', () => {
-    const start = ruled([...library], { step: 'cleanup', tally: { drawn: 5, discarded: 0, died: 0, left: 0, binned: 0, gained: 0, lost: 0 } })
+    const start = ruled([...library], { step: 'cleanup', tally: { drawn: 5, discarded: 0, died: 0, left: 0, binned: 0, gained: 0, lost: 0, struck: 0 } })
     const next = run(start, pass)
     // The new turn's draw step, and nothing before it.
     expect(next.tally.drawn).toBe(1)

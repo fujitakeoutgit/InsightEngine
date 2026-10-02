@@ -16,7 +16,7 @@ import { FREE, readActivated, readKeywordAbility } from './activated'
 import { readAbility, sentences } from './effects'
 import type {
   Ability, ActivatedAbility, Aim, Compiled, Coverage, Effect, Filter, Static, Test, TriggerEvent,
-  TriggeredAbility,
+  TriggeredAbility, Way,
 } from './ir'
 import { readFilter, readNumber, readTest } from './read'
 import { isInert, readCostLess, readStatic } from './statics'
@@ -40,6 +40,8 @@ const isKeywordLine = (line: string) => line.split(/,\s*/).every((part) => (
 /** "{T}: Add …", "{1}, {T}: Add …" — read by `sources.ts` when tapped. */
 const isManaAbility = (line: string) =>
   /^(\{[^}]+\}(, )?)+(, pay \d+ life)?: add\b/.test(line)
+  // A storage land's: counters taken off for that much mana.
+  || /^\{t\}, remove x [a-z]+ counters from ~: add x mana in any combination of (colors|\{[wubrg]\} and\/or \{[wubrg]\})\b/.test(line)
   || /^\{t\}: for each color among permanents you control, add\b/.test(line)
 
 /** A fetch land's search, which the table cracks when it is tapped. */
@@ -253,6 +255,28 @@ const NOT_OFFERED = [
   /^as an additional cost to cast (?:~|this spell), you may /,
 ]
 
+/** A way to cast the card other than for what it costs: evoke, kicker,
+ *  mayhem, a cost paid in cards. Null for a line that is not one, or is one
+ *  in a form this does not carry out — which `NOT_OFFERED` then sets aside. */
+function readWay(line: string, printed: string): Way | null {
+  const priced = /^(evoke|kicker|freerunning|mayhem|overload) ((?:\{[^}]+\})+)$/.exec(line)
+  if (priced) {
+    return { kind: priced[1] as 'evoke' | 'kicker' | 'freerunning' | 'mayhem' | 'overload', cost: priced[2].toUpperCase() }
+  }
+  const pitch = /^you may exile (\w+) (.+?) cards from your hand rather than pay (?:~'s|this spell's) mana cost\.?$/.exec(line)
+  if (pitch) {
+    const count = readNumber(pitch[1])
+    const filter = readFilter(pitch[2])
+    return count !== null && filter ? { kind: 'pitch', filter, count, text: printed.replace(/\.$/, '') } : null
+  }
+  const behold = /^as an additional cost to cast (?:~|this spell), you may (behold an? (.+?))\.?$/.exec(line)
+  if (behold) {
+    const filter = readFilter(behold[2])
+    return filter && { kind: 'behold', filter, text: behold[1][0].toUpperCase() + behold[1].slice(1) }
+  }
+  return null
+}
+
 /** A Class's "{2}{G}: Level 2". */
 const LEVEL = /^(?:\{[^}]+\})+: level \d+$/
 
@@ -303,6 +327,9 @@ export function compile(card: Card): Compiled {
 
   const lines = normalize(card, text)
   const isSpell = /\b(Instant|Sorcery)\b/.test(card.type_line ?? '')
+  /** It may be cast whenever an instant could. */
+  const fast = /\bInstant\b/.test(card.type_line ?? '') || (card.keywords ?? []).some((k) => k.toLowerCase() === 'flash')
+  const ways: Way[] = []
 
   const triggers: TriggeredAbility[] = []
   const activated: ActivatedAbility[] = []
@@ -318,6 +345,8 @@ export function compile(card: Card): Compiled {
   let reached: { triggers: number; activated: number; statics: number; unread: number } | null = null
   /** A Saga's last chapter. */
   let sagaLast = 0
+  /** The overload line as printed, in case it has to be set aside. */
+  let overloadLine = ''
   /** The lines that belong to one side of a Siege, and which. */
   const sideAt = new Map<number, string>()
 
@@ -368,6 +397,35 @@ export function compile(card: Card): Compiled {
     const lower = line.toLowerCase().replace(/^[a-z' ]+ — (?=(when|whenever|at) )/, '')
 
     if (isKeywordLine(lower) || isManaAbility(lower) || isLandEntry(lower) || isFetch(lower) || isInert(lower)) {
+      grades.push(1)
+      continue
+    }
+    // Another way to cast it, offered as it is cast.
+    const way = readWay(lower, printed)
+    if (way) {
+      ways.push(way)
+      if (way.kind === 'overload') overloadLine = printed
+      grades.push(1)
+      continue
+    }
+    if (lower === 'convoke') {
+      statics.push({ kind: 'convoke' })
+      grades.push(1)
+      continue
+    }
+    // "Affinity for Slivers": one less for each you control.
+    const affinity = /^affinity for (.+)$/.exec(lower)
+    const counted = affinity && readFilter(affinity[1])
+    if (counted) {
+      statics.push({ kind: 'selfCostLess', amount: 1, per: { ...counted, controller: 'you' } })
+      grades.push(1)
+      continue
+    }
+    // Keywords that are abilities in shorthand — of a card in hand or in the
+    // graveyard as much as of a permanent: unearth, plot, suspend, cycling.
+    const keyworded = readKeywordAbility(lower, line, !fast)
+    if (keyworded) {
+      activated.push(keyworded)
       grades.push(1)
       continue
     }
@@ -631,6 +689,19 @@ export function compile(card: Card): Compiled {
   }
 
   if (sagaLast) statics.push({ kind: 'saga', last: sagaLast })
+  // A clone that is embalmed: the token is a copy of what the card would
+  // have entered as a copy of, a Zombie as well.
+  const clone = statics.find((fixed) => fixed.kind === 'enterAsCopy')
+  if (clone?.kind === 'enterAsCopy') {
+    for (const ability of activated) {
+      const [made] = ability.effects
+      if (!/^embalm\b/i.test(ability.text) || made?.op !== 'copy') continue
+      ability.effects = [
+        { op: 'choose', filter: clone.filter, count: 1, upTo: true },
+        { ...made, of: { kind: 'chosen' }, change: { ...clone.change, ...made.change, types: [...(clone.change.types ?? []), 'Zombie'] } },
+      ]
+    }
+  }
   if (reached) {
     triggers.length = reached.triggers
     activated.length = reached.activated
@@ -646,12 +717,29 @@ export function compile(card: Card): Compiled {
       }
     : null
 
+  // Overload: the same words with "each" for "target", if they read that
+  // way too. If they do not, it is one more way that is not offered.
+  let overloaded: Ability | undefined
+  const overload = ways.findIndex((way) => way.kind === 'overload')
+  if (overload >= 0) {
+    const each = isSpell ? spellParts.map((part) => readAbility(part.text.replace(/\btarget\b/gi, 'each'))) : []
+    if (spell && each.length && each.every((part) => part.complete)) {
+      overloaded = { text: spell.text.replace(/\btarget\b/gi, 'each'), effects: each.flatMap((part) => part.effects), complete: true }
+    } else {
+      ways.splice(overload, 1)
+      skipped.push(overloadLine)
+    }
+  }
+
   const total = grades.reduce((a, b) => a + b, 0)
   const coverage: Coverage = !grades.length || total === grades.length
     ? 'auto'
     : total === 0 ? 'manual' : 'partial'
 
-  const compiled: Compiled = { spell, triggers, activated, enchant, statics, unread, skipped, coverage }
+  const compiled: Compiled = {
+    spell, triggers, activated, enchant, statics, unread, ways, skipped, coverage,
+    ...(overloaded ? { overloaded } : {}),
+  }
   cache.set(key, compiled)
   return compiled
 }

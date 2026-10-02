@@ -161,8 +161,8 @@ describe('playing from the top of the library', () => {
     expect(zone(landed, 'c1')).toBe('battlefield')
     // The next card is the top now: asked whether it is the turn's free one.
     const asked = reduce(landed, cast('c2'))
-    expect(asked.pending).toMatchObject({ kind: 'confirm' })
-    const paid = run(asked, no)
+    expect(asked.pending).toMatchObject({ kind: 'way', iid: 'c2', ways: [{ key: 'normal' }, { key: 'free' }] })
+    const paid = run(asked, { type: 'cast', way: 'normal' })
     expect(zone(paid, 'c2')).toBe('stack')
     expect(at(paid, 'c1').tapped).toBe(true)
   })
@@ -170,7 +170,7 @@ describe('playing from the top of the library', () => {
   it('casts one spell a turn for nothing', () => {
     const start = ruled([[multiverse, 'battlefield'], [giant, 'hand'], [BEARS, 'hand'], ...library])
     expect(playable(start).has('c1')).toBe(true)
-    const free = run(start, cast('c1'), yes)
+    const free = run(start, cast('c1'), { type: 'cast', way: 'free' })
     expect(zone(free, 'c1')).toBe('stack')
     // That was the one: the next is paid for, and there is nothing to pay with.
     const after = run(free, pass)

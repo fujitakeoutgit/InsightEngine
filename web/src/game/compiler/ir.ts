@@ -125,6 +125,9 @@ export type TallyKey =
   /** Life gained, and lost. */
   | 'gained'
   | 'lost'
+  /** Times an Assassin or a commander of yours dealt combat damage to a
+   *  player: what freerunning asks after. */
+  | 'struck'
 
 /** A change to power or toughness: a plain number, or an amount worked out
  *  as the effect happens — "-X/-X, where X is the sacrificed creature's
@@ -156,6 +159,8 @@ export type Aim =
   | { kind: 'others'; filter: Filter }
   /** The cards the source has exiled: "a card exiled with ~". */
   | { kind: 'exiled' }
+  /** One card, by its id: worked out as the effect before it happened. */
+  | { kind: 'one'; iid: string }
 
 /** How a copy differs from what it copies: "except it's a Spirit in addition
  *  to its other types and it isn't legendary". */
@@ -181,6 +186,10 @@ export interface CopyChange {
   keepAbility?: boolean
   /** "Except his name is ~": it keeps the name it had. */
   keepName?: boolean
+  /** Color letters it is instead: an embalmed token is white. */
+  colors?: string
+  /** "…has no mana cost." */
+  noCost?: boolean
   /** "…and he's a legendary Human Mercenary Villain creature": its type
    *  line, whatever the copied card's was. */
   typeLine?: string
@@ -215,6 +224,9 @@ export type Test =
   | { exiled: number }
   /** "If you have a full party": this many creatures in it. */
   | { party: number }
+  /** "If ~ was kicked", "if its additional cost was paid", "if a Dragon was
+   *  beheld": the spell was cast with the cost that is asked about. */
+  | { kicked: true }
 
 /** A limit on a pick, by what the picked add up to. */
 export interface Budget { stat: 'power' | 'toughness'; max: number }
@@ -290,7 +302,11 @@ export type Effect = (
   /** Cards in exile that you may play, for a while: this turn, through the
    *  end of your next, or for as long as they stay there — `free`, without
    *  paying their mana costs. */
-  | { op: 'mayPlay'; who: Aim; until: 'end' | 'nextEnd' | 'exiled'; free?: boolean }
+  | {
+    op: 'mayPlay'; who: Aim; until: 'end' | 'nextEnd' | 'exiled'; free?: boolean
+    /** Plotted: not this turn, and only when a sorcery could be cast. */
+    plotted?: boolean
+  }
   /** "You may cast a spell from your hand without paying its mana cost" —
    *  or any number, from among the cards just exiled; what is not cast is
    *  what stays chosen. */
@@ -369,6 +385,10 @@ export type Effect = (
    *  +1/+1 counter on the creature that connived. "Connives X" is that many
    *  of each. */
   | { op: 'connive'; who: Aim; count?: Count }
+  /** "Each creature that convoked ~ connives": one after another. */
+  | { op: 'conniveEach' }
+  /** "Exile it at the beginning of the next end step": marked to go then. */
+  | { op: 'fleeting'; what: Aim }
   /** One more of each kind of counter already there, on everything of yours
    *  that has any — and a poison counter for an opponent who has one. */
   | { op: 'proliferate' }
@@ -425,7 +445,7 @@ export type Effect = (
   | { op: 'fromHand'; filter: Filter; count: number; upTo: boolean; tapped: boolean }
   /** Move permanents: destroy, exile, return to hand, sacrifice. `only`
    *  those still in one place: "exile that card from your graveyard". */
-  | { op: 'move'; what: Aim; to: 'graveyard' | 'exile' | 'hand'; only?: 'graveyard' }
+  | { op: 'move'; what: Aim; to: 'graveyard' | 'exile' | 'hand'; only?: 'graveyard' | 'battlefield' }
   /** Return cards from your graveyard: ones you pick, or — `all` — every
    *  one that matches. `until` is for those that go back into exile:
    *  "exile those creatures at the beginning of your next upkeep". */
@@ -685,6 +705,8 @@ export type Static =
   /** Paradigm: exiled as it resolves, to be cast again as a copy at the
    *  beginning of each first main phase. */
   | { kind: 'paradigm' }
+  /** Convoke: your creatures can help pay for it. */
+  | { kind: 'convoke' }
   /** "Nonland cards in your hand have miracle {0}": the first card you
    *  draw each turn may be cast for nothing, if it is not a land. */
   | { kind: 'miracle' }
@@ -754,6 +776,26 @@ export interface ActivatedAbility extends Ability {
   mana: ManaType[][] | null
 }
 
+/** A way to cast a card other than paying what is printed in its corner. */
+export type Way =
+  /** Evoke: this cost instead, and it is sacrificed when it enters. */
+  | { kind: 'evoke'; cost: string }
+  /** Kicker: this as well, and the spell "was kicked". */
+  | { kind: 'kicker'; cost: string }
+  /** Freerunning: this cost instead, on a turn an Assassin or a commander of
+   *  yours has dealt combat damage to a player. */
+  | { kind: 'freerunning'; cost: string }
+  /** Mayhem: from your graveyard for this cost, the turn it was discarded. */
+  | { kind: 'mayhem'; cost: string }
+  /** Overload: this cost instead, and "each" where the spell says "target". */
+  | { kind: 'overload'; cost: string }
+  /** "You may exile two green cards from your hand rather than pay ~'s mana
+   *  cost." */
+  | { kind: 'pitch'; filter: Filter; count: number; text: string }
+  /** "As an additional cost, you may behold a Dragon": one you control, or
+   *  one in your hand shown. What the spell does may ask whether you did. */
+  | { kind: 'behold'; filter: Filter; text: string }
+
 /** How much of a card the engine carries out for you. */
 export type Coverage = 'auto' | 'partial' | 'manual'
 
@@ -767,8 +809,13 @@ export interface Compiled {
   statics: Static[]
   /** Lines nothing reads yet, as printed. */
   unread: string[]
-  /** Ways to cast or use the card that the table does not offer — evoke,
-   *  kicker, an alternative cost. The card plays as printed without them. */
+  /** Other ways to cast it, offered as it is cast. */
+  ways: Way[]
+  /** What the spell does when overloaded: its text with "each" for
+   *  "target", compiled the same way. */
+  overloaded?: Ability
+  /** Ways to cast or use the card that the table does not offer — mutate,
+   *  overload, flashback. The card plays as printed without them. */
   skipped: string[]
   coverage: Coverage
 }

@@ -15,10 +15,14 @@ import { isCreatureType } from './compiler/subtypes'
 import { holds } from './holds'
 import { forSource, isKind, sweeping } from './kinds'
 import { matches, onBattlefield } from './match'
-import { autotap, demand, formatCost, parseCost, type Cost, type ManaType, type Payment } from './mana'
+import {
+  autotap, demand, formatCost, parseCost, type Cost, type ManaSource, type ManaType, type Payment,
+} from './mana'
 import { seatFor } from './seat'
 import { partySize } from './party'
-import { canTapForMana, hasKeyword, isCreature, manaAbilities, manaSources, tapForPayment } from './sources'
+import {
+  canTapForMana, hasKeyword, isCreature, manaAbilities, manaSources, realId, tapForPayment, withStorage,
+} from './sources'
 import { find, inZone, mint, noted, relocate } from './state'
 import { isMain } from './turn'
 import type { GameState, Instance, Spot } from './types'
@@ -133,10 +137,18 @@ function topPlay(state: GameState, inst: Instance): boolean {
 /** Where a card would be played from, if it may be played from where it is:
  *  your hand, the command zone for a commander, exile for a card you were
  *  told you may play, the top of your library when a permanent allows it. */
-export function playedFrom(state: GameState, inst: Instance): 'hand' | 'command' | 'exile' | 'top' | null {
+export function playedFrom(
+  state: GameState, inst: Instance,
+): 'hand' | 'command' | 'exile' | 'top' | 'graveyard' | null {
   if (inst.zone === 'hand') return 'hand'
   if (inst.zone === 'command') return inst.commander ? 'command' : null
   if (inst.zone === 'exile') return inst.mayPlay ? 'exile' : null
+  // Mayhem: from the graveyard, the turn it was discarded.
+  if (inst.zone === 'graveyard') {
+    return state.rules && inst.discarded === state.turn && compile(inst.card).ways.some((way) => way.kind === 'mayhem')
+      ? 'graveyard'
+      : null
+  }
   return inst.zone === 'library' && topPlay(state, inst) ? 'top' : null
 }
 
@@ -194,8 +206,8 @@ export function playLand(state: GameState, iid: string, at?: Spot): GameState {
 
 /** The cost as it is paid: the printed cost, plus two for each time a
  *  commander has already been cast from the command zone (CR 903.8). */
-export function costOf(state: GameState, inst: Instance): Cost {
-  const cost = parseCost(manaCostOf(inst.card))
+export function costOf(state: GameState, inst: Instance, base: string | null = manaCostOf(inst.card)): Cost {
+  const cost = parseCost(base)
   const tax = inst.commander && inst.zone === 'command' ? 2 * (state.casts[inst.iid] ?? 0) : 0
   const less = discount(state, inst)
   // Morophon takes off colored mana: one pip of each color it names, where
@@ -263,55 +275,223 @@ export interface CastCheck {
   payment: Payment | null
 }
 
-/** `free` asks after casting it without paying its mana cost, as the turn's
- *  one spell that something on the battlefield allows that of. A card in
- *  exile that may be played for nothing always is. */
-export function checkCast(state: GameState, iid: string, x = 0, free = false): CastCheck {
+/** Cards in hand that could be exiled to pay for this one. */
+export function pitchable(state: GameState, inst: Instance): Instance[] {
+  const pitch = compile(inst.card).ways.find((way) => way.kind === 'pitch')
+  return pitch?.kind === 'pitch'
+    ? inZone(state, 'hand').filter((c) => c.iid !== inst.iid && matches(c, pitch.filter, inst.iid))
+    : []
+}
+
+/** Creatures that could be tapped to help pay for a spell with convoke: any
+ *  untapped one of yours, summoning sick or not. Each pays for one mana of
+ *  its colors, or for {1}. */
+function convokers(state: GameState, eager: boolean): ManaSource[] {
+  return inZone(state, 'battlefield')
+    .filter((c) => isCreature(c) && !c.tapped)
+    .map((c) => {
+      const colors = [...(c.card.colors ?? '')].filter((k): k is ManaType => 'WUBRG'.includes(k))
+      // Lands first, unless asked to tap creatures first.
+      return { id: c.iid, makes: [colors.length ? colors : ['C' as ManaType]], penalty: eager ? 0.2 : 6 }
+    })
+}
+
+/** What casting it this way takes, before anything is paid: the mana, and
+ *  why not, if the way is not open. */
+function wayOf(state: GameState, inst: Instance, way: string): { cost: Cost; why?: string; gratis?: boolean } {
+  const zero = parseCost(null)
+  const from = playedFrom(state, inst)
+  const ways = compile(inst.card).ways
+  const printed = inst.mayPlay?.free ? null : manaCostOf(inst.card)
+  const closed = (why: string) => ({ cost: zero, why })
+  const priced = (kind: 'evoke' | 'kicker' | 'freerunning' | 'mayhem' | 'overload') => {
+    const found = ways.find((other) => other.kind === kind)
+    return found && 'cost' in found ? found.cost : null
+  }
+  switch (way) {
+    case 'normal':
+      if (from === 'graveyard') return closed('From the graveyard it is cast for its mayhem cost')
+      return { cost: costOf(state, inst, printed), gratis: Boolean(inst.mayPlay?.free) }
+    case 'free':
+      return freeSource(state, inst) ? { cost: zero, gratis: true } : closed('Nothing lets it be cast without paying')
+    case 'evoke': {
+      const cost = priced('evoke')
+      return cost && from !== 'graveyard' ? { cost: costOf(state, inst, cost) } : closed('It has no evoke cost')
+    }
+    case 'overload': {
+      const cost = priced('overload')
+      return cost && from !== 'graveyard' ? { cost: costOf(state, inst, cost) } : closed('It has no overload cost')
+    }
+    case 'kicked': {
+      const cost = priced('kicker')
+      return cost && from !== 'graveyard' ? { cost: costOf(state, inst, `${printed ?? ''}${cost}`) } : closed('It has no kicker')
+    }
+    case 'freerunning': {
+      const cost = priced('freerunning')
+      if (!cost || from === 'graveyard') return closed('It has no freerunning cost')
+      return state.tally.struck > 0
+        ? { cost: costOf(state, inst, cost) }
+        : closed('No Assassin or commander of yours has dealt combat damage to a player this turn')
+    }
+    case 'mayhem': {
+      const cost = priced('mayhem')
+      return cost && from === 'graveyard' ? { cost: costOf(state, inst, cost) } : closed('Mayhem is for a card discarded this turn')
+    }
+    case 'pitch': {
+      const pitch = ways.find((other) => other.kind === 'pitch')
+      if (pitch?.kind !== 'pitch' || from === 'graveyard') return closed('It has no other cost')
+      return pitchable(state, inst).length >= pitch.count
+        ? { cost: zero, gratis: true }
+        : closed('Not enough cards in hand to exile for it')
+    }
+    case 'behold': {
+      const behold = ways.find((other) => other.kind === 'behold')
+      if (behold?.kind !== 'behold' || from === 'graveyard') return closed('It has nothing to behold')
+      const shown = onBattlefield(state, { ...behold.filter, controller: 'you' }, inst.iid).length > 0
+        || inZone(state, 'hand').some((c) => c.iid !== inst.iid && matches(c, behold.filter, inst.iid))
+      return shown ? { cost: costOf(state, inst, printed) } : closed('Nothing to behold')
+    }
+    case 'convoke':
+      if (!compile(inst.card).statics.some((fixed) => fixed.kind === 'convoke')) return closed('It does not have convoke')
+      if (from === 'graveyard') return closed('From the graveyard it is cast for its mayhem cost')
+      return convokers(state, true).length ? { cost: costOf(state, inst, printed) } : closed('No creature to tap for it')
+    default:
+      return closed('There is no such way to cast it')
+  }
+}
+
+/** Whether it can be cast now, `way` being how: for what it costs, or one of
+ *  the other ways the card or the board allows — evoked, kicked, without
+ *  paying. A card in exile that may be played for nothing always is. */
+export function checkCast(state: GameState, iid: string, x = 0, way = 'normal'): CastCheck {
   const inst = find(state, iid)
-  const gratis = Boolean(inst && (free || inst.mayPlay?.free))
-  const cost = !inst || gratis ? parseCost(null) : costOf(state, inst)
+  const how = inst ? wayOf(state, inst, way) : { cost: parseCost(null) }
+  const { cost } = how
   const fail = (why: string): CastCheck => ({ why, cost, payment: null })
   if (!inst) return fail('That card is not here')
   if (state.pending) return fail('Finish the choice in front of you first')
   if (!playedFrom(state, inst)) return fail('Only a card in your hand can be cast')
   if (isLand(inst.card)) return fail('Lands are played, not cast')
-  const fast = /\bInstant\b/.test(inst.card.type_line ?? '') || hasKeyword(inst, 'Flash')
+  if (inst.mayPlay?.after !== undefined && state.turn <= inst.mayPlay.after) {
+    return fail('Plotted this turn — it can be cast on a later one')
+  }
+  // A plotted card is cast as a sorcery, whatever it is.
+  const fast = !inst.mayPlay?.sorcery && (/\bInstant\b/.test(inst.card.type_line ?? '') || hasKeyword(inst, 'Flash'))
   if (!fast && !isMain(state.step)) return fail('Sorcery speed — only in a main phase')
   if (!fast && state.stack.length) return fail('Sorcery speed — wait for the stack to resolve')
-  if (free && !inst.mayPlay?.free && !freeSource(state, inst)) return fail('Nothing lets it be cast without paying')
-  if (gratis) return { cost, payment: { taps: [], life: 0, pool: state.pool } }
+  if (how.why) return fail(how.why)
+  if (how.gratis) return { cost, payment: { taps: [], life: 0, pool: state.pool } }
 
-  const payment = autotap(cost, manaSources(state, wantedBy(state, iid)), {
-    x, pool: state.pool, life: state.life,
-  })
+  const wanted = wantedBy(state, iid)
+  const sources = manaSources(state, wanted, undefined, { spell: inst })
+  const helping = compile(inst.card).statics.some((fixed) => fixed.kind === 'convoke')
+    ? convokers(state, way === 'convoke')
+    : []
+  // A creature that could also be tapped for mana is one or the other: when
+  // creatures are to go first it convokes, otherwise it is left a source.
+  const paying = way === 'convoke'
+    ? [...sources.filter((source) => !helping.some((c) => c.id === source.id)), ...helping]
+    : [...sources, ...helping.filter((c) => !sources.some((source) => source.id === c.id))]
+  const budget = { x, pool: state.pool, life: state.life }
+  // Counters stored on a land are spent only when nothing else will do.
+  const payment = autotap(cost, paying, budget)
+    ?? autotap(cost, withStorage(state, paying, { spell: inst }), budget)
   if (!payment) return fail(`Not enough mana — it costs ${formatCost(cost)}`)
   return { cost, payment }
 }
 
-/** Cast a spell: pay for it — or, `free`, do not — and put it on the stack. */
-export function castSpell(state: GameState, iid: string, asked = 0, free = false): GameState {
+/** A way a spell could be cast right now, in words for the question. */
+export interface CastWay { key: string; label: string }
+
+/** Every way this card could be cast as things stand. One of them, usually:
+ *  for what it costs. */
+export function castWays(state: GameState, inst: Instance): CastWay[] {
+  const compiled = compile(inst.card)
+  const named = (kind: string) => compiled.ways.find((way) => way.kind === kind)
+  const offered: [string, boolean][] = [
+    ['normal', true],
+    ['free', freeSource(state, inst) !== null],
+    ['evoke', Boolean(named('evoke'))],
+    ['overload', Boolean(named('overload'))],
+    ['kicked', Boolean(named('kicker'))],
+    ['freerunning', Boolean(named('freerunning'))],
+    ['mayhem', Boolean(named('mayhem'))],
+    ['pitch', Boolean(named('pitch'))],
+    ['behold', Boolean(named('behold'))],
+    ['convoke', compiled.statics.some((fixed) => fixed.kind === 'convoke')],
+  ]
+  const out: CastWay[] = []
+  for (const [key, has] of offered) {
+    if (!has) continue
+    const check = checkCast(state, inst.iid, 0, key)
+    if (check.why) continue
+    const price = formatCost(check.cost)
+    const pitch = named('pitch')
+    const behold = named('behold')
+    const source = freeSource(state, inst)
+    out.push({
+      key,
+      label: key === 'normal' ? (inst.mayPlay?.free ? 'Cast it' : `Pay ${price}`)
+        : key === 'free' ? `Without paying — ${source?.card.name ?? ''}, once each turn`
+          : key === 'evoke' ? `Evoke ${price} — it is sacrificed when it enters`
+          : key === 'overload' ? `Overload ${price} — each, where it says target`
+            : key === 'kicked' ? `Kicked — ${price}`
+              : key === 'freerunning' ? `Freerunning ${price}`
+                : key === 'mayhem' ? `Mayhem ${price}`
+                  : key === 'pitch' && pitch?.kind === 'pitch' ? pitch.text.split('~').join(inst.card.name)
+                    : key === 'behold' && behold?.kind === 'behold' ? `${behold.text} — ${price}`
+                      : `Convoke — tap creatures first for ${price}`,
+    })
+  }
+  return out
+}
+
+/** Cast a spell: pay for it, the way it is being cast, and put it on the
+ *  stack. `pitched` is what is exiled from hand where that is the cost. */
+export function castSpell(
+  state: GameState, iid: string, asked = 0, way = 'normal', pitched: readonly string[] = [],
+): GameState {
   const inst = find(state, iid)
-  const gratis = Boolean(inst && (free || inst.mayPlay?.free))
+  const gratis = Boolean(inst && wayOf(state, inst, way).gratis)
   // With no mana cost paid, X is nothing (CR 107.3b).
   const x = gratis ? 0 : asked
-  const check = checkCast(state, iid, x, free)
+  const check = checkCast(state, iid, x, way)
   if (!inst || check.why || !check.payment) return state
   const { payment } = check
   // The turn's one free spell is spent on this.
-  const allowing = free && !inst.mayPlay?.free ? freeSource(state, inst) : null
+  const allowing = way === 'free' ? freeSource(state, inst) : null
+  if (way === 'pitch') {
+    const pitch = compile(inst.card).ways.find((other) => other.kind === 'pitch')
+    const able = new Set(pitchable(state, inst).map((c) => c.iid))
+    if (pitch?.kind !== 'pitch' || pitched.length !== pitch.count || new Set(pitched).size !== pitch.count
+      || !pitched.every((id) => able.has(id))) return state
+  }
 
   const tapping = new Set(payment.taps.map((t) => t.id))
-  const cards = relocate(tapForPayment(state, tapping), iid, 'stack')
+  // The creatures among them that are not sources of mana helped by convoke.
+  const lending = compile(inst.card).statics.some((fixed) => fixed.kind === 'convoke')
+    ? new Set(convokers(state, true).map((c) => c.id))
+    : new Set<string>()
+  const sources = new Set(way === 'convoke' ? [] : manaSources(state, {}, undefined, { spell: inst }).map((source) => source.id))
+  const convoked = payment.taps.map((t) => t.id).filter((id) => lending.has(id) && !sources.has(id))
+  let paid = tapForPayment(state, tapping)
+  for (const gone of way === 'pitch' ? pitched : []) paid = relocate(paid, gone, 'exile')
+  const cards = relocate(paid, iid, 'stack')
   const [id, minted] = mint({ ...state, cards }, 's')
   const casts = inst.zone === 'command'
     ? { ...state.casts, [iid]: (state.casts[iid] ?? 0) + 1 }
     : state.casts
 
-  const tapped = payment.taps.map((t) => find(state, t.id)?.card.name ?? '?')
+  const tapped = [...new Set(payment.taps.map((t) => realId(t.id)))].map((tap) => find(state, tap)?.card.name ?? '?')
   const from = playedFrom(state, inst)
-  const line = `Cast ${inst.card.name}${x ? ` (X = ${x})` : ''}${
-    from === 'exile' ? ' from exile' : from === 'top' ? ' from the top of your library' : ''}${
-    gratis ? ' without paying its mana cost' : ''}${
+  const how = way === 'evoke' ? ' for its evoke cost' : way === 'kicked' ? ', kicked' : way === 'overload' ? ', overloaded'
+    : way === 'freerunning' ? ' for its freerunning cost' : way === 'mayhem' ? ' for its mayhem cost'
+      : way === 'behold' ? ', beholding' : ''
+  const line = `Cast ${inst.card.name}${x ? ` (X = ${x})` : ''}${how}${
+    from === 'exile' ? ' from exile' : from === 'top' ? ' from the top of your library'
+      : from === 'graveyard' ? ' from the graveyard' : ''}${
+    way === 'pitch' ? ` — exiled ${listOf(pitched.map((gone) => find(state, gone)?.card.name ?? '?'))} from hand`
+      : gratis ? ' without paying its mana cost' : ''}${
     tapped.length ? ` — tapped ${listOf(tapped)}` : ''}${
     payment.life ? `, paid ${payment.life} life` : ''}`
   return noted({
@@ -320,7 +500,11 @@ export function castSpell(state: GameState, iid: string, asked = 0, free = false
     life: state.life - payment.life,
     casts,
     triggered: allowing ? [...minted.triggered, `free:${allowing.iid}`] : minted.triggered,
-    stack: [...state.stack, { id, iid, x }],
+    stack: [...state.stack, {
+      id, iid, x,
+      ...(way === 'normal' || way === 'convoke' ? {} : { way }),
+      ...(convoked.length ? { convoked } : {}),
+    }],
   }, line)
 }
 
@@ -330,6 +514,8 @@ export function manaOptions(state: GameState, iid: string) {
   if (!inst) return []
   const out: { ability: number; kinds: ManaType[] }[] = []
   manaAbilities(inst, state).forEach((ability, index) => {
+    // Counters stored up are spent by the tapper, as a spell needs them.
+    if (ability.storage) return
     // Every combination of a kind for each mana it makes. Two mana of five
     // colors is the most any card asks, so this stays small.
     let combos: ManaType[][] = [[]]
@@ -364,7 +550,7 @@ export function tapForMana(state: GameState, iid: string, ability = 0, kinds: Ma
   if (manaProblem(state, iid)) return state
   const inst = find(state, iid)!
   const chosen = manaAbilities(inst, state)[ability]
-  if (!chosen) return state
+  if (!chosen || chosen.storage) return state
   const made = chosen.makes.map((options, i) => (options.includes(kinds[i]) ? kinds[i] : options[0]))
 
   let next = state
@@ -384,7 +570,10 @@ export function tapForMana(state: GameState, iid: string, ability = 0, kinds: Ma
       ? { ...c, tapped: true, ...(rider ? { counters: { ...c.counters, [rider]: (c.counters?.[rider] ?? 0) + 1 } } : {}) }
       : c
   ))
-  return noted({ ...next, pool, cards }, `Tapped ${inst.card.name} for ${made.map((k) => `{${k}}`).join('')}`)
+  // Mana in the pool is just mana: what it may be spent on is yours to
+  // keep to, when it was tapped by hand.
+  return noted({ ...next, pool, cards }, `Tapped ${inst.card.name} for ${made.map((k) => `{${k}}`).join('')}${
+    chosen.only ? ' — to be spent only as the card says' : ''}`)
 }
 
 /** Everything in hand — and a commander at home, a card in exile you may
@@ -397,9 +586,7 @@ export function playable(state: GameState): Set<string> {
   for (const inst of state.cards) {
     // Of the library, only its top card could be.
     if (inst.zone === 'library' ? inst !== top : !playedFrom(state, inst)) continue
-    const ok = isLand(inst.card)
-      ? !landProblem(state, inst.iid)
-      : !checkCast(state, inst.iid).why || (freeSource(state, inst) !== null && !checkCast(state, inst.iid, 0, true).why)
+    const ok = isLand(inst.card) ? !landProblem(state, inst.iid) : castWays(state, inst).length > 0
     if (ok) out.add(inst.iid)
   }
   return out
