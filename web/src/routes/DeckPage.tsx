@@ -908,6 +908,9 @@ export function DeckPage({ binder }: { binder?: boolean } = {}) {
       <Playtest
         deck={deckCards}
         deckName={savedName}
+        // The tokens the deck makes, from its analysis — their pictures, and
+        // Tutor's list of them. Left out, every token on the mat was a blank.
+        tokens={report?.stats?.tokens ?? []}
         gameKey={viewKey}
         onClose={() => setPlaying(false)}
       />
