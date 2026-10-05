@@ -75,6 +75,15 @@ const SORTS: [SortBy, string][] = [
  * anything: groups are derived from the cards themselves, so you cannot drag a
  * creature into the land group, but you can move it to the sideboard.
  */
+/** What a drop here does, as the drag itself allows. A card from the
+ *  recommendations or a results grid is offered as a copy, a deck row or a
+ *  search result as a move — and naming the other one makes the browser
+ *  refuse the drop without a word, which is how dragging a recommendation
+ *  into the deck silently did nothing. */
+function dropEffectFor(event: React.DragEvent): 'copy' | 'move' {
+  return event.dataTransfer.effectAllowed === 'copy' ? 'copy' : 'move'
+}
+
 export function DeckEditor({
   cards,
   onChange,
@@ -524,7 +533,7 @@ export function DeckEditor({
               // it rather than only onto the section as a whole.
               onDragOver={(e) => {
                 e.preventDefault()
-                e.dataTransfer.dropEffect = 'move'
+                e.dataTransfer.dropEffect = dropEffectFor(e)
                 if (dropTarget !== key) {
                   setDropTarget(key)
                   window.clearTimeout(springTimer.current)
@@ -569,7 +578,7 @@ export function DeckEditor({
               className={`deck-section ${dropTarget === key ? 'drop' : ''}`}
               onDragOver={(e) => {
                 e.preventDefault()
-                e.dataTransfer.dropEffect = 'move'
+                e.dataTransfer.dropEffect = dropEffectFor(e)
                 setDropTarget(key)
               }}
               onDragLeave={() => setDropTarget((t) => (t === key ? null : t))}
