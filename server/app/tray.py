@@ -40,6 +40,33 @@ _running = threading.Event()
 #: The live icon, for status updates.
 _icon: Any = None
 
+#: Whether the icon's event loop has to own the main thread.
+#:
+#: On Windows pystray is happy on a worker thread, which is how the launcher
+#: keeps the server on the main one. AppKit is not: the status item has to be
+#: created, run and updated from the main thread, and a run loop started
+#: anywhere else either does nothing or takes the process down. On a Mac the
+#: arrangement is turned around -- the icon keeps the main thread and the
+#: server goes to a worker -- and this is what the launcher asks to decide.
+MAIN_THREAD = sys.platform == "darwin"
+
+
+def _on_main(fn: Callable[[], None]) -> None:
+    """Run `fn` on the thread that owns the icon.
+
+    A no-op indirection everywhere but a Mac, where a status item touched from
+    the server's thread is an AppKit call off the main thread.
+    """
+    if MAIN_THREAD:
+        try:
+            from PyObjCTools import AppHelper
+
+            AppHelper.callAfter(fn)
+            return
+        except Exception:  # noqa: BLE001 - fall through and try it directly
+            pass
+    fn()
+
 
 def alert(title: str, message: str) -> None:
     """A message box, for a failure with no console to print it to.
@@ -47,6 +74,24 @@ def alert(title: str, message: str) -> None:
     The packaged build is windowed, so a fatal error that only printed would
     be a process that appeared to do nothing at all.
     """
+    if sys.platform == "darwin":
+        # osascript rather than an NSAlert: this is called from the server's
+        # thread, and an alert has to be run from the main one, which the icon
+        # is busy holding. A separate process has no such constraint.
+        def quoted(text: str) -> str:
+            return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+        try:
+            subprocess.run(
+                [
+                    "osascript", "-e",
+                    f"display alert {quoted(title)} message {quoted(message)} as critical",
+                ],
+                check=False,
+            )
+        except Exception:  # noqa: BLE001 - the failure is already the message
+            pass
+        return
     if not sys.platform.startswith("win"):
         return
     try:
@@ -58,19 +103,23 @@ def alert(title: str, message: str) -> None:
 def set_status(text: str) -> None:
     """What the icon says on hover. The only progress a windowed build has."""
     icon = _icon
-    if icon is not None:
+    if icon is None:
+        return
+
+    def update() -> None:
         try:
             icon.title = f"Insight Engine - {text}" if text else "Insight Engine"
         except Exception:  # noqa: BLE001 - a stale tooltip is not worth raising
             pass
 
+    _on_main(update)
+
 
 def _open_folder(path: Path) -> None:
-    """Show a folder in Explorer, creating it if the first run has not yet.
+    """Show a folder in Explorer or Finder, creating it if the first run has not yet.
 
-    `os.startfile` is Windows-only and the fallbacks are there so this module
-    can be imported and reasoned about on a machine that is not — not because
-    a packaged build runs anywhere else.
+    `os.startfile` is Windows-only; `open` is the Mac build's way of doing the
+    same, and xdg-open lets the module be exercised on Linux.
     """
     path.mkdir(parents=True, exist_ok=True)
     try:
@@ -174,9 +223,29 @@ def start(url: str, on_quit: Callable[[], None], status: str = "") -> bool:
 
     global _icon
     _icon = icon
-    thread = threading.Thread(target=icon.run, name="tray", daemon=True)
-    thread.start()
+    if not MAIN_THREAD:
+        thread = threading.Thread(target=icon.run, name="tray", daemon=True)
+        thread.start()
     _running.set()
     if status:
         set_status(status)
     return True
+
+
+def run() -> None:
+    """Hand the main thread to the icon, where the platform demands it.
+
+    Returns when the icon is stopped -- by Quit, or by `stop()` from the
+    server's thread. Does nothing where the icon already has its own thread.
+    """
+    icon = _icon
+    if MAIN_THREAD and icon is not None:
+        icon.run()
+
+
+def stop() -> None:
+    """Take the icon down, so a main thread parked in `run()` comes back."""
+    icon = _icon
+    if icon is not None:
+        _running.clear()
+        _on_main(icon.stop)

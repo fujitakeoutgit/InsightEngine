@@ -12,7 +12,7 @@ plus a local-LLM semantic search that is structurally incapable of inventing a c
 
 ## Install
 
-Download the latest `InsightEngine-Setup.exe` from
+On Windows, download the latest `InsightEngine-Setup.exe` from
 [Releases](https://github.com/fujitakeoutgit/InsightEngine/releases) and run it.
 
 **That is the whole requirement.** Python and the web interface are inside the
@@ -30,6 +30,25 @@ builds reputation: **More info → Run anyway**.
 > deckbuilding, the binder, playtest and simulation all work without it.
 
 *Building from source instead? See [Setup](#setup).*
+
+### On a Mac
+
+Download the `.dmg` for your Mac from the same release —
+`InsightEngine-…-macOS-AppleSilicon.dmg` for M1 and later, or
+`InsightEngine-…-macOS-Intel.dmg` for an Intel Mac (Apple menu → About This
+Mac says which) — open it, and drag **Insight Engine** onto **Applications**.
+
+It is a menu-bar app: the icon appears by the clock, with no Dock icon and no
+window of its own. Click it and choose **Open** to bring up the app in your
+browser. Card data and decks live in `~/Library/Application Support/InsightEngine`.
+
+The app is not notarized by Apple, so the first launch is refused. Open
+**System Settings → Privacy & Security**, scroll down, and click **Open Anyway**
+beside Insight Engine. That is needed once.
+
+On a Mac with Apple silicon, the [local model](#the-local-model) runs on the
+GPU out of the Mac's own memory, so read the VRAM table below as total memory,
+leaving room for everything else you have open.
 
 ---
 

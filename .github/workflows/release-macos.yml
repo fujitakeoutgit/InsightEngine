@@ -1,0 +1,158 @@
+# Builds the Mac disk images and attaches them to a GitHub release.
+#
+# The Windows Setup.exe is built by hand on Windows (packaging/build-release.ps1)
+# and uploaded with the release. A Mac build needs a Mac, which is the one
+# thing a hosted runner has that the development machine does not -- so this
+# half of a release is done here, on one runner per architecture.
+#
+# When it runs:
+#   - a release is published: build from that tag and attach to it;
+#   - by hand (Actions -> Mac release -> Run workflow), naming a tag, to add
+#     or replace the Mac downloads on an existing release;
+#   - the Mac packaging itself changes on a push: rebuild and replace the
+#     downloads on the latest release, so a fix to the Mac build reaches the
+#     release that people are actually downloading.
+
+name: Mac release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to attach the Mac builds to (e.g. v2.14.2). Empty for the latest release.
+        required: false
+  push:
+    paths:
+      - .github/workflows/release-macos.yml
+      - packaging/build-macos.sh
+      - packaging/insight-engine-macos.spec
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mac-release-${{ github.event.release.tag_name || inputs.tag || 'latest' }}
+  cancel-in-progress: false
+
+jobs:
+  target:
+    name: Pick the release
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.pick.outputs.tag }}
+      version: ${{ steps.pick.outputs.version }}
+      # What to build. A published release builds its own tag; a hand-run or a
+      # push builds the commit it was started from, which is where any fix to
+      # the Mac packaging lives.
+      ref: ${{ steps.pick.outputs.ref }}
+    steps:
+      - id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "${EVENT_TAG}" ]; then
+            tag="${EVENT_TAG}"; ref="${EVENT_TAG}"
+          else
+            tag="${INPUT_TAG}"
+            if [ -z "${tag}" ]; then
+              tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)"
+            fi
+            ref="${GITHUB_SHA}"
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "ref=${ref}" >> "$GITHUB_OUTPUT"
+          echo "Building ${ref} for release ${tag}"
+
+  build:
+    name: Build (${{ matrix.label }})
+    needs: target
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            label: Apple silicon
+          - runner: macos-15-intel
+            label: Intel
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.target.outputs.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build the app and disk image
+        run: packaging/build-macos.sh "${{ needs.target.outputs.version }}"
+
+      # Start the frozen app the way Finder would and wait for it to answer.
+      # A build that freezes cleanly can still die on launch -- a missing
+      # hidden import, a data file that did not make it into the bundle -- and
+      # nobody would find out until a download failed to open.
+      - name: Smoke test the app
+        run: |
+          set -u
+          "dist/Insight Engine.app/Contents/MacOS/InsightEngine" &
+          pid=$!
+          for _ in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:8787/api/health; then
+              echo; echo "The app answered."
+              kill "$pid" 2>/dev/null || true
+              exit 0
+            fi
+            if ! kill -0 "$pid" 2>/dev/null; then
+              echo "The app exited before it answered."
+              break
+            fi
+            sleep 2
+          done
+          echo "--- log ---"
+          cat "$HOME/Library/Application Support/InsightEngine/insight-engine.log" || true
+          kill "$pid" 2>/dev/null || true
+          exit 1
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ needs.target.outputs.tag }}" release/*.dmg --clobber --repo "$GITHUB_REPOSITORY"
+
+  notes:
+    name: Add Mac install notes
+    needs: [target, build]
+    runs-on: ubuntu-latest
+    steps:
+      # Appended once. A rebuild replaces the downloads but finds the notes
+      # already there, so re-running does not stack copies of this section.
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.target.outputs.tag }}
+          VERSION: ${{ needs.target.outputs.version }}
+        run: |
+          set -euo pipefail
+          body="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body -q .body)"
+          if printf '%s' "$body" | grep -q 'Install on a Mac'; then
+            echo "Mac notes already present."
+            exit 0
+          fi
+          cat > notes.md <<EOF
+          ${body}
+
+          **Install on a Mac:** download \`InsightEngine-${VERSION}-macOS-AppleSilicon.dmg\` (M1 and later) or \`InsightEngine-${VERSION}-macOS-Intel.dmg\`, open it, and drag **Insight Engine** onto **Applications**. It runs from the menu bar, by the clock — there is no Dock icon.
+
+          It is not notarized, so the first time macOS will refuse to open it: open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** beside Insight Engine.
+          EOF
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file notes.md

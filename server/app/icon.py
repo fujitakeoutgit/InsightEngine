@@ -83,8 +83,24 @@ def write_ico(dest: Path, stops: tuple = SPECTRUM) -> Path:
     return dest
 
 
+def write_icns(dest: Path, stops: tuple = SPECTRUM) -> Path:
+    """Write the Mac application icon.
+
+    One 1024px render: unlike .ico, Pillow builds the smaller ICNS members
+    from it itself, and Finder draws an app icon large enough that the shrunk
+    edge is never the one on show. The menu-bar icon is drawn separately by
+    the tray at the size the status bar asks for.
+    """
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    make_icon(stops, size=1024).save(dest, format="ICNS")
+    return dest
+
+
 if __name__ == "__main__":
     import sys
 
     target = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("insight-engine.ico")
-    print(f"wrote {write_ico(target)}")
+    # The suffix picks the format, so the Windows and Mac builds share one
+    # command line.
+    writer = write_icns if target.suffix.lower() == ".icns" else write_ico
+    print(f"wrote {writer(target)}")

@@ -35,9 +35,15 @@ def _default_data_dir() -> Path:
     read-only to a normal user, and a 200MB mirror does not belong in it
     anyway. LOCALAPPDATA is the Windows answer for per-user application data
     that is not worth roaming.
+
+    On a Mac the bundle is signed and replaced whole on every update, so
+    nothing can be written inside it either; Application Support is the
+    equivalent of LOCALAPPDATA there.
     """
     if not FROZEN:
         return PROJECT_ROOT / "data"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "InsightEngine"
     base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
     return Path(base) / "InsightEngine"
 

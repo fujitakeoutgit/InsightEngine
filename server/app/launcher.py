@@ -357,6 +357,44 @@ def main() -> int:
         status="starting",
     )
 
+    if tray.MAIN_THREAD and opened_tray:
+        return _serve_beside_tray(server, url)
+    return _serve(server, url, opened_tray)
+
+
+def _serve_beside_tray(server: "uvicorn.Server", url: str) -> int:
+    """Serve from a worker thread while the icon holds the main one.
+
+    The Mac arrangement. AppKit will only run the status item's event loop on
+    the main thread, so everything `_serve` does -- the first-run download
+    included -- moves to a worker, and the main thread waits in the icon.
+
+    Either side ending ends the other: Quit stops the icon and tells the
+    server to exit, and a server that stops or never starts takes the icon
+    down, so a failed launch does not leave an icon for an app that is not
+    there.
+    """
+    result = [1]
+
+    def work() -> None:
+        try:
+            result[0] = _serve(server, url, True)
+        finally:
+            tray.stop()
+
+    # A daemon, and joined with a limit: Quit during a first-run download
+    # should end the process, not wait out the download. An interrupted ingest
+    # is already something the next launch resumes from.
+    worker = threading.Thread(target=work, name="server", daemon=True)
+    worker.start()
+    tray.run()
+    server.should_exit = True
+    worker.join(timeout=10)
+    return result[0]
+
+
+def _serve(server: "uvicorn.Server", url: str, opened_tray: bool) -> int:
+    """Make sure there are cards, then serve until Quit. Returns the exit code."""
     if not _mirror_present():
         tray.set_status("downloading card data - this happens once")
     if not ensure_mirror():
@@ -374,6 +412,12 @@ def main() -> int:
 
     if not opened_tray:
         _say("  No tray icon; opening a browser instead.")
+
+    # Quit pressed during a first-run download. Starting the server now would
+    # only have it stop again -- or, if the process is already exiting, report
+    # a port conflict that never happened.
+    if server.should_exit:
+        return 0
 
     server.run()
 

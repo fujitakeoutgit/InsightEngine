@@ -13,3 +13,5 @@
 *.jpg binary
 *.svg binary
 *.sqlite3 binary
+*.sh   text eol=lf
+*.yml  text eol=lf
